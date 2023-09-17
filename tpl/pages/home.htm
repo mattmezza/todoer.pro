@@ -1,4 +1,4 @@
-{% extends "pages/page.htm" %}
+{% if not request.headers["hx-request"] %}{% extends "pages/page.htm" %}{% endif %}
 {% block content %}
 Home
 {% endblock %}
