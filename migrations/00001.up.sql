@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS todo_list(
+    uuid UUID PRIMARY KEY,
+    title TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS todo(
+    uuid UUID PRIMARY KEY,
+    done INTEGER NOT NULL DEFAULT 0,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    todo_list UUID REFERENCES todo_list(uuid) ON UPDATE CASCADE ON DELETE CASCADE
+);
+INSERT INTO todo_list (uuid, title) VALUES ('63fcdb46-c9db-4c6b-98b6-e169fbc500ef', 'A title');
