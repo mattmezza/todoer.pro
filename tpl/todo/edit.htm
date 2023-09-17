@@ -1,0 +1,7 @@
+<li class="" hx-target="this" hx-swap="outerHTML">
+    <form class="flex flex-row space-x-2 items-center" hx-put="/todos/{{ uuid }}">
+        <input type="text" class="bg-transparent placeholder:italic outline-none ml-4" name="content" placeholder="Todo..." value="{{ content }}" autofocus >
+        <input type="hidden" name="done" {% if done %}value="on"{% endif %} />
+    </form>
+</li>
+
