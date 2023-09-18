@@ -2,7 +2,7 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from databases import Database
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -11,16 +11,19 @@ from app.dependencies import get_db, get_tpl
 router = APIRouter()
 
 
-@router.get("/new")
-async def new(
+@router.delete("/{uuid}", response_class=HTMLResponse)
+async def list_del(
     req: Request,
+    res: Response,
+    uuid: str,
     db: Database = Depends(get_db),
-    tpl: Jinja2Templates = Depends(get_tpl),
 ):
-    return tpl.TemplateResponse(
-        "lists/new.htm",
-        {"request": req},
+    await db.execute(
+        "DELETE FROM todo_list WHERE uuid = :uuid",
+        {"uuid": uuid},
     )
+    res.headers["HX-Trigger"] = "lists-delete"
+    return ""
 
 
 @router.get("/{uuid}", response_class=HTMLResponse)
@@ -55,7 +58,7 @@ async def todo_list_view(
 
 
 @router.post("/{uuid}/todo", response_class=HTMLResponse)
-async def todo_list_add_todo(
+async def lists_add_todo(
     req: Request,
     uuid: UUID,
     content: Annotated[str, Form()],
@@ -69,4 +72,21 @@ async def todo_list_add_todo(
     return tpl.TemplateResponse(
         "todo/view.htm",
         {"request": req, **todo._mapping},
+    )
+
+
+@router.post("/", response_class=HTMLResponse)
+async def lists_add(
+    req: Request,
+    title: Annotated[str, Form()],
+    db: Database = Depends(get_db),
+    tpl: Jinja2Templates = Depends(get_tpl),
+):
+    li = await db.fetch_one(
+        "INSERT INTO todo_list (uuid, title) VALUES (:uuid, :title) RETURNING *",
+        {"uuid": str(uuid4()), "title": title},
+    )
+    return tpl.TemplateResponse(
+        "nav/add.htm",
+        {"request": req, **li._mapping},
     )

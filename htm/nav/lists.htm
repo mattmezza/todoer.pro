@@ -1,0 +1,8 @@
+<div class="space-y-1">
+    {% for l in lists %}
+    <a hx-get="/lists/{{ l.uuid }}" hx-target="#main" hx-push-url="true" class="flex flex-row space-x-4 px-2 py-1 cursor-pointer transition-all active:scale-95 hover:bg-gray-50/10 rounded items-center">
+        <span>🚀</span>
+        <span>{{ l.title }}</span>
+    </a>
+    {% endfor %}
+</div>

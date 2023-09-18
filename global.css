@@ -1,3 +1,13 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+
+.btn {
+    @apply transition-all active:scale-95 rounded;
+}
+
+
+.field {
+    @apply rounded bg-slate-950 outline-none;
+}

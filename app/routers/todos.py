@@ -17,13 +17,38 @@ async def new():
 
 
 @router.get("/{uuid}", response_class=HTMLResponse)
-async def todo_list_view(
+async def todo_view(
     req: Request,
     uuid: str,
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     return ""
+
+
+@router.get("/{uuid}/detail", response_class=HTMLResponse)
+async def todo_detail_view(
+    req: Request,
+    uuid: UUID,
+    db: Database = Depends(get_db),
+    tpl: Jinja2Templates = Depends(get_tpl),
+):
+    todo = await db.fetch_one(
+        "SELECT * FROM todo WHERE uuid = :uuid", {"uuid": str(uuid)}
+    )
+    todos = await db.fetch_all(
+        """
+        SELECT * FROM todo WHERE todo_list = :uuid
+        ORDER BY created_at DESC
+    """,
+        {"uuid": todo.todo_list},
+    )
+    todo_tpl = tpl.get_template("todo/view.htm")
+    html = {"todos": [todo_tpl.render(**todo._mapping) for todo in todos]}
+    return tpl.TemplateResponse(
+        "todo/detail.htm",
+        {"request": req, **todo, "html": html},
+    )
 
 
 @router.get("/{uuid}/edit", response_class=HTMLResponse)

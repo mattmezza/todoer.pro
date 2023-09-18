@@ -16,7 +16,7 @@ async def lifespan(app: FastAPI):
     await db.disconnect()
 
 
-tpl = Jinja2Templates(directory="tpl")
+tpl = Jinja2Templates(directory="htm")
 
 
 def get_tpl():
