@@ -1,15 +1,21 @@
-CREATE TABLE IF NOT EXISTS todo_list(
+BEGIN;
+CREATE TABLE IF NOT EXISTS lists(
     uuid UUID PRIMARY KEY,
-    title TEXT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    color VARCHAR(6) NOT NULL DEFAULT 'FF0000',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP
 );
-CREATE TABLE IF NOT EXISTS todo(
+CREATE INDEX IF NOT EXISTS lists_title ON lists(title);
+CREATE TABLE IF NOT EXISTS todos(
     uuid UUID PRIMARY KEY,
     done INTEGER NOT NULL DEFAULT 0,
-    content TEXT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    descr TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
-    todo_list UUID REFERENCES todo_list(uuid) ON UPDATE CASCADE ON DELETE CASCADE
+    list_id UUID REFERENCES lists(uuid) ON UPDATE CASCADE ON DELETE CASCADE
 );
-INSERT INTO todo_list (uuid, title) VALUES ('63fcdb46-c9db-4c6b-98b6-e169fbc500ef', 'A title');
+CREATE INDEX IF NOT EXISTS todos_list_id ON todos(list_id);
+INSERT INTO lists (uuid, title, color) VALUES ('63fcdb46-c9db-4c6b-98b6-e169fbc500ef', 'A title', '#ff0000');
+COMMIT;

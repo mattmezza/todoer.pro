@@ -12,14 +12,14 @@ router = APIRouter()
 
 
 @router.delete("/{uuid}", response_class=HTMLResponse)
-async def list_del(
+async def delete(
     req: Request,
     res: Response,
     uuid: str,
     db: Database = Depends(get_db),
 ):
     await db.execute(
-        "DELETE FROM todo_list WHERE uuid = :uuid",
+        "DELETE FROM lists WHERE uuid = :uuid",
         {"uuid": uuid},
     )
     res.headers["HX-Trigger"] = "lists-delete"
@@ -27,20 +27,20 @@ async def list_del(
 
 
 @router.get("/{uuid}", response_class=HTMLResponse)
-async def todo_list_view(
+async def view(
     req: Request,
     uuid: str,
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     todo_list = await db.fetch_one(
-        "SELECT * FROM todo_list WHERE uuid = :uuid",
+        "SELECT * FROM lists WHERE uuid = :uuid",
         {"uuid": uuid},
     )
     todos = await db.fetch_all(
         """
-        SELECT * FROM todo WHERE todo_list = :uuid
-        ORDER BY created_at DESC
+        SELECT * FROM todos WHERE list_id = :uuid
+        ORDER BY created_at ASC
     """,
         {"uuid": uuid},
     )
@@ -58,16 +58,22 @@ async def todo_list_view(
 
 
 @router.post("/{uuid}/todo", response_class=HTMLResponse)
-async def lists_add_todo(
+async def add_todo(
     req: Request,
     uuid: UUID,
-    content: Annotated[str, Form()],
+    title: Annotated[str, Form()],
+    descr: Annotated[str | None, Form()] = None,
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     todo = await db.fetch_one(
-        "INSERT INTO todo (uuid, done, content, todo_list) VALUES (:uuid, 0, :content, :todo_list) RETURNING *",
-        {"uuid": str(uuid4()), "content": content, "todo_list": str(uuid)},
+        "INSERT INTO todos (uuid, done, title, descr, list_id) VALUES (:uuid, 0, :title, :descr, :list_id) RETURNING *",
+        {
+            "uuid": str(uuid4()),
+            "title": title,
+            "descr": "descr",
+            "list_id": str(uuid),
+        },
     )
     return tpl.TemplateResponse(
         "todo/view.htm",
@@ -76,15 +82,16 @@ async def lists_add_todo(
 
 
 @router.post("/", response_class=HTMLResponse)
-async def lists_add(
+async def add(
     req: Request,
     title: Annotated[str, Form()],
+    color: Annotated[str | None, Form()] = None,
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     li = await db.fetch_one(
-        "INSERT INTO todo_list (uuid, title) VALUES (:uuid, :title) RETURNING *",
-        {"uuid": str(uuid4()), "title": title},
+        "INSERT INTO lists (uuid, title, color) VALUES (:uuid, :title, :color) RETURNING *",
+        {"uuid": str(uuid4()), "title": title, "color": color},
     )
     return tpl.TemplateResponse(
         "nav/add.htm",

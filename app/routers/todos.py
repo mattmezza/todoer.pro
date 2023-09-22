@@ -11,55 +11,35 @@ from app.dependencies import get_db, get_tpl
 router = APIRouter()
 
 
-@router.get("/new")
-async def new():
-    return ""
-
-
 @router.get("/{uuid}", response_class=HTMLResponse)
-async def todo_view(
-    req: Request,
-    uuid: str,
-    db: Database = Depends(get_db),
-    tpl: Jinja2Templates = Depends(get_tpl),
-):
-    return ""
-
-
-@router.get("/{uuid}/detail", response_class=HTMLResponse)
-async def todo_detail_view(
+async def view(
     req: Request,
     uuid: UUID,
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     todo = await db.fetch_one(
-        "SELECT * FROM todo WHERE uuid = :uuid", {"uuid": str(uuid)}
+        "SELECT * FROM todos WHERE uuid = :uuid", {"uuid": str(uuid)}
     )
-    todos = await db.fetch_all(
-        """
-        SELECT * FROM todo WHERE todo_list = :uuid
-        ORDER BY created_at DESC
-    """,
-        {"uuid": todo.todo_list},
+    li = await db.fetch_one(
+        "SELECT * FROM lists WHERE uuid = :uuid",
+        {"uuid": todo.list_id},
     )
-    todo_tpl = tpl.get_template("todo/view.htm")
-    html = {"todos": [todo_tpl.render(**todo._mapping) for todo in todos]}
     return tpl.TemplateResponse(
         "todo/detail.htm",
-        {"request": req, **todo, "html": html},
+        {"request": req, **todo._mapping, "list": li._mapping},
     )
 
 
 @router.get("/{uuid}/edit", response_class=HTMLResponse)
-async def todo_edit(
+async def edit(
     req: Request,
     uuid: UUID,
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     todo = await db.fetch_one(
-        "SELECT * FROM todo WHERE uuid = :uuid", {"uuid": str(uuid)}
+        "SELECT * FROM todos WHERE uuid = :uuid", {"uuid": str(uuid)}
     )
     return tpl.TemplateResponse(
         "todo/edit.htm",
@@ -68,17 +48,23 @@ async def todo_edit(
 
 
 @router.put("/{uuid}", response_class=HTMLResponse)
-async def todo_put(
+async def update(
     req: Request,
     uuid: UUID,
-    content: Annotated[str, Form()],
+    title: Annotated[str, Form()],
+    descr: Annotated[str | None, Form()] = None,
     done: Annotated[str | None, Form()] = None,
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     todo = await db.fetch_one(
-        "UPDATE todo SET done = :done, content = :content WHERE uuid = :uuid RETURNING *",
-        {"uuid": str(uuid), "done": 1 if done else 0, "content": content},
+        "UPDATE todos SET done = :done, title = :title, descr = :descr WHERE uuid = :uuid RETURNING *",
+        {
+            "uuid": str(uuid),
+            "done": 1 if done else 0,
+            "title": title,
+            "descr": descr,
+        },
     )
     return tpl.TemplateResponse(
         "todo/view.htm",
@@ -86,14 +72,44 @@ async def todo_put(
     )
 
 
+@router.put("/{uuid}/descr", response_class=HTMLResponse)
+async def update_descr(
+    req: Request,
+    uuid: UUID,
+    descr: Annotated[str | None, Form()] = None,
+    db: Database = Depends(get_db),
+    tpl: Jinja2Templates = Depends(get_tpl),
+):
+    row = await db.fetch_one(
+        "UPDATE todos SET descr = :descr WHERE uuid = :uuid RETURNING descr",
+        {"uuid": str(uuid), "descr": descr},
+    )
+    return row.descr
+
+
+@router.put("/{uuid}/title", response_class=HTMLResponse)
+async def update_title(
+    req: Request,
+    uuid: UUID,
+    title: Annotated[str, Form()],
+    db: Database = Depends(get_db),
+    tpl: Jinja2Templates = Depends(get_tpl),
+):
+    row = await db.fetch_one(
+        "UPDATE todos SET title = :title WHERE uuid = :uuid RETURNING title",
+        {"uuid": str(uuid), "title": title},
+    )
+    return row.title
+
+
 @router.delete("/{uuid}", response_class=HTMLResponse)
-async def todo_delete(
+async def delete(
     req: Request,
     uuid: UUID,
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     await db.execute(
-        "DELETE FROM todo WHERE uuid = :uuid", {"uuid": str(uuid)}
+        "DELETE FROM todos WHERE uuid = :uuid", {"uuid": str(uuid)}
     )
     return ""
