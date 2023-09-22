@@ -14,7 +14,7 @@ async def nav_lists(
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
-    lists = await db.fetch_all("select title, uuid from todo_list limit 50")
+    lists = await db.fetch_all("select uuid, title, color from lists limit 50")
     return tpl.TemplateResponse(
         "nav/lists.htm",
         {"request": req, "lists": [li._mapping for li in lists]},

@@ -13,7 +13,7 @@ async def home(
     tpl: Jinja2Templates = Depends(get_tpl),
     db: Database = Depends(get_db),
 ):
-    lists = await db.fetch_all("select title, uuid from todo_list limit 50")
+    lists = await db.fetch_all("select title, uuid from lists limit 50")
     return tpl.TemplateResponse(
         "pages/home.htm",
         {"request": req, "lists": [li._mapping for li in lists]},
