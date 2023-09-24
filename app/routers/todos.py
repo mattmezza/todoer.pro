@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Mapping
 from uuid import UUID
 
 from databases import Database
@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from app.dependencies import get_db, get_tpl
+from app.dependencies import get_db, get_tpl, get_current_active_user
 
 router = APIRouter()
 
@@ -15,6 +15,7 @@ router = APIRouter()
 async def view(
     req: Request,
     uuid: UUID,
+    user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
@@ -35,6 +36,7 @@ async def view(
 async def edit(
     req: Request,
     uuid: UUID,
+    user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
@@ -54,6 +56,7 @@ async def update(
     title: Annotated[str, Form()],
     descr: Annotated[str | None, Form()] = None,
     done: Annotated[str | None, Form()] = None,
+    user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
@@ -77,6 +80,7 @@ async def update_descr(
     req: Request,
     uuid: UUID,
     descr: Annotated[str | None, Form()] = None,
+    user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
@@ -92,6 +96,7 @@ async def update_title(
     req: Request,
     uuid: UUID,
     title: Annotated[str, Form()],
+    user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
@@ -106,6 +111,7 @@ async def update_title(
 async def delete(
     req: Request,
     uuid: UUID,
+    user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):

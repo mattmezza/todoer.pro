@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Mapping
 from uuid import UUID, uuid4
 
 from databases import Database
@@ -6,9 +6,10 @@ from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from app.dependencies import get_db, get_tpl
+from app.dependencies import get_db, get_tpl, get_current_active_user
 
 router = APIRouter()
+# TODO add rbac support everywhere
 
 
 @router.delete("/{uuid}", response_class=HTMLResponse)
@@ -16,6 +17,7 @@ async def delete(
     req: Request,
     res: Response,
     uuid: str,
+    user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
 ):
     await db.execute(
@@ -31,6 +33,7 @@ async def view(
     req: Request,
     uuid: str,
     db: Database = Depends(get_db),
+    user: Mapping = Depends(get_current_active_user),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     todo_list = await db.fetch_one(
@@ -53,6 +56,7 @@ async def view(
             **todo_list,
             "todos": {t._mapping for t in todos},
             "html": html,
+            "user": user,
         },
     )
 
@@ -63,6 +67,7 @@ async def add_todo(
     uuid: UUID,
     title: Annotated[str, Form()],
     descr: Annotated[str | None, Form()] = None,
+    user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
@@ -77,7 +82,7 @@ async def add_todo(
     )
     return tpl.TemplateResponse(
         "todo/view.htm",
-        {"request": req, **todo._mapping},
+        {"request": req, **todo._mapping, "user": user},
     )
 
 
@@ -86,6 +91,7 @@ async def add(
     req: Request,
     title: Annotated[str, Form()],
     color: Annotated[str | None, Form()] = None,
+    user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
@@ -95,5 +101,5 @@ async def add(
     )
     return tpl.TemplateResponse(
         "nav/add.htm",
-        {"request": req, **li._mapping},
+        {"request": req, **li._mapping, "user": user},
     )

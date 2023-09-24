@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="{{ url_for('public', path='/style.css') }}" rel="stylesheet">
 </head>
-<body class="dark:bg-black dark:text-zinc-100 min-h-screen">
+<body hx-ext="loading-states" class="dark:bg-black dark:text-zinc-100 min-h-screen">
     <nav class="h-12 dark:bg-slate-950 border-slate-950 border-b w-full px-8 flex flex-row justify-between items-center sticky top-0 z-20">
         <div class="flex flex-row items-center justify-start space-x-1">
             <button class="px-2 py-1 cursor-pointer transition-all active:scale-95 hover:bg-gray-50/10 rounded" _="on click toggle .hidden on #sidePanel">
@@ -37,7 +37,7 @@
                     <img src="https://www.gravatar.com/avatar/{{ user.email_hash }}.jpg?s=100" class="rounded-full w-6 h-6" />
                 </button>
                 <div class="hidden w-36 bg-slate-950 rounded z-10 text-xs absolute group-hover:block space-y-2 right-0 top-9 shadow-black shadow-xl">
-                    <button hx-get="/users/me" hx-target="#main" hx-push-url="true" class="flex flex-row gap-2 items-center hover:bg-slate-50/10 px-3 py-2 w-full transition-all active:scale-95 rounded-t" _="on click add .hidden to the closest <div />">
+                    <button data-loading-target="#loading-main" data-loading-class-remove="hidden" hx-get="/users/me" hx-target="#main" hx-push-url="true" class="flex flex-row gap-2 items-center hover:bg-slate-50/10 px-3 py-2 w-full transition-all active:scale-95 rounded-t" _="on click add .hidden to the closest <div />">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
@@ -54,7 +54,7 @@
         </div>
     </nav>
     <div class="flex flex-row">
-        <nav id="sidePanel" class="w-64 border-slate-950 border-r py-10 px-2 min-h-screen h-full space-y-12 sticky top-12">
+        <nav id="sidePanel" class="w-64 border-slate-950 border-r py-10 px-2 min-h-screen space-y-12 sticky top-12">
             <!--<div class="space-y-1">
                 <a href="/inbox" class="flex flex-row space-x-4 p-2 cursor-pointer transition-all active:scale-95 hover:bg-gray-50/10 rounded">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 text-blue-500">
@@ -121,11 +121,21 @@
             </div>
         </nav>
         <div id="main" class="p-4 flex-grow overflow-y-auto">
-            {% block content %}{% endblock %}
+            {% block content %}
+                {% block loading %}
+                <div id="loading-main" class="bg-slate-950/80 w-full h-full absolute top-0 left-0 flex flex-col items-center justify-center gap-2 hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 animate-spin">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                    </svg>
+                    <span>Loading</span>
+                </div>
+                {% endblock %}
+            {% endblock %}
         </div>
     </div>
     <script src="https://unpkg.com/htmx.org@1.9.5/dist/htmx.min.js"></script>
     <script src="https://unpkg.com/hyperscript.org@0.9.11"></script>
+    <script src="https://unpkg.com/htmx.org/dist/ext/loading-states.js"></script>
     {% if DEBUG %} {{ hot_reload.script(url_for('hot-reload')) | safe }} {% endif%}
     {% if DEBUG %}<script src="https://unpkg.com/htmx.org/dist/ext/debug.js"></script>{% endif %}
 </body>
