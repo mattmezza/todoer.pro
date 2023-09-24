@@ -32,11 +32,25 @@
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
             </button>
-            <button class="px-2 py-1 cursor-pointer transition-all active:scale-95 hover:bg-gray-50/10 rounded">
-               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-            </button>
+            <div class="p-1 hover:bg-slate-50/10 rounded items-center justify-center flex relative">
+                <button class="active:scale-95 transition-all" _="on click toggle .hidden on the next <div /> on keyup[key is 'Escape'] from the body add .hidden to the next <div />">
+                    <img src="https://www.gravatar.com/avatar/{{ user.email_hash }}.jpg?s=100" class="rounded-full w-6 h-6" />
+                </button>
+                <div class="hidden w-36 bg-slate-950 rounded z-10 text-xs absolute group-hover:block space-y-2 right-0 top-9 shadow-black shadow-xl">
+                    <button hx-get="/users/me" hx-target="#main" hx-push-url="true" class="flex flex-row gap-2 items-center hover:bg-slate-50/10 px-3 py-2 w-full transition-all active:scale-95 rounded-t" _="on click add .hidden to the closest <div />">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span>Profile</span>
+                    </button>
+                    <a href="/auth/logout" class="flex flex-row gap-2 items-center hover:bg-slate-50/10 px-3 py-2 w-full transition-all active:scale-95 rounded-b">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                        </svg>
+                        <span>Logout</span>
+                    </a>
+                </div>
+            </div>
         </div>
     </nav>
     <div class="flex flex-row">

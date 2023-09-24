@@ -15,6 +15,9 @@ arel = "^0.2.0"
 python-multipart = "^0.0.6"
 databases = {extras = ["aiosqlite"], version = "^0.8.0"}
 greenlet = "^2.0.2"
+python-jose = {extras = ["cryptography"], version = "^3.3.0"}
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+pydantic = {extras = ["email"], version = "^2.3.0"}
 
 
 [tool.poetry.group.dev.dependencies]

@@ -1,4 +1,5 @@
 {% if not request.headers["hx-request"] %}{% extends "pages/page.htm" %}{% endif %}
 {% block content %}
 Home
+{{ user.name }}
 {% endblock %}

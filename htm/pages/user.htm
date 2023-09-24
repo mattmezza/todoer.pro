@@ -1,0 +1,26 @@
+{% if not request.headers["hx-request"] %}{% extends "pages/page.htm" %}{% endif %}
+{% block content %}
+<div class="max-w-lg space-y-4 mx-auto">
+    <img src="https://www.gravatar.com/avatar/{{ user.email_hash }}?s=150" class="rounded-full ring-4 ring-blue-500 mx-auto" />
+    <div class="text-lg font-semibold">
+        <div class="flex flex-row items-center justify-between">
+            <span class="text-sm">Name</span>
+        </div>
+        <div class="bg-slate-50/5 rounded px-3 py-2 w-full cursor-pointer hover:bg-slate-50/10" _="on click hide me then show the next <form /> then select() on the next <input /> on keyup[key is 'Escape'] from the next <input /> hide the next <form /> then show me">
+            {{ user.name }}
+        </div>
+        <form style="display: none" hx-put="/users/me/name" hx-target="previous div" _="on submit hide me then show the previous <div />">
+            <input class="bg-slate-50/10 rounded px-3 py-2 w-full" type="text" name="name" value="{{ user.name }}">
+        </form>
+    </div>
+    <div class="">
+        <div class="flex flex-row items-center justify-between">
+            <span class="text-sm">Email</span>
+        </div>
+        <div class="bg-slate-50/5 rounded px-3 py-2 w-full cursor-not-allowed">
+            {{ user.email }}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
