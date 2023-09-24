@@ -1,0 +1,13 @@
+{% extends "pages/auth.htm" %}
+{% block content %}
+<form action="/users" method="POST" class="flex flex-col gap-2 justify-center items-center h-screen max-w-xs mx-auto">
+    <h1 class="text-3xl font-bold mb-8">Todoer &middot; Signup</h1>
+    <input type="fullname" name="name" placeholder="Full name..." class="outline-none px-3 py-2 rounded bg-slate-50/20 w-full" autofocus>
+    <input type="email" name="email" placeholder="Email..." class="outline-none px-3 py-2 rounded bg-slate-50/20 w-full" autofocus>
+    <input type="password" name="password" placeholder="Password..." class="outline-none px-3 py-2 rounded bg-slate-50/20 w-full">
+    <button type="submit" class="px-3 py-2 rounded bg-blue-500 transition-all active:scale-95 w-full">Signup</button>
+    <p class="mt-4">or <a class="text-blue-500 cursor-pointer hover:underline font-semibold" href="/login">login</a></p>
+</form>
+{% endblock %}
+
+
