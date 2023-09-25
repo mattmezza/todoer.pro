@@ -1,7 +1,7 @@
 <li class="">
     <form class="flex flex-row gap-1 items-center px-4">
-        <div class="py-3 px-4">
-            <input class="cursor-pointer" hx-put="/todos/{{ uuid }}" hx-target="closest li" hx-swap="outerHTML" name="done"  type="checkbox" {% if done %}checked{% endif %} />
+        <div class="">
+            <input class="cursor-pointer rounded-full bg-transparent w-6 h-6" hx-put="/todos/{{ uuid }}" hx-target="closest li" hx-swap="outerHTML" name="done"  type="checkbox" {% if done %}checked{% endif %} />
             <input name="title"  type="hidden" value="{{ title }}" />
         </div>
 

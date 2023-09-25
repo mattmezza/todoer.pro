@@ -1,13 +1,48 @@
 {% extends "pages/auth.htm" %}
 {% block content %}
-<form action="/users" method="POST" class="flex flex-col gap-2 justify-center items-center h-screen max-w-xs mx-auto">
-    <h1 class="text-3xl font-bold mb-8">Todoer &middot; Signup</h1>
-    <input type="fullname" name="name" placeholder="Full name..." class="outline-none px-3 py-2 rounded bg-slate-50/20 w-full" autofocus>
-    <input type="email" name="email" placeholder="Email..." class="outline-none px-3 py-2 rounded bg-slate-50/20 w-full" autofocus>
-    <input type="password" name="password" placeholder="Password..." class="outline-none px-3 py-2 rounded bg-slate-50/20 w-full">
-    <button type="submit" class="px-3 py-2 rounded bg-blue-500 transition-all active:scale-95 w-full">Signup</button>
-    <p class="mt-4">or <a class="text-blue-500 cursor-pointer hover:underline font-semibold" href="/login">login</a></p>
-</form>
+<div class="max-w-sm mx-auto w-full px-4 py-8">
+
+    <h1 class="text-3xl text-slate-800 dark:text-slate-100 font-bold mb-6">Create your Account ✨</h1>
+    <!-- Form -->
+    <form action="/users" method="POST">
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium mb-1" for="name">Full Name</label>
+                <input name="name" class="form-input w-full" type="text">
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-1" for="email">Email Address <span class="text-rose-500">*</span></label>
+                <input name="email" class="form-input w-full" type="email" required >
+            </div>
+            <!--<div>
+                <label class="block text-sm font-medium mb-1" for="role">Your Role <span class="text-rose-500">*</span></label>
+                <select id="role" class="form-select w-full">
+                    <option>Designer</option>
+                    <option>Developer</option>
+                    <option>Accountant</option>
+                </select>
+            </div>-->
+            <div>
+                <label class="block text-sm font-medium mb-1" for="password">Password <span class="text-rose-500">*</span></label>
+                <input name="password" class="form-input w-full" type="password" autocomplete="on" required>
+            </div>
+        </div>
+        <div class="flex items-center justify-between mt-6">
+            <div class="mr-1">
+                <label class="flex items-center">
+                    <input type="checkbox" class="form-checkbox" checked>
+                    <span class="text-sm ml-2">Email me about product news.</span>
+                </label>
+            </div>
+            <button type="submit" class="btn bg-indigo-500 hover:bg-indigo-600 text-white ml-3 whitespace-nowrap">Sign Up</button>
+        </div>
+    </form>
+    <!-- Footer -->
+    <div class="pt-5 mt-6 border-t border-slate-200 dark:border-slate-700">
+        <div class="text-sm">
+            Have an account? <a class="font-medium text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400" href="/login">Sign In</a>
+        </div>
+    </div>
+
+</div>
 {% endblock %}
-
-

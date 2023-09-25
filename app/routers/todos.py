@@ -28,7 +28,7 @@ async def view(
     )
     return tpl.TemplateResponse(
         "todo/detail.htm",
-        {"request": req, **todo._mapping, "list": li._mapping},
+        {"request": req, **todo._mapping, "list": li._mapping, "user": user},
     )
 
 

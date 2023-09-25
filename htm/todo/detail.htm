@@ -1,6 +1,6 @@
 {% if not request.headers["hx-request"] %}{% extends "lists/view.htm" %}{% endif %}
 {% block content %}
-<div class="px-2">
+<div class="p-8">
     <div class="mb-8 space-y-4">
         <a hx-get="/lists/{{ list.uuid }}" hx-target="#main" hx-push-url="true" class="text-sm cursor-pointer mb-2 hover:underline">
             <span class="rounded-full w-3 h-3" style="background: {{ list.color }}">&nbsp;</span>
