@@ -1,8 +1,8 @@
 {% if not request.headers["hx-request"] %}{% extends "pages/page.htm" %}{% endif %}
 {% block content %}
-<div class="space-y-2">
+<div class="space-y-2 p-8">
     <div class="flex flex-row gap-3 items-center p-4">
-        <span class="rounded-full w-5 h-5" style="background-color: {{ color }}">&nbsp;</span>
+        <span class="rounded-full w-6 h-6" style="background-color: {{ color }}">&nbsp;</span>
         <h1 class="text-2xl font-bold">{{ title }}</h1>
         <div class="group">
             <button class="p-1 group-hover:bg-slate-50/10">
@@ -33,13 +33,13 @@
         {{ todo|safe }}
         {% endfor %}
     </ul>
-    <form class="flex flex-row space-x-1 focus-within:bg-slate-50/10 rounded px-3 py-3" hx-target="previous ul" hx-swap="beforeend" hx-post="/lists/{{ uuid }}/todo" hx-on::after-request="this.reset()">
+    <form class="flex flex-row space-x-1 items-center focus-within:bg-slate-50/10 rounded px-3 py-3" hx-target="previous ul" hx-swap="beforeend" hx-post="/lists/{{ uuid }}/todo" hx-on::after-request="this.reset()">
         <label class="content">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
             </svg>
         </label>
-        <input autofocus class="cursor-pointer flex-grow rounded bg-transparent outline-none text-zinc-200 ml-4" name="title" placeholder="Add a todo" />
+        <input class="form-input ml-4" name="title" placeholder="Add a todo" />
     </form>
 </div>
 {% endblock %}

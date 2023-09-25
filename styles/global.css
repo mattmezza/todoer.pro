@@ -1,0 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=fallback');
+
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+
+/* Additional styles */
+@import './utility-patterns.css';
+/* @import 'flatpickr.css'; */
+
+@import "tailwindcss/utilities";
+
+
+/* See Alpine.js: https://github.com/alpinejs/alpine#x-cloak */
+[x-cloak=""] {
+    display: none;
+}
+
+@media screen and (max-width: theme('screens.lg')) {
+    [x-cloak="lg"] { display: none; }
+}
+
+/* width */
+::-webkit-scrollbar {
+    @apply h-2 w-2;
+}
+  
+/* Track */
+::-webkit-scrollbar-track {
+    @apply bg-slate-50/5;
+}
+  
+/* Handle */
+::-webkit-scrollbar-thumb {
+    @apply bg-slate-50/20 rounded;
+}
+  
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-50/40;
+}
+
+[data-loading] {
+    display: none;
+}
