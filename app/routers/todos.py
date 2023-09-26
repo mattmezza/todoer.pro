@@ -32,23 +32,6 @@ async def view(
     )
 
 
-@router.get("/{uuid}/edit", response_class=HTMLResponse)
-async def edit(
-    req: Request,
-    uuid: UUID,
-    user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
-    tpl: Jinja2Templates = Depends(get_tpl),
-):
-    todo = await db.fetch_one(
-        "SELECT * FROM todos WHERE uuid = :uuid", {"uuid": str(uuid)}
-    )
-    return tpl.TemplateResponse(
-        "todo/edit.htm",
-        {"request": req, **todo},
-    )
-
-
 @router.put("/{uuid}", response_class=HTMLResponse)
 async def update(
     req: Request,
@@ -61,7 +44,12 @@ async def update(
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     todo = await db.fetch_one(
-        "UPDATE todos SET done = :done, title = :title, descr = :descr WHERE uuid = :uuid RETURNING *",
+        """
+        UPDATE todos
+        SET done = :done, title = :title, descr = :descr
+        WHERE uuid = :uuid
+        RETURNING *
+        """,
         {
             "uuid": str(uuid),
             "done": 1 if done else 0,

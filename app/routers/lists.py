@@ -72,11 +72,15 @@ async def add_todo(
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     todo = await db.fetch_one(
-        "INSERT INTO todos (uuid, done, title, descr, list_id) VALUES (:uuid, 0, :title, :descr, :list_id) RETURNING *",
+        """
+        INSERT INTO todos (uuid, done, title, descr, list_id)
+        VALUES (:uuid, 0, :title, :descr, :list_id)
+        RETURNING *
+        """,
         {
             "uuid": str(uuid4()),
             "title": title,
-            "descr": "descr",
+            "descr": descr,
             "list_id": str(uuid),
         },
     )
@@ -96,7 +100,11 @@ async def add(
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     li = await db.fetch_one(
-        "INSERT INTO lists (uuid, title, color) VALUES (:uuid, :title, :color) RETURNING *",
+        """
+        INSERT INTO lists (uuid, title, color)
+        VALUES (:uuid, :title, :color)
+        RETURNING *, 0 as todos_undone
+        """,
         {"uuid": str(uuid4()), "title": title, "color": color},
     )
     return tpl.TemplateResponse(

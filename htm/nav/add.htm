@@ -1,4 +1,4 @@
-<li class="px-3 py-2 rounded-sm mb-0.5 last:mb-0" x-data="{ open: false }">
+<li class="px-3 py-2 rounded-sm mb-0.5 last:mb-0">
     <a class="block text-slate-200 hover:text-white transition duration-150 cursor-pointer" data-loading-target="#loading-main" data-loading-remove-class="hidden" :class="open &amp;&amp; 'hover:text-slate-200'" hx-get="/lists/{{ uuid }}" hx-target="#main" hx-push-url="true">
         <div class="flex items-center justify-between">
             <div class="flex items-center">
@@ -6,28 +6,11 @@
                 <span class="text-sm font-medium ml-3 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">{{ title }}</span>
             </div>
             <div class="flex flex-shrink-0 ml-2">
-                <span class="inline-flex items-center justify-center h-5 text-xs font-medium text-white bg-indigo-500 px-2 rounded">4</span>
+                <span class="inline-flex items-center justify-center h-5 text-xs font-medium text-white bg-indigo-500 px-2 rounded">
+                    {{ todos_undone }}
+                </span>
             </div>
         </div>
     </a>
-    <div class="lg:hidden lg:sidebar-expanded:block 2xl:block">
-        <ul class="pl-9 mt-1 hidden" :class="open ? '!block' : 'hidden'">
-            <li class="mb-1 last:mb-0">
-                <a class="block text-slate-400 hover:text-slate-200 transition duration-150 truncate" href="signin.html">
-                    <span class="text-sm font-medium lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Sign In</span>
-                </a>
-            </li>
-            <li class="mb-1 last:mb-0">
-                <a class="block text-slate-400 hover:text-slate-200 transition duration-150 truncate" href="signup.html">
-                    <span class="text-sm font-medium lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Sign up</span>
-                </a>
-            </li>
-            <li class="mb-1 last:mb-0">
-                <a class="block text-slate-400 hover:text-slate-200 transition duration-150 truncate" href="reset-password.html">
-                    <span class="text-sm font-medium lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Reset Password</span>
-                </a>
-            </li>
-        </ul>
-    </div>
 </li>
 

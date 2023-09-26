@@ -6,32 +6,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="{{ url_for('public', path='/style.css') }}" rel="stylesheet">
 </head>
-<body hx-ext="loading-states" class="font-inter antialiased bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300" :class="{ 'sidebar-expanded': sidebarExpanded }" x-data="{ sidebarOpen: false, sidebarExpanded: localStorage.getItem('sidebar-expanded') == 'true' }" x-init="$watch('sidebarExpanded', value => localStorage.setItem('sidebar-expanded', value))">
+<body hx-ext="loading-states" class="font-inter antialiased bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 sidebar-expanded">
 
-    <script>
-        if (localStorage.getItem('sidebar-expanded') == 'true') {
-            document.querySelector('body').classList.add('sidebar-expanded');
-        } else {
-            document.querySelector('body').classList.remove('sidebar-expanded');
-        }
-    </script>
     <div class="flex h-[100dvh] overflow-hidden">
         <div class="min-w-fit">
             <!-- Sidebar backdrop (mobile only) -->
-            <div class="fixed inset-0 bg-slate-900 bg-opacity-30 z-40 lg:hidden lg:z-auto transition-opacity duration-200 opacity-0 pointer-events-none" :class="sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'" aria-hidden="true"></div>
+            <div class="fixed inset-0 bg-slate-900 bg-opacity-30 z-40 lg:hidden lg:z-auto transition-opacity duration-200 opacity-100" aria-hidden="true"></div>
         
             <!-- Sidebar -->
-            <div id="sidebar" class="flex flex-col absolute z-40 left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-scroll lg:overflow-y-auto no-scrollbar w-64 lg:w-20 lg:sidebar-expanded:!w-64 2xl:!w-64 shrink-0 bg-slate-800 p-4 transition-all duration-200 ease-in-out -translate-x-64" :class="sidebarOpen ? 'translate-x-0' : '-translate-x-64'" @click.outside="sidebarOpen = false" @keydown.escape.window="sidebarOpen = false">
+            <div id="sidebar" class="flex flex-col absolute z-40 left-0 top-0 lg:static lg:left-auto lg:top-auto lg:translate-x-0 h-[100dvh] overflow-y-scroll lg:overflow-y-auto no-scrollbar w-64 lg:w-20 lg:sidebar-expanded:!w-64 2xl:!w-64 shrink-0 bg-slate-800 p-4 transition-all duration-200 ease-in-out translate-x-0">
         
                 <!-- Sidebar header -->
                 <div class="flex justify-between mb-10 pr-3 sm:px-2">
-                    <!-- Close button -->
-                    <button class="lg:hidden text-slate-500 hover:text-slate-400" @click.stop="sidebarOpen = !sidebarOpen" aria-controls="sidebar" :aria-expanded="sidebarOpen" aria-expanded="false">
-                        <span class="sr-only">Close sidebar</span>
-                        <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M10.7 18.7l1.4-1.4L7.8 13H20v-2H7.8l4.3-4.3-1.4-1.4L4 12z"></path>
-                        </svg>
-                    </button>
                     <!-- Logo -->
                     <a class="flex flex-row items-center gap-2 font-extrabold text-xl hover:text-white duration-150" href="/">
                         <svg width="32" height="32" viewBox="0 0 32 32">
@@ -80,7 +66,7 @@
                             </li>
                             <!-- Tasks -->
                             <li class="px-3 py-2 rounded-sm mb-0.5 last:mb-0 bg-slate-900" x-data="{ open: true }">
-                                <a class="block text-slate-200 truncate transition duration-150" href="#0" @click.prevent="open = !open; sidebarExpanded = true">
+                                <a class="block text-slate-200 truncate transition duration-150" href="#0">
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center">
                                             <svg class="shrink-0 h-6 w-6" viewBox="0 0 24 24">
@@ -101,7 +87,7 @@
                             <span class="hidden lg:block lg:sidebar-expanded:hidden 2xl:hidden text-center w-6" aria-hidden="true">•••</span>
                             <span class="lg:hidden lg:sidebar-expanded:block 2xl:block">Lists</span>
                         </h3>
-                        <ul class="mt-3" hx-get="/nav/lists" hx-trigger="load, lists-delete from:body">
+                        <ul id="nav-lists" class="mt-3" hx-get="/nav/lists" hx-trigger="load, lists-delete from:body">
                         </ul>
                         <div class="px-3 py-2 rounded-sm mb-0.5 last:mb-0 text-sm">
                             <a _="on click showModal() on the next <dialog />" class="block text-slate-200 hover:text-white transition duration-150 cursor-pointer" data-loading-target="#loading-main" data-loading-remove-class="hidden" :class="open &amp;&amp; 'hover:text-slate-200'">
@@ -116,22 +102,22 @@
                             </a>
                         </div>
                         <dialog class="backdrop:white/95 dark:backdrop:black dark:text-zinc-50 w-full sm:w-11/12 md:w-1/2 lg:w-1/3 bg-white dark:bg-slate-800 shadow-lg rounded border border-slate-200 dark:border-slate-700 h-1/2">
-                            <form class="flex flex-col h-full p-8" _="on submit reset() on me then close() the closest <dialog /> on reset close() the closest <dialog />" hx-post="/lists" hx-target="previous ul" hx-swap="beforeend">
+                            <form class="flex flex-col h-full p-8" _="on submit reset() on me then close() the closest <dialog /> on reset close() the closest <dialog />" hx-post="/lists" hx-target="#nav-lists" hx-swap="beforeend">
                                 <header>
-                                    <div class="flex items-center justify-between">
-                                        <div class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-rose-500">
-                                            <svg class="w-9 h-9 fill-current text-rose-50" viewBox="0 0 36 36">
-                                                <path d="M25 24H11a1 1 0 01-1-1v-5h2v4h12v-4h2v5a1 1 0 01-1 1zM14 13h8v2h-8z"></path>
+                                    <div class="flex items-center justify-start gap-2">
+                                        <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-rose-500">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-9 h-9 fill-current text-rose-50">
+                                              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
                                             </svg>
                                         </div>
+                                    <h2 class="text-xl leading-snug font-bold">Add a new list</h2>
                                         <div class="flex shrink-0 -space-x-3 -ml-px">
                                         </div>
                                     </div>
                                 </header>
-                                <div class="grow my-4">
-                                    <h2 class="text-xl leading-snug font-semibold mb-2">Add a new list</h2>
-                                    <div class="text-sm">Lorem ipsum is placeholder text commonly used in the graphic, print, and publishing industries for previewing layouts.</div>
-                                    <div class="flex flex-col gap-3 my-4">
+                                <div class="grow pt-4">
+                                    <div class="text-sm">You can choose a color to mark your list and set a description for the kind of tasks it will hold.</div>
+                                    <div class="flex flex-col gap-3 mt-4">
                                         <div class="space-y-1">
                                             <div class="text-xs flex flex-row items-center">
                                                 <span>Color</span>
@@ -148,9 +134,17 @@
                                             <div class="text-xs flex flex-row items-center justify-end">
                                             </div>
                                         </div>
+                                        <div class="space-y-1">
+                                            <div class="text-xs flex flex-row items-center">
+                                                <span>Description</span>
+                                            </div>
+                                            <textarea class="form-input w-full resize-none" name="descr" placeholder="Type here..."></textarea>
+                                            <div class="text-xs flex flex-row items-center justify-end">
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                                <footer class="mt-5">
+                                <footer class="pt-2">
                                     <div class="flex justify-between items-center">
                                         <div>
                                         </div>
@@ -158,7 +152,7 @@
                                             <button type="reset" class="btn rounded px-8 py-1">
                                                 Cancel
                                             </button>
-                                            <button type="submit" class="btn bg-indigo-600 rounded px-8 py-1">
+                                            <button type="submit" class="btn bg-indigo-600 text-white rounded px-8 py-1">
                                                 Save
                                             </button>
                                         </div>
@@ -192,7 +186,7 @@
                 <!-- Header: Left side -->
                 <div class="flex">
                     <!-- Hamburger button -->
-                    <button class="text-slate-500 hover:text-slate-600 lg:hidden" @click.stop="sidebarOpen = !sidebarOpen" aria-controls="sidebar" :aria-expanded="sidebarOpen" aria-expanded="false">
+                    <button class="text-slate-500 hover:text-slate-600 lg:hidden" @click.stop="sidebarOpen = !sidebarOpen" aria-controls="sidebar" aria-expanded>
                         <span class="sr-only">Open sidebar</span>
                         <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <rect x="4" y="5" width="16" height="2"></rect>
