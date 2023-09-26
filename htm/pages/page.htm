@@ -64,8 +64,8 @@
                         </h3>
                         <ul class="mt-3">
                             <!-- Dashboard -->
-                            <li class="px-3 py-2 rounded-sm mb-0.5 last:mb-0" x-data="{ open: false }">
-                                <a class="block text-slate-200 hover:text-slate-200 truncate transition duration-150" href="#0" @click.prevent="open = !open; sidebarExpanded = true">
+                            <li class="px-3 py-2 rounded-sm mb-0.5 last:mb-0">
+                                <a class="block text-slate-200 hover:text-slate-200 truncate transition duration-150 cursor-pointer" hx-get="/" hx-target="#main" hx-push-url="true">
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center">
                                             <svg class="shrink-0 h-6 w-6" viewBox="0 0 24 24">
@@ -75,33 +75,8 @@
                                             </svg>
                                             <span class="text-sm font-medium ml-3 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Dashboard</span>
                                         </div>
-                                        <!-- Icon -->
-                                        <div class="flex shrink-0 ml-2 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
-                                            <svg class="w-3 h-3 shrink-0 ml-1 fill-current text-slate-400 rotate-0" :class="open ? 'rotate-180' : 'rotate-0'" viewBox="0 0 12 12">
-                                                <path d="M5.9 11.4L.5 6l1.4-1.4 4 4 4-4L11.3 6z"></path>
-                                            </svg>
-                                        </div>
                                     </div>
                                 </a>
-                                <div class="lg:hidden lg:sidebar-expanded:block 2xl:block">
-                                    <ul class="pl-9 mt-1 hidden" :class="open ? '!block' : 'hidden'">
-                                        <li class="mb-1 last:mb-0">
-                                            <a class="block text-slate-400 hover:text-slate-200 transition duration-150 truncate" href="/">
-                                                <span class="text-sm font-medium lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Main</span>
-                                            </a>
-                                        </li>
-                                        <li class="mb-1 last:mb-0">
-                                            <a class="block text-slate-400 hover:text-slate-200 transition duration-150 truncate" href="analytics.html">
-                                                <span class="text-sm font-medium lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Analytics</span>
-                                            </a>
-                                        </li>
-                                        <li class="mb-1 last:mb-0">
-                                            <a class="block text-slate-400 hover:text-slate-200 transition duration-150 truncate" href="fintech.html">
-                                                <span class="text-sm font-medium lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Fintech</span>
-                                            </a>
-                                        </li>
-                                    </ul>
-                                </div>
                             </li>
                             <!-- Tasks -->
                             <li class="px-3 py-2 rounded-sm mb-0.5 last:mb-0 bg-slate-900" x-data="{ open: true }">
@@ -114,44 +89,6 @@
                                                 <path class="fill-current text-indigo-300" d="M15 10.586L16.414 12 11 17.414 7.586 14 9 12.586l2 2zM5 0h14v4H5z"></path>
                                             </svg>
                                             <span class="text-sm font-medium ml-3 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Tasks</span>
-                                        </div>
-                                        <!-- Icon -->
-                                        <div class="flex shrink-0 ml-2 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">
-                                            <svg class="w-3 h-3 shrink-0 ml-1 fill-current text-slate-400 rotate-180" :class="open ? 'rotate-180' : 'rotate-0'" viewBox="0 0 12 12">
-                                                <path d="M5.9 11.4L.5 6l1.4-1.4 4 4 4-4L11.3 6z"></path>
-                                            </svg>
-                                        </div>
-                                    </div>
-                                </a>
-                                <div class="lg:hidden lg:sidebar-expanded:block 2xl:block">
-                                    <ul class="pl-9 mt-1 hidden !block" :class="open ? '!block' : 'hidden'">
-                                        <li class="mb-1 last:mb-0">
-                                            <a class="block text-slate-400 hover:text-slate-200 transition duration-150 truncate" href="tasks-kanban.html">
-                                                <span class="text-sm font-medium lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Kanban</span>
-                                            </a>
-                                        </li>
-                                        <li class="mb-1 last:mb-0">
-                                            <a class="block text-indigo-500 transition duration-150 truncate" href="tasks-list.html">
-                                                <span class="text-sm font-medium lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">List</span>
-                                            </a>
-                                        </li>
-                                    </ul>
-                                </div>
-                            </li>
-                            <!-- Messages -->
-                            <li class="px-3 py-2 rounded-sm mb-0.5 last:mb-0">
-                                <a class="block text-slate-200 hover:text-white truncate transition duration-150" href="messages.html">
-                                    <div class="flex items-center justify-between">
-                                        <div class="grow flex items-center">
-                                            <svg class="shrink-0 h-6 w-6" viewBox="0 0 24 24">
-                                                <path class="fill-current text-slate-600" d="M14.5 7c4.695 0 8.5 3.184 8.5 7.111 0 1.597-.638 3.067-1.7 4.253V23l-4.108-2.148a10 10 0 01-2.692.37c-4.695 0-8.5-3.184-8.5-7.11C6 10.183 9.805 7 14.5 7z"></path>
-                                                <path class="fill-current text-slate-400" d="M11 1C5.477 1 1 4.582 1 9c0 1.797.75 3.45 2 4.785V19l4.833-2.416C8.829 16.85 9.892 17 11 17c5.523 0 10-3.582 10-8s-4.477-8-10-8z"></path>
-                                            </svg>
-                                            <span class="text-sm font-medium ml-3 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200">Messages</span>
-                                        </div>
-                                        <!-- Badge -->
-                                        <div class="flex flex-shrink-0 ml-2">
-                                            <span class="inline-flex items-center justify-center h-5 text-xs font-medium text-white bg-indigo-500 px-2 rounded">4</span>
                                         </div>
                                     </div>
                                 </a>
