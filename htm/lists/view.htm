@@ -33,13 +33,29 @@
         {{ todo|safe }}
         {% endfor %}
     </ul>
-    <form class="flex flex-row space-x-1 items-center focus-within:bg-slate-50/10 rounded px-3 py-3" hx-target="previous ul" hx-swap="beforeend" hx-post="/lists/{{ uuid }}/todo" hx-on::after-request="this.reset()">
-        <label class="content">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
-            </svg>
-        </label>
-        <input class="form-input ml-4" name="title" placeholder="Add a todo" />
+    <div id="add-todo-btn" class="flex flex-row space-x-1 items-center rounded px-3 py-3 group cursor-pointer" _="on click hide me then show the next <form /> then focus() the next <input />">
+        <button tabindex="0" class="btn group-hover:text-indigo-500 gap-2">
+            <div class="group-hover:bg-indigo-500 group-hover:text-white rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
+                </svg>
+            </div>
+            <span>Add todo</span>
+        </button>
+    </div>
+    <form style="display: none" class="rounded-sm border border-slate-600" hx-target="previous ul" hx-swap="beforeend" hx-post="/lists/{{ uuid }}/todo" hx-on::after-request="this.reset()" _="on reset or keyup[key is 'Escape'] hide me then show #add-todo-btn">
+        <div class="py-2"">
+            <input class="form-input block py-1 px-23 border-0 w-full" name="title" placeholder="Task name" autofocus>
+            <input class="form-input block text-xs py-0.5 px-3 border-0 w-full" name="descr" placeholder="Description">
+        </div>
+        <div class="flex flex-row justify-between items-center border-t border-slate-600 px-3 py-2">
+            <div>
+            </div>
+            <div class="space-x-2">
+                <button type="reset" class="btn py-1">Cancel</button>
+                <button type="submit" class="btn py-1 bg-indigo-600 text-white">Add task</button>
+            </div>
+        </div>
     </form>
 </div>
 {% endblock %}

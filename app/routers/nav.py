@@ -17,7 +17,7 @@ async def nav_lists(
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
-    lists = await db.fetch_all("select uuid, title, color from lists limit 50")
+    lists = await db.fetch_all("SELECT l.uuid, l.title, l.color, count(t.uuid) as todos_undone FROM lists l left JOIN todos t ON t.list_id = l.uuid group by l.uuid order by todos_undone desc, l.created_at asc limit 50")
     return tpl.TemplateResponse(
         "nav/lists.htm",
         {"request": req, "lists": [li._mapping for li in lists]},
