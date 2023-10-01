@@ -46,7 +46,22 @@
     <form style="display: none" class="rounded-sm border border-slate-600" hx-target="previous ul" hx-swap="beforeend" hx-post="/lists/{{ uuid }}/todo" hx-on::after-request="this.reset()" _="on reset or keyup[key is 'Escape'] hide me then show #add-todo-btn">
         <div class="py-2"">
             <input class="form-input block py-1 px-23 border-0 w-full" name="title" placeholder="Task name" autofocus>
-            <input class="form-input block text-xs py-0.5 px-3 border-0 w-full" name="descr" placeholder="Description">
+            <textarea
+                autofocus
+                name="descr"
+                placeholder="Description"
+                x-data="{ 
+                    resize () { 
+                        $el.style.height = '0px'; 
+                        $el.style.height = $el.scrollHeight + 'px' 
+                    } 
+                }"
+                x-init="resize()"
+                @input="resize()"
+                _="on keyup[key is 'Escape'] reset() the closest <form />" 
+                class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
+                ></textarea>
+
         </div>
         <div class="flex flex-row justify-between items-center border-t border-slate-600 px-3 py-2">
             <div>
