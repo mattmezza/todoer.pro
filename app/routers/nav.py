@@ -17,7 +17,22 @@ async def nav_lists(
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
-    lists = await db.fetch_all("SELECT l.uuid, l.title, l.color, count(t.uuid) as todos_undone FROM lists l left JOIN todos t ON t.list_id = l.uuid group by l.uuid order by todos_undone desc, l.created_at asc limit 50")
+    lists = await db.fetch_all(
+        """SELECT w.* FROM (
+            SELECT l.*, COUNT(t.uuid) as undone FROM lists l
+                CROSS JOIN todos t ON t.list_id = l.uuid WHERE t.done = 0
+                    GROUP BY l.uuid
+            ) as w
+            UNION ALL
+            SELECT wo.* FROM (
+                SELECT ll.*, 0 AS undone FROM lists ll
+                    WHERE NOT EXISTS (
+                        SELECT 'x' FROM todos tt WHERE tt.list_id = ll.uuid
+                    )
+            ) as wo
+            ORDER BY w.undone DESC, w.created_at
+            ASC LIMIT 50"""
+        )
     return tpl.TemplateResponse(
         "nav/lists.htm",
         {"request": req, "lists": [li._mapping for li in lists]},

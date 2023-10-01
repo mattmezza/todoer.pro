@@ -2,20 +2,18 @@ from typing import Annotated, Mapping
 from uuid import UUID, uuid4
 
 from databases import Database
-from fastapi import APIRouter, Depends, Form, Request, Response
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.dependencies import get_db, get_tpl, get_current_active_user
 
 router = APIRouter()
-# TODO add rbac support everywhere
 
 
 @router.delete("/{uuid}", response_class=HTMLResponse)
 async def delete(
     req: Request,
-    res: Response,
     uuid: str,
     user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
@@ -24,8 +22,9 @@ async def delete(
         "DELETE FROM lists WHERE uuid = :uuid",
         {"uuid": uuid},
     )
-    res.headers["HX-Trigger"] = "lists-delete"
-    return ""
+    res = HTMLResponse("", status_code=204)
+    res.headers["HX-Trigger"] = "list-delete"
+    return res
 
 
 @router.get("/{uuid}", response_class=HTMLResponse)
@@ -84,10 +83,12 @@ async def add_todo(
             "list_id": str(uuid),
         },
     )
-    return tpl.TemplateResponse(
+    res = tpl.TemplateResponse(
         "todo/view.htm",
         {"request": req, **todo._mapping, "user": user},
     )
+    res.headers["HX-Trigger"] = "task-create"
+    return res
 
 
 @router.post("/", response_class=HTMLResponse)
@@ -107,7 +108,9 @@ async def add(
         """,
         {"uuid": str(uuid4()), "title": title, "color": color},
     )
-    return tpl.TemplateResponse(
+    res = tpl.TemplateResponse(
         "nav/add.htm",
         {"request": req, **li._mapping, "user": user},
     )
+    res.headers["HX-Trigger"] = "list-create"
+    return res

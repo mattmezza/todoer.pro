@@ -2,7 +2,7 @@ from typing import Annotated, Mapping
 from uuid import UUID
 
 from databases import Database
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -57,10 +57,12 @@ async def update(
             "descr": descr,
         },
     )
-    return tpl.TemplateResponse(
+    res = tpl.TemplateResponse(
         "todo/view.htm",
         {"request": req, **todo},
     )
+    res.headers["HX-Trigger"] = "task-update"
+    return res
 
 
 @router.put("/{uuid}/descr", response_class=HTMLResponse)
@@ -98,6 +100,7 @@ async def update_title(
 @router.delete("/{uuid}", response_class=HTMLResponse)
 async def delete(
     req: Request,
+    res: Response,
     uuid: UUID,
     user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
@@ -106,4 +109,5 @@ async def delete(
     await db.execute(
         "DELETE FROM todos WHERE uuid = :uuid", {"uuid": str(uuid)}
     )
+    res.headers["HX-Trigger"] = "task-delete"
     return ""
