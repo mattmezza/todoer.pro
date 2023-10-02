@@ -1,16 +1,10 @@
 import os
+import logging
 from datetime import timedelta
 from typing import Annotated
 
 from databases import Database
-from fastapi import (
-    APIRouter,
-    Depends,
-    Form,
-    HTTPException,
-    Request,
-    status,
-)
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
@@ -23,7 +17,12 @@ from app.security import (
     create_access_token,
     set_auth_cookie,
     unset_auth_cookie,
+    pwd_context,
 )
+from app.ids import new_ids
+
+
+logger = logging.getLogger(__name__)
 
 
 class Token(BaseModel):
@@ -67,7 +66,7 @@ async def login(
     if not user:
         return RedirectResponse("/login?e=auth", 303)
     await db.execute(
-        "UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE uuid = :uuid",
+        "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE uuid = :uuid",
         {"uuid": str(user.uuid)},
     )
     res = RedirectResponse(path or "/", 303)
@@ -104,3 +103,57 @@ async def signup_view(
         "pages/signup.htm",
         {"request": req},
     )
+
+
+@router.post("/signup")
+async def signup(
+    name: Annotated[str, Form()],
+    email: Annotated[str, Form()],
+    password: Annotated[str, Form()],
+    db: Annotated[Database, Depends(get_db)],
+):
+    pwd = pwd_context.hash(password)
+    uuid_new, sid_new = new_ids()
+    _, confirm_code = new_ids()
+    user = await db.fetch_one(
+        """
+        INSERT INTO users
+            (uuid, sid, name, email, password, confirm_code)
+        VALUES (:uuid, :sid, :name, :email, :password, :confirm_code)
+        RETURNING uuid, email
+        """,
+        {
+            "uuid": uuid_new,
+            "sid": sid_new,
+            "name": name,
+            "email": email,
+            "password": pwd,
+            "confirm_code": confirm_code,
+        },
+    )
+    # TODO send confirmation email
+    logger.info("sending confirmation email should happen here")
+    res = RedirectResponse("/", 303)
+    set_auth_cookie(res, user)
+    return res
+
+
+@router.get("/{sid}/confirmation/{code}")
+async def confirm(
+    sid: str,
+    code: str,
+    db: Annotated[Database, Depends(get_db)],
+):
+    _ = await db.execute(
+        """
+        UPDATE
+            users
+        SET
+            confirmed = CURRENT_TIMESTAMP
+        WHERE
+            sid = :sid AND confirm_code = :code
+        RETURNING uuid
+        """,
+        {"sid": sid, "code": code},
+    )
+    return RedirectResponse("/login", 303)

@@ -1,17 +1,16 @@
+import hashlib
 import os
 from contextlib import asynccontextmanager
-import hashlib
-
 from typing import Annotated, Mapping
+
 from databases import Database
-from jose import JWTError, jwt
-from fastapi import Depends, FastAPI, HTTPException, Cookie, status, Request
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.templating import Jinja2Templates
+from jose import JWTError, jwt
 
 from .security import ALGORITHM, SECRET_KEY, get_user
-
 
 db = Database(os.environ["DB_URL"])
 tpl = Jinja2Templates(directory="htm")
@@ -86,7 +85,9 @@ async def get_current_user(
         raise exc
     mm = {k: v for (k, v) in user._mapping.items()}
     del mm['password']
-    mm['email_hash'] = hashlib.md5(str(mm['email']).encode("utf-8")).hexdigest()
+    mm['email_hash'] = hashlib.md5(
+        str(mm['email']).encode("utf-8")
+    ).hexdigest()
     return mm
 
 
