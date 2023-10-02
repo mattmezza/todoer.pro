@@ -18,20 +18,24 @@ async def nav_lists(
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     lists = await db.fetch_all(
-        """SELECT w.* FROM (
-            SELECT l.*, COUNT(t.uuid) as undone FROM lists l
-                CROSS JOIN todos t ON t.list_id = l.uuid WHERE t.done = 0
-                    GROUP BY l.uuid
-            ) as w
-            UNION ALL
-            SELECT wo.* FROM (
-                SELECT ll.*, 0 AS undone FROM lists ll
-                    WHERE NOT EXISTS (
-                        SELECT 'x' FROM todos tt WHERE tt.list_id = ll.uuid
-                    )
-            ) as wo
-            ORDER BY w.undone DESC, w.created_at
-            ASC LIMIT 50"""
+#        """SELECT w.* FROM (
+#            SELECT l.*, COUNT(t.uuid) as incomplete FROM lists l
+#                CROSS JOIN sections s ON s.list = l.uuid
+#                CROSS JOIN tasks t ON t.section = s.uuid WHERE t.complete = 0
+#                    GROUP BY l.uuid
+#            ) as w
+#            UNION ALL
+#            SELECT wo.* FROM (
+#                SELECT ll.*, 0 AS incomplete FROM lists ll
+#                    WHERE NOT EXISTS (
+#                        SELECT 'x' FROM sections ss WHERE ss.list = ll.uuid
+#                    )
+#            ) as wo
+#            ORDER BY w.incomplete DESC, w.created
+#            ASC LIMIT 50"""
+"""
+select *, 0 as incomplete from lists
+"""
         )
     return tpl.TemplateResponse(
         "nav/lists.htm",

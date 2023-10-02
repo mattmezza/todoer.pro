@@ -1,12 +1,11 @@
 import os
 
 import arel
-from fastapi import FastAPI, Depends
+from fastapi import Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .dependencies import tpl, get_current_active_user
-from .routers import auth, home, lists, nav, todos, users
-
+from .dependencies import get_current_active_user, tpl
+from .routers import auth, home, lists, nav, sections, tasks, users
 
 app = FastAPI()
 
@@ -35,8 +34,13 @@ app.include_router(
     dependencies=[Depends(get_current_active_user)],
 )
 app.include_router(
-    todos.router,
-    prefix="/todos",
+    sections.router,
+    prefix="/sections",
+    dependencies=[Depends(get_current_active_user)],
+)
+app.include_router(
+    tasks.router,
+    prefix="/tasks",
     dependencies=[Depends(get_current_active_user)],
 )
 app.include_router(
