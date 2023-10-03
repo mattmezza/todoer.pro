@@ -62,7 +62,8 @@
     </form>
     <ul class="py-8 sections">
     {% for section in sections %}
-    <li hx-trigger="load" hx-get="/sections/{{ section.sid }}" hx-swap="outerHTML"></li>
+    <li hx-trigger="load" hx-get="/sections/{{ section.sid }}" hx-swap="outerHTML">
+    </li>
     {% endfor %}
     </ul>
     <div id="add-section-btn" class="flex flex-row space-x-1 items-center justify-center text-zinc-600 rounded px-3 py-3 group cursor-pointer" _="on click hide me then show the next <form /> then focus() the next <input />">
