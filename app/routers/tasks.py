@@ -159,6 +159,6 @@ async def delete(
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     await db.execute("DELETE FROM tasks WHERE sid = :sid", {"sid": sid})
-    res = HTMLResponse("", status_code=204)
+    res = HTMLResponse("")
     res.headers["HX-Trigger"] = "task-delete"
     return res
