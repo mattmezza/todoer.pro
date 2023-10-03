@@ -22,7 +22,7 @@ async def delete(
         "DELETE FROM lists WHERE sid = :sid AND creator = :creator",
         {"sid": sid, "creator": user["uuid"]},
     )
-    res = HTMLResponse("", status_code=204)
+    res = HTMLResponse("")
     res.headers["HX-Trigger"] = "list-delete"
     return res
 
@@ -78,10 +78,35 @@ async def update_title(
     return li.title
 
 
+@router.put("/{sid}/descr", response_class=HTMLResponse)
+async def update_descr(
+    req: Request,
+    res: HTMLResponse,
+    sid: str,
+    descr: Annotated[str | None, Form()] = None,
+    user: Mapping = Depends(get_current_active_user),
+    db: Database = Depends(get_db),
+    tpl: Jinja2Templates = Depends(get_tpl),
+):
+    li = await db.fetch_one(
+        """
+        UPDATE lists
+            SET descr = :descr
+            WHERE sid = :sid
+            AND creator = :creator
+        RETURNING descr
+        """,
+        {"sid": sid, "descr": descr, "creator": user["uuid"]},
+    )
+    res.headers["HX-Trigger"] = "list-update"
+    return li.descr
+
+
 @router.post("/", response_class=HTMLResponse)
 async def add(
     req: Request,
     title: Annotated[str, Form()],
+    descr: Annotated[str | None, Form()] = None,
     color: Annotated[str | None, Form()] = None,
     user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
@@ -92,14 +117,15 @@ async def add(
     async with db.transaction():
         li = await db.fetch_one(
             """
-            INSERT INTO lists (uuid, sid, title, color, creator)
-            VALUES (:uuid, :sid, :title, :color, :creator)
+            INSERT INTO lists (uuid, sid, title, descr, color, creator)
+            VALUES (:uuid, :sid, :title, :descr, :color, :creator)
             RETURNING *, 0 as incomplete
             """,
             {
                 "uuid": uuid_new,
                 "sid": sid_new,
                 "title": title,
+                "descr": descr,
                 "color": color,
                 "creator": user["uuid"],
             },
@@ -109,18 +135,17 @@ async def add(
                 uuid,
                 sid,
                 `order`,
+                `default`,
                 title,
-                descr,
                 creator,
                 list
             )
-            VALUES (:uuid, :sid, 0, :title, :descr, :creator, :list)
+            VALUES (:uuid, :sid, 0, 1, :title, :creator, :list)
             RETURNING *""",
             {
                 "uuid": uuid_new_section,
                 "sid": sid_new_section,
-                "title": "Main section",
-                "descr": "This contains your tasks.",
+                "title": "Main",
                 "creator": user["uuid"],
                 "list": uuid_new,
             },

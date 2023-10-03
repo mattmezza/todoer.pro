@@ -1,11 +1,11 @@
 {% if not request.headers["hx-request"] %}{% extends "pages/page.htm" %}{% endif %}
 {% block content %}
-<div class="space-y-2 p-8">
-    <div class="flex justify-between items-center">
-        <div class="flex flex-row gap-3 items-center p-4 flex-grow">
+<div class="space-y-2 p-8 max-w-screen-lg mx-auto">
+    <div class="flex justify-between items-center gap-4">
+        <div class="flex flex-row gap-2 items-center py-4 flex-grow">
             <span class="rounded-full w-6 h-6" style="background-color: {{ list.color }}">&nbsp;</span>
             <h1 class="text-2xl font-bold cursor-pointer hover:text-white rounded px-2 py-1" _="on click hide me then show the next <form /> then select() the next <input />">{{ list.title }}</h1>
-            <form class="flex items-center gap-1" hx-put="/lists/{{ list.sid }}/title" hx-target="previous h1" style="display: none" _="on submit or reset hide me then show the previous <h1 />">
+            <form class="flex items-center gap-1 w-full" hx-put="/lists/{{ list.sid }}/title" hx-target="previous h1" style="display: none" _="on submit or reset hide me then show the previous <h1 />">
                 <input class="form-input px-2 py-1 text-2xl font-bold text-white w-full grow" name="title" value="{{ list.title }}" _="on keyup[key is 'Escape'] reset() on the closest <form />">
                 <div class="flex items-center">
                     <button type="reset" class="btn text-xs py-0.5 text-white">Cancel</button>
@@ -13,27 +13,61 @@
                 </div>
             </form>
         </div>
-        <div class="flex items-center rounded group cursor-pointer">
-            <button hx-delete="/lists/{{ list.sid }}" hx-confirm="Are you sure?" hx-target="#main" hx-replace-url="/" class="btn group-hover:text-red-500 gap-1">
-                <div class="flex gap-1 items-center group-hover:bg-red-500 group-hover:text-white rounded-full p-1">
+        <div class="flex items-center gap-2">
+            <button class="hover:text-red-500 gap-1 group" title="Edit list" _="on click hide the previous <h1 /> then show the previous <form /> then select() the previous <input />">
+                <div class="flex gap-1 items-center group-hover:bg-indigo-700 group-hover:text-white rounded-full p-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                    </svg>
+                </div>
+                <span class="hidden">Edit</span>
+            </button>
+            <button hx-delete="/lists/{{ list.sid }}" hx-confirm="Are you sure?" hx-target="#main" hx-replace-url="/" class="hover:text-red-500 gap-1 group" title="Delete list">
+                <div class="flex gap-1 items-center group-hover:bg-red-700 group-hover:text-white rounded-full p-2">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4">
                       <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                     </svg>
                 </div>
-                <span class="">Remove list</span>
+                <span class="hidden">Remove list</span>
             </button>
         </div>
     </div>
-    <div class="">
+    <!-- descr -->
+    <div class="hover:text-white cursor-pointer rounded text-sm dark:text-zinc-400" _="on click hide me then show the next <form /> then select() on the next <textarea />">
         {% if list.descr %}{{ list.descr }}{% else %}(no description){% endif %}
     </div>
+    <form hx-put="/lists/{{ list.sid }}/descr" hx-target="previous div" style="display: none" _="on submit or reset hide me then show the previous <div /> from me" class="rounded border border-slate-600 p-1">
+        <textarea
+            autofocus
+            name="descr"
+            placeholder="Description..."
+            x-data="{ 
+                resize () { 
+                    $el.style.height = '0px'; 
+                    $el.style.height = $el.scrollHeight + 'px' 
+                } 
+            }"
+            x-init="resize()"
+            @input="resize()"
+            _="on keyup[key is 'Escape'] reset() the closest <form />" 
+            class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
+            >{% if list.descr %}{{ list.descr }}{% endif %}</textarea>
+        <div class="flex justify-between items-center p-2">
+            <div></div>
+            <div class="">
+                <button type="reset" class="btn text-xs py-0.5 text-white">Cancel</button>
+                <button type="submit" class="btn bg-indigo-500 text-xs py-0.5 text-white">Save</button>
+            </div>
+        </div>
+    </form>
+    <ul class="py-8 sections">
     {% for section in sections %}
-    <ul hx-trigger="load" hx-get="/sections/{{ section.sid }}" class="py-8">
-    </ul>
+    <li hx-trigger="load" hx-get="/sections/{{ section.sid }}" hx-swap="outerHTML"></li>
     {% endfor %}
+    </ul>
     <div id="add-section-btn" class="flex flex-row space-x-1 items-center justify-center text-zinc-600 rounded px-3 py-3 group cursor-pointer" _="on click hide me then show the next <form /> then focus() the next <input />">
         <button tabindex="0" class="btn group-hover:text-indigo-500 gap-2">
-            <div class="group-hover:bg-indigo-500 group-hover:text-white rounded-full">
+            <div class="dark:text-slate-700 dark:group-hover:bg-indigo-500 dark:group-hover:text-white rounded-full">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
                 </svg>
@@ -41,26 +75,10 @@
             <span class="hidden group-hover:block">Add section</span>
         </button>
     </div>
-    <form style="display: none" class="rounded-sm border border-slate-600" hx-target="previous ul" hx-swap="beforeend" hx-post="/sections" hx-on::after-request="this.reset()" _="on reset or keyup[key is 'Escape'] hide me then show #add-section-btn">
+    <form style="display: none" class="rounded-sm border border-slate-600" hx-target="previous .sections" hx-swap="beforeend" hx-post="/sections" hx-on::after-request="this.reset()" _="on reset or keyup[key is 'Escape'] hide me then show #add-section-btn">
         <div class="py-2"">
             <input class="form-input block py-1 px-23 border-0 w-full" name="title" placeholder="Section name" autofocus>
             <input type="hidden" name="list_id" value="{{ list.uuid }}">
-            <textarea
-                autofocus
-                name="descr"
-                placeholder="Description"
-                x-data="{ 
-                    resize () { 
-                        $el.style.height = '0px'; 
-                        $el.style.height = $el.scrollHeight + 'px' 
-                    } 
-                }"
-                x-init="resize()"
-                @input="resize()"
-                _="on keyup[key is 'Escape'] reset() the closest <form />" 
-                class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
-                ></textarea>
-
         </div>
         <div class="flex flex-row justify-between items-center border-t border-slate-600 px-3 py-2">
             <div>
