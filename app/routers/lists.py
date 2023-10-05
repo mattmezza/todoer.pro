@@ -31,6 +31,7 @@ async def delete(
 async def view(
     req: Request,
     sid: str,
+    view_complete: bool = False,
     db: Database = Depends(get_db),
     user: Mapping = Depends(get_current_active_user),
     tpl: Jinja2Templates = Depends(get_tpl),
@@ -49,6 +50,7 @@ async def view(
             "request": req,
             "list": li._mapping,
             "sections": [s._mapping for s in ss],
+            "view_complete": view_complete,
             "user": user,
         },
     )
@@ -124,8 +126,8 @@ async def add(
             {
                 "uuid": uuid_new,
                 "sid": sid_new,
-                "title": title,
-                "descr": descr,
+                "title": title.strip(),
+                "descr": descr.strip() if descr else None,
                 "color": color,
                 "creator": user["uuid"],
             },

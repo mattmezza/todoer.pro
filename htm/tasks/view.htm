@@ -1,10 +1,10 @@
-<li hx-get="/tasks/{{ task.sid }}" hx-target="#main" hx-trigger="click" hx-push-url="true" class="shadow-lg rounded-sm border-b border-slate-200 dark:border-slate-800 pr-1 py-2 group cursor-pointer" draggable="true">
+<li hx-get="/tasks/{{ task.sid }}" hx-target="#main" hx-trigger="click" hx-push-url="true" class="shadow-lg rounded-sm border-b border-slate-200 dark:border-slate-800 pr-1 py-2 group cursor-pointer{% if task.complete %} opacity-40{% endif %}" draggable="{% if task.complete %}false{% else %}true{% endif %}">
     <form class="sm:flex sm:justify-between sm:items-start">
         <!-- Left side -->
         <div class="grow mt-0.5 mb-0.5 sm:mb-0">
             <div class="flex items-center">
                 <!-- Drag button -->
-                <button class="cursor-ns-resize mr-2 invisible group-hover:visible">
+                <button class="cursor-ns-resize mr-2 invisible {% if not task.complete %}group-hover:visible{% endif %}">
                     <span class="sr-only">Drag</span>
                     <svg class="w-3 h-3 fill-slate-300 dark:fill-slate-600" viexbox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
                         <path d="M0 1h12v2H0V1Zm0 4h12v2H0V5Zm0 4h12v2H0V9Z" fill-rule="evenodd"></path>

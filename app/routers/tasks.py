@@ -41,8 +41,8 @@ async def add_task(
         {
             "uuid": uuid_new,
             "sid": sid_new,
-            "title": title,
-            "descr": descr,
+            "title": title.strip(),
+            "descr": descr.strip() if descr else None,
             "section": section,
         },
     )
@@ -115,6 +115,10 @@ async def update(
         {"request": req, "task": task},
     )
     res.headers["HX-Trigger"] = "task-update"
+    if task.complete == 1:
+        res.headers["HX-Trigger"] = "task-complete"
+    else:
+        res.headers["HX-Trigger"] = "task-incomplete"
     return res
 
 

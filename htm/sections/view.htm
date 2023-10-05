@@ -1,6 +1,6 @@
 {% if not request.headers["hx-request"] %}{% extends "pages/page.htm" %}{% endif %}
 {% block content %}
-<li draggable="{% if section.default %}false{% else %}true{% endif %}" class="py-4 section">
+<li draggable="{% if section.default %}false{% else %}true{% endif %}" class="py-4 section" hx-trigger="section-update from:body, task-complete from:body, task-incomplete from:body" hx-get="/sections/{{ section.sid }}" hx-vals='{"view_complete": {% if view_complete %}true{% else %}false{% endif %} }'>
     {% if not section.default %}
     <div class="flex items-center justify-between text-sm border-b border-slate-200/20 group">
         <div class="flex items-center gap-1 flex-grow">
@@ -22,8 +22,9 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
                 </svg>
             </button>
-            <div>
+            <div class="flex items-end gap-1">
                 <h2 class="font-semibold">{{ section.title }}</h2>
+                <span class="text-zinc-400 dark:text-slate-700">{{ tasks_incomplete|length  }}</span>
             </div>
         </div>
         <div class="mr-5">
@@ -36,12 +37,13 @@
     </div>
     {% endif %}
 
+
     <ul class="list-none">
-        {% for task in html.tasks %}
-        {{ task|safe }}
+        {% for task in tasks_incomplete %}
+            {{ tpls.task.view({'task': task})|safe }}
         {% endfor %}
     </ul>
-    <div class="add-task-btn flex flex-row space-x-1 items-center rounded px-3 py-3 group cursor-pointer" _="on click hide me then show the next <form /> then focus() the next <input />">
+    <div class="add-task-btn flex flex-row space-x-1 items-center rounded px-3 py-3 group cursor-pointer" _="on click hide me then show the next .add-task-form then focus() the next <input />">
         <button tabindex="0" class="btn dark:text-slate-700 dark:group-hover:text-indigo-500 gap-2">
             <span class="group-hover:bg-indigo-500 group-hover:text-white rounded-full">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
@@ -51,7 +53,7 @@
             <span>Add task</span>
         </button>
     </div>
-    <form style="display: none" class="rounded-sm border border-slate-600" hx-target="previous ul" hx-swap="beforeend" hx-post="/tasks" hx-on::after-request="this.reset()" _="on reset or keyup[key is 'Escape'] hide me then show the previous <div />">
+    <form style="display: none" class="rounded-sm border border-slate-600 add-task-form mb-2" hx-target="previous ul" hx-swap="beforeend" hx-post="/tasks" hx-on::after-request="this.reset()" _="on reset or keyup[key is 'Escape'] hide me then show the previous <div />">
         <div class="py-2"">
             <input class="form-input block py-1 px-23 border-0 w-full" name="title" placeholder="Task name" autofocus>
             <input type="hidden" name="section" value="{{ section.uuid }}">
@@ -81,5 +83,17 @@
             </div>
         </div>
     </form>
+
+    {% if view_complete %}
+    <div class="section-complete">
+        <span class="font-bold uppercase text-xs ml-4">Complete</span>
+        <ul class="list-none">
+            {% for task in tasks_complete %}
+                {{ tpls.task.view({'task': task})|safe }}
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
 </li>
 {% endblock %}
