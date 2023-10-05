@@ -34,6 +34,7 @@ async def delete(
 async def view(
     req: Request,
     sid: str,
+    view_complete: bool = False,
     db: Database = Depends(get_db),
     user: Mapping = Depends(get_current_active_user),
     tpl: Jinja2Templates = Depends(get_tpl),
@@ -53,16 +54,16 @@ async def view(
         {"section": ss.uuid},
     )
     task_tpl = tpl.get_template("tasks/view.htm")
-    html = {
-        "tasks": [task_tpl.render({"task": task._mapping}) for task in tasks]
-    }
     return tpl.TemplateResponse(
         "sections/view.htm",
         {
             "request": req,
+            "tpls": {"task": {"view": task_tpl.render}},
             "section": ss._mapping,
             "tasks": [t._mapping for t in tasks],
-            "html": html,
+            "tasks_incomplete": [t._mapping for t in tasks if t.complete == 0],
+            "tasks_complete": [t._mapping for t in tasks if t.complete == 1],
+            "view_complete": view_complete,
             "user": user,
         },
     )
@@ -99,7 +100,7 @@ async def add(
         {
             "uuid": uuid_new,
             "sid": sid_new,
-            "title": title,
+            "title": title.strip(),
             "creator": user["uuid"],
             "list": list_id,
         },
