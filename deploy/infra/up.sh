@@ -47,7 +47,7 @@ sudo ln -s /etc/nginx/sites-available/dev.todoer.pro /etc/nginx/sites-enabled/
 echo 'server {
         listen 80;
         listen [::]:80;
-        server_name zenleadr.com;
+        server_name todoer.pro;
         location / {
                 proxy_pass http://localhost:4010/;
                 proxy_buffering off;
