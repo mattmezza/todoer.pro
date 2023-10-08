@@ -1,0 +1,18 @@
+services:
+  app:
+    image: "todoers_app:${TAG}"
+    container_name: todoers_app_dev
+    ports:
+      - "4001:80"
+    environment:
+      TODOERS_SECRET_KEY: "${TODOERS_SECRET_KEY_DEV}"
+      TODOERS_ACCESS_TOKEN_EXPIRE_MINUTES: "43200" # 30d -> 60 * 24 * 30
+      TODOERS_AUTH_COOKIE_EXPIRE_MINUTES: "43200" # 30d -> 60 * 24 * 30
+      TODOERS_DB_URL: "sqlite:///../todoers-dev.db"
+      TODOERS_ENV: "dev"
+  networks:
+    default:
+      ipam:
+        config:
+          -
+            subnet: 172.30.0.0/16

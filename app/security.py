@@ -8,13 +8,17 @@ from databases import Database
 
 # to get a string like this run:
 # openssl rand -hex 32
-SECRET_KEY = os.environ["SECRET_KEY"]
+SECRET_KEY = os.environ["TODOERS_SECRET_KEY"]
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"])
-AUTH_COOKIE_EXPIRE_MINUTES = int(os.environ["AUTH_COOKIE_EXPIRE_MINUTES"])
+ACCESS_TOKEN_EXPIRE_MINUTES = int(
+    os.environ["TODOERS_ACCESS_TOKEN_EXPIRE_MINUTES"]
+)
+AUTH_COOKIE_EXPIRE_MINUTES = int(
+    os.environ["TODOERS_AUTH_COOKIE_EXPIRE_MINUTES"]
+)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-is_dev = os.environ['ENV'] == "dev"
+is_dev = os.environ['TODOERS_ENV'] == "local"
 
 
 @dataclass(frozen=True, kw_only=True)
