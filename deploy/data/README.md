@@ -1,7 +1,7 @@
 This folder contains the sqlite databases:
 
-- todoers-local.db
-- todoers-dev.db
-- todoers-prod.db
+- `todoer_local.db`
+- `todoer_dev.db`
+- `todoer_prod.db`
 
 The whole folder should be git ignored.

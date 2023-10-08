@@ -8,4 +8,4 @@ ENV=${1-dev}
 shift
 
 
-docker build -t todoers_app:$TAG .
+docker build -t todoer_app:$TAG .

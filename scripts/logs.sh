@@ -16,7 +16,7 @@ while getopts "h?e:t:" opt; do
       ;;
   esac
 done
-PRJ="todoers_$ENV"
+PRJ="todoer_$ENV"
 shift $((OPTIND-1))
 [ "${1:-}" = "--" ] && shift
 

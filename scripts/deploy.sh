@@ -27,13 +27,13 @@ while getopts "h?ae:t:y" opt; do
   esac
 done
 
-PRJ="todoers_$ENV"
+PRJ="todoer_$ENV"
 
 shift $((OPTIND-1))
 [ "${1:-}" = "--" ] && shift
 
 # check if images are available
-if [[ $(docker images -q todoers_app:$TAG 2> /dev/null) == "" ]]; then
+if [[ $(docker images -q todoer_app:$TAG 2> /dev/null) == "" ]]; then
     echo 3
 fi
 

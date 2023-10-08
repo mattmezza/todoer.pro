@@ -1,17 +1,17 @@
 services:
   app:
-    image: "todoers_app:${TAG}"
-    container_name: todoers_app_dev
+    image: "todoer_app:${TAG}"
+    container_name: todoer_app_dev
     ports:
       - "4001:80"
     environment:
-      TODOERS_SECRET_KEY: "${TODOERS_SECRET_KEY_DEV}"
-      TODOERS_ACCESS_TOKEN_EXPIRE_MINUTES: "43200" # 30d -> 60 * 24 * 30
-      TODOERS_AUTH_COOKIE_EXPIRE_MINUTES: "43200" # 30d -> 60 * 24 * 30
-      TODOERS_DB_URL: "sqlite:////var/todoers.db"
-      TODOERS_ENV: "dev"
+      TODOER_SECRET_KEY: "${TODOER_SECRET_KEY_DEV}"
+      TODOER_ACCESS_TOKEN_EXPIRE_MINUTES: "43200" # 30d -> 60 * 24 * 30
+      TODOER_AUTH_COOKIE_EXPIRE_MINUTES: "43200" # 30d -> 60 * 24 * 30
+      TODOER_DB_URL: "sqlite:////var/todoer.db"
+      TODOER_ENV: "dev"
     volumes:
-      - "./data/todoers-dev.db:/var/todoers.db"
+      - "./data/todoer_dev.db:/var/todoer.db"
   networks:
     default:
       ipam:

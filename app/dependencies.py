@@ -12,7 +12,7 @@ from jose import JWTError, jwt
 
 from .security import ALGORITHM, SECRET_KEY, get_user
 
-db = Database(os.environ["TODOERS_DB_URL"])
+db = Database(os.environ["TODOER_DB_URL"])
 tpl = Jinja2Templates(directory="htm")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 

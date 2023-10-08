@@ -19,4 +19,4 @@ done
 shift $((OPTIND-1))
 [ "${1:-}" = "--" ] && shift
 
-cat "$1" | sqlite3 "deploy/data/todoers-$ENV.db"
+cat "$1" | sqlite3 "deploy/data/todoer_$ENV.db"
