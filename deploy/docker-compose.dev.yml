@@ -8,8 +8,10 @@ services:
       TODOERS_SECRET_KEY: "${TODOERS_SECRET_KEY_DEV}"
       TODOERS_ACCESS_TOKEN_EXPIRE_MINUTES: "43200" # 30d -> 60 * 24 * 30
       TODOERS_AUTH_COOKIE_EXPIRE_MINUTES: "43200" # 30d -> 60 * 24 * 30
-      TODOERS_DB_URL: "sqlite:///../todoers-dev.db"
+      TODOERS_DB_URL: "sqlite:///var/todoers.db"
       TODOERS_ENV: "dev"
+    volumes:
+      - "./data/todoers-dev.db:/var/todoers.db"
   networks:
     default:
       ipam:

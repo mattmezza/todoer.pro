@@ -8,5 +8,7 @@ services:
       TODOERS_SECRET_KEY: "${TODOERS_SECRET_KEY_LOCAL}"
       TODOERS_ACCESS_TOKEN_EXPIRE_MINUTES: "43200" # 30d -> 60 * 24 * 30
       TODOERS_AUTH_COOKIE_EXPIRE_MINUTES: "43200" # 30d -> 60 * 24 * 30
-      TODOERS_DB_URL: "sqlite:///../todoers-local.db"
+      TODOERS_DB_URL: "sqlite:///var/todoers.db"
       TODOERS_ENV: "local"
+    volumes:
+      - "./data/todoers-local.db:/var/todoers.db"
