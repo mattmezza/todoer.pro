@@ -16,6 +16,6 @@ WORKDIR /app
 COPY --from=builder /tmp/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir --upgrade -r /tmp/requirements.txt
 ADD . /app
-COPY --from=tailwindcss /tmp/style.css /tmp/public/style.css
+COPY --from=tailwindcss /tmp/style.css /app/public/style.css
 EXPOSE 80
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80", "--proxy-headers", "--forwarded-allow-ips", "'*'"]
