@@ -9,7 +9,7 @@ from .routers import auth, home, lists, nav, sections, tasks, users
 
 app = FastAPI()
 
-if os.environ["TODOERS_ENV"] == "local":
+if os.environ["TODOER_ENV"] == "local":
     hot_reload = arel.HotReload(paths=[
         arel.Path("app"),
         arel.Path("htm"),
