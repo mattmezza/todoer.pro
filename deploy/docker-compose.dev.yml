@@ -12,9 +12,9 @@ services:
       TODOER_ENV: "dev"
     volumes:
       - "./data/todoer_dev.db:/var/todoer.db"
-  networks:
-    default:
-      ipam:
-        config:
-          -
-            subnet: 172.30.0.0/16
+networks:
+  default:
+    ipam:
+      config:
+        -
+          subnet: 172.30.0.0/16
