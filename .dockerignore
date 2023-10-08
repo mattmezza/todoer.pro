@@ -1,0 +1,9 @@
+__pycache__
+.git
+README.md
+Dockerfile
+.envrc
+.gitignore
+node_modules
+deploy
+scripts

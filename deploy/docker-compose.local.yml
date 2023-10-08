@@ -1,0 +1,12 @@
+services:
+  app:
+    image: "todoers_app:${TAG}"
+    container_name: todoers_app_local
+    ports:
+      - "4002:80"
+    environment:
+      TODOERS_SECRET_KEY: "${TODOERS_SECRET_KEY_LOCAL}"
+      TODOERS_ACCESS_TOKEN_EXPIRE_MINUTES: "43200" # 30d -> 60 * 24 * 30
+      TODOERS_AUTH_COOKIE_EXPIRE_MINUTES: "43200" # 30d -> 60 * 24 * 30
+      TODOERS_DB_URL: "sqlite:///../todoers-local.db"
+      TODOERS_ENV: "local"

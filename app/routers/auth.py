@@ -1,4 +1,3 @@
-import os
 import logging
 from datetime import timedelta
 from typing import Annotated
@@ -30,7 +29,6 @@ class Token(BaseModel):
     token_type: str
 
 
-is_dev = os.environ['ENV'] == "dev"
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 router = APIRouter()
 
