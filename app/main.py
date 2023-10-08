@@ -10,7 +10,13 @@ from .routers import auth, home, lists, nav, sections, tasks, users
 app = FastAPI()
 
 if os.environ["TODOERS_ENV"] == "local":
-    hot_reload = arel.HotReload(paths=[arel.Path(".")])
+    hot_reload = arel.HotReload(paths=[
+        arel.Path("app"),
+        arel.Path("htm"),
+        arel.Path("public"),
+        arel.Path("styles"),
+        arel.Path("tailwind.config.js"),
+    ])
     app.add_websocket_route("/hot-reload", route=hot_reload, name="hot-reload")
     app.add_event_handler("startup", hot_reload.startup)
     app.add_event_handler("shutdown", hot_reload.shutdown)
