@@ -59,7 +59,7 @@ esac
 if [ $CONFIRMED == "y" ];
 then
     # update stack
-    TAG=$TAG docker-compose -p $PRJ -f "deploy/docker-compose.$ENV.yml" up --force-recreate --remove-orphans $detached $@
+    TAG=$TAG docker compose -p $PRJ -f "deploy/docker-compose.$ENV.yml" up --force-recreate --remove-orphans $detached $@
 else
     echo "Skipping deploy to $ENV for $PRJ."
 fi

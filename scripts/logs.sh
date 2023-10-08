@@ -22,4 +22,4 @@ shift $((OPTIND-1))
 
 # source secrets
 source deploy/secrets.env
-TAG=$TAG docker-compose -p $PRJ -f "deploy/docker-compose.$ENV.yml" logs $@
+TAG=$TAG docker compose -p $PRJ -f "deploy/docker-compose.$ENV.yml" logs $@
