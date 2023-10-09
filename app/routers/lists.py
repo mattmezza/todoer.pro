@@ -104,7 +104,7 @@ async def update_descr(
     return li.descr
 
 
-@router.post("/", response_class=HTMLResponse)
+@router.post("", response_class=HTMLResponse)
 async def add(
     req: Request,
     title: Annotated[str, Form()],
