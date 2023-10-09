@@ -11,7 +11,7 @@ from app.ids import new_ids
 router = APIRouter()
 
 
-@router.post("/", response_class=HTMLResponse)
+@router.post("", response_class=HTMLResponse)
 async def add_task(
     req: Request,
     title: Annotated[str, Form()],
