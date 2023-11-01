@@ -34,8 +34,9 @@ async def nav_lists(
 #            ORDER BY w.incomplete DESC, w.created
 #            ASC LIMIT 50"""
 """
-select *, 0 as incomplete from lists
-"""
+select *, 0 as incomplete from lists where creator = :creator
+""",
+{"creator": user["uuid"]}
         )
     return tpl.TemplateResponse(
         "nav/lists.htm",
