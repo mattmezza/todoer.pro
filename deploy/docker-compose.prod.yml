@@ -2,6 +2,7 @@ services:
   app:
     image: "todoer_app:${TAG}"
     container_name: todoer_app_prod
+    restart: always
     ports:
       - "4010:80"
     environment:
