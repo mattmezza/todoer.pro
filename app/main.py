@@ -5,7 +5,7 @@ from fastapi import Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from .dependencies import get_current_active_user, tpl
-from .routers import auth, home, lists, nav, sections, tasks, users
+from .routers import auth, comments, home, lists, nav, sections, tasks, users
 
 app = FastAPI()
 
@@ -47,6 +47,11 @@ app.include_router(
 app.include_router(
     tasks.router,
     prefix="/tasks",
+    dependencies=[Depends(get_current_active_user)],
+)
+app.include_router(
+    comments.router,
+    prefix="/comments",
     dependencies=[Depends(get_current_active_user)],
 )
 app.include_router(
