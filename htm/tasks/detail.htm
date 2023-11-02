@@ -82,8 +82,9 @@
                             $el.style.height = $el.scrollHeight + 'px' 
                         } 
                     }"
-                    x-init="resize()"
+                    x-init="$nextTick(() => resize())"
                     @input="resize()"
+                    @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                     _="on keyup[key is 'Escape'] reset() the closest <form />" 
                     class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
                     ></textarea>
@@ -156,8 +157,9 @@
                             $el.style.height = $el.scrollHeight + 'px' 
                         } 
                     }"
-                    x-init="resize()"
+                    x-init="$nextTick(() => resize())"
                     @input="resize()"
+                    @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                     _="on keyup[key is 'Escape'] reset() the closest <form />" 
                     class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
                     autofocus></textarea>
