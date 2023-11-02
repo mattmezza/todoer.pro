@@ -1,3 +1,4 @@
+import hashlib
 from typing import Annotated, Mapping
 
 from databases import Database
@@ -73,6 +74,21 @@ async def view(
         "SELECT * FROM lists WHERE uuid = :uuid",
         {"uuid": se.list},
     )
+    cc = await db.fetch_all(
+        """
+        SELECT cc.*, uu.email as author_email FROM comments cc
+            JOIN users uu on cc.author = uu.uuid
+        WHERE cc.task = :task
+        LIMIT 100
+        """,
+        {"task": task.uuid},
+    )
+    cc = [dict(c._mapping) for c in cc]
+    for c in cc:
+        c["author_email_hash"] = hashlib.md5(
+            str(c["author_email"]).encode("utf-8")
+        ).hexdigest()
+    comment_tpl = tpl.get_template("comments/view.htm")
     return tpl.TemplateResponse(
         "tasks/detail.htm",
         {
@@ -80,7 +96,9 @@ async def view(
             "task": task._mapping,
             "section": se._mapping,
             "list": li._mapping,
+            "comments": cc,
             "user": user,
+            "tpls": {"comments": {"view": comment_tpl.render}},
         },
     )
 
