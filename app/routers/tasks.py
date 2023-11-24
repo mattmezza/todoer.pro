@@ -89,6 +89,14 @@ async def view(
             str(c["author_email"]).encode("utf-8")
         ).hexdigest()
     comment_tpl = tpl.get_template("comments/view.htm")
+    subtasks = await db.fetch_all(
+        """
+        SELECT * FROM subtasks WHERE task = :task
+        """,
+        {"task": task.uuid},
+    )
+    subtasks = [dict(s._mapping) for s in subtasks]
+    subtask_tpl = tpl.get_template("subtasks/view.htm")
     return tpl.TemplateResponse(
         "tasks/detail.htm",
         {
@@ -97,8 +105,9 @@ async def view(
             "section": se._mapping,
             "list": li._mapping,
             "comments": cc,
+            "subtasks": subtasks,
             "user": user,
-            "tpls": {"comments": {"view": comment_tpl.render}},
+            "tpls": {"comments": {"view": comment_tpl.render}, "subtasks": {"view": subtask_tpl.render}},
         },
     )
 
