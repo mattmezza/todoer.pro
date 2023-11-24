@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "td"
+name = "todoer"
 version = "0.1.0"
-description = "my todos"
+description = "Todoer Pro"
 authors = ["Matteo Merola <mattmezza@gmail.com>"]
 license = "MIT"
 readme = "README.md"
