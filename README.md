@@ -21,6 +21,9 @@ My personal TODO app.
 - `dev`
 - `prod`
 
+## Release
+
+`make release VERSION=v0.1.0`
 
 ### Scripts
 
