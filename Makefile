@@ -9,3 +9,6 @@ dev:
 	./scripts/build.sh dev
 prod:
 	./scripts/build.sh prod
+
+release:
+	gh release create $(VERSION) --generate-notes
