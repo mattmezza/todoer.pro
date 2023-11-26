@@ -1,0 +1,10 @@
+<div x-data="{ open: false }" class="lg:hidden absolute bottom-0 w-full dark:bg-slate-700/80 backdrop-blur-sm py-2 flex flex-col gap-8 items-center justify-start rounded-t">
+    <button @click="open = true" x-show="!open" class="w-full cursor-pointer uppercase font-bold">Lists</button>
+    <button @click="open = false" x-show="open" class="w-full cursor-pointer uppercase font-bold">Close</button>
+    <ul x-show="open" class="max-h-96" hx-get="/nav/lists" hx-trigger="load, list-delete from:body, list-create from:body, list-update from:body, task-update from:body, task-delete from:body, task-create from:body">
+    </ul>
+    <div x-show="open" class="uppercase text-xs font-bold flex flex-row gap-4 justify-center items-center">
+        <a class="hover:text-indigo-500 cursor-pointer" hx-get="/users/me" hx-target="#main">Profile</a>
+        <a class="hover:text-indigo-500" href="/signout">Logout</a>
+    </div>
+</div>
