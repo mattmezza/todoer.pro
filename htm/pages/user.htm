@@ -1,6 +1,6 @@
 {% if not request.headers["hx-request"] %}{% extends "pages/page.htm" %}{% endif %}
 {% block content %}
-<div class="max-w-lg space-y-4 mx-auto">
+<div class="max-w-lg space-y-4 mx-auto mt-12">
     <img src="https://www.gravatar.com/avatar/{{ user.email_hash }}?s=150" class="rounded-full ring-4 ring-blue-500 mx-auto" />
     <div class="text-lg font-semibold">
         <div class="flex flex-row items-center justify-between">
