@@ -1,15 +1,15 @@
 <!doctype html>
 <html>
 <head>
-    <title>Todoer</title>
+    <title>{% if DEBUG %}[local]{% endif %}Todoer</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="/public/style.css" rel="stylesheet">
 </head>
-<body hx-ext="loading-states" class="font-inter antialiased bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-300 sidebar-expanded">
+<body hx-ext="loading-states" class="font-inter antialiased bg-slate-100 dark:bg-gray-950 text-slate-600 dark:text-slate-300 sidebar-expanded">
     <div class="flex h-[100dvh] overflow-hidden">
         {% include "partials/nav-menu.htm" %}
-        <div class="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
+        <div class="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden dark:bg-black lg:rounded-l-lg">
             {# {% include "partials/top-bar.htm" %} #}
             <div class="flex flex-row">
                 <div id="main" class="grow">
