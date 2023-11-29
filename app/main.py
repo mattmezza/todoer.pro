@@ -5,18 +5,31 @@ from fastapi import Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from .dependencies import get_current_active_user, tpl
-from .routers import auth, comments, home, lists, nav, sections, tasks, users, subtasks
+from .routers import (
+    attachments,
+    auth,
+    comments,
+    home,
+    lists,
+    nav,
+    sections,
+    subtasks,
+    tasks,
+    users,
+)
 
 app = FastAPI()
 
 if os.environ["TODOER_ENV"] == "local":
-    hot_reload = arel.HotReload(paths=[
-        arel.Path("app"),
-        arel.Path("htm"),
-        arel.Path("public"),
-        arel.Path("styles"),
-        arel.Path("tailwind.config.js"),
-    ])
+    hot_reload = arel.HotReload(
+        paths=[
+            arel.Path("app"),
+            arel.Path("htm"),
+            arel.Path("public"),
+            arel.Path("styles"),
+            arel.Path("tailwind.config.js"),
+        ]
+    )
     app.add_websocket_route("/hot-reload", route=hot_reload, name="hot-reload")
     app.add_event_handler("startup", hot_reload.startup)
     app.add_event_handler("shutdown", hot_reload.shutdown)
@@ -57,6 +70,11 @@ app.include_router(
 app.include_router(
     subtasks.router,
     prefix="/subtasks",
+    dependencies=[Depends(get_current_active_user)],
+)
+app.include_router(
+    attachments.router,
+    prefix="/attachments",
     dependencies=[Depends(get_current_active_user)],
 )
 app.include_router(

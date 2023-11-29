@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.dependencies import get_current_active_user, get_db, get_tpl
 from app.ids import new_ids
+from app import blob
 
 router = APIRouter()
 
@@ -63,22 +64,39 @@ async def view(
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
+    # TODO - refactor all these damn DB queries
+    # I'm pretty sure they can be improved ;)
     task = await db.fetch_one(
-        "SELECT * FROM tasks WHERE sid = :sid", {"sid": sid}
+        """
+        SELECT * FROM tasks WHERE sid = :sid AND task IN (
+            SELECT uuid from sections WHERE list IN (
+                SELECT uuid FROM lists WHERE creator = :creator
+            )
+        )
+        """,
+        {"sid": sid, "creator": user['uuid']},
     )
     se = await db.fetch_one(
-        "SELECT * FROM sections WHERE uuid = :uuid",
-        {"uuid": task.section},
+        """
+        SELECT * FROM sections WHERE uuid = :uuid AND list IN (
+            SELECT uuid FROM lists WHERE creator = :creator
+        )
+        """,
+        {"uuid": task.section, "creator": user['uuid']},
     )
     li = await db.fetch_one(
-        "SELECT * FROM lists WHERE uuid = :uuid",
-        {"uuid": se.list},
+        "SELECT * FROM lists WHERE uuid = :uuid AND creator = :creator",
+        {"uuid": se.list, "creator": user['uuid']},
     )
     cc = await db.fetch_all(
         """
         SELECT cc.*, uu.email as author_email FROM comments cc
             JOIN users uu on cc.author = uu.uuid
-        WHERE cc.task = :task
+        WHERE cc.task = :task AND cc.task IN (
+            SELECT uuid from sections WHERE list IN (
+                SELECT uuid FROM lists WHERE creator = :creator
+            )
+        )
         LIMIT 100
         """,
         {"task": task.uuid},
@@ -91,12 +109,35 @@ async def view(
     comment_tpl = tpl.get_template("comments/view.htm")
     subtasks = await db.fetch_all(
         """
-        SELECT * FROM subtasks WHERE task = :task
+        SELECT * FROM subtasks WHERE task = :task AND task IN (
+            SELECT uuid from sections WHERE list IN (
+                SELECT uuid FROM lists WHERE creator = :creator
+            )
+        )
         """,
-        {"task": task.uuid},
+        {"task": task.uuid, "creator": user['uuid']},
     )
     subtasks = [dict(s._mapping) for s in subtasks]
     subtask_tpl = tpl.get_template("subtasks/view.htm")
+    attachments = await db.fetch_all(
+        """
+        SELECT sid, uuid, mime, fname, size, created FROM attachments
+        WHERE task = :task and task IN (
+            SELECT uuid FROM sections WHERE list IN (
+                SELECT uuid FROM lists WHERE creator = :creator
+            )
+        )
+        LIMIT 100
+        """,
+        {"task": task.uuid, "creator": user['uuid']},
+    )
+    attachments = [dict(a._mapping) for a in attachments]
+    for a in attachments:
+        a['url'] = blob.url_signed_for(
+            a['uuid'],
+            blob.URL_SIGNED_VALIDITY_DURATION_DEFAULT,
+        )
+    attachments_tpl = tpl.get_template("attachments/view.htm")
     return tpl.TemplateResponse(
         "tasks/detail.htm",
         {
@@ -106,8 +147,13 @@ async def view(
             "list": li._mapping,
             "comments": cc,
             "subtasks": subtasks,
+            "attachments": attachments,
             "user": user,
-            "tpls": {"comments": {"view": comment_tpl.render}, "subtasks": {"view": subtask_tpl.render}},
+            "tpls": {
+                "comments": {"view": comment_tpl.render},
+                "subtasks": {"view": subtask_tpl.render},
+                "attachments": {"view": attachments_tpl.render},
+            },
         },
     )
 
