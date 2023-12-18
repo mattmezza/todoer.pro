@@ -68,7 +68,7 @@ async def view(
     # I'm pretty sure they can be improved ;)
     task = await db.fetch_one(
         """
-        SELECT * FROM tasks WHERE sid = :sid AND task IN (
+        SELECT * FROM tasks WHERE sid = :sid AND section IN (
             SELECT uuid from sections WHERE list IN (
                 SELECT uuid FROM lists WHERE creator = :creator
             )
@@ -99,7 +99,7 @@ async def view(
         )
         LIMIT 100
         """,
-        {"task": task.uuid},
+        {"task": task.uuid, "creator": user['uuid']},
     )
     cc = [dict(c._mapping) for c in cc]
     for c in cc:
@@ -123,8 +123,10 @@ async def view(
         """
         SELECT sid, uuid, mime, fname, size, created FROM attachments
         WHERE task = :task and task IN (
-            SELECT uuid FROM sections WHERE list IN (
-                SELECT uuid FROM lists WHERE creator = :creator
+            SELECT uuid FROM tasks WHERE section IN (
+                SELECT uuid FROM sections WHERE list IN (
+                    SELECT uuid FROM lists WHERE creator = :creator
+                )
             )
         )
         LIMIT 100
