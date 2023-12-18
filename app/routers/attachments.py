@@ -2,7 +2,7 @@ import logging
 from typing import Annotated, Mapping
 
 from databases import Database
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -24,8 +24,10 @@ async def delete(
     row = await db.fetch_one(
         """DELETE FROM attachments
             WHERE sid = :sid AND task IN (
-                select uuid from tasks where list in (
-                    select uuid from lists where creator = :creator
+                select uuid from tasks where section in (
+                    select uuid from sections where list in (
+                        select uuid from lists where creator = :creator
+                    )
                 )
             )
             RETURNING uuid
@@ -46,18 +48,20 @@ async def delete(
 async def add(
     req: Request,
     task: Annotated[str, Form()],
-    content: Annotated[str, Form()],  # TODO - swtch to file
+    file: UploadFile,
     user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     uuid_new, sid_new = new_ids()
-    mime = ""  # TODO - get mime type
-    fname = ""  # TODO - get fname
-    size = 0  # TODO - get size in bytes
-    content = bytes("")  # TODO - get this from request
-    file_key = blob.put(uuid_new, content)
-    comm = await db.fetch_one(
+    content_type = file.content_type
+    fname = file.filename
+
+    size = len(file.file.read())
+    file.file.seek(0)
+
+    blob.put(uuid_new, file.file, content_type)
+    attachment = await db.fetch_one(
         """INSERT INTO attachments (
             uuid,
             sid,
@@ -78,7 +82,7 @@ async def add(
         {
             "uuid": uuid_new,
             "sid": sid_new,
-            "mime": mime,
+            "mime": content_type,
             "fname": fname,
             "size": size,
             "task": task,
@@ -88,10 +92,10 @@ async def add(
         "attachments/view.htm",
         {
             "request": req,
-            "attachment": dict(comm._mapping)
+            "attachment": dict(attachment._mapping)
             | {
                 "url": blob.url_signed_for(
-                    file_key,
+                    attachment.uuid,
                     blob.URL_SIGNED_VALIDITY_DURATION_DEFAULT,
                 )
             },

@@ -107,20 +107,48 @@
         <div class="space-y-4">
             <h3 class="font-bold">Attachments</h3>
             <div class="space-y-6">
-                <ul id="attachments" class="list-none text-sm flex flex-wrap gap-6">
+                <ul class="list-none flex flex-wrap gap-4">
+                <ul id="attachments" class="list-none text-sm flex flex-wrap gap-4">
                     {% for a in attachments %}
-                    <li class="">
                         {{ tpls.attachments.view({'attachment': a})|safe }}
-                    </li>
                     {% endfor %}
                 </ul>
-                <div _="on dragover or dragenter halt the event
+                <!-- <div _="on dragover or dragenter halt the event
         then add .bg-slate-700 to the target
       on dragleave or drop remove .bg-slate-700 from the target
       on drop halt the event
       then call processDrop(event)" class="w-full rounded p-6 bg-slate-50/5 flex items-center justify-center text-slate-400 text-xs font-semibold cursor-pointer">
                     <p><span class="text-zinc-200">Click</span> or <span class="text-zinc-200">Drop your file here</span></p>
-                </div>
+                </div>-->
+                <form
+                    hx-encoding='multipart/form-data'
+                    hx-post='/attachments'
+                    hx-target="previous ul"
+                    hx-swap="beforeend"
+                    hx-trigger="submit"
+                    class="max-w-xs rounded bg-white/5"
+                    _='on htmx:beforeRequest show #progress then hide #upload then show #uploading on htmx:xhr:progress(loaded, total) set #progress.value to (loaded/total)*100 on htmx:afterRequest reset() me then set #progress.value to 0 then hide #progress then hide #uploading then show #upload'>
+                    <div class="dark:text-zing-200 text-xs cursor-wait w-full text-center animate-pulse duration-150">
+                    </div>
+                    <label for="post-attachment" class="dark:text-zinc-200 text-xs cursor-pointer w-full">
+                        <div id="uploading" style="display: none" class="btn text-center w-full px-16 animate-pulse duration-150 cursor-wait">Uploading...</div>
+                        <div id="upload" style="display: flex" class="btn group hover:text-indigo-500 gap-2 w-full justify-start relative">
+                            <div class="group-hover:bg-indigo-500 group-hover:text-white rounded-full">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 rounded-full group-hover:bg-indigo-500 transition-all p-1">
+                                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                                </svg>
+                            </div>
+                            <span id="post-attachment-fname">Click or drag file here</span>
+                            <input id="post-attachment" onchange="validate(this)" class="opacity-0 absolute file:top-0 left-0 file:w-full text-xs file:py-2" type='file' name='file'>
+                        </div>
+                        <div>
+                            <progress style="display: none" id='progress' value='0' max='100' class="h-1 w-full rounded"></progress>
+                        </div>
+                    </label>
+                    <button class="btn hover:text-indigo-500 hidden" type="submit">Upload</button>
+                    <input type="hidden" name="task" value="{{ task.uuid }}">
+                </form>
+                </ul>
             </div>
         </div>
 
@@ -175,6 +203,32 @@
     </div>
 </div>
 <script>
+    function fileIsTooLarge(input) {
+        const fileSize = input.files[0].size / 1024 / 1024; // in MiB
+        if (fileSize > 10)
+            return true
+        return false
+    }
+    function fileTypeIsNotAllowed(input) {
+        const notAllowed = [
+            'a-mime/type',
+        ]
+        if (notAllowed.includes(input.files[0].type))
+            return true
+        return false
+    }
+    function validate(input) {
+        if (fileIsTooLarge(input)) {
+            alert('File size is over 10MB. Select a smaller file please.')
+            return false
+        }
+        if (fileTypeIsNotAllowed(input)) {
+            alert('File type is not allowed. Select a different file please.')
+            return false
+        }
+        
+        input.form.querySelector("button[type=submit]").click()
+    }
     function processDrop(ev) {
         console.log(ev)
         // TODO - create attachment
