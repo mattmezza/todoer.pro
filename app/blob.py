@@ -3,14 +3,16 @@ from datetime import timedelta
 
 import boto3
 
-STORAGE_ACCESS_KEY_ID = os.environ['STORAGE_ACCESS_KEY_ID']
-STORAGE_SECRET_KEY = os.environ['STORAGE_SECRET_KEY']
-STORAGE_ENDPOINT = os.environ['STORAGE_ENDPOINT']
-STORAGE_BUCKET = os.environ['STORAGE_BUCKET']
+STORAGE_ACCESS_KEY_ID = os.environ['TODOER_STORAGE_ACCESS_KEY_ID']
+STORAGE_SECRET_KEY = os.environ['TODOER_STORAGE_SECRET_KEY']
+STORAGE_ENDPOINT = os.environ['TODOER_STORAGE_ENDPOINT']
+STORAGE_BUCKET = os.environ['TODOER_STORAGE_BUCKET']
 
 """After this amount of time, signed url will expire."""
 URL_SIGNED_VALIDITY_DURATION_DEFAULT = timedelta(
-    minutes=int(os.environ['STORAGE_PRESIGNED_URL_DURATION_DEFAULT_MINUTES'])
+    minutes=int(
+        os.environ['TODOER_STORAGE_PRESIGNED_URL_DURATION_DEFAULT_MINUTES']
+    )
 )
 
 
