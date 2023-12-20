@@ -4,6 +4,7 @@
     <ul x-show="open" class="max-h-96" hx-get="/nav/lists" hx-trigger="load, list-delete from:body, list-create from:body, list-update from:body, task-update from:body, task-delete from:body, task-create from:body">
     </ul>
     <div x-show="open" class="uppercase font-bold flex flex-row gap-4 justify-center items-center">
+        <a class="hover:text-indigo-500 cursor-pointer" hx-get="/" hx-push-url="true" hx-target="#main" @click="open = false">Home</a>
         <a class="hover:text-indigo-500 cursor-pointer" hx-get="/users/me" hx-push-url="true" hx-target="#main" @click="open = false">Profile</a>
         <a class="hover:text-indigo-500" href="/signout">Logout</a>
     </div>
