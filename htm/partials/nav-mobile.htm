@@ -1,4 +1,4 @@
-<div x-data="{ open: false }" class="lg:hidden absolute bottom-0 w-full dark:bg-gray-950/80 backdrop-blur-sm py-4 flex flex-col gap-8 items-center justify-start rounded-t">
+<div x-data="{ open: false }" class="lg:hidden absolute bottom-0 w-full dark:bg-gray-950/80 backdrop-blur-sm py-4 flex flex-col gap-8 items-center justify-start rounded-t" @click.outside="open = false">
     <button @click="open = true" x-show="!open" class="hover:text-indigo-500 w-full cursor-pointer uppercase font-bold">Lists</button>
     <button @click="open = false" x-show="open" class="hover:text-indigo-500 w-full cursor-pointer uppercase font-bold">Close</button>
     <ul x-show="open" class="max-h-96" hx-get="/nav/lists" hx-trigger="load, list-delete from:body, list-create from:body, list-update from:body, task-update from:body, task-delete from:body, task-create from:body">
