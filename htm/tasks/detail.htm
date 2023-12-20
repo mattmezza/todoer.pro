@@ -1,6 +1,6 @@
 {% if not request.headers["hx-request"] %}{% extends "lists/view.htm" %}{% endif %}
 {% block content %}
-<div class="p-8 max-w-screen-xl mx-auto">
+<div class="py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
     <div class="mb-8 space-y-4">
         <!-- title -->
         <a hx-get="/lists/{{ list.sid }}" hx-target="#main" hx-push-url="true" class="flex items-center gap-1 text-sm cursor-pointer mb-2 hover:text-white">
@@ -23,7 +23,7 @@
         </div>
 
         <!-- descr -->
-        <div class="hover:text-white cursor-pointer rounded text-sm min-h-[108px] whitespace-pre-line" _="on click hide me then show the next <form /> then select() on the next <textarea />">
+        <div class="hover:text-white cursor-pointer rounded text-sm min-h-[108px] whitespace-pre-line px-2" _="on click hide me then show the next <form /> then select() on the next <textarea />">
             {% if task.descr %}{{ task.descr }}{% else %}<span class="dark:text-slate-700 text-sm italic">(no description)</span>{% endif %}
         </div>
         <form hx-put="/tasks/{{ task.sid }}/descr" hx-target="previous div" style="display: none" _="on submit or reset hide me then show the previous <div /> from me" class="rounded border border-slate-600 p-1">

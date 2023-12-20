@@ -1,8 +1,8 @@
 {% if not request.headers["hx-request"] %}{% extends "pages/page.htm" %}{% endif %}
 {% block content %}
-<div class="space-y-2 p-8 max-w-screen-xl mx-auto">
+<div class="space-y-2 py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
     <div class="flex justify-between items-center gap-4">
-        <div class="flex flex-row gap-2 items-center py-4 flex-grow">
+        <div class="flex flex-row gap-2 items-center py-4 px-4 flex-grow">
             <span class="rounded-full w-6 h-6" style="background-color: {{ list.color }}">&nbsp;</span>
             <h1 class="text-2xl font-bold cursor-pointer hover:text-white rounded px-2 py-1" _="on click hide me then show the next <form /> then select() the next <input />">{{ list.title }}</h1>
             <form class="flex items-center gap-1 w-full" hx-put="/lists/{{ list.sid }}/title" hx-target="previous h1" style="display: none" _="on submit or reset hide me then show the previous <h1 />">
@@ -101,7 +101,7 @@
         </div>
     </div>
     <!-- descr -->
-    <div class="hover:text-white cursor-pointer rounded text-sm dark:text-zinc-100" _="on click hide me then show the next <form /> then select() on the next <textarea />">
+    <div class="hover:text-white cursor-pointer rounded text-sm dark:text-zinc-100 px-4" _="on click hide me then show the next <form /> then select() on the next <textarea />">
             {% if list.descr %}{{ list.descr }}{% else %}<span class="dark:text-slate-700 text-sm italic">(no description)</span>{% endif %}
     </div>
     <form hx-put="/lists/{{ list.sid }}/descr" hx-target="previous div" style="display: none" _="on submit or reset hide me then show the previous <div /> from me" class="rounded border border-slate-600 p-1">
