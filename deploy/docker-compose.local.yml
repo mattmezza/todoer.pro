@@ -10,6 +10,7 @@ services:
       TODOER_AUTH_COOKIE_EXPIRE_MINUTES: "43200" # 30d -> 60 * 24 * 30
       TODOER_DB_URL: "sqlite:////var/todoer.db"
       TODOER_ENV: "local"
+      TODOER_RELEASE: "${TAG}"
       TODOER_STORAGE_ACCESS_KEY_ID: "6bb499580dce439c9ab1c91b62f0f95a"
       TODOER_STORAGE_SECRET_KEY: "${TODOER_STORAGE_SECRET_KEY_LOCAL}"
       TODOER_STORAGE_ENDPOINT: "https://eu2.contabostorage.com"

@@ -9,18 +9,18 @@
     <h1 class="px-2 md:px-8 text-xl md:text-4xl font-bold">📈 Statistics</h1>
     <div class="my-4 space-y-2 md:max-w-[calc(100vw-256px)]">
         <h2 class="px-2 md:px-8 text-sm md:text-base">This week</h2>
-        <div class="flex flex-row gap-1 overflow-x-auto">
+        <div class="flex flex-row gap-1 overflow-x-auto no-scrollbar">
             <div class="flex-shrink-0 w-2 md:w-8"></div>
             {% for _ in [0,0,0] %}
-            <div class="flex-shrink-0 p-4 md:p-8 max-w-xs rounded bg-green-500/30 backdrop-blur-sm h-full flex flex-col items-center justify-center">
+            <div class="flex-shrink-0 p-4 md:p-8 max-w-xs rounded bg-green-500/50 backdrop-blur-sm h-full flex flex-col items-center justify-center">
                 <span class="font-bold text-3xl md:text-5xl">12</span>
                 <span class="text-xs md:text-base">Tasks done</span>
             </div>
-            <div class="flex-shrink-0 p-4 md:p-8 max-w-xs rounded bg-yellow-500/30 backdrop-blur-sm h-full flex flex-col items-center justify-center">
+            <div class="flex-shrink-0 p-4 md:p-8 max-w-xs rounded bg-yellow-500/50 backdrop-blur-sm h-full flex flex-col items-center justify-center">
                 <span class="font-bold text-3xl md:text-5xl">24</span>
                 <span class="text-xs md:text-base">Tasks pending</span>
             </div>
-            <div class="flex-shrink-0 p-4 md:p-8 max-w-xs rounded bg-red-500/30 backdrop-blur-sm h-full flex flex-col items-center justify-center">
+            <div class="flex-shrink-0 p-4 md:p-8 max-w-xs rounded bg-red-500/50 backdrop-blur-sm h-full flex flex-col items-center justify-center">
                 <span class="font-bold text-3xl md:text-5xl">4</span>
                 <span class="text-xs md:text-base">Other tasks</span>
             </div>
@@ -30,18 +30,18 @@
     </div>
     <div class="my-4 space-y-2 md:max-w-[calc(100vw-256px)]">
         <h2 class="px-2 md:px-8 text-sm md:text-base">This month</h2>
-        <div class="flex flex-row gap-1 overflow-x-scroll w-full">
+        <div class="flex flex-row gap-1 overflow-x-auto no-scrollbar w-full">
             <div class="flex-shrink-0 w-2 md:w-8"></div>
             {% for _ in [0,0,0] %}
-            <div class="flex-shrink-0 p-4 md:p-8 max-w-xs rounded bg-green-500/30 backdrop-blur-sm h-full flex flex-col items-center justify-center">
+            <div class="flex-shrink-0 p-4 md:p-8 max-w-xs rounded bg-green-500/50 backdrop-blur-sm h-full flex flex-col items-center justify-center">
                 <span class="font-bold text-3xl md:text-5xl">12</span>
                 <span class="text-xs md:text-base">Tasks done</span>
             </div>
-            <div class="flex-shrink-0 p-4 md:p-8 max-w-xs rounded bg-yellow-500/30 backdrop-blur-sm h-full flex flex-col items-center justify-center">
+            <div class="flex-shrink-0 p-4 md:p-8 max-w-xs rounded bg-yellow-500/50 backdrop-blur-sm h-full flex flex-col items-center justify-center">
                 <span class="font-bold text-3xl md:text-5xl">24</span>
                 <span class="text-xs md:text-base">Tasks pending</span>
             </div>
-            <div class="flex-shrink-0 p-4 md:p-8 max-w-xs rounded bg-red-500/30 backdrop-blur-sm h-full flex flex-col items-center justify-center">
+            <div class="flex-shrink-0 p-4 md:p-8 max-w-xs rounded bg-red-500/50 backdrop-blur-sm h-full flex flex-col items-center justify-center">
                 <span class="font-bold text-3xl md:text-5xl">4</span>
                 <span class="text-xs md:text-base">Other tasks</span>
             </div>
@@ -49,8 +49,8 @@
             <div class="flex-shrink-0 w-2 md:w-8"></div>
         </div>
     </div>
-    <div id="datetime" class="px-2 block invisible md:visible font-semibold text-xs md:text-sm text-right mt-32 text-zinc-600">
-        ...
+    <div class="px-2 block invisible md:visible font-semibold text-sm md:text-base text-center mt-32 mb-16 text-zinc-200">
+        Have a swell <span id="datetime" class="lowercase">day</span> ❤️
     </div>
     <!--
     <div role="status" class="max-w-screen-lg mx-auto p-4 space-y-4 border border-gray-200 divide-y divide-gray-200 rounded shadow animate-pulse dark:divide-gray-700 md:p-6 dark:border-gray-700">
@@ -111,7 +111,8 @@ VANTA.TOPOLOGY({
 </script>
 <script>
 (function setDatetime() {
-    var opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    //var opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    var opts = { weekday: 'long' };
     document.getElementById("datetime").innerHTML = new Date().toLocaleDateString(navigator.languages[0], opts)
 })()
 </script>
