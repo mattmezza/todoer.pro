@@ -15,6 +15,7 @@ echo 'server {
                 proxy_set_header   Host             $host;
                 proxy_set_header   X-Real-IP        $remote_addr;
                 proxy_set_header   X-Forwarded-For  $proxy_add_x_forwarded_for;
+                client_max_body_size 20M;
                 allow 127.0.0.1;
                 allow 172.20.0.0/16;
                 allow 172.21.0.0/16;
@@ -54,6 +55,7 @@ echo 'server {
                 proxy_set_header   Host             $host;
                 proxy_set_header   X-Real-IP        $remote_addr;
                 proxy_set_header   X-Forwarded-For  $proxy_add_x_forwarded_for;
+                client_max_body_size 20M;
         }
 }' | sudo tee /etc/nginx/sites-available/todoer.pro > /dev/null
 sudo ln -s /etc/nginx/sites-available/todoer.pro /etc/nginx/sites-enabled/
