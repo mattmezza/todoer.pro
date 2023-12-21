@@ -7,6 +7,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.dependencies import get_current_active_user, get_db, get_tpl
 from app.ids import new_ids
+from app import templating
 
 router = APIRouter()
 
@@ -46,7 +47,7 @@ async def view(
     )
     return tpl.TemplateResponse(
         "lists/view.htm",
-        {
+        templating.constants | {
             "request": req,
             "list": li._mapping,
             "sections": [s._mapping for s in ss],

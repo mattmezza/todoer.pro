@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.dependencies import get_current_active_user, get_db, get_tpl
 from app.ids import new_ids
-from app import blob
+from app import blob, templating
 
 router = APIRouter()
 
@@ -142,7 +142,7 @@ async def view(
     attachments_tpl = tpl.get_template("attachments/view.htm")
     return tpl.TemplateResponse(
         "tasks/detail.htm",
-        {
+        templating.constants | {
             "request": req,
             "task": task._mapping,
             "section": se._mapping,

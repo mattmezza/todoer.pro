@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from typing import Mapping
 
 from app.dependencies import get_db, get_tpl, get_current_active_user
+from app import templating
 
 router = APIRouter()
 
@@ -18,5 +19,10 @@ async def home(
     lists = await db.fetch_all("select title, uuid from lists limit 50")
     return tpl.TemplateResponse(
         "pages/home.htm",
-        {"request": req, "lists": [li._mapping for li in lists], "user": user},
+        templating.constants
+        | {
+            "request": req,
+            "lists": [li._mapping for li in lists],
+            "user": user,
+        },
     )
