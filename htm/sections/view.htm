@@ -55,7 +55,7 @@
     </div>
     <form style="display: none" class="rounded-sm border border-slate-600 add-task-form mb-2" hx-target="previous ul" hx-swap="beforeend" hx-post="/tasks" hx-on::after-request="this.reset()" _="on reset or keyup[key is 'Escape'] hide me then show the previous <div />">
         <div class="py-2"">
-            <input class="form-input block py-1 px-23 border-0 w-full" name="title" placeholder="Task name" autofocus>
+            <input class="form-input block py-1 px-23 border-0 w-full font-bold placeholder:font-bold" name="title" placeholder="Task name" autofocus>
             <input type="hidden" name="section" value="{{ section.uuid }}">
             <textarea
                 autofocus
