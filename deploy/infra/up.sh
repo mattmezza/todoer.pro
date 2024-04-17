@@ -20,7 +20,8 @@ echo 'server {
                 allow 172.20.0.0/16;
                 allow 172.21.0.0/16;
                 allow 172.22.0.0/16;
-                allow 86.84.57.38;
+                allow 86.84.57.38; # kpn ip
+                allow 31.20.200.235; # odido ip
                 ######################
                 # allow stripe webhooks
                 # https://stripe.com/files/ips/ips_webhooks.txt
