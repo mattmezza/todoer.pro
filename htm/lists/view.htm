@@ -14,8 +14,8 @@
             </form>
         </div>
         <div class="flex items-center gap-2">
-            
-            
+
+
         </div>
         <div class="flex justify-center">
             <div
@@ -109,15 +109,15 @@
             autofocus
             name="descr"
             placeholder="Description..."
-            x-data="{ 
-                resize () { 
-                    $el.style.height = '0px'; 
-                    $el.style.height = $el.scrollHeight + 'px' 
-                } 
+            x-data="{
+                resize () {
+                    $el.style.height = '0px';
+                    $el.style.height = $el.scrollHeight + 'px'
+                }
             }"
             x-init="resize()"
             @input="resize()"
-            _="on keyup[key is 'Escape'] reset() the closest <form />" 
+            _="on keyup[key is 'Escape'] reset() the closest <form />"
             class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
             >{% if list.descr %}{{ list.descr }}{% endif %}</textarea>
         <div class="flex justify-between items-center p-2">
@@ -131,7 +131,7 @@
     <ul class="py-8 sections">
     {% for section in sections %}
     <li hx-trigger="load" hx-get="/sections/{{ section.sid }}" hx-vals='{ "view_complete": {% if view_complete %}true{% else %}false{% endif %} }' hx-swap="outerHTML">
-        {% include "partials/skeleton-lists.htm" %}
+        <!-- {% include "partials/skeleton-lists.htm" %} -->
     </li>
     {% endfor %}
     </ul>
