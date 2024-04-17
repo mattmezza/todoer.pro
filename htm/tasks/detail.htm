@@ -2,7 +2,6 @@
 {% block content %}
 <div class="py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
     <div class="mb-8 space-y-4">
-        <!-- title -->
         <a hx-get="/lists/{{ list.sid }}" hx-target="#main" hx-push-url="true" class="flex items-center gap-1 text-sm cursor-pointer mb-2 hover:text-white">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 15.75L3 12m0 0l3.75-3.75M3 12h18" />
@@ -11,16 +10,8 @@
             <!--<span class="rounded-full w-3 h-3" style="background: {{ list.color }}">&nbsp;</span>
             <span>{{ list.title }}</span>-->
         </a>
-        <div class="font-bold text-2xl mt-2">
-            <h2 class="cursor-pointer hover:text-white rounded px-2 py-1 {% if done %}line-through{% endif %}" _="on click hide me then show the next <form /> then select() the next <input />">{{ task.title }}</h2>
-            <form class="flex items-center gap-1" hx-put="/tasks/{{ task.sid }}/title" hx-target="previous h2" style="display: none" _="on submit or reset hide me then show the previous <h2 />">
-                <input class="form-input px-2 py-1 text-2xl text-white w-full grow" name="title" value="{{ task.title }}" _="on keyup[key is 'Escape'] reset() on the closest <form />">
-                <div class="flex items-center">
-                    <button type="reset" class="btn text-xs py-0.5 text-white">Cancel</button>
-                    <button type="submit" class="btn bg-indigo-500 text-xs py-0.5 text-white">Save</button>
-                </div>
-            </form>
-        </div>
+        <!-- title -->
+        {{ tpls.title.view({'list': list, 'task': task})|safe }}
 
         <!-- descr -->
         <div class="hover:text-white cursor-pointer rounded text-sm min-h-[108px] whitespace-pre-line px-2" _="on click hide me then show the next <form /> then select() on the next <textarea />">
@@ -31,16 +22,16 @@
                 autofocus
                 name="descr"
                 placeholder="Description..."
-                x-data="{ 
-                    resize () { 
-                        $el.style.height = '0px'; 
-                        $el.style.height = $el.scrollHeight + 'px' 
-                    } 
+                x-data="{
+                    resize () {
+                        $el.style.height = '0px';
+                        $el.style.height = $el.scrollHeight + 'px'
+                    }
                 }"
                 x-init="$nextTick(() => resize())"
                 @input="resize()"
                 @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
-                _="on keyup[key is 'Escape'] reset() the closest <form />" 
+                _="on keyup[key is 'Escape'] reset() the closest <form />"
                 class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
                 >{% if task.descr %}{{ task.descr }}{% endif %}</textarea>
             <div class="flex justify-between items-center p-2">
@@ -79,16 +70,16 @@
                     autofocus
                     name="descr"
                     placeholder="Description..."
-                    x-data="{ 
-                        resize () { 
-                            $el.style.height = '0px'; 
-                            $el.style.height = $el.scrollHeight + 'px' 
-                        } 
+                    x-data="{
+                        resize () {
+                            $el.style.height = '0px';
+                            $el.style.height = $el.scrollHeight + 'px'
+                        }
                     }"
                     x-init="$nextTick(() => resize())"
                     @input="resize()"
                     @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
-                    _="on keyup[key is 'Escape'] reset() the closest <form />" 
+                    _="on keyup[key is 'Escape'] reset() the closest <form />"
                     class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
                     ></textarea>
                     <input type="hidden" name="task" value="{{ task.uuid }}">
@@ -177,16 +168,16 @@
                 <textarea
                     name="content"
                     placeholder="Type here..."
-                    x-data="{ 
-                        resize () { 
-                            $el.style.height = '0px'; 
-                            $el.style.height = $el.scrollHeight + 'px' 
-                        } 
+                    x-data="{
+                        resize () {
+                            $el.style.height = '0px';
+                            $el.style.height = $el.scrollHeight + 'px'
+                        }
                     }"
                     x-init="$nextTick(() => resize())"
                     @input="resize()"
                     @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
-                    _="on keyup[key is 'Escape'] reset() the closest <form />" 
+                    _="on keyup[key is 'Escape'] reset() the closest <form />"
                     class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
                     autofocus></textarea>
                 <input type="hidden" name="task" value="{{ task.uuid }}">
@@ -226,7 +217,7 @@
             alert('File type is not allowed. Select a different file please.')
             return false
         }
-        
+
         input.form.querySelector("button[type=submit]").click()
     }
     function processDrop(ev) {
