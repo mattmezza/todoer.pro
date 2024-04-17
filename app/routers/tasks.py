@@ -1,4 +1,5 @@
 import hashlib
+from datetime import datetime
 from typing import Annotated, Mapping
 
 from databases import Database
@@ -140,6 +141,7 @@ async def view(
             blob.URL_SIGNED_VALIDITY_DURATION_DEFAULT,
         )
     attachments_tpl = tpl.get_template("attachments/view.htm")
+    title_tpl = tpl.get_template("tasks/title.htm")
     return tpl.TemplateResponse(
         "tasks/detail.htm",
         templating.constants | {
@@ -152,6 +154,7 @@ async def view(
             "attachments": attachments,
             "user": user,
             "tpls": {
+                "title": {"view": title_tpl.render},
                 "comments": {"view": comment_tpl.render},
                 "subtasks": {"view": subtask_tpl.render},
                 "attachments": {"view": attachments_tpl.render},
@@ -213,6 +216,62 @@ async def update_descr(
     return row.descr
 
 
+@router.put("/{sid}/complete", response_class=HTMLResponse)
+async def update_complete(
+    req: Request,
+    sid: str,
+    complete: Annotated[str | None, Form()] = None,
+    user: Mapping = Depends(get_current_active_user),
+    db: Database = Depends(get_db),
+    tpl: Jinja2Templates = Depends(get_tpl),
+):
+    await db.fetch_one(
+        """
+            UPDATE tasks SET
+                complete = :complete,
+                completed = :completed,
+                updated = CURRENT_TIMESTAMP
+            WHERE sid = :sid
+        """,
+        {
+            "sid": sid,
+            "complete": 1 if complete else 0,
+            "completed": datetime.utcnow() if complete else "NULL",
+        },
+    )
+    task = await db.fetch_one(
+        """
+        SELECT * FROM tasks WHERE sid = :sid AND section IN (
+            SELECT uuid from sections WHERE list IN (
+                SELECT uuid FROM lists WHERE creator = :creator
+            )
+        )
+        """,
+        {"sid": sid, "creator": user['uuid']},
+    )
+    se = await db.fetch_one(
+        """
+        SELECT * FROM sections WHERE uuid = :uuid AND list IN (
+            SELECT uuid FROM lists WHERE creator = :creator
+        )
+        """,
+        {"uuid": task.section, "creator": user['uuid']},
+    )
+    li = await db.fetch_one(
+        "SELECT * FROM lists WHERE uuid = :uuid AND creator = :creator",
+        {"uuid": se.list, "creator": user['uuid']},
+    )
+    return tpl.TemplateResponse(
+        "tasks/title.htm",
+        templating.constants | {
+            "request": req,
+            "task": task._mapping,
+            "section": se._mapping,
+            "list": li._mapping,
+        },
+    )
+
+
 @router.put("/{sid}/title", response_class=HTMLResponse)
 async def update_title(
     req: Request,
@@ -226,7 +285,37 @@ async def update_title(
         "UPDATE tasks SET title = :title WHERE sid = :sid RETURNING title",
         {"sid": sid, "title": title},
     )
-    return row.title
+    task = await db.fetch_one(
+        """
+        SELECT * FROM tasks WHERE sid = :sid AND section IN (
+            SELECT uuid from sections WHERE list IN (
+                SELECT uuid FROM lists WHERE creator = :creator
+            )
+        )
+        """,
+        {"sid": sid, "creator": user['uuid']},
+    )
+    se = await db.fetch_one(
+        """
+        SELECT * FROM sections WHERE uuid = :uuid AND list IN (
+            SELECT uuid FROM lists WHERE creator = :creator
+        )
+        """,
+        {"uuid": task.section, "creator": user['uuid']},
+    )
+    li = await db.fetch_one(
+        "SELECT * FROM lists WHERE uuid = :uuid AND creator = :creator",
+        {"uuid": se.list, "creator": user['uuid']},
+    )
+    return tpl.TemplateResponse(
+        "tasks/title.htm",
+        templating.constants | {
+            "request": req,
+            "task": task._mapping,
+            "section": se._mapping,
+            "list": li._mapping,
+        },
+    )
 
 
 @router.delete("/{sid}", response_class=HTMLResponse)
