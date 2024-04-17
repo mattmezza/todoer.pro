@@ -57,6 +57,35 @@ async def view(
     )
 
 
+@router.put("/{sid}/color", response_class=HTMLResponse)
+async def update_color(
+    req: Request,
+    res: HTMLResponse,
+    sid: str,
+    color: Annotated[str, Form()],
+    user: Mapping = Depends(get_current_active_user),
+    db: Database = Depends(get_db),
+    tpl: Jinja2Templates = Depends(get_tpl),
+):
+    li = await db.fetch_one(
+        """
+        UPDATE lists
+            SET color = :color
+            WHERE sid = :sid
+            AND creator = :creator
+        RETURNING color
+        """,
+        {"sid": sid, "color": color, "creator": user["uuid"]},
+    )
+    res.headers["HX-Trigger"] = "list-update"
+
+    return f"""<div
+    class="w-6 h-6 rounded-full cursor-pointer"
+    style="background-color: {li.color }"
+    _="on click hide me then show the next <form /> then click() the next <input />">
+</div>"""
+
+
 @router.put("/{sid}/title", response_class=HTMLResponse)
 async def update_title(
     req: Request,
