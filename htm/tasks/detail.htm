@@ -44,7 +44,7 @@
         </form>
 
         <!-- sub-task -->
-        <h3 class="font-bold">Sub-tasks</h3>
+        <h3 class="font-bold">&nbsp;</h3>
         <ul class="list-none space-y-1">
             {% for subt in subtasks %}
                 {{ tpls.subtasks.view({'subtask': subt})|safe }}
@@ -63,7 +63,14 @@
                 <span>Add sub-task</span>
             </button>
         </div>
-        <form style="display: none" class="rounded-sm border border-slate-600" hx-target="previous ul" hx-swap="beforeend" hx-post="/subtasks" hx-on::after-request="this.reset()" _="on reset or keyup[key is 'Escape'] hide me then show #add-subtask-btn">
+        <form
+            style="display: none"
+            class="rounded-sm border border-slate-600"
+            hx-target="previous ul"
+            hx-swap="beforeend"
+            hx-post="/subtasks"
+            hx-on::after-request="this.reset()"
+            _="on reset or keyup[key is 'Escape'] hide me then show #add-subtask-btn then focus() on #add-subtask-btn">
             <div class="py-2"">
                 <input class="form-input block py-1 px-23 border-0 w-full placeholder:font-semibold font-semibold" name="title" placeholder="Sub-task name" autofocus>
                 <textarea
@@ -96,7 +103,7 @@
 
         <!-- attachments -->
         <div class="space-y-4">
-            <h3 class="font-bold">Attachments</h3>
+            <h3 class="font-bold">&nbsp;</h3>
             <div class="space-y-6">
                 <ul class="list-none flex flex-wrap gap-4">
                 <ul id="attachments" class="list-none text-sm flex flex-wrap gap-4">
@@ -144,7 +151,7 @@
         </div>
 
         <!-- comments -->
-        <h3 class="font-bold">Comments</h3>
+        <h3 class="font-bold">&nbsp;</h3>
         {% for c in comments %}
             {{ tpls.comments.view({'comment': c})|safe }}
         {% endfor %}
