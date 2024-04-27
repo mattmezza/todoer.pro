@@ -123,5 +123,3 @@ async def update(
     else:
         res.headers["HX-Trigger"] = "subtask-incomplete"
     return res
-
-
