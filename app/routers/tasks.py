@@ -111,8 +111,10 @@ async def view(
     subtasks = await db.fetch_all(
         """
         SELECT * FROM subtasks WHERE task = :task AND task IN (
-            SELECT uuid from sections WHERE list IN (
-                SELECT uuid FROM lists WHERE creator = :creator
+            SELECT uuid from tasks WHERE section IN (
+                SELECT uuid from sections WHERE list IN (
+                    SELECT uuid FROM lists WHERE creator = :creator
+                )
             )
         )
         """,
