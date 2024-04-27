@@ -94,8 +94,10 @@ async def view(
         SELECT cc.*, uu.email as author_email FROM comments cc
             JOIN users uu on cc.author = uu.uuid
         WHERE cc.task = :task AND cc.task IN (
-            SELECT uuid from sections WHERE list IN (
-                SELECT uuid FROM lists WHERE creator = :creator
+            SELECT uuid from tasks WHERE section IN (
+                SELECT uuid from sections WHERE list IN (
+                    SELECT uuid FROM lists WHERE creator = :creator
+                )
             )
         )
         LIMIT 100
