@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from jose import JWTError, jwt
 
 from .security import ALGORITHM, SECRET_KEY, get_user
+from .templating import filter_age
 
 db = Database(os.environ["TODOER_DB_URL"])
 tpl = Jinja2Templates(directory="htm")
@@ -25,6 +26,7 @@ async def lifespan(app: FastAPI):
 
 
 def get_tpl():
+    tpl.env.filters["age"] = filter_age
     return tpl
 
 
