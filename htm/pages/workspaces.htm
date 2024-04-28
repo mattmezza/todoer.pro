@@ -1,0 +1,53 @@
+{% if not request.headers["hx-request"] %}{% extends "pages/page.htm" %}{% endif %}
+{% block content %}
+<div class="py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
+    <h1 class="text-2xl md:text-4xl font-bold">Workspaces</h1>
+    <ul class="my-16">
+        {% for workspace in workspaces %}
+        <li
+            hx-get="/workspaces/{{ workspace.sid }}"
+            hx-push-url="true"
+            hx-target="#main"
+            class="py-4 px-4 rounded hover:bg-slate-800/50 cursor-pointer">
+            <h2 class="text-lg font-semibold mb-2">{{ workspace.title }}</h2>
+            <p class="text-sm mb-4">{{ workspace.descr }}</p>
+            <span class="text-sm">{{ workspace.lists }} lists</span>
+        </li>
+        {% endfor %}
+    </ul>
+    <div
+        id="add-workspace-btn"
+        class="flex flex-row space-x-1 items-center justify-center text-zinc-600 rounded px-3 py-3 group cursor-pointer"
+        _="on click hide me then show the next <form /> then focus() the next <input />">
+        <button tabindex="0" class="btn group-hover:text-indigo-500 gap-2">
+            <div class="dark:text-slate-700 dark:group-hover:bg-indigo-500 dark:group-hover:text-white rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
+                </svg>
+            </div>
+            <span class="hidden group-hover:block">Add workspace</span>
+        </button>
+    </div>
+    <form
+        style="display: none"
+        class="rounded-sm border border-slate-600"
+        hx-target="previous .sections"
+        hx-swap="beforeend"
+        hx-post="/sections"
+        hx-on::after-request="this.reset()"
+        _="on reset or keyup[key is 'Escape'] hide me then show #add-workspace-btn">
+        <div class="py-2"">
+            <input class="form-input block py-1 px-23 border-0 w-full" name="title" placeholder="Workspace name" autofocus>
+        </div>
+        <div class="flex flex-row justify-between items-center border-t border-slate-600 px-3 py-2">
+            <div>
+            </div>
+            <div class="space-x-2">
+                <button type="reset" class="btn py-1">Cancel</button>
+                <button type="submit" class="btn py-1 bg-indigo-600 text-white">Add workspace</button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
