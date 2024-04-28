@@ -129,6 +129,21 @@ async def signup(
             "confirm_code": confirm_code,
         },
     )
+    uuid_ws, sid_ws = new_ids()
+    await db.execute(
+        """
+        INSERT INTO workspaces
+            (uuid, sid, title, descr, creator)
+        VALUES (:uuid, :sid, :title, :descr, :creator)
+        """,
+        {
+            "uuid": uuid_ws,
+            "sid": sid_ws,
+            "title": "My workspace",
+            "descr": "My first todoer workspace.",
+            "creator": user.uuid,
+        },
+    )
     # TODO send confirmation email
     logger.info("sending confirmation email should happen here")
     res = RedirectResponse("/", 303)
