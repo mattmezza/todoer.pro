@@ -1,6 +1,6 @@
 <dialog
-    class="backdrop:white/95 dark:backdrop:black dark:text-zinc-50 w-full sm:w-11/12 md:w-1/2 lg:w-2/3 bg-white dark:bg-gray-900 shadow-lg rounded min-h-[1/2]">
-    <form class="flex flex-col h-full p-8"
+    class="backdrop:white/95 dark:backdrop:black dark:text-zinc-50 w-full sm:w-11/12 md:w-1/2 bg-white dark:bg-gray-900 shadow-lg rounded">
+    <form class="flex flex-col p-8"
         _="on submit reset() on me then close() the closest <dialog /> on reset close() the closest <dialog />"
         hx-post="/lists" hx-target="#nav-lists" hx-swap="beforeend">
         <header>
