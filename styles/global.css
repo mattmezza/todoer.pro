@@ -23,17 +23,17 @@
 ::-webkit-scrollbar {
     @apply h-2 w-2;
 }
-  
+
 /* Track */
 ::-webkit-scrollbar-track {
     @apply bg-slate-50/5;
 }
-  
+
 /* Handle */
 ::-webkit-scrollbar-thumb {
     @apply bg-slate-50/20 rounded;
 }
-  
+
 /* Handle on hover */
 ::-webkit-scrollbar-thumb:hover {
     @apply bg-slate-50/40;
@@ -41,4 +41,8 @@
 
 [data-loading] {
     display: none;
+}
+
+dialog::backdrop {
+    background-color: rgba(0, 0, 0, 0.8) !important;
 }
