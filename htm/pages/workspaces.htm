@@ -11,7 +11,10 @@
             class="py-4 px-4 rounded hover:bg-slate-800/50 cursor-pointer">
             <h2 class="text-lg font-semibold mb-2">{{ workspace.title }}</h2>
             <p class="text-sm mb-4">{{ workspace.descr }}</p>
-            <span class="text-sm">{{ workspace.lists }} lists</span>
+            <div class="flex flex-row gap-4 text-sm">
+                <div><span class="font-mono">{{ workspace.lists }}</span> lists</div>
+                <div><span class="font-mono">{{ tasks_by_ws[workspace.uuid] }}</span> tasks</div>
+            </div>
         </li>
         {% endfor %}
     </ul>
