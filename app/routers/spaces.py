@@ -19,16 +19,16 @@ async def index(
     db: Database = Depends(get_db),
     user: Mapping = Depends(get_current_active_user),
 ):
-    ws = await db.fetch_all(
+    ss = await db.fetch_all(
         """
         SELECT
-            w.*,
+           s.*,
             COUNT(l.uuid) AS lists
-        FROM workspaces w
-        LEFT JOIN lists l ON l.workspace = w.uuid
-        WHERE w.creator = :creator
-        GROUP BY w.uuid
-        ORDER BY w.created ASC
+        FROM spaces s
+        LEFT JOIN lists l ON l.space = s.uuid
+        WHERE s.creator = :creator
+        GROUP BY s.uuid
+        ORDER BY s.created ASC
         LIMIT 100
         """,
         {"creator": user["uuid"]},
@@ -36,32 +36,32 @@ async def index(
     num_tasks = await db.fetch_all(
         """
         SELECT
-            w.uuid as workspace,
+            sp.uuid as space,
             count(t.uuid) as tasks_tot
         FROM tasks t
-        JOIN sections s on s.uuid = t.section
-        JOIN lists l on l.uuid = s.list
-        JOIN workspaces w on w.uuid = l.workspace
-        WHERE w.creator = :creator
-        GROUP BY w.uuid
+        JOIN sections se on se.uuid = t.section
+        JOIN lists l on l.uuid = se.list
+        JOIN spaces sp on sp.uuid = l.space
+        WHERE sp.creator = :creator
+        GROUP BY sp.uuid
         LIMIT 100
         """,
         {"creator": user["uuid"]},
     )
-    tasks_by_ws = defaultdict(lambda: 0)
+    tasks_by_space = defaultdict(lambda: 0)
     for num_task in num_tasks:
-        tasks_by_ws[num_task.workspace] = num_task.tasks_tot
-    ws_tpl = tpl.get_template("workspaces/view.htm")
+        tasks_by_space[num_task.space] = num_task.tasks_tot
+    s_tpl = tpl.get_template("spaces/view.htm")
     return tpl.TemplateResponse(
-        "pages/workspaces.htm",
+        "pages/spaces.htm",
         templating.constants
         | {
             "request": req,
-            "workspaces": [w._mapping for w in ws],
-            "tasks_by_ws": tasks_by_ws,
+            "spaces": [s._mapping for s in ss],
+            "tasks_by_space": tasks_by_space,
             "user": user,
             "tpls": {
-                "workspaces": {"view": ws_tpl.render},
+                "spaces": {"view": s_tpl.render},
             },
         },
     )
@@ -77,8 +77,8 @@ async def add(
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     uuid_new, sid_new = new_ids()
-    ws = await db.fetch_one(
-        """INSERT INTO workspaces (
+    sp = await db.fetch_one(
+        """INSERT INTO spaces (
             uuid,
             sid,
             title,
@@ -102,15 +102,15 @@ async def add(
         },
     )
     res = tpl.TemplateResponse(
-        "workspaces/view.htm",
+        "spaces/view.htm",
         {
             "request": req,
-            "workspace": ws._mapping,
-            "tasks_by_ws": {ws.uuid: 0},
+            "space": sp._mapping,
+            "tasks_by_space": {sp.uuid: 0},
             "user": user,
         },
     )
-    res.headers["HX-Trigger"] = "workspace-create"
+    res.headers["HX-Trigger"] = "space-create"
     return res
 
 
@@ -123,11 +123,11 @@ async def delete(
 ):
     await db.execute(
         """
-        DELETE FROM workspaces
+        DELETE FROM spaces
             WHERE sid = :sid AND creator = :creator
         """,
         {"sid": sid, "creator": user["uuid"]},
     )
     res = HTMLResponse("")
-    res.headers["HX-Trigger"] = "workspace-delete"
+    res.headers["HX-Trigger"] = "space-delete"
     return res

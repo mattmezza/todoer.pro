@@ -17,9 +17,9 @@ db = Database(sys.argv[1])
 
 @db.transaction()
 async def main():
-    # adding workspace table
+    # adding space table
     await db.execute("""
-CREATE TABLE IF NOT EXISTS workspaces(
+CREATE TABLE IF NOT EXISTS spaces(
     uuid UUID PRIMARY KEY,
     sid VARCHAR NOT NULL UNIQUE,
     title VARCHAR NOT NULL,
@@ -29,32 +29,32 @@ CREATE TABLE IF NOT EXISTS workspaces(
     updated TIMESTAMP
 );
 """)
-    await db.execute("CREATE INDEX IF NOT EXISTS ix_workspaces_sid ON workspaces(sid)")
-    await db.execute("CREATE INDEX IF NOT EXISTS ix_workspaces_title ON workspaces(title)")
-    await db.execute("CREATE INDEX IF NOT EXISTS ix_workspaces_creator ON workspaces(creator)")
+    await db.execute("CREATE INDEX IF NOT EXISTS ix_spaces_sid ON spaces(sid)")
+    await db.execute("CREATE INDEX IF NOT EXISTS ix_spaces_title ON spaces(title)")
+    await db.execute("CREATE INDEX IF NOT EXISTS ix_spaces_creator ON spaces(creator)")
 
     # adding column to lists table
     await db.execute("""
 ALTER TABLE lists ADD COLUMN
-    workspace UUID REFERENCES workspaces(uuid)
+    space UUID REFERENCES spaces(uuid)
     ON UPDATE CASCADE
     ON DELETE CASCADE;
     """)
-    await db.execute("CREATE INDEX IF NOT EXISTS ix_lists_workspace ON lists(workspace)")
+    await db.execute("CREATE INDEX IF NOT EXISTS ix_lists_space ON lists(space)")
 
-    # adding default workspace for each user
+    # adding default space for each user
     users = await db.fetch_all("SELECT * FROM users")
     for user in users:
         uuid, sid = new_ids()
-        ws = await db.fetch_one(
+        space = await db.fetch_one(
             f"""
-            INSERT INTO workspaces
+            INSERT INTO spaces
             (uuid, sid, title, descr, creator)
             VALUES (
                 :uuid,
                 :sid,
-                'My workspace',
-                "A workspace for {user.name}.",
+                'My space',
+                "A space for {user.name}.",
                 :creator
             )
             RETURNING uuid
@@ -67,12 +67,12 @@ ALTER TABLE lists ADD COLUMN
         )
         await db.execute(
             """
-            UPDATE lists SET workspace = :uuid
+            UPDATE lists SET space = :uuid
             WHERE creator = :creator
             """,
-            {"uuid": ws.uuid, "creator": user.uuid},
+            {"uuid": space.uuid, "creator": user.uuid},
         )
-        print(f"user {user.uuid} patched with workspace {ws.uuid}")
+        print(f"user {user.uuid} patched with space {space.uuid}")
 
     # adding NOT NULL constraint
     await db.execute("""
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS lists_tmp(
     title VARCHAR NOT NULL,
     descr TEXT,
     color VARCHAR NOT NULL DEFAULT 'FF0000',
-    workspace UUID NOT NULL REFERENCES workspaces(uuid),
+    space UUID NOT NULL REFERENCES spaces(uuid),
     creator UUID NOT NULL REFERENCES users(uuid) ON UPDATE CASCADE ON DELETE CASCADE,
     created TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated TIMESTAMP
@@ -95,7 +95,7 @@ INSERT INTO lists_tmp (
     title,
     descr,
     color,
-    workspace,
+    space,
     creator,
     created,
     updated
@@ -105,7 +105,7 @@ INSERT INTO lists_tmp (
     title,
     descr,
     color,
-    workspace,
+    space,
     creator,
     created,
     updated
@@ -152,8 +152,8 @@ FROM sections
     await db.execute("ALTER TABLE sections RENAME TO _sections_20240428")
     await db.execute("ALTER TABLE sections_tmp RENAME TO sections")
 
-    await db.execute("DROP INDEX ix_lists_workspace")
-    await db.execute("CREATE INDEX IF NOT EXISTS ix_lists_workspace ON lists(workspace)")
+    await db.execute("DROP INDEX ix_lists_space")
+    await db.execute("CREATE INDEX IF NOT EXISTS ix_lists_space ON lists(space)")
 
     await db.execute("DROP INDEX ix_lists_sid")
     await db.execute("DROP INDEX ix_lists_title")

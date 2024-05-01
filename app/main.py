@@ -16,7 +16,7 @@ from .routers import (
     subtasks,
     tasks,
     users,
-    workspaces,
+    spaces,
 )
 
 app = FastAPI()
@@ -82,7 +82,7 @@ app.include_router(
     home.router, dependencies=[Depends(get_current_active_user)]
 )
 app.include_router(
-    workspaces.router,
-    prefix="/workspaces",
+    spaces.router,
+    prefix="/spaces",
     dependencies=[Depends(get_current_active_user)],
 )
