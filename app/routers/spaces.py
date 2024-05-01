@@ -12,7 +12,7 @@ from app import templating
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("/spaces")
 async def index(
     req: Request,
     tpl: Jinja2Templates = Depends(get_tpl),
@@ -67,7 +67,7 @@ async def index(
     )
 
 
-@router.post("", response_class=HTMLResponse)
+@router.post("/spaces", response_class=HTMLResponse)
 async def add(
     req: Request,
     title: Annotated[str, Form()],
@@ -114,7 +114,7 @@ async def add(
     return res
 
 
-@router.delete("/{sid}", response_class=HTMLResponse)
+@router.delete("/space/{sid}", response_class=HTMLResponse)
 async def delete(
     req: Request,
     sid: str,

@@ -83,6 +83,5 @@ app.include_router(
 )
 app.include_router(
     spaces.router,
-    prefix="/spaces",
     dependencies=[Depends(get_current_active_user)],
 )
