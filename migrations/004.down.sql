@@ -1,11 +1,11 @@
 BEGIN transaction;
 
 --lists
-DROP INDEX IF EXISTS ix_lists_workspace;
-ALTER TABLE lists DROP COLUMN workspace;
+DROP INDEX IF EXISTS ix_lists_space;
+ALTER TABLE lists DROP COLUMN space;
 
---workspaces
-DROP TABLE IF EXISTS workspaces;
+--spaces
+DROP TABLE IF EXISTS spaces;
 
 --remove old tables if needed
 DROP TABLE IF EXISTS _sections_20240428;
