@@ -5,8 +5,7 @@
         </svg>
     </button>
     <!--<button @click="open = false" x-show="open" class="hover:text-indigo-500 w-full cursor-pointer uppercase font-bold">Close</button>-->
-    <ul x-show="open" class="max-h-96" hx-get="/nav/lists" hx-trigger="load, list-delete from:body, list-create from:body, list-update from:body, task-update from:body, task-delete from:body, task-create from:body">
-    </ul>
+    {% if nav_lists_content_mobile %}{{ nav_lists_content_mobile() }}{% endif %}
     <div x-show="open" class="flex gap-8 justify-center w-full">
         <a class="hover:text-indigo-500 cursor-pointer block px-4 py-2 rounded" hx-get="/" hx-push-url="true" hx-target="#main" @click="open = false">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">

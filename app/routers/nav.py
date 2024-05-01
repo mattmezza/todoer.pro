@@ -1,7 +1,7 @@
-from typing import Mapping
+from typing import Annotated, Mapping
 
 from databases import Database
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Query
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -13,32 +13,37 @@ router = APIRouter()
 @router.get("/lists", response_class=HTMLResponse)
 async def nav_lists(
     req: Request,
+    space: Annotated[str, Query()],
     user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     lists = await db.fetch_all(
-#        """SELECT w.* FROM (
-#            SELECT l.*, COUNT(t.uuid) as incomplete FROM lists l
-#                CROSS JOIN sections s ON s.list = l.uuid
-#                CROSS JOIN tasks t ON t.section = s.uuid WHERE t.complete = 0
-#                    GROUP BY l.uuid
-#            ) as w
-#            UNION ALL
-#            SELECT wo.* FROM (
-#                SELECT ll.*, 0 AS incomplete FROM lists ll
-#                    WHERE NOT EXISTS (
-#                        SELECT 'x' FROM sections ss WHERE ss.list = ll.uuid
-#                    )
-#            ) as wo
-#            ORDER BY w.incomplete DESC, w.created
-#            ASC LIMIT 50"""
-"""
-select *, 0 as incomplete from lists where creator = :creator
-""",
-{"creator": user["uuid"]}
-        )
+        """
+        SELECT *, 0 as incomplete FROM lists
+        WHERE creator = :creator
+            AND space = :space
+        """,
+        {"creator": user["uuid"], "space": space}
+    )
     return tpl.TemplateResponse(
         "nav/lists.htm",
         {"request": req, "lists": [li._mapping for li in lists]},
+    )
+
+
+@router.get("/spaces", response_class=HTMLResponse)
+async def nav_spaces(
+    req: Request,
+    user: Mapping = Depends(get_current_active_user),
+    db: Database = Depends(get_db),
+    tpl: Jinja2Templates = Depends(get_tpl),
+):
+    spaces = await db.fetch_all(
+        "SELECT * FROM spaces WHERE creator = :creator",
+        {"creator": user["uuid"]}
+    )
+    return tpl.TemplateResponse(
+        "nav/spaces.htm",
+        {"request": req, "spaces": [sp._mapping for sp in spaces]},
     )

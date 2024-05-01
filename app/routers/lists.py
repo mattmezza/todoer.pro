@@ -137,6 +137,7 @@ async def update_descr(
 @router.post("", response_class=HTMLResponse)
 async def add(
     req: Request,
+    space: Annotated[str, Form()],
     title: Annotated[str, Form()],
     descr: Annotated[str | None, Form()] = None,
     color: Annotated[str | None, Form()] = None,
@@ -149,13 +150,14 @@ async def add(
     async with db.transaction():
         li = await db.fetch_one(
             """
-            INSERT INTO lists (uuid, sid, title, descr, color, creator)
-            VALUES (:uuid, :sid, :title, :descr, :color, :creator)
+            INSERT INTO lists (uuid, sid, title, descr, color, creator, space)
+            VALUES (:uuid, :sid, :title, :descr, :color, :creator, :space)
             RETURNING *, 0 as incomplete
             """,
             {
                 "uuid": uuid_new,
                 "sid": sid_new,
+                "space": space,
                 "title": title.strip(),
                 "descr": descr.strip() if descr else None,
                 "color": color,
