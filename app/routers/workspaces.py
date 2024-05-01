@@ -1,8 +1,11 @@
+from collections import defaultdict
 from databases import Database
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Form
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from typing import Mapping
+from typing import Annotated, Mapping
 
+from app.ids import new_ids
 from app.dependencies import get_db, get_tpl, get_current_active_user
 from app import templating
 
@@ -22,9 +25,10 @@ async def index(
             w.*,
             COUNT(l.uuid) AS lists
         FROM workspaces w
-        JOIN lists l ON l.workspace = w.uuid
+        LEFT JOIN lists l ON l.workspace = w.uuid
         WHERE w.creator = :creator
         GROUP BY w.uuid
+        ORDER BY w.created ASC
         LIMIT 100
         """,
         {"creator": user["uuid"]},
@@ -44,9 +48,10 @@ async def index(
         """,
         {"creator": user["uuid"]},
     )
-    tasks_by_ws = {}
+    tasks_by_ws = defaultdict(lambda: 0)
     for num_task in num_tasks:
         tasks_by_ws[num_task.workspace] = num_task.tasks_tot
+    ws_tpl = tpl.get_template("workspaces/view.htm")
     return tpl.TemplateResponse(
         "pages/workspaces.htm",
         templating.constants
@@ -55,5 +60,74 @@ async def index(
             "workspaces": [w._mapping for w in ws],
             "tasks_by_ws": tasks_by_ws,
             "user": user,
+            "tpls": {
+                "workspaces": {"view": ws_tpl.render},
+            },
         },
     )
+
+
+@router.post("", response_class=HTMLResponse)
+async def add(
+    req: Request,
+    title: Annotated[str, Form()],
+    descr: Annotated[str | None, Form()] = None,
+    user: Mapping = Depends(get_current_active_user),
+    db: Database = Depends(get_db),
+    tpl: Jinja2Templates = Depends(get_tpl),
+):
+    uuid_new, sid_new = new_ids()
+    ws = await db.fetch_one(
+        """INSERT INTO workspaces (
+            uuid,
+            sid,
+            title,
+            descr,
+            creator
+        )
+        VALUES (
+            :uuid,
+            :sid,
+            :title,
+            :descr,
+            :creator
+        )
+        RETURNING *""",
+        {
+            "uuid": uuid_new,
+            "sid": sid_new,
+            "title": title.strip(),
+            "descr": descr.strip() if descr else None,
+            "creator": user["uuid"],
+        },
+    )
+    res = tpl.TemplateResponse(
+        "workspaces/view.htm",
+        {
+            "request": req,
+            "workspace": ws._mapping,
+            "tasks_by_ws": {ws.uuid: 0},
+            "user": user,
+        },
+    )
+    res.headers["HX-Trigger"] = "workspace-create"
+    return res
+
+
+@router.delete("/{sid}", response_class=HTMLResponse)
+async def delete(
+    req: Request,
+    sid: str,
+    user: Mapping = Depends(get_current_active_user),
+    db: Database = Depends(get_db),
+):
+    await db.execute(
+        """
+        DELETE FROM workspaces
+            WHERE sid = :sid AND creator = :creator
+        """,
+        {"sid": sid, "creator": user["uuid"]},
+    )
+    res = HTMLResponse("")
+    res.headers["HX-Trigger"] = "workspace-delete"
+    return res

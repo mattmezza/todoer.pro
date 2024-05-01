@@ -4,22 +4,10 @@
     <h1 class="text-2xl md:text-4xl font-bold">Workspaces</h1>
     <ul class="my-16">
         {% for workspace in workspaces %}
-        <li
-            hx-get="/workspaces/{{ workspace.sid }}"
-            hx-push-url="true"
-            hx-target="#main"
-            class="py-4 px-4 rounded hover:bg-slate-800/50 cursor-pointer">
-            <h2 class="text-lg font-semibold mb-2">{{ workspace.title }}</h2>
-            <p class="text-sm mb-4">{{ workspace.descr }}</p>
-            <div class="flex flex-row gap-4 text-sm">
-                <div><span class="font-mono">{{ workspace.lists }}</span> lists</div>
-                <div><span class="font-mono">{{ tasks_by_ws[workspace.uuid] }}</span> tasks</div>
-            </div>
-        </li>
+            {{ tpls.workspaces.view({"workspace": workspace, "tasks_by_ws": tasks_by_ws[workspace.uuid]})|safe }}
         {% endfor %}
     </ul>
     <div
-        id="add-workspace-btn"
         class="flex flex-row space-x-1 items-center justify-center text-zinc-600 rounded px-3 py-3 group cursor-pointer"
         _="on click hide me then show the next <form /> then focus() the next <input />">
         <button tabindex="0" class="btn group-hover:text-indigo-500 gap-2">
@@ -33,21 +21,45 @@
     </div>
     <form
         style="display: none"
-        class="rounded-sm border border-slate-600"
-        hx-target="previous .sections"
+        hx-target="previous ul"
         hx-swap="beforeend"
-        hx-post="/sections"
+        hx-post="/workspaces"
         hx-on::after-request="this.reset()"
-        _="on reset or keyup[key is 'Escape'] hide me then show #add-workspace-btn">
+        class="rounded-sm border border-slate-600 add-task-form mb-2"
+        _="on reset or keyup[key is 'Escape'] hide me then show the previous <div />">
         <div class="py-2"">
-            <input class="form-input block py-1 px-23 border-0 w-full" name="title" placeholder="Workspace name" autofocus>
+            <input
+                name="title"
+                placeholder="Workspace name"
+                autofocus
+                class="form-input block py-1 px-23 border-0 w-full font-bold placeholder:font-bold"
+            >
+            <textarea
+                autofocus
+                name="descr"
+                placeholder="Description"
+                x-data="{
+                    resize () {
+                        $el.style.height = '0px';
+                        $el.style.height = $el.scrollHeight + 'px'
+                    }
+                }"
+                x-init="resize()"
+                @input="resize()"
+                @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
+                @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
+                _="on keyup[key is 'Escape'] reset() the closest <form />"
+                class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
+                ></textarea>
         </div>
         <div class="flex flex-row justify-between items-center border-t border-slate-600 px-3 py-2">
             <div>
             </div>
             <div class="space-x-2">
                 <button type="reset" class="btn py-1">Cancel</button>
-                <button type="submit" class="btn py-1 bg-indigo-600 text-white">Add workspace</button>
+                <button type="submit" class="btn py-1 bg-indigo-600 text-white">
+                    Add workspace
+                </button>
             </div>
         </div>
     </form>
