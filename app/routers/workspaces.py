@@ -29,12 +29,31 @@ async def index(
         """,
         {"creator": user["uuid"]},
     )
+    num_tasks = await db.fetch_all(
+        """
+        SELECT
+            w.uuid as workspace,
+            count(t.uuid) as tasks_tot
+        FROM tasks t
+        JOIN sections s on s.uuid = t.section
+        JOIN lists l on l.uuid = s.list
+        JOIN workspaces w on w.uuid = l.workspace
+        WHERE w.creator = :creator
+        GROUP BY w.uuid
+        LIMIT 100
+        """,
+        {"creator": user["uuid"]},
+    )
+    tasks_by_ws = {}
+    for num_task in num_tasks:
+        tasks_by_ws[num_task.workspace] = num_task.tasks_tot
     return tpl.TemplateResponse(
         "pages/workspaces.htm",
         templating.constants
         | {
             "request": req,
             "workspaces": [w._mapping for w in ws],
+            "tasks_by_ws": tasks_by_ws,
             "user": user,
         },
     )
