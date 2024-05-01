@@ -16,12 +16,22 @@ async def home(
     db: Database = Depends(get_db),
     user: Mapping = Depends(get_current_active_user),
 ):
+    spaces = await db.fetch_all(
+        """
+        SELECT * FROM spaces
+        WHERE creator = :creator
+        ORDER BY creator
+        LIMIT 100
+        """,
+        {"creator": user["uuid"]},
+    )
     lists = await db.fetch_all("select title, uuid from lists limit 50")
     return tpl.TemplateResponse(
         "pages/home.htm",
         templating.constants
         | {
             "request": req,
+            "spaces": [sp._mapping for sp in spaces],
             "lists": [li._mapping for li in lists],
             "user": user,
         },
