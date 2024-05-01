@@ -1,5 +1,6 @@
 import hashlib
 import os
+import time
 from contextlib import asynccontextmanager
 from typing import Annotated, Mapping
 
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
 
 
 def get_tpl():
+    tpl.env.globals["epoch"] = lambda: str(int(time.time()))
     tpl.env.filters["age"] = filter_age
     return tpl
 
