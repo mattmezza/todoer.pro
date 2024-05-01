@@ -1,8 +1,14 @@
+{% macro dialog_lists_add(space) %}
 <dialog
     class="backdrop:white/95 dark:backdrop:black dark:text-zinc-50 w-full sm:w-11/12 md:w-1/2 bg-white dark:bg-gray-900 shadow-lg rounded">
-    <form class="flex flex-col p-8"
+    <form
+        hx-post="/lists"
+        hx-target="#nav-lists"
+        hx-swap="beforeend"
+        class="flex flex-col p-8"
         _="on submit reset() on me then close() the closest <dialog /> on reset close() the closest <dialog />"
-        hx-post="/lists" hx-target="#nav-lists" hx-swap="beforeend">
+    >
+        <input type="hidden" value="{{ space }}" name="space">
         <header>
             <div class="flex items-center justify-start gap-2">
                 <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-rose-500">
@@ -67,3 +73,4 @@
         </footer>
     </form>
 </dialog>
+{% endmacro %}
