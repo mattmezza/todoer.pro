@@ -66,6 +66,7 @@
                     </li>
                 </ul>
             </div>
+            {% if spaces %}
             <!-- Spaces group -->
             <div>
                 <h3 class="text-xs uppercase text-slate-500 font-semibold pl-3">
@@ -83,6 +84,7 @@
                     {% endfor %}
                 </ul>
             </div>
+            {% endif %}
             <!-- More group -->
             {% block nav_lists %}
                 {% if nav_lists_content %}{{ nav_lists_content() }}{% endif %}
