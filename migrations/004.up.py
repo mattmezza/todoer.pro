@@ -53,8 +53,8 @@ ALTER TABLE lists ADD COLUMN
             VALUES (
                 :uuid,
                 :sid,
-                'My space',
-                "A space for {user.name}.",
+                '@personal',
+                "A personal space for {user.name}.",
                 :creator
             )
             RETURNING uuid
