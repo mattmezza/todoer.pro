@@ -4,14 +4,12 @@ from typing import Annotated, Mapping
 from databases import Database
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from app import templating
 from app.dependencies import (
     Renderer,
     get_current_active_user,
     get_db,
-    get_tpl,
     renderer,
 )
 from app.ids import new_ids
@@ -73,7 +71,6 @@ async def index(
 async def read(
     req: Request,
     sid: str,
-    tpl: Jinja2Templates = Depends(get_tpl),
     render: Renderer = Depends(renderer),
     db: Database = Depends(get_db),
     user: Mapping = Depends(get_current_active_user),
@@ -160,7 +157,6 @@ async def read(
     tasks_by_list = defaultdict(lambda: 0)
     for num_task in num_tasks_in_list:
         tasks_by_list[num_task.list] = num_task.tasks_tot
-    l_tpl = tpl.get_template("lists/item.htm")
     res = HTMLResponse(
         content=render(
             "Page.Space",
@@ -172,9 +168,6 @@ async def read(
             tasks_by_list=tasks_by_list,
             sections_by_list=sections_by_list,
             user=user,
-            tpls={
-                "lists": {"item": l_tpl.render},
-            },
         )
     )
     res.headers["HX-Trigger"] = "space-read"
