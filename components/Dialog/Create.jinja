@@ -3,6 +3,7 @@
     class="backdrop:white/95 dark:backdrop:black dark:text-zinc-50 w-full sm:w-11/12 md:w-1/2 bg-white dark:bg-gray-900 shadow-lg rounded">
     <form
         hx-post="{{ action }}"
+        {{ attrs.render() }}
         class="flex flex-col p-8"
         _="on submit reset() on me then close() the closest <dialog /> on reset close() the closest <dialog />"
     >
