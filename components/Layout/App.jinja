@@ -18,14 +18,14 @@
     <div class="flex h-[100dvh] overflow-hidden">
         <Nav.Menu spaces={spaces} user={user} />
         <div class="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden dark:bg-black lg:rounded-l-lg">
-            {# {% include "partials/top-bar.htm" %} #}
+            {# <Nav.TopBar user={user} /> #}
             <div class="flex flex-row">
                 <div id="main" class="grow">
                     {{ content }}
                 </div>
             </div>
         </div>
-        {# include "partials/nav-mobile.htm" #}
+        <Nav.Mobile />
     </div>
     <script src="//unpkg.com/alpinejs" defer></script>
     <script src="//unpkg.com/htmx.org@1.9.5/dist/htmx.min.js" defer></script>
