@@ -1,11 +1,57 @@
 {# def user, spaces, tasks_by_space #}
 <Layout.App spaces={spaces} user={user} title="Spaces">
-    <div class="py-2" id="home-bg">
-        <div class="px-2 md:px-8">
-            <h1 class="mt-16 md:mt-24 text-2xl md:text-5xl font-bold">👋 Hi, {{ user.name }}!</h1>
-            <div class="h-[300px]">
+    <div class="py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
+        <h1 class="text-2xl md:text-4xl font-bold">Spaces</h1>
+        <ul class="my-16 space-y-1">
+            {% for space in spaces %}
+            <Spaces.ListItem space={space} tasks_by_space={tasks_by_space} />
+            {% endfor %}
+        </ul>
+        <Btn.Create id="btn-space-create">Add space</Btn.Create>
+        <form
+            style="display: none"
+            hx-target="previous ul"
+            hx-swap="beforeend"
+            hx-post="/spaces"
+            hx-on::after-request="this.reset()"
+            class="rounded-sm border border-slate-600 add-task-form mb-2"
+            _="on reset or keyup[key is 'Escape'] hide me then show #btn-space-create">
+            <div class="py-2"">
+                <input
+                    name="title"
+                    placeholder="Space name"
+                    autofocus
+                    class="form-input block py-1 px-23 border-0 w-full font-bold placeholder:font-bold"
+                >
+                <textarea
+                    autofocus
+                    name="descr"
+                    placeholder="Description"
+                    x-data="{
+                        resize () {
+                            $el.style.height = '0px';
+                            $el.style.height = $el.scrollHeight + 'px'
+                        }
+                    }"
+                    x-init="resize()"
+                    @input="resize()"
+                    @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
+                    @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
+                    _="on keyup[key is 'Escape'] reset() the closest <form />"
+                    class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
+                    ></textarea>
             </div>
-        </div>
+            <div class="flex flex-row justify-between items-center border-t border-slate-600 px-3 py-2">
+                <div>
+                </div>
+                <div class="space-x-2">
+                    <button type="reset" class="btn py-1">Cancel</button>
+                    <button type="submit" class="btn py-1 bg-indigo-600 text-white">
+                        Add space
+                    </button>
+                </div>
+            </div>
+        </form>
     </div>
-</Layout.App>
+    </Layout.App>
 
