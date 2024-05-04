@@ -1,0 +1,48 @@
+{# def title, subtitle, action, hidden_vals={} #}
+<dialog
+    class="backdrop:white/95 dark:backdrop:black dark:text-zinc-50 w-full sm:w-11/12 md:w-1/2 bg-white dark:bg-gray-900 shadow-lg rounded">
+    <form
+        hx-post="{{ action }}"
+        class="flex flex-col p-8"
+        _="on submit reset() on me then close() the closest <dialog /> on reset close() the closest <dialog />"
+    >
+        {% for name, val in hidden_vals.items() %}
+            <input type="hidden" value="{{ val }}" name="{{ name }}">
+        {% endfor %}
+
+        <header>
+            <div class="flex items-center justify-start gap-2">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-rose-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                        stroke-width="1.5" stroke="currentColor"
+                        class="w-9 h-9 fill-current text-rose-50">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
+                    </svg>
+                </div>
+                <h2 class="text-xl leading-snug font-bold">{{ title }}</h2>
+                <div class="flex shrink-0 -space-x-3 -ml-px">
+                </div>
+            </div>
+        </header>
+        <div class="grow pt-4">
+            <div class="text-sm">
+                {{ subtitle }}
+            </div>
+            {{ content }}
+        </div>
+        <footer class="pt-2">
+            <div class="flex justify-between items-center">
+                <div>
+                </div>
+                <div class="flex flex-row gap-2 items-center justify-end">
+                    <button type="reset" class="btn rounded px-8 py-1">
+                        Cancel
+                    </button>
+                    <button type="submit" class="btn bg-indigo-600 text-white rounded px-8 py-1">
+                        Save
+                    </button>
+                </div>
+            </div>
+        </footer>
+    </form>
+</dialog>

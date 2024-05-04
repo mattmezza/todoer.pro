@@ -1,10 +1,7 @@
-import os
-
-import arel
 from fastapi import Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .dependencies import get_current_active_user, tpl
+from .dependencies import get_current_active_user, hot_reload
 from .routers import (
     attachments,
     auth,
@@ -21,22 +18,9 @@ from .routers import (
 
 app = FastAPI()
 
-if os.environ["TODOER_ENV"] == "local":
-    hot_reload = arel.HotReload(
-        paths=[
-            arel.Path("app"),
-            arel.Path("htm"),
-            arel.Path("public"),
-            arel.Path("styles"),
-            arel.Path("tailwind.config.js"),
-        ]
-    )
-    app.add_websocket_route("/hot-reload", route=hot_reload, name="hot-reload")
-    app.add_event_handler("startup", hot_reload.startup)
-    app.add_event_handler("shutdown", hot_reload.shutdown)
-    tpl.env.globals["DEBUG"] = True
-    tpl.env.globals["hot_reload"] = hot_reload
-
+app.add_websocket_route("/hot-reload", route=hot_reload, name="hot-reload")
+app.add_event_handler("startup", hot_reload.startup)
+app.add_event_handler("shutdown", hot_reload.shutdown)
 app.mount("/public", StaticFiles(directory="public"), name="public")
 
 app.include_router(auth.router)
