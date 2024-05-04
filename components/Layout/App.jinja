@@ -1,8 +1,8 @@
-{# def spaces, user #}
+{# def spaces, user, title=False #}
 <!doctype html>
 <html>
 <head>
-    <title>{% if ENV != "prod" %}[{{ ENV }}] {% endif %}Todoer</title>
+    <title>{% if ENV != "prod" %}[{{ ENV }}] {% endif %}Todoer{%- if title %} - {{ title }}{% endif %}</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     {% if ENV == "local" %}

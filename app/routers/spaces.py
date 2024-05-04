@@ -1,20 +1,28 @@
 from collections import defaultdict
-from databases import Database
-from fastapi import APIRouter, Depends, Request, Form
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from typing import Annotated, Mapping
 
-from app.ids import new_ids
-from app.dependencies import get_db, get_tpl, get_current_active_user
+from databases import Database
+from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
 from app import templating
+from app.dependencies import (
+    Renderer,
+    get_current_active_user,
+    get_db,
+    get_tpl,
+    renderer,
+)
+from app.ids import new_ids
 
 router = APIRouter()
 
 
-@router.get("/spaces")
+@router.get("/")
 async def index(
     req: Request,
+    render: Renderer = Depends(renderer),
     tpl: Jinja2Templates = Depends(get_tpl),
     db: Database = Depends(get_db),
     user: Mapping = Depends(get_current_active_user),
@@ -52,18 +60,17 @@ async def index(
     for num_task in num_tasks:
         tasks_by_space[num_task.space] = num_task.tasks_tot
     s_tpl = tpl.get_template("spaces/view.htm")
-    return tpl.TemplateResponse(
-        "pages/spaces.htm",
-        templating.constants
-        | {
-            "request": req,
-            "spaces": [s._mapping for s in ss],
-            "tasks_by_space": tasks_by_space,
-            "user": user,
-            "tpls": {
+    return HTMLResponse(
+        content=render(
+            "Page.Spaces",
+            request=req,
+            spaces=[s._mapping for s in ss],
+            tasks_by_space=tasks_by_space,
+            user=user,
+            tpls={
                 "spaces": {"view": s_tpl.render},
             },
-        },
+        )
     )
 
 

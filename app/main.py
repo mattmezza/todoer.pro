@@ -6,14 +6,14 @@ from .routers import (
     attachments,
     auth,
     comments,
-    home,
+    dashboard,
     lists,
     nav,
     sections,
+    spaces,
     subtasks,
     tasks,
     users,
-    spaces,
 )
 
 app = FastAPI()
@@ -63,7 +63,7 @@ app.include_router(
     dependencies=[Depends(get_current_active_user)],
 )
 app.include_router(
-    home.router, dependencies=[Depends(get_current_active_user)]
+    dashboard.router, dependencies=[Depends(get_current_active_user)]
 )
 app.include_router(
     spaces.router,
