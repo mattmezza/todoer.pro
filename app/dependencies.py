@@ -1,8 +1,10 @@
 import hashlib
 import os
+import arel
 import time
 from contextlib import asynccontextmanager
-from typing import Annotated, Mapping
+from jinjax import Catalog
+from typing import Annotated, Callable, Mapping
 
 from databases import Database
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, status
@@ -15,8 +17,23 @@ from .security import ALGORITHM, SECRET_KEY, get_user
 from .templating import filter_age
 
 db = Database(os.environ["TODOER_DB_URL"])
-tpl = Jinja2Templates(directory="htm")
+jinja2 = Jinja2Templates(directory="htm")
+catalog = Catalog(jinja_env=jinja2.env)
+catalog.add_folder("components")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+hot_reload = arel.HotReload(
+    paths=[
+        arel.Path("app"),
+        arel.Path("htm"),
+        arel.Path("components"),
+        arel.Path("public"),
+        arel.Path("styles"),
+        arel.Path("tailwind.config.js"),
+    ]
+)
+jinja2.env.globals["DEBUG"] = True
+jinja2.env.globals["hot_reload"] = hot_reload
 
 
 @asynccontextmanager
@@ -27,9 +44,28 @@ async def lifespan(app: FastAPI):
 
 
 def get_tpl():
-    tpl.env.globals["epoch"] = lambda: str(int(time.time()))
-    tpl.env.filters["age"] = filter_age
-    return tpl
+    jinja2.env.globals["ENV"] = os.environ["TODOER_ENV"]
+    jinja2.env.globals["epoch"] = lambda: str(int(time.time()))
+    if os.environ["TODOER_ENV"] == "local":
+        jinja2.env.globals["DEBUG"] = True
+        jinja2.env.globals["hot_reload"] = hot_reload
+    jinja2.env.filters["age"] = filter_age
+    return jinja2
+
+
+Renderer = Callable
+
+
+def renderer() -> Renderer:
+    catalog.jinja_env.globals["ENV"] = os.environ["TODOER_ENV"]
+    catalog.jinja_env.globals["RELEASE"] = os.environ["TODOER_RELEASE"]
+    if os.environ["TODOER_ENV"] == "local":
+        catalog.jinja_env.globals["DEBUG"] = True
+        catalog.jinja_env.globals["hot_reload"] = hot_reload
+    jinja2.env.filters["age"] = filter_age
+    catalog.jinja_env.globals["epoch"] = lambda: str(int(time.time()))
+    catalog.jinja_env.filters["age"] = filter_age
+    return catalog.render
 
 
 def get_db():

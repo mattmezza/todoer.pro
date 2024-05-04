@@ -2,7 +2,7 @@ const plugin = require('tailwindcss/plugin');
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ["./htm/**/*.htm","./styles/**/*.css"],
+  content: ["./htm/**/*.htm", "./components/**/*.jinja", "./styles/**/*.css"],
   theme: {
     extend: {
       boxShadow: {
