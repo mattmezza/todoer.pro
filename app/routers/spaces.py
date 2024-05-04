@@ -5,7 +5,6 @@ from databases import Database
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
-from app import templating
 from app.dependencies import (
     Renderer,
     get_current_active_user,
