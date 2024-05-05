@@ -237,3 +237,49 @@ async def delete(
     res = HTMLResponse("")
     res.headers["HX-Trigger"] = "space-delete"
     return res
+
+
+@router.put("/space/{sid}/title", response_class=HTMLResponse)
+async def update_title(
+    req: Request,
+    res: HTMLResponse,
+    sid: str,
+    title: Annotated[str, Form()],
+    user: Mapping = Depends(get_current_active_user),
+    db: Database = Depends(get_db),
+):
+    li = await db.fetch_one(
+        """
+        UPDATE spaces
+            SET title = :title
+            WHERE sid = :sid
+            AND creator = :creator
+        RETURNING title
+        """,
+        {"sid": sid, "title": title, "creator": user["uuid"]},
+    )
+    res.headers["HX-Trigger"] = "space-update"
+    return li.title
+
+
+@router.put("/space/{sid}/descr", response_class=HTMLResponse)
+async def update_descr(
+    req: Request,
+    res: HTMLResponse,
+    sid: str,
+    descr: Annotated[str | None, Form()] = None,
+    user: Mapping = Depends(get_current_active_user),
+    db: Database = Depends(get_db),
+):
+    li = await db.fetch_one(
+        """
+        UPDATE spaces
+            SET descr = :descr
+            WHERE sid = :sid
+            AND creator = :creator
+        RETURNING descr
+        """,
+        {"sid": sid, "descr": descr, "creator": user["uuid"]},
+    )
+    res.headers["HX-Trigger"] = "space-update"
+    return li.descr
