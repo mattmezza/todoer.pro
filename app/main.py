@@ -33,7 +33,6 @@ app.include_router(
 )
 app.include_router(
     lists.router,
-    prefix="/lists",
     dependencies=[Depends(get_current_active_user)],
 )
 app.include_router(
