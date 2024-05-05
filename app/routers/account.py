@@ -3,36 +3,42 @@ from typing import Annotated, Mapping
 
 from databases import Database
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import PlainTextResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, PlainTextResponse
 
-from app import templating
-from app.dependencies import get_current_active_user, get_db, get_tpl
+from app.dependencies import (
+    Renderer, get_current_active_user, get_db, renderer
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/me")
-async def me(
+@router.get("/account")
+async def read(
     req: Request,
-    tpl: Jinja2Templates = Depends(get_tpl),
+    render: Renderer = Depends(renderer),
     db: Database = Depends(get_db),
     user: Mapping = Depends(get_current_active_user),
 ):
-    lists = await db.fetch_all("SELECT title, sid FROM lists LIMIT 50")
-    return tpl.TemplateResponse(
-        "pages/user.htm",
-        templating.constants
-        | {
-            "request": req,
-            "lists": [li._mapping for li in lists],
-            "user": user,
-        },
+    spaces = await db.fetch_all(
+        """
+        SELECT * FROM spaces
+        WHERE creator = :creator
+        LIMIT 100
+        """,
+        {"creator": user["uuid"]}
+    )
+    return HTMLResponse(
+        render(
+            "Page/Account",
+            request=req,
+            spaces=[ss._mapping for ss in spaces],
+            user=user,
+        )
     )
 
 
-@router.put("/me/name", response_class=PlainTextResponse)
+@router.put("/account/fullname", response_class=PlainTextResponse)
 async def change_name(
     req: Request,
     name: Annotated[str, Form()],
