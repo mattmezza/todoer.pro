@@ -5,14 +5,16 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from app.dependencies import get_current_active_user, get_db, get_tpl
+from app.dependencies import (
+    Renderer, get_current_active_user, get_db, get_tpl, renderer
+)
 from app.ids import new_ids
-from app import templating
+from app import repo
 
 router = APIRouter()
 
 
-@router.delete("/{sid}", response_class=HTMLResponse)
+@router.delete("/list/{sid}", response_class=HTMLResponse)
 async def delete(
     req: Request,
     sid: str,
@@ -28,7 +30,7 @@ async def delete(
     return res
 
 
-@router.get("/{sid}", response_class=HTMLResponse)
+@router.get("/list/{sid}", response_class=HTMLResponse)
 async def view(
     req: Request,
     sid: str,
@@ -36,28 +38,33 @@ async def view(
     db: Database = Depends(get_db),
     user: Mapping = Depends(get_current_active_user),
     tpl: Jinja2Templates = Depends(get_tpl),
+    render: Renderer = Depends(renderer),
 ):
-    li = await db.fetch_one(
-        "SELECT * FROM lists WHERE sid = :sid AND creator = :creator",
-        {"sid": sid, "creator": user["uuid"]},
-    )
-    ss = await db.fetch_all(
-        "SELECT * FROM sections WHERE list = :list",
-        {"list": li.uuid},
-    )
-    return tpl.TemplateResponse(
-        "lists/view.htm",
-        templating.constants | {
-            "request": req,
-            "list": li._mapping,
-            "sections": [s._mapping for s in ss],
-            "view_complete": view_complete,
-            "user": user,
-        },
+    user_repo = repo.ForUser(user)
+    list_r = user_repo.lists(db)
+    li = await list_r.by_sid(sid)
+    if li is None:
+        # TODO 404 here
+        ...
+
+    space_r = user_repo.spaces(db)
+    section_r = user_repo.sections(db)
+    return HTMLResponse(
+        render(
+            "Page/List",
+            request=req,
+            spaces=await space_r.all(),
+            space=await space_r.by_uuid(li["space"]),
+            lists=await list_r.all(),
+            list=li,
+            sections=await section_r.by_list(li["uuid"]),
+            view_complete=view_complete,
+            user=user,
+        )
     )
 
 
-@router.put("/{sid}/color", response_class=HTMLResponse)
+@router.put("/lists/{sid}/color", response_class=HTMLResponse)
 async def update_color(
     req: Request,
     res: HTMLResponse,
@@ -86,7 +93,7 @@ async def update_color(
 </div>"""
 
 
-@router.put("/{sid}/title", response_class=HTMLResponse)
+@router.put("/lists/{sid}/title", response_class=HTMLResponse)
 async def update_title(
     req: Request,
     res: HTMLResponse,
@@ -110,7 +117,7 @@ async def update_title(
     return li.title
 
 
-@router.put("/{sid}/descr", response_class=HTMLResponse)
+@router.put("/lists/{sid}/descr", response_class=HTMLResponse)
 async def update_descr(
     req: Request,
     res: HTMLResponse,
@@ -134,7 +141,7 @@ async def update_descr(
     return li.descr
 
 
-@router.post("", response_class=HTMLResponse)
+@router.post("/lists", response_class=HTMLResponse)
 async def add(
     req: Request,
     space: Annotated[str, Form()],
