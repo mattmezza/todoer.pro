@@ -3,6 +3,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .dependencies import get_current_active_user, hot_reload
 from .routers import (
+    account,
     attachments,
     auth,
     comments,
@@ -13,7 +14,6 @@ from .routers import (
     spaces,
     subtasks,
     tasks,
-    users,
 )
 
 app = FastAPI()
@@ -25,8 +25,7 @@ app.mount("/public", StaticFiles(directory="public"), name="public")
 
 app.include_router(auth.router)
 app.include_router(
-    users.router,
-    prefix="/users",
+    account.router,
     dependencies=[Depends(get_current_active_user)],
 )
 app.include_router(
