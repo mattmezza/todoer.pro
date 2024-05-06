@@ -13,6 +13,7 @@ from fastapi.security import OAuth2PasswordBearer
 from fastapi.templating import Jinja2Templates
 from jose import JWTError, jwt
 
+from .repo import RepoDB
 from .security import ALGORITHM, SECRET_KEY, get_user
 from .templating import filter_age
 
@@ -70,6 +71,10 @@ def renderer() -> Renderer:
 
 def get_db():
     return db
+
+
+def repo_db():
+    return RepoDB(db)
 
 
 async def get_current_user_api(
