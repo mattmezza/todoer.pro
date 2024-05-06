@@ -3,12 +3,7 @@
 <div class="py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
     <div class="flex justify-between items-center gap-4 p-4">
         <div class="w-full">
-            <!-- color -->
-            <div
-                class="w-6 h-6 rounded-full cursor-pointer hover:ring-2 ring-offset-1 ring-offset-transparent"
-                style="background-color: {{ list.color }}"
-                _="on click hide me then show the next <form /> then click() the next <input />">
-            </div>
+            <Lists.Color color={list.color} />
             <form
                 class="flex items-center gap-1"
                 hx-put="/list/{{ list.sid }}/color"

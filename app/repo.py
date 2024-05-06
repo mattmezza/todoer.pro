@@ -115,6 +115,19 @@ class ListForUser(LoggedInUserRepo):
         )
         return li.descr if li is not None else None
 
+    async def update_color_by_sid(self, color: str, sid: str) -> str | None:
+        li = await self.db.fetch_one(
+            """
+            UPDATE lists
+                SET color = :color
+                WHERE sid = :sid
+                AND creator = :creator
+            RETURNING color
+            """,
+            {"sid": sid, "color": color, "creator": self.user["uuid"]},
+        )
+        return li.color if li is not None else None
+
 
 class SectionForUser(LoggedInUserRepo):
     async def by_sid(self, sid: str) -> Mapping | None: ...
