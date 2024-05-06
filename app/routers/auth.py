@@ -139,8 +139,8 @@ async def signup(
         {
             "uuid": uuid_ws,
             "sid": sid_ws,
-            "title": "My workspace",
-            "descr": "My first todoer workspace.",
+            "title": "@personal",
+            "descr": None,
             "creator": user.uuid,
         },
     )
