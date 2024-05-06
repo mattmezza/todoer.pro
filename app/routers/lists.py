@@ -2,14 +2,14 @@ from typing import Annotated, Mapping
 
 from databases import Database
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 
 from app.dependencies import (
     Renderer, get_current_active_user, get_db, get_tpl, renderer, repo_db
 )
+from app import http
 from app.ids import new_ids
-from app.http import Opt
 from app.repo import RepoDB
 
 router = APIRouter()
@@ -20,12 +20,9 @@ async def delete(
     req: Request,
     sid: str,
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
+    db: RepoDB = Depends(repo_db),
 ):
-    await db.execute(
-        "DELETE FROM lists WHERE sid = :sid AND creator = :creator",
-        {"sid": sid, "creator": user["uuid"]},
-    )
+    await db.for_user(user).lists().del_by_sid(sid)
     res = HTMLResponse("")
     res.headers["HX-Trigger"] = "list-delete"
     return res
@@ -43,7 +40,7 @@ async def view(
 ):
     user_repo = db.for_user(user)
     list_r = user_repo.lists()
-    li = Opt(await list_r.by_sid(sid)).or_404(f"List #{sid} not found.")
+    li = http.Opt(await list_r.by_sid(sid)).or_404(f"List #{sid} not found.")
 
     space_r = user_repo.spaces()
     section_r = user_repo.sections()
@@ -91,52 +88,34 @@ async def update_color(
 </div>"""
 
 
-@router.put("/lists/{sid}/title", response_class=HTMLResponse)
+@router.put("/list/{sid}/title")
 async def update_title(
-    req: Request,
     res: HTMLResponse,
     sid: str,
     title: Annotated[str, Form()],
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
-    tpl: Jinja2Templates = Depends(get_tpl),
+    db: RepoDB = Depends(repo_db),
 ):
-    li = await db.fetch_one(
-        """
-        UPDATE lists
-            SET title = :title
-            WHERE sid = :sid
-            AND creator = :creator
-        RETURNING title
-        """,
-        {"sid": sid, "title": title, "creator": user["uuid"]},
-    )
+    t = http.Opt(
+        await db.for_user(user).lists().update_title_by_sid(title, sid)
+    ).or_404(f"List #{sid} not found.")
     res.headers["HX-Trigger"] = "list-update"
-    return li.title
+    return PlainTextResponse(t)
 
 
-@router.put("/lists/{sid}/descr", response_class=HTMLResponse)
+@router.put("/list/{sid}/descr")
 async def update_descr(
-    req: Request,
     res: HTMLResponse,
     sid: str,
     descr: Annotated[str | None, Form()] = None,
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
-    tpl: Jinja2Templates = Depends(get_tpl),
+    db: RepoDB = Depends(repo_db),
 ):
-    li = await db.fetch_one(
-        """
-        UPDATE lists
-            SET descr = :descr
-            WHERE sid = :sid
-            AND creator = :creator
-        RETURNING descr
-        """,
-        {"sid": sid, "descr": descr, "creator": user["uuid"]},
-    )
+    d = http.Opt(
+        await db.for_user(user).lists().update_descr_by_sid(descr, sid)
+    ).or_404(f"List #{sid} not found.")
     res.headers["HX-Trigger"] = "list-update"
-    return li.descr
+    return PlainTextResponse(d)
 
 
 @router.post("/lists", response_class=HTMLResponse)
