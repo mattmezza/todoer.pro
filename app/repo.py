@@ -83,6 +83,12 @@ class ListForUser(LoggedInUserRepo):
         )
         return [ll._mapping for ll in lists]
 
+    async def del_by_sid(self, sid: str) -> None:
+        await self.db.execute(
+            "DELETE FROM lists WHERE sid = :sid AND creator = :creator",
+            {"sid": sid, "creator": self.user["uuid"]},
+        )
+
 
 class SectionForUser(LoggedInUserRepo):
     async def by_sid(self, sid: str) -> Mapping | None: ...
@@ -110,14 +116,23 @@ class SectionForUser(LoggedInUserRepo):
 
 
 class ForUser:
-    def __init__(self, user: Mapping):
+    def __init__(self, db: Database, user: Mapping):
+        self.db = db
         self.user = user
 
-    def spaces(self, db: Database) -> SpaceForUser:
-        return SpaceForUser(self.user, db)
+    def spaces(self) -> SpaceForUser:
+        return SpaceForUser(self.user, self.db)
 
-    def lists(self, db: Database) -> ListForUser:
-        return ListForUser(self.user, db)
+    def lists(self) -> ListForUser:
+        return ListForUser(self.user, self.db)
 
-    def sections(self, db: Database) -> SectionForUser:
-        return SectionForUser(self.user, db)
+    def sections(self) -> SectionForUser:
+        return SectionForUser(self.user, self.db)
+
+
+class RepoDB:
+    def __init__(self, db: Database):
+        self.db = db
+
+    def for_user(self, user: Mapping) -> ForUser:
+        return ForUser(self.db, user)

@@ -6,10 +6,11 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.dependencies import (
-    Renderer, get_current_active_user, get_db, get_tpl, renderer
+    Renderer, get_current_active_user, get_db, get_tpl, renderer, repo_db
 )
 from app.ids import new_ids
-from app import repo
+from app.http import Opt
+from app.repo import RepoDB
 
 router = APIRouter()
 
@@ -35,20 +36,17 @@ async def view(
     req: Request,
     sid: str,
     view_complete: bool = False,
-    db: Database = Depends(get_db),
+    db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
     tpl: Jinja2Templates = Depends(get_tpl),
     render: Renderer = Depends(renderer),
 ):
-    user_repo = repo.ForUser(user)
-    list_r = user_repo.lists(db)
-    li = await list_r.by_sid(sid)
-    if li is None:
-        # TODO 404 here
-        ...
+    user_repo = db.for_user(user)
+    list_r = user_repo.lists()
+    li = Opt(await list_r.by_sid(sid)).or_404(f"List #{sid} not found.")
 
-    space_r = user_repo.spaces(db)
-    section_r = user_repo.sections(db)
+    space_r = user_repo.spaces()
+    section_r = user_repo.sections()
     return HTMLResponse(
         render(
             "Page/List",
