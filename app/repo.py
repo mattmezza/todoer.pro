@@ -89,6 +89,32 @@ class ListForUser(LoggedInUserRepo):
             {"sid": sid, "creator": self.user["uuid"]},
         )
 
+    async def update_title_by_sid(self, title: str, sid: str) -> str | None:
+        li = await self.db.fetch_one(
+            """
+            UPDATE lists
+                SET title = :title
+                WHERE sid = :sid
+                AND creator = :creator
+            RETURNING title
+            """,
+            {"sid": sid, "title": title, "creator": self.user["uuid"]},
+        )
+        return li.title if li is not None else None
+
+    async def update_descr_by_sid(self, descr: str, sid: str) -> str | None:
+        li = await self.db.fetch_one(
+            """
+            UPDATE lists
+                SET descr = :descr
+                WHERE sid = :sid
+                AND creator = :creator
+            RETURNING descr
+            """,
+            {"sid": sid, "descr": descr, "creator": self.user["uuid"]},
+        )
+        return li.descr if li is not None else None
+
 
 class SectionForUser(LoggedInUserRepo):
     async def by_sid(self, sid: str) -> Mapping | None: ...
