@@ -35,7 +35,6 @@ async def view(
     view_complete: bool = False,
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
-    tpl: Jinja2Templates = Depends(get_tpl),
     render: Renderer = Depends(renderer),
 ):
     user_repo = db.for_user(user)
@@ -59,33 +58,21 @@ async def view(
     )
 
 
-@router.put("/lists/{sid}/color", response_class=HTMLResponse)
+@router.put("/list/{sid}/color")
 async def update_color(
-    req: Request,
     res: HTMLResponse,
     sid: str,
     color: Annotated[str, Form()],
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
-    tpl: Jinja2Templates = Depends(get_tpl),
+    render: Renderer = Depends(renderer),
+    db: RepoDB = Depends(repo_db),
 ):
-    li = await db.fetch_one(
-        """
-        UPDATE lists
-            SET color = :color
-            WHERE sid = :sid
-            AND creator = :creator
-        RETURNING color
-        """,
-        {"sid": sid, "color": color, "creator": user["uuid"]},
-    )
+    col = http.Opt(
+        await db.for_user(user).lists().update_color_by_sid(color, sid)
+    ).or_404(f"List #{sid} not found.")
     res.headers["HX-Trigger"] = "list-update"
 
-    return f"""<div
-    class="w-6 h-6 rounded-full cursor-pointer"
-    style="background-color: {li.color }"
-    _="on click hide me then show the next <form /> then click() the next <input />">
-</div>"""
+    return HTMLResponse(render("Lists/Color", color=col))
 
 
 @router.put("/list/{sid}/title")
