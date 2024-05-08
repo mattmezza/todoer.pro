@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 from app.dependencies import (
     Renderer, get_current_active_user, get_db, get_tpl, renderer, repo_db
 )
-from app import http
+from app import http, templating
 from app.ids import new_ids
 from app.repo import RepoDB
 
@@ -29,6 +29,7 @@ async def delete(
 
 
 @router.get("/list/{sid}", response_class=HTMLResponse)
+@templating.htmx("Page/List")
 async def view(
     req: Request,
     sid: str,
@@ -43,22 +44,20 @@ async def view(
 
     space_r = user_repo.spaces()
     section_r = user_repo.sections()
-    return HTMLResponse(
-        render(
-            "Page/List",
-            request=req,
-            spaces=await space_r.all(),
-            space=await space_r.by_uuid(li["space"]),
-            lists=await list_r.all(),
-            list=li,
-            sections=await section_r.by_list(li["uuid"]),
-            view_complete=view_complete,
-            user=user,
-        )
-    )
+    return {
+        "request": req,
+        "spaces": await space_r.all(),
+        "space": await space_r.by_uuid(li["space"]),
+        "lists": await list_r.all(),
+        "list": li,
+        "sections": await section_r.by_list(li["uuid"]),
+        "view_complete": view_complete,
+        "user": user,
+    }
 
 
 @router.put("/list/{sid}/color")
+@templating.htmx("Lists/Color")
 async def update_color(
     res: HTMLResponse,
     sid: str,
@@ -70,9 +69,7 @@ async def update_color(
     col = http.Opt(
         await db.for_user(user).lists().update_color_by_sid(color, sid)
     ).or_404(f"List #{sid} not found.")
-    res.headers["HX-Trigger"] = "list-update"
-
-    return HTMLResponse(render("Lists/Color", color=col))
+    return dict(color=col), 200, {"HX-Trigger": "list-update"}
 
 
 @router.put("/list/{sid}/title")
@@ -86,8 +83,9 @@ async def update_title(
     t = http.Opt(
         await db.for_user(user).lists().update_title_by_sid(title, sid)
     ).or_404(f"List #{sid} not found.")
+    res = PlainTextResponse(t)
     res.headers["HX-Trigger"] = "list-update"
-    return PlainTextResponse(t)
+    return res
 
 
 @router.put("/list/{sid}/descr")
@@ -101,8 +99,9 @@ async def update_descr(
     d = http.Opt(
         await db.for_user(user).lists().update_descr_by_sid(descr, sid)
     ).or_404(f"List #{sid} not found.")
+    res = PlainTextResponse(d)
     res.headers["HX-Trigger"] = "list-update"
-    return PlainTextResponse(d)
+    return res
 
 
 @router.post("/lists", response_class=HTMLResponse)
