@@ -15,9 +15,10 @@ async def nav_lists(
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
 ):
+    repo = db.for_user(user)
     return {
-        "space": {"uuid": space},
-        "lists": await db.for_user(user).lists().all_by_space(space),
+        "space": await repo.spaces().by_uuid(space),
+        "lists": await repo.lists().all_by_space(space),
     },
 
 
