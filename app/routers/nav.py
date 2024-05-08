@@ -17,7 +17,7 @@ async def nav_lists(
 ):
     return {
         "space": {"uuid": space},
-        "lists": await db.for_user(user).lists().all(),
+        "lists": await db.for_user(user).lists().all_by_space(space),
     },
 
 
