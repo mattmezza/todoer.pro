@@ -1,13 +1,10 @@
-from collections import defaultdict
 from typing import Annotated, Mapping
 
-from databases import Database
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form
 from fastapi.responses import HTMLResponse
 
 from app import templating
-from app.dependencies import get_current_active_user, get_db
-from app.ids import new_ids
+from app.dependencies import RepoDB, get_current_active_user, repo_db
 
 router = APIRouter()
 
@@ -15,44 +12,13 @@ router = APIRouter()
 @router.get("/")
 @templating.htmx("Page/Spaces")
 async def index(
-    db: Database = Depends(get_db),
+    db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
 ):
-    ss = await db.fetch_all(
-        """
-        SELECT
-           s.*,
-            COUNT(l.uuid) AS lists
-        FROM spaces s
-        LEFT JOIN lists l ON l.space = s.uuid
-        WHERE s.creator = :creator
-        GROUP BY s.uuid
-        ORDER BY s.created ASC
-        LIMIT 100
-        """,
-        {"creator": user["uuid"]},
-    )
-    num_tasks = await db.fetch_all(
-        """
-        SELECT
-            sp.uuid as space,
-            count(t.uuid) as tasks_tot
-        FROM tasks t
-        JOIN sections se on se.uuid = t.section
-        JOIN lists l on l.uuid = se.list
-        JOIN spaces sp on sp.uuid = l.space
-        WHERE sp.creator = :creator
-        GROUP BY sp.uuid
-        LIMIT 100
-        """,
-        {"creator": user["uuid"]},
-    )
-    tasks_by_space = defaultdict(lambda: 0)
-    for num_task in num_tasks:
-        tasks_by_space[num_task.space] = num_task.tasks_tot
+    repo = db.for_user(user).spaces()
     return dict(
-        spaces=[s._mapping for s in ss],
-        tasks_by_space=tasks_by_space,
+        spaces=await repo.all_with_tot_lists(),
+        tasks_by_space=await repo.tasks_by_space(),
         user=user,
     )
 
@@ -61,100 +27,30 @@ async def index(
 @templating.htmx("Page/Space")
 async def read(
     sid: str,
-    db: Database = Depends(get_db),
+    db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
 ):
-    spaces = await db.fetch_all(
-        """
-        SELECT * FROM spaces
-        WHERE creator = :creator
-        ORDER BY created ASC
-        LIMIT 100
-        """,
-        {"creator": user["uuid"]},
+    repo = db.for_user(user)
+    repo_spaces = repo.spaces()
+    space = await repo_spaces.by_sid_with_tot_lists(sid)
+    num_tasks = await repo_spaces.num_tasks(sid)
+    repo_lists = repo.lists()
+    lists = await repo_lists.all_by_space(sid)
+    sections_by_list = await repo_lists.num_sections_by_list(sid)
+    tasks_by_list = await repo_lists.num_tasks_by_list(sid)
+    return (
+        dict(
+            spaces=await repo_spaces.all(),
+            space=space,
+            lists=lists,
+            tasks_by_space=num_tasks["tasks_tot"] if num_tasks else 0,
+            tasks_by_list=tasks_by_list,
+            sections_by_list=sections_by_list,
+            user=user,
+        ),
+        200,
+        {"HX-Trigger": "space-read"},
     )
-    space = await db.fetch_one(
-        """
-        SELECT
-           s.*,
-            COUNT(l.uuid) AS lists
-        FROM spaces s
-        LEFT JOIN lists l ON l.space = s.uuid
-        WHERE s.creator = :creator
-            AND s.sid = :sid
-        """,
-        {"creator": user["uuid"], "sid": sid},
-    )
-    num_tasks = await db.fetch_one(
-        """
-        SELECT
-            sp.uuid as space,
-            count(t.uuid) as tasks_tot
-        FROM tasks t
-        JOIN sections se on se.uuid = t.section
-        JOIN lists l on l.uuid = se.list
-        JOIN spaces sp on sp.uuid = l.space
-        WHERE sp.creator = :creator
-            AND sp.sid = :sid
-        GROUP BY sp.uuid
-        """,
-        {"creator": user["uuid"], "sid": sid},
-    )
-    lists = await db.fetch_all(
-        """
-        SELECT l.* FROM lists l
-        JOIN spaces s ON s.uuid = l.space
-        WHERE s.creator = :creator
-            AND s.sid = :sid
-        ORDER BY l.created ASC
-        LIMIT 100
-        """,
-        {"creator": user["uuid"], "sid": sid},
-    )
-    num_sections_in_list = await db.fetch_all(
-        """
-        SELECT
-            l.uuid as list,
-            count(se.uuid) as sections_tot
-        FROM sections se
-        JOIN lists l on l.uuid = se.list
-        JOIN spaces sp on sp.uuid = l.space
-        WHERE sp.creator = :creator
-            AND sp.sid = :sid
-        GROUP BY l.uuid
-        """,
-        {"creator": user["uuid"], "sid": sid},
-    )
-    sections_by_list = defaultdict(lambda: 0)
-    for num_section in num_sections_in_list:
-        sections_by_list[num_section.list] = num_section.sections_tot
-    num_tasks_in_list = await db.fetch_all(
-        """
-        SELECT
-            l.uuid as list,
-            count(t.uuid) as tasks_tot
-        FROM tasks t
-        JOIN sections se on se.uuid = t.section
-        JOIN lists l on l.uuid = se.list
-        JOIN spaces sp on sp.uuid = l.space
-        WHERE sp.creator = :creator
-            AND sp.sid = :sid
-        GROUP BY l.uuid
-        """,
-        {"creator": user["uuid"], "sid": sid},
-    )
-    tasks_by_list = defaultdict(lambda: 0)
-    for num_task in num_tasks_in_list:
-        tasks_by_list[num_task.list] = num_task.tasks_tot
-    return dict(
-        spaces=[s._mapping for s in spaces],
-        space=space._mapping,
-        lists=[ll._mapping for ll in lists],
-        tasks_by_space=num_tasks.tasks_tot if num_tasks else 0,
-        tasks_by_list=tasks_by_list,
-        sections_by_list=sections_by_list,
-        user=user,
-    ), 200, {"HX-Trigger": "space-read"}
 
 
 @router.post("/spaces", response_class=HTMLResponse)
@@ -162,101 +58,52 @@ async def read(
 async def add(
     title: Annotated[str, Form()],
     descr: Annotated[str | None, Form()] = None,
+    db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
 ):
-    uuid_new, sid_new = new_ids()
-    sp = await db.fetch_one(
-        """INSERT INTO spaces (
-            uuid,
-            sid,
-            title,
-            descr,
-            creator
-        )
-        VALUES (
-            :uuid,
-            :sid,
-            :title,
-            :descr,
-            :creator
-        )
-        RETURNING *""",
-        {
-            "uuid": uuid_new,
-            "sid": sid_new,
-            "title": title.strip(),
-            "descr": descr.strip() if descr else None,
-            "creator": user["uuid"],
-        },
+    sp = await db.for_user(user).spaces().insert(title, descr)
+    return (
+        dict(
+            space=dict(sp) | {"lists": 0},
+            tasks_by_space={sp.uuid: 0},
+            user=user,
+        ),
+        200,
+        {"HX-Trigger": "space-create"},
     )
-    return dict(
-        space=dict(sp._mapping) | {"lists": 0},
-        tasks_by_space={sp.uuid: 0},
-        user=user,
-    ), 200, {"HX-Trigger": "space-create"}
 
 
 @router.delete("/space/{sid}", response_class=HTMLResponse)
 async def delete(
-    req: Request,
     res: HTMLResponse,
     sid: str,
+    db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
 ):
-    await db.execute(
-        """
-        DELETE FROM spaces
-            WHERE sid = :sid AND creator = :creator
-        """,
-        {"sid": sid, "creator": user["uuid"]},
-    )
+    await db.for_user(user).spaces().delete(sid)
     res.headers["HX-Trigger"] = "space-delete"
     return ""
 
 
 @router.put("/space/{sid}/title", response_class=HTMLResponse)
 async def update_title(
-    req: Request,
     res: HTMLResponse,
     sid: str,
     title: Annotated[str, Form()],
+    db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
 ):
-    li = await db.fetch_one(
-        """
-        UPDATE spaces
-            SET title = :title
-            WHERE sid = :sid
-            AND creator = :creator
-        RETURNING title
-        """,
-        {"sid": sid, "title": title, "creator": user["uuid"]},
-    )
     res.headers["HX-Trigger"] = "space-update"
-    return li.title
+    return await db.for_user(user).spaces().update_title(sid, title)
 
 
 @router.put("/space/{sid}/descr", response_class=HTMLResponse)
 async def update_descr(
-    req: Request,
     res: HTMLResponse,
     sid: str,
     descr: Annotated[str | None, Form()] = None,
+    db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
 ):
-    li = await db.fetch_one(
-        """
-        UPDATE spaces
-            SET descr = :descr
-            WHERE sid = :sid
-            AND creator = :creator
-        RETURNING descr
-        """,
-        {"sid": sid, "descr": descr, "creator": user["uuid"]},
-    )
     res.headers["HX-Trigger"] = "space-update"
-    return li.descr
+    return await db.for_user(user).spaces().update_descr(sid, descr)
