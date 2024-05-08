@@ -1,6 +1,7 @@
 import os
 from functools import wraps
 from datetime import datetime
+import time
 from typing import Type
 
 import arel
@@ -9,6 +10,10 @@ from fastapi.templating import Jinja2Templates
 from jinjax import Catalog
 
 from .age import age
+
+
+def filter_age(dateiso: str) -> str:
+    return age(datetime.fromisoformat(dateiso))
 
 
 constants = {
@@ -26,16 +31,18 @@ hot_reload = arel.HotReload(
     ]
 )
 jinja2 = Jinja2Templates(directory="htm")
+
+jinja2.env.filters["age"] = filter_age
+jinja2.env.globals["epoch"] = lambda: str(int(time.time()))
+
 jinja2.env.globals["DEBUG"] = os.environ["TODOER_ENV"] == "local"
 if os.environ["TODOER_ENV"] == "local":
     jinja2.env.globals["hot_reload"] = hot_reload
 
 jinx = Catalog(jinja_env=jinja2.env)
 jinx.add_folder("components")
-
-
-def filter_age(dateiso: str) -> str:
-    return age(datetime.fromisoformat(dateiso))
+jinx.jinja_env.globals["ENV"] = os.environ["TODOER_ENV"]
+jinx.jinja_env.globals["RELEASE"] = os.environ["TODOER_RELEASE"]
 
 
 def htmx(tpl: str, resp: Type[Response] = HTMLResponse):

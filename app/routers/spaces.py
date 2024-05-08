@@ -5,21 +5,16 @@ from databases import Database
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
-from app.dependencies import (
-    Renderer,
-    get_current_active_user,
-    get_db,
-    renderer,
-)
+from app import templating
+from app.dependencies import get_current_active_user, get_db
 from app.ids import new_ids
 
 router = APIRouter()
 
 
 @router.get("/")
+@templating.htmx("Page/Spaces")
 async def index(
-    req: Request,
-    render: Renderer = Depends(renderer),
     db: Database = Depends(get_db),
     user: Mapping = Depends(get_current_active_user),
 ):
@@ -55,22 +50,17 @@ async def index(
     tasks_by_space = defaultdict(lambda: 0)
     for num_task in num_tasks:
         tasks_by_space[num_task.space] = num_task.tasks_tot
-    return HTMLResponse(
-        content=render(
-            "Page.Spaces",
-            request=req,
-            spaces=[s._mapping for s in ss],
-            tasks_by_space=tasks_by_space,
-            user=user,
-        )
+    return dict(
+        spaces=[s._mapping for s in ss],
+        tasks_by_space=tasks_by_space,
+        user=user,
     )
 
 
 @router.get("/space/{sid}")
+@templating.htmx("Page/Space")
 async def read(
-    req: Request,
     sid: str,
-    render: Renderer = Depends(renderer),
     db: Database = Depends(get_db),
     user: Mapping = Depends(get_current_active_user),
 ):
@@ -156,31 +146,24 @@ async def read(
     tasks_by_list = defaultdict(lambda: 0)
     for num_task in num_tasks_in_list:
         tasks_by_list[num_task.list] = num_task.tasks_tot
-    res = HTMLResponse(
-        content=render(
-            "Page.Space",
-            request=req,
-            spaces=[s._mapping for s in spaces],
-            space=space._mapping,
-            lists=[ll._mapping for ll in lists],
-            tasks_by_space=num_tasks.tasks_tot if num_tasks else 0,
-            tasks_by_list=tasks_by_list,
-            sections_by_list=sections_by_list,
-            user=user,
-        )
-    )
-    res.headers["HX-Trigger"] = "space-read"
-    return res
+    return dict(
+        spaces=[s._mapping for s in spaces],
+        space=space._mapping,
+        lists=[ll._mapping for ll in lists],
+        tasks_by_space=num_tasks.tasks_tot if num_tasks else 0,
+        tasks_by_list=tasks_by_list,
+        sections_by_list=sections_by_list,
+        user=user,
+    ), 200, {"HX-Trigger": "space-read"}
 
 
 @router.post("/spaces", response_class=HTMLResponse)
+@templating.htmx("Spaces/ListItem")
 async def add(
-    req: Request,
     title: Annotated[str, Form()],
     descr: Annotated[str | None, Form()] = None,
     user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
-    render: Renderer = Depends(renderer),
 ):
     uuid_new, sid_new = new_ids()
     sp = await db.fetch_one(
@@ -207,22 +190,17 @@ async def add(
             "creator": user["uuid"],
         },
     )
-    res = HTMLResponse(
-        content=render(
-            "Spaces.ListItem",
-            request=req,
-            space=dict(sp._mapping) | {"lists": 0},
-            tasks_by_space={sp.uuid: 0},
-            user=user,
-        )
-    )
-    res.headers["HX-Trigger"] = "space-create"
-    return res
+    return dict(
+        space=dict(sp._mapping) | {"lists": 0},
+        tasks_by_space={sp.uuid: 0},
+        user=user,
+    ), 200, {"HX-Trigger": "space-create"}
 
 
 @router.delete("/space/{sid}", response_class=HTMLResponse)
 async def delete(
     req: Request,
+    res: HTMLResponse,
     sid: str,
     user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
@@ -234,9 +212,8 @@ async def delete(
         """,
         {"sid": sid, "creator": user["uuid"]},
     )
-    res = HTMLResponse("")
     res.headers["HX-Trigger"] = "space-delete"
-    return res
+    return ""
 
 
 @router.put("/space/{sid}/title", response_class=HTMLResponse)
