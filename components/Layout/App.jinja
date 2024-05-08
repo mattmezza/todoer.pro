@@ -1,4 +1,4 @@
-{# def spaces, user, space=False, title=False #}
+{# def spaces, user, space=False, lists=[], title=False #}
 <!doctype html>
 <html>
 <head>
@@ -16,7 +16,7 @@
 </head>
 <body hx-ext="loading-states" class="font-inter antialiased bg-slate-100 dark:bg-gray-950 text-slate-600 dark:text-slate-300 sidebar-expanded">
     <div class="flex h-[100dvh] overflow-hidden">
-            <Nav.Menu spaces={spaces} user={user} space={space} />
+            <Nav.Menu spaces={spaces} user={user} space={space} lists={lists} />
         <div class="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden dark:bg-black lg:rounded-l-lg">
             {# <Nav.TopBar user={user} /> #}
             <div class="flex flex-row">

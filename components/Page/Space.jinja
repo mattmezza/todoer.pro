@@ -1,5 +1,5 @@
 {# def user, spaces, space, lists, tasks_by_list, sections_by_list #}
-<Layout.App spaces={spaces} space={space} user={user} title={space.title}>
+<Layout.App spaces={spaces} space={space} user={user} title={space.title} lists={lists}>
 <div class="py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
     <div class="flex justify-between items-center gap-4 p-4">
         <div class="w-full">
@@ -81,14 +81,16 @@
         style="display: none"
         hx-target="previous ul"
         hx-swap="beforeend"
-        hx-post="/spaces"
+        hx-post="/lists"
         hx-on::after-request="this.reset()"
         class="rounded-sm border border-slate-600 add-task-form mb-2"
         _="on reset or keyup[key is 'Escape'] hide me then show #btn-list-create">
+        <input type="hidden" name="color" value="#ff0000">
+        <input type="hidden" name="space" value="{{ space.uuid }}">
         <div class="py-2"">
             <input
                 name="title"
-                placeholder="Space name"
+                placeholder="List name"
                 autofocus
                 class="form-input block py-1 px-23 border-0 w-full font-bold placeholder:font-bold"
             >
@@ -116,7 +118,7 @@
             <div class="space-x-2">
                 <button type="reset" class="btn py-1">Cancel</button>
                 <button type="submit" class="btn py-1 bg-indigo-600 text-white">
-                    Add space
+                    Add list
                 </button>
             </div>
         </div>
