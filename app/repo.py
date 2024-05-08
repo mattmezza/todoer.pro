@@ -1,9 +1,15 @@
+import uuid
 from collections import defaultdict
 from typing import Mapping
 
+import shortuuid
 from databases import Database
 
-from app.ids import new_ids
+
+def new_ids(max_len: int = 7) -> tuple[str, str]:
+    u = uuid.uuid4()
+    s = shortuuid.encode(u)[:max_len]
+    return str(u), s
 
 
 class LoggedInUserRepo:
