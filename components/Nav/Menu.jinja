@@ -1,4 +1,4 @@
-{# def spaces, user, space #}
+{# def spaces, user, space, lists #}
 <div class="min-w-fit">
     <!-- Sidebar -->
     <div id="sidebar"
@@ -22,7 +22,7 @@
                 </ul>
             </div>
             {%- if spaces %}<Nav.Spaces spaces={spaces} />{% endif %}
-            {%- if space %}<Nav.Lists space={space} />{% endif %}
+            {%- if space %}<Nav.Lists space={space} lists={lists} />{% endif %}
         </div>
         <div class="flex-grow"></div>
         <Nav.UserBtn user={user} />
