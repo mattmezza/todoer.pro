@@ -44,11 +44,12 @@ async def view(
 
     space_r = user_repo.spaces()
     section_r = user_repo.sections()
+    space = await space_r.by_uuid(li["space"])
     return {
         "request": req,
         "spaces": await space_r.all(),
-        "space": await space_r.by_uuid(li["space"]),
-        "lists": await list_r.all(),
+        "space": space,
+        "lists": await list_r.all_by_space(space["sid"]),
         "list": li,
         "sections": await section_r.by_list(li["uuid"]),
         "view_complete": view_complete,
