@@ -14,6 +14,7 @@ router = APIRouter()
 @router.delete("/{sid}", response_class=HTMLResponse)
 async def delete(
     req: Request,
+    res: HTMLResponse,
     sid: str,
     user: Mapping = Depends(get_current_active_user),
     db: Database = Depends(get_db),
@@ -25,9 +26,8 @@ async def delete(
         )""",
         {"sid": sid, "creator": user["uuid"]},
     )
-    res = HTMLResponse("")
     res.headers["HX-Trigger"] = "section-delete"
-    return res
+    return ""
 
 
 @router.get("/{sid}", response_class=HTMLResponse)

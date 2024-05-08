@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from app.age import age
 from app.dependencies import get_current_active_user, get_db, get_tpl
 from app.ids import new_ids
 from app import blob, templating
