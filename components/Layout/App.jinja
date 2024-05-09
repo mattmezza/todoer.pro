@@ -31,8 +31,10 @@
     <script src="//unpkg.com/htmx.org@1.9.5/dist/htmx.min.js" defer></script>
     <script src="//unpkg.com/hyperscript.org@0.9.11" defer></script>
     <script src="//unpkg.com/htmx.org/dist/ext/loading-states.js" defer></script>
-    {#% if ENV == "local" %}{{ hot_reload.script(url_for('hot-reload')) | safe }}{% endif %#}
-    {% if ENV == "local" %}<script src="//unpkg.com/htmx.org/dist/ext/debug.js" defer></script>{% endif %}
+    {% if ENV == "local" %}
+        <script src="//unpkg.com/htmx.org/dist/ext/debug.js" defer></script>
+        {{ hot_reload.script("ws://localhost:8000/hot-reload") | safe }}
+    {% endif %}
     {% block scripts %}
     {% endblock %}
     {{ catalog.render_assets() }}
