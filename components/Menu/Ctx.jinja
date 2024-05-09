@@ -27,7 +27,8 @@
         <!-- Button -->
         <button
             x-ref="button"
-            x-on:click="toggle()"
+            @click="toggle()"
+            @click.away="close($refs.button)"
             :aria-expanded="open"
             :aria-controls="$id('dropdown-button')"
             type="button"
@@ -43,8 +44,6 @@
         <div
             x-ref="panel"
             x-show="open"
-            x-transition.origin.top.left
-            x-on:click.outside="close"
             :id="$id('dropdown-button')"
             style="display: none;"
             class="absolute right-0 mt-2 w-40 rounded-md bg-white dark:bg-gray-950 shadow-md text-sm font-semibold"
