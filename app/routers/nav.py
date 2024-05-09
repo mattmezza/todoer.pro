@@ -16,10 +16,9 @@ async def nav_lists(
     user: Mapping = Depends(get_current_active_user),
 ):
     repo = db.for_user(user)
-    return {
-        "space": await repo.spaces().by_uuid(space),
-        "lists": await repo.lists().all_by_space(space),
-    },
+    space = await repo.spaces().by_uuid(space)
+    lists = await repo.lists().all_by_space(space["sid"])
+    return {"space": space, "lists": lists}
 
 
 @router.get("/spaces")
