@@ -1,6 +1,7 @@
+from datetime import datetime
 from typing import Mapping
 
-from .utils import LoggedInUserRepo
+from .utils import LoggedInUserRepo, new_ids
 
 
 class TaskForUser(LoggedInUserRepo):
@@ -80,7 +81,9 @@ class TaskForUser(LoggedInUserRepo):
         )
         return [tt._mapping for tt in tasks]
 
-    async def update_descr_by_sid(self, descr: str, sid: str) -> str | None:
+    async def update_descr_by_sid(
+        self, descr: str | None, sid: str
+    ) -> str | None:
         ta = await self.db.fetch_one(
             """
             UPDATE tasks
@@ -99,7 +102,9 @@ class TaskForUser(LoggedInUserRepo):
         )
         return ta.descr if ta is not None else None
 
-    async def update_title_by_sid(self, title: str, sid: str) -> str | None:
+    async def update_title_by_sid(
+        self, title: str, sid: str
+    ) -> Mapping | None:
         ta = await self.db.fetch_one(
             """
             UPDATE tasks
@@ -112,11 +117,73 @@ class TaskForUser(LoggedInUserRepo):
                         JOIN spaces sp ON sp.uuid = l.space
                         WHERE sp.creator = :creator
                     )
-            RETURNING title
+            RETURNING tasks.*
             """,
             {"sid": sid, "title": title, "creator": self.user["uuid"]},
         )
-        return ta.descr if ta is not None else None
+        return ta._mapping if ta is not None else None
+
+    async def update_completed_by_sid(
+        self, complete: str | None, sid: str
+    ) -> Mapping | None:
+        ta = await self.db.fetch_one(
+            """
+            UPDATE tasks
+                SET
+                    complete = :complete,
+                    completed = :completed,
+                    updated = CURRENT_TIMESTAMP
+                WHERE sid = :sid
+                    AND EXISTS (
+                        SELECT ta.uuid FROM tasks ta
+                        JOIN sections se ON se.uuid = ta.section
+                        JOIN lists l ON l.uuid = s.list
+                        JOIN spaces sp ON sp.uuid = l.space
+                        WHERE sp.creator = :creator
+                    )
+            RETURNING tasks.*
+            """,
+            {
+                "sid": sid,
+                "complete": 1 if complete else 0,
+                "completed": datetime.utcnow() if complete else "NULL",
+                "creator": self.user["uuid"],
+            },
+        )
+        return ta._mapping if ta is not None else None
+
+    async def update_task_by_sid(
+        self, complete: str | None, title: str, descr: str | None, sid: str
+    ) -> Mapping | None:
+        ta = await self.db.fetch_one(
+            """
+            UPDATE tasks
+                SET
+                    title = :title,
+                    descr = :descr,
+                    complete = :complete,
+                    completed = :completed,
+                    updated = CURRENT_TIMESTAMP
+                WHERE sid = :sid
+                    AND EXISTS (
+                        SELECT ta.uuid FROM tasks ta
+                        JOIN sections se ON se.uuid = ta.section
+                        JOIN lists l ON l.uuid = s.list
+                        JOIN spaces sp ON sp.uuid = l.space
+                        WHERE sp.creator = :creator
+                    )
+            RETURNING tasks.*
+            """,
+            {
+                "sid": sid,
+                "title": title,
+                "descr": descr if descr else "NULL",
+                "complete": 1 if complete else 0,
+                "completed": datetime.utcnow() if complete else "NULL",
+                "creator": self.user["uuid"],
+            },
+        )
+        return ta._mapping if ta is not None else None
 
     async def del_by_sid(self, sid: str) -> None:
         await self.db.execute(
@@ -133,3 +200,33 @@ class TaskForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "creator": self.user["uuid"]},
         )
+
+    async def create(
+        self, title: str, descr: str | None, section: str
+    ) -> Mapping:
+        uuid_new, sid_new = new_ids()
+        task = await self.db.fetch_one(
+            """
+            INSERT INTO tasks (uuid, sid, `order`, title, descr, section)
+            VALUES (
+                :uuid,
+                :sid,
+                COALESCE(
+                    (select MAX(`order`) + 1 FROM tasks WHERE section = :section),
+                    0
+                ),
+                :title,
+                :descr,
+                :section
+            )
+            RETURNING *
+            """,
+            {
+                "uuid": uuid_new,
+                "sid": sid_new,
+                "title": title.strip(),
+                "descr": descr.strip() if descr else None,
+                "section": section,
+            },
+        )
+        return task._mapping if task else None
