@@ -126,10 +126,6 @@
     <!-- sections -->
     <ul class="py-8 sections">
     {% for section in sections %}
-        <!--
-        <li hx-trigger="load" hx-get="/sections/{{ section.sid }}" hx-vals='{ "view_complete": {% if view_complete %}true{% else %}false{% endif %} }' hx-swap="outerHTML">
-        </li>
-        -->
         <Section
             section={section}
             view_complete={view_complete}
