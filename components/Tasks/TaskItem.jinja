@@ -1,0 +1,79 @@
+{# def task #}
+<li>
+    <a
+        id="task-{{ task.sid }}"
+        href="/task/{{ task.sid }}"
+        class="shadow-lg rounded-sm border-b border-slate-200 dark:border-slate-800 pr-1 py-2 group cursor-pointer{% if task.complete %} opacity-40{% endif %}"
+        draggable="{% if task.complete %}false{% else %}true{% endif %}">
+        <form class="sm:flex sm:justify-between sm:items-start">
+            <!-- Left side -->
+            <div class="grow mt-0.5 mb-0.5 sm:mb-0">
+                <div class="flex items-center">
+                    <!-- Drag button -->
+                    <button class="cursor-ns-resize mr-2 invisible {% if not task.complete %}group-hover:visible{% endif %}">
+                        <span class="sr-only">Drag</span>
+                        <svg class="w-3 h-3 fill-slate-300 dark:fill-slate-600" viexbox="0 0 12 12" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M0 1h12v2H0V1Zm0 4h12v2H0V5Zm0 4h12v2H0V9Z" fill-rule="evenodd"></path>
+                        </svg>
+                    </button>
+                    <!-- Checkbox button -->
+                    <div class="flex items-center">
+                        <input
+                            hx-put="/task/{{ task.sid }}"
+                            hx-target="closest li"
+                            hx-swap="outerHTML"
+                            hx-trigger="click consume"
+                            name="complete"
+                            hx-push-url="false"
+                            type="checkbox"
+                            {% if task.complete %}checked{% endif %}
+                            class="form-checkbox w-5 h-5 rounded-full peer cursor-pointer">
+                        <input name="title" type="hidden" value="{{ task.title }}" />
+                        {% if task.descr %}<input name="descr" type="hidden" value="{{ task.descr }}" />{% endif %}
+                        <span class="font-semibold text-slate-800 dark:text-slate-100 peer-checked:line-through ml-2 text-sm">{{ task.title }}</span>
+                    </div>
+                </div>
+                {% if task.descr %}
+                <div class="ml-12">
+                    <p class="font-medium text-slate-500 dark:text-slate-400 peer-checked:line-through text-xs">
+                        {{ task.descr }}
+                    </p>
+                </div>
+                {% endif %}
+            </div>
+            <!-- Right side -->
+            <div class="items-center justify-end space-x-2 hidden group-hover:flex mr-4">
+                <!-- Replies button -->
+                <!--
+                <button type="button" class="flex items-center text-slate-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-500">
+                    <svg class="w-4 h-4 shrink-0 fill-current mr-1.5" viewBox="0 0 16 16">
+                        <path d="M8 0C3.6 0 0 3.1 0 7s3.6 7 8 7h.6l5.4 2v-4.4c1.2-1.2 2-2.8 2-4.6 0-3.9-3.6-7-8-7zm4 10.8v2.3L8.9 12H8c-3.3 0-6-2.2-6-5s2.7-5 6-5 6 2.2 6 5c0 2.2-2 3.8-2 3.8z"></path>
+                    </svg>
+                    <div class="text-sm text-slate-500 dark:text-slate-400">7</div>
+                </button>
+                -->
+                <!-- Attach button -->
+                <!--
+                <button type="button" class="text-slate-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-500">
+                    <svg class="w-4 h-4 shrink-0 fill-current mr-1.5" viewBox="0 0 16 16">
+                        <path d="M11 0c1.3 0 2.6.5 3.5 1.5 1 .9 1.5 2.2 1.5 3.5 0 1.3-.5 2.6-1.4 3.5l-1.2 1.2c-.2.2-.5.3-.7.3-.2 0-.5-.1-.7-.3-.4-.4-.4-1 0-1.4l1.1-1.2c.6-.5.9-1.3.9-2.1s-.3-1.6-.9-2.2C12 1.7 10 1.7 8.9 2.8L7.7 4c-.4.4-1 .4-1.4 0-.4-.4-.4-1 0-1.4l1.2-1.1C8.4.5 9.7 0 11 0zM8.3 12c.4-.4 1-.5 1.4-.1.4.4.4 1 0 1.4l-1.2 1.2C7.6 15.5 6.3 16 5 16c-1.3 0-2.6-.5-3.5-1.5C.5 13.6 0 12.3 0 11c0-1.3.5-2.6 1.5-3.5l1.1-1.2c.4-.4 1-.4 1.4 0 .4.4.4 1 0 1.4L2.9 8.9c-.6.5-.9 1.3-.9 2.1s.3 1.6.9 2.2c1.1 1.1 3.1 1.1 4.2 0L8.3 12zm1.1-6.8c.4-.4 1-.4 1.4 0 .4.4.4 1 0 1.4l-4.2 4.2c-.2.2-.5.3-.7.3-.2 0-.5-.1-.7-.3-.4-.4-.4-1 0-1.4l4.2-4.2z"></path>
+                    </svg>
+                </button>
+                -->
+                <!-- Delete button -->
+                <button
+                    type="button"
+                    class="text-slate-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-500"
+                    hx-delete="/task/{{ task.sid }}"
+                    hx-target="closest li" hx-swap="outerHTML"
+                    hx-trigger="click consume"
+                    hx-push-url="false"
+                    hx-confirm="Are you sure you want to delete this task?">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-red-400">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                    </svg>
+                </button>
+            </div>
+        </form>
+    </a>
+</li>

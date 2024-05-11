@@ -130,7 +130,7 @@
         <li hx-trigger="load" hx-get="/sections/{{ section.sid }}" hx-vals='{ "view_complete": {% if view_complete %}true{% else %}false{% endif %} }' hx-swap="outerHTML">
         </li>
         -->
-        <Section section={section} view_complete={view_complete} />
+        <Section section={section} view_complete={view_complete} tasks_incomplete={[]} tasks_complete={[]} />
     {% endfor %}
     </ul>
     <Btn.Create id="btn-section-create">Add section</Btn.Create>
