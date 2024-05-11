@@ -47,18 +47,28 @@
             <li>
                 <a
                     class="font-medium text-sm dark:text-zinc-200 hover:font-semibold flex items-center py-1 px-3"
-                    href="/account"
-                    @focus="open = true"
-                    @focusout="open = false">
+                    href="/account">
                     Account
                 </a>
             </li>
             <li>
+                <button
+                    id="about-btn"
+                    class="font-medium text-sm dark:text-zinc-200 hover:font-semibold flex items-center py-1 px-3"
+                >
+                    About
+                </button>
+                <script>
+                function openAboutModal(e) {
+                    e.preventDefault()
+                    setTimeout(() => document.getElementById('modal-about').showModal(), 0)
+                }
+                document.getElementById('about-btn').addEventListener('click', openAboutModal)
+                </script>
+            </li>
+            <li>
                 <a class="font-medium text-sm text-red-500 hover:font-semibold flex items-center py-1 px-3"
-                    href="/auth/logout"
-                    @click="open = false"
-                    @focus="open = true"
-                    @focusout="open = false">
+                    href="/auth/logout">
                     Sign Out
                 </a>
             </li>
