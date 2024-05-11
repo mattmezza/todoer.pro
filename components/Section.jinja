@@ -43,7 +43,6 @@
     {% endif %}
     <ul class="list-none">
         {% for task in tasks_incomplete %}
-            {#{ tpls.task.view({'task': task})|safe }#}
             <Tasks.TaskItem task={task} />
         {% endfor %}
     </ul>
@@ -95,7 +94,6 @@
         <span class="font-bold uppercase text-xs ml-4">Complete</span>
         <ul class="list-none">
             {% for task in tasks_complete %}
-                {#{ tpls.task.view({'task': task})|safe }#}
                 <Tasks.TaskItem task={task} />
             {% endfor %}
         </ul>
