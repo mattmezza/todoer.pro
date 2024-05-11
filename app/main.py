@@ -37,7 +37,6 @@ app.include_router(
 )
 app.include_router(
     sections.router,
-    prefix="/sections",
     dependencies=[Depends(get_current_active_user)],
 )
 app.include_router(

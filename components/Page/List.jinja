@@ -1,4 +1,4 @@
-{# def user, spaces, space, lists, list, sections, view_complete #}
+{# def user, spaces, space, lists, list, sections, view_complete, tasks_by_section #}
 <Layout.App spaces={spaces} space={space} user={user} title={list.title} lists={lists}>
 <div class="py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
     <div class="flex justify-between items-center gap-4 p-4">
@@ -130,7 +130,11 @@
         <li hx-trigger="load" hx-get="/sections/{{ section.sid }}" hx-vals='{ "view_complete": {% if view_complete %}true{% else %}false{% endif %} }' hx-swap="outerHTML">
         </li>
         -->
-        <Section section={section} view_complete={view_complete} tasks_incomplete={[]} tasks_complete={[]} />
+        <Section
+            section={section}
+            view_complete={view_complete}
+            tasks={tasks_by_section[section.uuid]}
+        />
     {% endfor %}
     </ul>
     <Btn.Create id="btn-section-create">Add section</Btn.Create>

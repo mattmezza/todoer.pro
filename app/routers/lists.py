@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Annotated, Mapping
 
 from databases import Database
@@ -5,10 +6,15 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 
-from app.dependencies import (
-    Renderer, get_current_active_user, get_db, get_tpl, renderer, repo_db
-)
 from app import http, templating
+from app.dependencies import (
+    Renderer,
+    get_current_active_user,
+    get_db,
+    get_tpl,
+    renderer,
+    repo_db,
+)
 from app.ids import new_ids
 from app.repo import RepoDB
 
@@ -45,15 +51,22 @@ async def view(
     space_r = user_repo.spaces()
     section_r = user_repo.sections()
     space = await space_r.by_uuid(li["space"])
+    sections = await section_r.by_list(li["uuid"])
+    tarepo = user_repo.tasks()
+    tasks_by_section = defaultdict(list)
+    tasks = await tarepo.by_list(li["uuid"])
+    for t in tasks:
+        tasks_by_section[t["section"]].append(t)
     return {
         "request": req,
         "spaces": await space_r.all(),
         "space": space,
         "lists": await list_r.all_by_space(space["sid"]),
         "list": li,
-        "sections": await section_r.by_list(li["uuid"]),
+        "sections": sections,
         "view_complete": view_complete,
         "user": user,
+        "tasks_by_section": tasks_by_section,
     }
 
 

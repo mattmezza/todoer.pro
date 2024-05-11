@@ -1,119 +1,65 @@
 from typing import Annotated, Mapping
 
-from databases import Database
-from fastapi import APIRouter, Depends, Request, Form
+from fastapi import APIRouter, Depends, Form
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
-from app.dependencies import get_current_active_user, get_db, get_tpl
-from app.ids import new_ids
+from app.dependencies import RepoDB, get_current_active_user, repo_db
+from app import http, templating
 
 router = APIRouter()
 
 
-@router.delete("/{sid}", response_class=HTMLResponse)
+@router.delete("/section/{sid}", response_class=HTMLResponse)
 async def delete(
-    req: Request,
     res: HTMLResponse,
     sid: str,
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
+    db: RepoDB = Depends(repo_db),
 ):
-    await db.execute(
-        """DELETE FROM sections
-            WHERE sid = :sid AND list IN (
-                select uuid from lists where creator = :creator
-        )""",
-        {"sid": sid, "creator": user["uuid"]},
-    )
-    res.headers["HX-Trigger"] = "section-delete"
+    await db.for_user(user).tasks().del_by_sid(sid)
+    res.headers["HX-Trigger"] = f"section-delete, section-{sid}-delete"
     return ""
 
 
-@router.get("/{sid}", response_class=HTMLResponse)
+@router.get("/section/{sid}")
+@templating.htmx("Section.jinja")
 async def view(
-    req: Request,
     sid: str,
     view_complete: bool = False,
-    db: Database = Depends(get_db),
+    db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
-    tpl: Jinja2Templates = Depends(get_tpl),
 ):
-    ss = await db.fetch_one(
-        """
-        SELECT * FROM sections
-        WHERE sid = :sid
-        ORDER BY `order` ASC, created ASC
-        LIMIT 1
-        """,
-        {"sid": sid},
+    repo = db.for_user(user)
+    serepo = repo.sections()
+    section = http.Opt(await serepo.by_sid(sid)).or_404(
+        f"Section #{sid} not found."
     )
-    tasks = await db.fetch_all(
-        """SELECT * FROM tasks WHERE section = :section
-        ORDER BY `order` ASC, created ASC""",
-        {"section": ss.uuid},
-    )
-    task_tpl = tpl.get_template("tasks/view.htm")
-    return tpl.TemplateResponse(
-        "sections/view.htm",
-        {
-            "request": req,
-            "tpls": {"task": {"view": task_tpl.render}},
-            "section": ss._mapping,
-            "tasks": [t._mapping for t in tasks],
-            "tasks_incomplete": [t._mapping for t in tasks if t.complete == 0],
-            "tasks_complete": [t._mapping for t in tasks if t.complete == 1],
-            "view_complete": view_complete,
-            "user": user,
-        },
-    )
+    tarepo = repo.tasks()
+    tasks = await tarepo.by_section(section["uuid"])
+    return {
+        "section": section,
+        "tasks": tasks,
+        "view_complete": view_complete,
+        "user": user,
+    }
 
 
-@router.post("", response_class=HTMLResponse)
+@router.post("/sections")
+@templating.htmx("Section.jinja")
 async def add(
-    req: Request,
     title: Annotated[str, Form()],
     list_id: Annotated[str, Form()],
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
-    tpl: Jinja2Templates = Depends(get_tpl),
+    db: RepoDB = Depends(repo_db),
 ):
-    uuid_new, sid_new = new_ids()
-    se = await db.fetch_one(
-        """INSERT INTO sections (
-            uuid,
-            sid,
-            `order`,
-            title,
-            creator,
-            list
-        )
-        VALUES (
-            :uuid,
-            :sid,
-            (SELECT MAX(`order`) + 1 FROM sections WHERE list = :list),
-            :title,
-            :creator,
-            :list
-        )
-        RETURNING *""",
-        {
-            "uuid": uuid_new,
-            "sid": sid_new,
-            "title": title.strip(),
-            "creator": user["uuid"],
-            "list": list_id,
-        },
-    )
-    res = tpl.TemplateResponse(
-        "sections/view.htm",
-        {
-            "request": req,
-            "section": se._mapping,
-            "user": user,
-            "tasks": [],
-            "html": {"tasks": []},
-        },
-    )
-    res.headers["HX-Trigger"] = "section-create"
-    return res
+    section = http.Opt(
+        await db.for_user(user).sections().create(title, list_id)
+    ).or_400()
+    return {
+        "section": section,
+        "user": user,
+        "tasks": [],
+        "tasks_incomplete": [],
+        "tasks_complete": [],
+        "view_complete": False,
+    }, 201, {"HX-Trigger":  "section-create"}

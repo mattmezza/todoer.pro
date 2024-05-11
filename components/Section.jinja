@@ -1,4 +1,4 @@
-{# def section, view_complete, tasks_incomplete, tasks_complete #}
+{# def section, view_complete, tasks #}
 <li
     draggable="{% if section.default %}false{% else %}true{% endif %}"
     class="py-4 section"
@@ -29,7 +29,7 @@
             </button>
             <div class="flex items-end gap-1">
                 <h2 class="font-semibold">{{ section.title }}</h2>
-                <span class="text-zinc-400 dark:text-slate-700">{{ tasks_incomplete|length  }}</span>
+                <span class="text-zinc-400 dark:text-slate-700">{{ tasks|rejectattr("complete")|length  }}</span>
             </div>
         </div>
         <div class="mr-5">
@@ -42,8 +42,10 @@
     </div>
     {% endif %}
     <ul class="list-none">
-        {% for task in tasks_incomplete %}
+        {% for task in tasks %}
+        {%- if task.complete == 0 %}
             <Tasks.TaskItem task={task} />
+        {% endif %}
         {% endfor %}
     </ul>
     <Btn.Create id="btn-task-create">Add task</Btn.Create>
@@ -93,8 +95,10 @@
     <div class="section-complete">
         <span class="font-bold uppercase text-xs ml-4">Complete</span>
         <ul class="list-none">
-            {% for task in tasks_complete %}
+            {% for task in tasks %}
+            {%- if task.complete == 1 %}
                 <Tasks.TaskItem task={task} />
+            {% endif %}
             {% endfor %}
         </ul>
     </div>
