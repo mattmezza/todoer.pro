@@ -30,7 +30,7 @@ async def delete(
 ):
     await db.for_user(user).lists().del_by_sid(sid)
     res = HTMLResponse("")
-    res.headers["HX-Trigger"] = "list-delete"
+    res.headers["HX-Trigger"] = f"list-delete, list-{sid}-delete"
     return res
 
 
@@ -83,7 +83,11 @@ async def update_color(
     col = http.Opt(
         await db.for_user(user).lists().update_color_by_sid(color, sid)
     ).or_404(f"List #{sid} not found.")
-    return dict(color=col), 200, {"HX-Trigger": "list-update"}
+    return (
+        dict(color=col),
+        200,
+        {"HX-Trigger": f"list-update, list-{sid}-update"},
+    )
 
 
 @router.put("/list/{sid}/title")
@@ -98,7 +102,7 @@ async def update_title(
         await db.for_user(user).lists().update_title_by_sid(title, sid)
     ).or_404(f"List #{sid} not found.")
     res = PlainTextResponse(t)
-    res.headers["HX-Trigger"] = "list-update"
+    res.headers["HX-Trigger"] = f"list-update, list-{sid}-update"
     return res
 
 
@@ -114,11 +118,12 @@ async def update_descr(
         await db.for_user(user).lists().update_descr_by_sid(descr, sid)
     ).or_404(f"List #{sid} not found.")
     res = PlainTextResponse(d)
-    res.headers["HX-Trigger"] = "list-update"
+    res.headers["HX-Trigger"] = f"list-update, list-{sid}-update"
     return res
 
 
-@router.post("/lists", response_class=HTMLResponse)
+@router.post("/lists")
+@templating.htmx("Nav/Lists/Item.jinja")
 async def add(
     req: Request,
     space: Annotated[str, Form()],
@@ -126,51 +131,10 @@ async def add(
     descr: Annotated[str | None, Form()] = None,
     color: Annotated[str | None, Form()] = None,
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
+    db: RepoDB = Depends(repo_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
-    uuid_new, sid_new = new_ids()
-    uuid_new_section, sid_new_section = new_ids()
-    async with db.transaction():
-        li = await db.fetch_one(
-            """
-            INSERT INTO lists (uuid, sid, title, descr, color, creator, space)
-            VALUES (:uuid, :sid, :title, :descr, :color, :creator, :space)
-            RETURNING *, 0 as incomplete
-            """,
-            {
-                "uuid": uuid_new,
-                "sid": sid_new,
-                "space": space,
-                "title": title.strip(),
-                "descr": descr.strip() if descr else None,
-                "color": color,
-                "creator": user["uuid"],
-            },
-        )
-        _ = await db.fetch_one(
-            """INSERT INTO sections (
-                uuid,
-                sid,
-                `order`,
-                `default`,
-                title,
-                creator,
-                list
-            )
-            VALUES (:uuid, :sid, 0, 1, :title, :creator, :list)
-            RETURNING *""",
-            {
-                "uuid": uuid_new_section,
-                "sid": sid_new_section,
-                "title": "Main",
-                "creator": user["uuid"],
-                "list": uuid_new,
-            },
-        )
-        res = tpl.TemplateResponse(
-            "nav/add.htm",
-            {"request": req, "list": li._mapping, "user": user},
-        )
-        res.headers["HX-Trigger"] = "list-create"
-        return res
+    li = http.Opt(
+        await db.for_user(user).lists().create(color, title, descr, space)
+    ).or_400()
+    return {"list": li, "user": user}, 201, {"HX-Trigger":  "list-create"}

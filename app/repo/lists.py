@@ -1,7 +1,7 @@
 from collections import defaultdict
 from typing import Mapping
 
-from .utils import LoggedInUserRepo
+from .utils import LoggedInUserRepo, new_ids
 
 
 class ListForUser(LoggedInUserRepo):
@@ -141,3 +141,51 @@ class ListForUser(LoggedInUserRepo):
             {"sid": sid, "color": color, "creator": self.user["uuid"]},
         )
         return li.color if li is not None else None
+
+    async def create(
+        self, color: str | None, title: str, descr: str | None, space: str
+    ) -> Mapping | None:
+        uuid_new, sid_new = new_ids()
+        uuid_new_section, sid_new_section = new_ids()
+        async with self.db.transaction():
+            li = await self.db.fetch_one(
+                """
+                INSERT INTO lists (
+                    uuid, sid, title, descr, color, creator, space
+                )
+                VALUES (:uuid, :sid, :title, :descr, :color, :creator, :space)
+                RETURNING *, 0 as incomplete
+                """,
+                {
+                    "uuid": uuid_new,
+                    "sid": sid_new,
+                    "space": space,
+                    "title": title.strip(),
+                    "descr": descr.strip() if descr else None,
+                    "color": color,
+                    "creator": self.user["uuid"],
+                },
+            )
+            if li is None:
+                return None
+            _ = await self.db.fetch_one(
+                """INSERT INTO sections (
+                    uuid,
+                    sid,
+                    `order`,
+                    `default`,
+                    title,
+                    creator,
+                    list
+                )
+                VALUES (:uuid, :sid, 0, 1, :title, :creator, :list)
+                RETURNING *""",
+                {
+                    "uuid": uuid_new_section,
+                    "sid": sid_new_section,
+                    "title": "Main",
+                    "creator": self.user["uuid"],
+                    "list": uuid_new,
+                },
+            )
+            return None if li is None else li._mapping
