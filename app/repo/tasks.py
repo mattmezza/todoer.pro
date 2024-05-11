@@ -12,7 +12,7 @@ class TaskForUser(LoggedInUserRepo):
             JOIN sections se ON se.uuid = ta.section
             JOIN lists li ON li.uuid = se.list
             JOIN spaces sp ON sp.uuid = li.space
-            WHERE se.sid = :sid
+            WHERE ta.sid = :sid
                 AND sp.creator = :creator
             """,
             {"sid": sid, "creator": self.user["uuid"]},
