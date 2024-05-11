@@ -41,7 +41,6 @@ app.include_router(
 )
 app.include_router(
     tasks.router,
-    prefix="/tasks",
     dependencies=[Depends(get_current_active_user)],
 )
 app.include_router(

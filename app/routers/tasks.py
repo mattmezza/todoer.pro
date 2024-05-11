@@ -1,63 +1,41 @@
 import hashlib
-from datetime import datetime
 from typing import Annotated, Mapping
 
 from databases import Database
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 
-from app.dependencies import get_current_active_user, get_db, get_tpl
+from app import blob, http, templating
+from app.dependencies import (
+    RepoDB,
+    get_current_active_user,
+    get_db,
+    get_tpl,
+    repo_db,
+)
 from app.ids import new_ids
-from app import blob, templating
 
 router = APIRouter()
 
 
-@router.post("", response_class=HTMLResponse)
+@router.post("/tasks")
+@templating.htmx("Tasks.TaskItem")
 async def add_task(
     req: Request,
     title: Annotated[str, Form()],
     section: Annotated[str, Form()],
     descr: Annotated[str | None, Form()] = None,
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
+    db: RepoDB = Depends(repo_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
     uuid_new, sid_new = new_ids()
-    task = await db.fetch_one(
-        """
-        INSERT INTO tasks (uuid, sid, `order`, title, descr, section)
-        VALUES (
-            :uuid,
-            :sid,
-            COALESCE(
-                (select MAX(`order`) + 1 FROM tasks WHERE section = :section),
-                0
-            ),
-            :title,
-            :descr,
-            :section
-        )
-        RETURNING *
-        """,
-        {
-            "uuid": uuid_new,
-            "sid": sid_new,
-            "title": title.strip(),
-            "descr": descr.strip() if descr else None,
-            "section": section,
-        },
-    )
-    res = tpl.TemplateResponse(
-        "tasks/view.htm",
-        {"request": req, "task": task._mapping, "user": user},
-    )
-    res.headers["HX-Trigger"] = "task-create"
-    return res
+    task = await db.for_user(user).tasks().create(title, descr, section)
+    return {"task": task}, 201, {"HX-Trigger": "task-create"}
 
 
-@router.get("/{sid}", response_class=HTMLResponse)
+@router.get("/task/{sid}", response_class=HTMLResponse)
 async def view(
     req: Request,
     sid: str,
@@ -148,7 +126,8 @@ async def view(
     title_tpl = tpl.get_template("tasks/title.htm")
     return tpl.TemplateResponse(
         "tasks/detail.htm",
-        templating.constants | {
+        templating.constants
+        | {
             "request": req,
             "task": task._mapping,
             "section": se._mapping,
@@ -167,170 +146,104 @@ async def view(
     )
 
 
-@router.put("/{sid}", response_class=HTMLResponse)
+@router.put("/task/{sid}")
+@templating.htmx("Tasks.TaskItem")
 async def update(
-    req: Request,
     sid: str,
     title: Annotated[str, Form()],
     descr: Annotated[str | None, Form()] = None,
     complete: Annotated[str | None, Form()] = None,
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
-    tpl: Jinja2Templates = Depends(get_tpl),
+    db: RepoDB = Depends(repo_db),
 ):
-    task = await db.fetch_one(
-        """
-        UPDATE tasks
-        SET complete = :complete, title = :title, descr = :descr
-        WHERE sid = :sid
-        RETURNING *
-        """,
-        {
-            "sid": sid,
-            "complete": 1 if complete else 0,
-            "title": title,
-            "descr": descr,
-        },
-    )
-    res = tpl.TemplateResponse(
-        "tasks/view.htm",
-        {"request": req, "task": task},
-    )
-    res.headers["HX-Trigger"] = "task-update"
+    task = http.Opt(
+        await db.for_user(user)
+        .tasks()
+        .update_task_by_sid(complete, title, descr, sid)
+    ).or_404(f"Task #{sid} not found.")
+    hx_trigger = f"task-update, task-{sid}-update"
     if task.complete == 1:
-        res.headers["HX-Trigger"] = "task-complete"
+        hx_trigger += f", task-complete task-{sid}-complete"
     else:
-        res.headers["HX-Trigger"] = "task-incomplete"
-    return res
+        hx_trigger += f", task-incomplete, task-{sid}-incomplete"
+    return {"task": task}, 200, {"HX-Trigger": hx_trigger}
 
 
-@router.put("/{sid}/descr", response_class=HTMLResponse)
+@router.put("/task/{sid}/descr", response_class=PlainTextResponse)
 async def update_descr(
-    req: Request,
+    res: PlainTextResponse,
     sid: str,
     descr: Annotated[str | None, Form()] = None,
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
-    tpl: Jinja2Templates = Depends(get_tpl),
+    db: RepoDB = Depends(repo_db),
 ):
-    row = await db.fetch_one(
-        "UPDATE tasks SET descr = :descr WHERE sid = :sid RETURNING descr",
-        {"sid": sid, "descr": descr},
-    )
-    return row.descr
+    descr = await db.for_user(user).tasks().update_descr_by_sid(descr, sid)
+    res.headers["HX-Trigger"] = f"task-update, task-{sid}-update"
+    return descr
 
 
-@router.put("/{sid}/complete", response_class=HTMLResponse)
+@router.put("/task/{sid}/complete")
+@templating.htmx("Tasks.Title")
 async def update_complete(
-    req: Request,
     sid: str,
     complete: Annotated[str | None, Form()] = None,
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
-    tpl: Jinja2Templates = Depends(get_tpl),
+    db: RepoDB = Depends(repo_db),
 ):
-    await db.fetch_one(
-        """
-            UPDATE tasks SET
-                complete = :complete,
-                completed = :completed,
-                updated = CURRENT_TIMESTAMP
-            WHERE sid = :sid
-        """,
+    urepo = db.for_user(user)
+    task = http.Opt(
+        urepo.tasks().update_completed_by_sid(complete, sid)
+    ).or_404(f"Task #{sid} not found.")
+    section = await urepo.sections().by_uuid(task["section"])
+    list_ = await urepo.lists().by_uuid(section["list"])
+    space = await urepo.spaces().by_uuid(list_["space"])
+    return (
         {
-            "sid": sid,
-            "complete": 1 if complete else 0,
-            "completed": datetime.utcnow() if complete else "NULL",
+            "task": task,
+            "section": section,
+            "list": list_,
+            "space": space,
         },
-    )
-    task = await db.fetch_one(
-        """
-        SELECT * FROM tasks WHERE sid = :sid AND section IN (
-            SELECT uuid from sections WHERE list IN (
-                SELECT uuid FROM lists WHERE creator = :creator
-            )
-        )
-        """,
-        {"sid": sid, "creator": user['uuid']},
-    )
-    se = await db.fetch_one(
-        """
-        SELECT * FROM sections WHERE uuid = :uuid AND list IN (
-            SELECT uuid FROM lists WHERE creator = :creator
-        )
-        """,
-        {"uuid": task.section, "creator": user['uuid']},
-    )
-    li = await db.fetch_one(
-        "SELECT * FROM lists WHERE uuid = :uuid AND creator = :creator",
-        {"uuid": se.list, "creator": user['uuid']},
-    )
-    return tpl.TemplateResponse(
-        "tasks/title.htm",
-        templating.constants | {
-            "request": req,
-            "task": task._mapping,
-            "section": se._mapping,
-            "list": li._mapping,
-        },
+        200,
+        {"HX-Trigger": f"task-update, task-{sid}-update"},
     )
 
 
-@router.put("/{sid}/title", response_class=HTMLResponse)
+@router.put("/task/{sid}/title")
+@templating.htmx("Tasks.Title")
 async def update_title(
-    req: Request,
     sid: str,
     title: Annotated[str, Form()],
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
+    db: RepoDB = Depends(repo_db),
     tpl: Jinja2Templates = Depends(get_tpl),
 ):
-    row = await db.fetch_one(
-        "UPDATE tasks SET title = :title WHERE sid = :sid RETURNING title",
-        {"sid": sid, "title": title},
+    urepo = db.for_user(user)
+    task = http.Opt(urepo.tasks().update_title_by_sid(title, sid)).or_404(
+        f"Task #{sid} not found."
     )
-    task = await db.fetch_one(
-        """
-        SELECT * FROM tasks WHERE sid = :sid AND section IN (
-            SELECT uuid from sections WHERE list IN (
-                SELECT uuid FROM lists WHERE creator = :creator
-            )
-        )
-        """,
-        {"sid": sid, "creator": user['uuid']},
-    )
-    se = await db.fetch_one(
-        """
-        SELECT * FROM sections WHERE uuid = :uuid AND list IN (
-            SELECT uuid FROM lists WHERE creator = :creator
-        )
-        """,
-        {"uuid": task.section, "creator": user['uuid']},
-    )
-    li = await db.fetch_one(
-        "SELECT * FROM lists WHERE uuid = :uuid AND creator = :creator",
-        {"uuid": se.list, "creator": user['uuid']},
-    )
-    return tpl.TemplateResponse(
-        "tasks/title.htm",
-        templating.constants | {
-            "request": req,
-            "task": task._mapping,
-            "section": se._mapping,
-            "list": li._mapping,
+    section = await urepo.sections().by_uuid(task["section"])
+    list_ = await urepo.lists().by_uuid(section["list"])
+    space = await urepo.spaces().by_uuid(list_["space"])
+    return (
+        {
+            "task": task,
+            "section": section,
+            "list": list_,
+            "space": space,
         },
+        200,
+        {"HX-Trigger": f"task-update, task-{sid}-update"},
     )
 
 
-@router.delete("/{sid}", response_class=HTMLResponse)
+@router.delete("/task/{sid}", response_class=HTMLResponse)
 async def delete(
-    req: Request,
+    res: HTMLResponse,
     sid: str,
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
-    tpl: Jinja2Templates = Depends(get_tpl),
+    db: RepoDB = Depends(repo_db),
 ):
-    await db.execute("DELETE FROM tasks WHERE sid = :sid", {"sid": sid})
-    res = HTMLResponse("")
-    res.headers["HX-Trigger"] = "task-delete"
+    await db.for_user(user).tasks().del_by_sid(sid)
+    res.headers["HX-Trigger"] = f"task-delete, task-{sid}-delete"
     return res
