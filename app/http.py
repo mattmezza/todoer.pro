@@ -21,6 +21,9 @@ class Opt(Generic[T]):
     def or_404(self, msg: str = "Item not found") -> T:
         return self.or_exception(HTTPException(status_code=404, detail=msg))
 
+    def or_400(self, msg: str = "Bad request") -> T:
+        return self.or_exception(HTTPException(status_code=400, detail=msg))
+
     def or_exception(self, e: HTTPException) -> T:
         if self.val is None:
             raise e
