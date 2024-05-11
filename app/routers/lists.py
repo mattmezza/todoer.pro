@@ -28,7 +28,7 @@ async def delete(
     return res
 
 
-@router.get("/list/{sid}", response_class=HTMLResponse)
+@router.get("/list/{sid}")
 @templating.htmx("Page/List")
 async def view(
     req: Request,
