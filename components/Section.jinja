@@ -1,9 +1,9 @@
-{# def section, view_complete, tasks_incomplete=[], tasks_complete=[] #}
+{# def section, view_complete, tasks_incomplete, tasks_complete #}
 <li
     draggable="{% if section.default %}false{% else %}true{% endif %}"
     class="py-4 section"
-    hx-trigger="section-update from:body, task-complete from:body, task-incomplete from:body"
-    hx-get="/sections/{{ section.sid }}"
+    hx-trigger="section-update-{{ section.sid}} from:body, section-{{ section.sid }}-task-complete from:body, section-{{ section.sid }}-task-incomplete from:body"
+    hx-get="/section/{{ section.sid }}"
     hx-vals='{"view_complete": {% if view_complete %}true{% else %}false{% endif %} }'>
 
     {% if not section.default %}
@@ -44,6 +44,7 @@
     <ul class="list-none">
         {% for task in tasks_incomplete %}
             {#{ tpls.task.view({'task': task})|safe }#}
+            <Tasks.TaskItem task={task} />
         {% endfor %}
     </ul>
     <Btn.Create id="btn-task-create">Add task</Btn.Create>
@@ -95,6 +96,7 @@
         <ul class="list-none">
             {% for task in tasks_complete %}
                 {#{ tpls.task.view({'task': task})|safe }#}
+                <Tasks.TaskItem task={task} />
             {% endfor %}
         </ul>
     </div>
