@@ -2,9 +2,10 @@ from typing import Mapping
 
 from databases import Database
 
-from .spaces import SpaceForUser
 from .lists import ListForUser
 from .sections import SectionForUser
+from .spaces import SpaceForUser
+from .tasks import TaskForUser
 
 
 class ForUser:
@@ -20,6 +21,9 @@ class ForUser:
 
     def sections(self) -> SectionForUser:
         return SectionForUser(self.user, self.db)
+
+    def tasks(self) -> TaskForUser:
+        return TaskForUser(self.user, self.db)
 
 
 class RepoDB:
