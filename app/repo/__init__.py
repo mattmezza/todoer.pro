@@ -2,9 +2,12 @@ from typing import Mapping
 
 from databases import Database
 
+from .attachments import AttachmentForUser
+from .comments import CommentForUser
 from .lists import ListForUser
 from .sections import SectionForUser
 from .spaces import SpaceForUser
+from .subtasks import SubtaskForUser
 from .tasks import TaskForUser
 
 
@@ -24,6 +27,15 @@ class ForUser:
 
     def tasks(self) -> TaskForUser:
         return TaskForUser(self.user, self.db)
+
+    def comments(self) -> CommentForUser:
+        return CommentForUser(self.user, self.db)
+
+    def subtasks(self) -> SubtaskForUser:
+        return SubtaskForUser(self.user, self.db)
+
+    def attachments(self) -> AttachmentForUser:
+        return AttachmentForUser(self.user, self.db)
 
 
 class RepoDB:
