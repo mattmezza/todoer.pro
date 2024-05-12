@@ -22,7 +22,7 @@ async def delete(
 
 
 @router.get("/section/{sid}")
-@templating.htmx("Section.jinja")
+@templating.htmx("Section")
 async def view(
     sid: str,
     view_complete: bool = False,
@@ -45,7 +45,7 @@ async def view(
 
 
 @router.post("/sections")
-@templating.htmx("Section.jinja")
+@templating.htmx("Section")
 async def add(
     title: Annotated[str, Form()],
     list_id: Annotated[str, Form()],
