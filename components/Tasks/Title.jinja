@@ -3,7 +3,7 @@
     <div class="font-bold text-2xl flex gap-2 items-center">
         <div class="flex flex-row gap-2 items-center">
             <input
-                hx-put="/tasks/{{ task.sid }}/complete"
+                hx-put="/task/{{ task.sid }}/complete"
                 hx-target="closest .title-wrapper"
                 hx-swap="outerHTML"
                 type="checkbox"
@@ -19,7 +19,7 @@
         </div>
         <form
             class="flex items-center gap-1 w-full"
-            hx-put="/tasks/{{ task.sid }}/title"
+            hx-put="/task/{{ task.sid }}/title"
             hx-target="closest .title-wrapper"
             hx-swap="outerHTML"
             style="display: none"
