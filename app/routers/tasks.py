@@ -53,6 +53,7 @@ async def view(
     comments = await urepo.comments().by_task(task_id)
     subtasks = await urepo.subtasks().by_task(task_id)
     attachments = await urepo.attachments().by_task(task_id)
+    attachments = [dict(at) for at in attachments]
     for a in attachments:
         a['url'] = blob.url_signed_for(
             a['uuid'],
