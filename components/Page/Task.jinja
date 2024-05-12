@@ -2,7 +2,7 @@
 <Layout.App spaces={None} space={space} user={user} title={list.title} lists={lists}>
 <div class="py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
     <div class="mb-8 space-y-4">
-        <a hx-get="/list/{{ list.sid }}" hx-target="#main" hx-swap="innerHTML show:#task-{{ task.sid }}:bottom" hx-push-url="true" class="flex items-center gap-1 text-sm cursor-pointer mb-2 hover:text-white">
+        <a href="/list/{{ list.sid }}" class="flex items-center gap-1 text-sm cursor-pointer mb-2 hover:text-white">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 15.75L3 12m0 0l3.75-3.75M3 12h18" />
             </svg>
