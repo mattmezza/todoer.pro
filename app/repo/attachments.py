@@ -42,7 +42,7 @@ class AttachmentForUser(LoggedInUserRepo):
         attachments = await self.db.fetch_all(
             """
             SELECT at.* FROM attachments at
-            JOIN tasks ta ON ta.uuid = st.task
+            JOIN tasks ta ON ta.uuid = at.task
             JOIN sections se ON se.uuid = ta.section
             JOIN lists l ON l.uuid = se.list
             JOIN spaces s ON s.uuid = l.space
