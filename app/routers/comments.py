@@ -1,80 +1,43 @@
 from typing import Annotated, Mapping
 
-from databases import Database
-from fastapi import APIRouter, Depends, Request, Form
+from fastapi import APIRouter, Depends, Form
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
-from app.dependencies import get_current_active_user, get_db, get_tpl
-from app.ids import new_ids
+from app import http, templating
+from app.dependencies import RepoDB, get_current_active_user, repo_db
 
 router = APIRouter()
 
 
-@router.delete("/{sid}", response_class=HTMLResponse)
+@router.delete("/comment/{sid}", response_class=HTMLResponse)
 async def delete(
-    req: Request,
+    res: HTMLResponse,
     sid: str,
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
+    db: RepoDB = Depends(repo_db),
 ):
-    await db.execute(
-        """DELETE FROM comments
-            WHERE sid = :sid AND task IN (
-                select uuid from tasks where list in (
-                    select uuid from lists where creator = :creator
-                )
-            )
-        """,
-        {"sid": sid, "creator": user["uuid"]},
-    )
-    res = HTMLResponse("")
-    res.headers["HX-Trigger"] = "comment-delete"
+    await db.for_user(user).comments().del_by_sid(sid)
+    res.headers["HX-Trigger"] = f"comment-delete, comment-{sid}-delete"
     return res
 
 
-@router.post("", response_class=HTMLResponse)
+@router.post("/comments")
+@templating.htmx("Comment")
 async def add(
-    req: Request,
     task: Annotated[str, Form()],
     content: Annotated[str, Form()],
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
-    tpl: Jinja2Templates = Depends(get_tpl),
+    db: RepoDB = Depends(repo_db),
 ):
-    uuid_new, sid_new = new_ids()
-    comm = await db.fetch_one(
-        """INSERT INTO comments (
-            uuid,
-            sid,
-            content,
-            author,
-            task
-        )
-        VALUES (
-            :uuid,
-            :sid,
-            :content,
-            :author,
-            :task
-        )
-        RETURNING *""",
+    comment = http.Opt(
+        await db.for_user(user).comments().create(content, task)
+    ).or_400()
+    return (
         {
-            "uuid": uuid_new,
-            "sid": sid_new,
-            "content": content,
-            "author": user["uuid"],
-            "task": task,
-        },
-    )
-    res = tpl.TemplateResponse(
-        "comments/view.htm",
-        {
-            "request": req,
-            "comment": dict(comm._mapping)
+            "comment": dict(comment)
             | {"author_email_hash": user["email_hash"]},
             "user": user,
         },
+        201,
+        {"HX-Trigger": "comment-create"},
     )
-    res.headers["HX-Trigger"] = "comment-create"
-    return res
