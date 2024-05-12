@@ -1,9 +1,7 @@
-import hashlib
 from typing import Annotated, Mapping
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
-from fastapi.templating import Jinja2Templates
 
 from app import blob, http, templating
 from app.dependencies import (
@@ -12,7 +10,6 @@ from app.dependencies import (
     get_db,
     repo_db,
 )
-from app.ids import new_ids
 
 router = APIRouter()
 
@@ -27,7 +24,6 @@ async def add_task(
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
-    uuid_new, sid_new = new_ids()
     task = await db.for_user(user).tasks().create(title, descr, section)
     return {"task": task}, 201, {"HX-Trigger": "task-create"}
 
