@@ -42,7 +42,8 @@ class CommentForUser(LoggedInUserRepo):
     ) -> list[Mapping]:
         comments = await self.db.fetch_all(
             """
-            SELECT cc.* FROM comments cc
+            SELECT cc.*, u.email as author_email FROM comments cc
+            JOIN users u ON u.uuid = cc.author
             JOIN tasks ta ON ta.uuid = cc.task
             JOIN sections se ON se.uuid = ta.section
             JOIN lists l ON l.uuid = se.list
@@ -58,7 +59,7 @@ class CommentForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        comments = [tt._mapping for tt in comments]
+        comments = [dict(cc._mapping) for cc in comments]
         for c in comments:
             c["author_email_hash"] = hashlib.md5(
                 str(c["author_email"]).encode("utf-8")
