@@ -33,7 +33,7 @@ async def add_task(
 
 
 @router.get("/task/{sid}")
-@templating.htmx("Tasks.TaskItem")
+@templating.htmx("Page.Task")
 async def view(
     sid: str,
     user: Mapping = Depends(get_current_active_user),
@@ -64,6 +64,7 @@ async def view(
         "section": section,
         "list": list_,
         "lists": lists,
+        "space": space,
         "comments": comments,
         "subtasks": subtasks,
         "attachments": attachments,
