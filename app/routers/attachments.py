@@ -1,57 +1,45 @@
 import logging
 from typing import Annotated, Mapping
 
-from databases import Database
-from fastapi import APIRouter, Depends, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, Form, UploadFile
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 
-from app import blob
-from app.dependencies import get_current_active_user, get_db, get_tpl
+from app import blob, http, templating
 from app.ids import new_ids
+from app.dependencies import RepoDB, get_current_active_user, repo_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.delete("/{sid}", response_class=HTMLResponse)
+@router.delete("/attachment/{sid}", response_class=HTMLResponse)
 async def delete(
-    req: Request,
+    res: HTMLResponse,
     sid: str,
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
+    db: RepoDB = Depends(repo_db),
 ):
-    row = await db.fetch_one(
-        """DELETE FROM attachments
-            WHERE sid = :sid AND task IN (
-                select uuid from tasks where section in (
-                    select uuid from sections where list in (
-                        select uuid from lists where creator = :creator
-                    )
-                )
-            )
-            RETURNING uuid
-        """,
-        {"sid": sid, "creator": user["uuid"]},
+    arepo = db.for_user(user).attachments()
+    attachment = http.Opt(await arepo.by_sid(sid)).or_404(
+        f"Attachment #{sid} not found."
     )
-    uuid = row._mapping['uuid']
+    await db.for_user(user).attachments().del_by_sid(sid)
+    uuid = attachment["uuid"]
     try:
         blob.delete(uuid)
     except:  # TODO - catch specific exception
         logger.error("blob %s couldn't be deleted from remote storage", uuid)
-    res = HTMLResponse("")
-    res.headers["HX-Trigger"] = "attachment-delete"
-    return res
+    res.headers["HX-Trigger"] = f"attachment-delete, attachment-{sid}-delete"
+    return ""
 
 
-@router.post("", response_class=HTMLResponse)
+@router.post("/attachments")
+@templating.htmx("Attachment")
 async def add(
-    req: Request,
     task: Annotated[str, Form()],
     file: UploadFile,
     user: Mapping = Depends(get_current_active_user),
-    db: Database = Depends(get_db),
-    tpl: Jinja2Templates = Depends(get_tpl),
+    db: RepoDB = Depends(repo_db),
 ):
     uuid_new, sid_new = new_ids()
     content_type = file.content_type
@@ -61,46 +49,23 @@ async def add(
     file.file.seek(0)
 
     blob.put(uuid_new, file.file, content_type)
-    attachment = await db.fetch_one(
-        """INSERT INTO attachments (
-            uuid,
-            sid,
-            mime,
-            fname,
-            size,
-            task
-        )
-        VALUES (
-            :uuid,
-            :sid,
-            :mime,
-            :fname,
-            :size,
-            :task
-        )
-        RETURNING *""",
+
+    attachment = http.Opt(
+        await db.for_user(user)
+        .attachments()
+        .create(uuid_new, sid_new, content_type, fname, size, task)
+    ).or_400()
+    return (
         {
-            "uuid": uuid_new,
-            "sid": sid_new,
-            "mime": content_type,
-            "fname": fname,
-            "size": size,
-            "task": task,
-        },
-    )
-    res = tpl.TemplateResponse(
-        "attachments/view.htm",
-        {
-            "request": req,
-            "attachment": dict(attachment._mapping)
+            "attachment": dict(attachment)
             | {
                 "url": blob.url_signed_for(
-                    attachment.uuid,
+                    attachment["uuid"],
                     blob.URL_SIGNED_VALIDITY_DURATION_DEFAULT,
                 )
             },
             "user": user,
         },
+        201,
+        {"HX-Trigger": "attachment-create"},
     )
-    res.headers["HX-Trigger"] = "attachment-create"
-    return res

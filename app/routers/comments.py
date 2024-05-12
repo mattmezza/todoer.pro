@@ -36,7 +36,6 @@ async def add(
         {
             "comment": dict(comment)
             | {"author_email_hash": user["email_hash"]},
-            "user": user,
         },
         201,
         {"HX-Trigger": "comment-create"},
