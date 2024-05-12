@@ -45,7 +45,6 @@ app.include_router(
 )
 app.include_router(
     comments.router,
-    prefix="/comments",
     dependencies=[Depends(get_current_active_user)],
 )
 app.include_router(

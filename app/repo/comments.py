@@ -75,7 +75,7 @@ class CommentForUser(LoggedInUserRepo):
                     SELECT cc.uuid FROM comments cc
                     JOIN tasks ta ON ta.uuid = cc.task
                     JOIN sections se ON se.uuid = ta.section
-                    JOIN lists l ON l.uuid = s.list
+                    JOIN lists l ON l.uuid = se.list
                     JOIN spaces sp ON sp.uuid = l.space
                     WHERE sp.creator = :creator
                 )
@@ -83,32 +83,31 @@ class CommentForUser(LoggedInUserRepo):
             {"sid": sid, "creator": self.user["uuid"]},
         )
 
-    async def create(
-        self, title: str, descr: str | None, section: str
-    ) -> Mapping:
+    async def create(self, content: str, task_uuid: str) -> Mapping:
         uuid_new, sid_new = new_ids()
-        task = await self.db.fetch_one(
+        comment = await self.db.fetch_one(
             """
-            INSERT INTO tasks (uuid, sid, `order`, title, descr, section)
+            INSERT INTO comments (
+                uuid,
+                sid,
+                content,
+                author,
+                task
+            )
             VALUES (
                 :uuid,
                 :sid,
-                COALESCE(
-                    (select MAX(`order`) + 1 FROM tasks WHERE section = :section),
-                    0
-                ),
-                :title,
-                :descr,
-                :section
+                :content,
+                :author,
+                :task
             )
-            RETURNING *
-            """,
+            RETURNING *""",
             {
                 "uuid": uuid_new,
                 "sid": sid_new,
-                "title": title.strip(),
-                "descr": descr.strip() if descr else None,
-                "section": section,
+                "content": content,
+                "author": self.user["uuid"],
+                "task": task_uuid,
             },
         )
-        return task._mapping if task else None
+        return comment._mapping if comment else None
