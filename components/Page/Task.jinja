@@ -1,5 +1,5 @@
 {# def user, space, lists, list, section, task, subtasks, attachments, comments #}
-<Layout.App spaces={spaces} space={space} user={user} title={list.title} lists={lists}>
+<Layout.App spaces={None} space={space} user={user} title={list.title} lists={lists}>
 <div class="py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
     <div class="mb-8 space-y-4">
         <a hx-get="/list/{{ list.sid }}" hx-target="#main" hx-swap="innerHTML show:#task-{{ task.sid }}:bottom" hx-push-url="true" class="flex items-center gap-1 text-sm cursor-pointer mb-2 hover:text-white">
@@ -10,7 +10,7 @@
             <!--<span class="rounded-full w-3 h-3" style="background: {{ list.color }}">&nbsp;</span>
             <span>{{ list.title }}</span>-->
         </a>
-        <Tasks.Title task={task} list={list} space={space} />
+        <Tasks.Title task={task} section={section} list={list} space={space} />
 
         <!-- descr -->
         <div class="hover:text-white cursor-pointer rounded text-sm min-h-[108px] whitespace-pre-line px-2" _="on click hide me then show the next <form /> then select() on the next <textarea />">
@@ -47,11 +47,8 @@
         <h3 class="font-bold">&nbsp;</h3>
         <ul class="list-none space-y-1">
             {% for subt in subtasks %}
-                {{ tpls.subtasks.view({'subtask': subt})|safe }}
+                <Subtask subtask={subt} />
             {% endfor %}
-            {#% for subtask in html.subtasks %#}
-            {#{ subtask|safe }#}
-            {#% endfor %#}
         </ul>
         <div id="add-subtask-btn" class="flex flex-row space-x-1 items-center rounded px-3 py-0 group cursor-pointer" _="on click hide me then show the next <form /> then focus() the next <input />">
             <button tabindex="0" class="btn group-hover:text-indigo-500 gap-2">
@@ -109,7 +106,7 @@
                 <ul class="list-none flex flex-wrap gap-4">
                 <ul id="attachments" class="list-none text-sm flex flex-wrap gap-4">
                     {% for a in attachments %}
-                        {{ tpls.attachments.view({'attachment': a})|safe }}
+                        <Attachment attachment={a} />
                     {% endfor %}
                 </ul>
                 <!-- <div _="on dragover or dragenter halt the event
@@ -154,7 +151,7 @@
         <!-- comments -->
         <h3 class="font-bold">&nbsp;</h3>
         {% for c in comments %}
-            {{ tpls.comments.view({'comment': c})|safe }}
+            <Comment comment={c} />
         {% endfor %}
         <ul class="list-none space-y-1">
             {#% for comment in html.comments %#}
