@@ -68,7 +68,7 @@ class SubtaskForUser(LoggedInUserRepo):
                     SELECT st.uuid FROM subtasks st
                     JOIN tasks ta ON ta.uuid = st.task
                     JOIN sections se ON se.uuid = ta.section
-                    JOIN lists l ON l.uuid = s.list
+                    JOIN lists l ON l.uuid = se.list
                     JOIN spaces sp ON sp.uuid = l.space
                     WHERE sp.creator = :creator
                 )
@@ -82,17 +82,14 @@ class SubtaskForUser(LoggedInUserRepo):
         uuid_new, sid_new = new_ids()
         subtask = await self.db.fetch_one(
             """
-            INSERT INTO subtasks (uuid, sid, `order`, title, descr, section)
+            INSERT INTO subtasks (uuid, sid, `order`, title, descr, task)
             VALUES (
                 :uuid,
                 :sid,
-                COALESCE(
-                    (select MAX(`order`) + 1 FROM subtasks WHERE task = :task),
-                    0
-                ),
+                (SELECT COALESCE(MAX(`order`), 0) FROM subtasks WHERE task = :task),
                 :title,
                 :descr,
-                :section
+                :task
             )
             RETURNING *
             """,
@@ -102,6 +99,30 @@ class SubtaskForUser(LoggedInUserRepo):
                 "title": title.strip(),
                 "descr": descr.strip() if descr else None,
                 "task": task_uuid,
+            },
+        )
+        return subtask._mapping if subtask else None
+
+    async def update(
+        self, sid: str, title: str, descr: str | None, complete: bool
+    ) -> Mapping:
+        subtask = await self.db.fetch_one(
+            """
+            UPDATE subtasks
+            SET complete = :complete, title = :title, descr = :descr
+            WHERE sid = :sid AND task IN (
+                SELECT uuid FROM tasks WHERE section IN (
+                    SELECT uuid FROM sections WHERE creator = :user
+                )
+            )
+            RETURNING *
+            """,
+            {
+                "sid": sid,
+                "complete": 1 if complete else 0,
+                "title": title.strip(),
+                "descr": descr.strip() if descr else None,
+                "user": self.user['uuid'],
             },
         )
         return subtask._mapping if subtask else None
