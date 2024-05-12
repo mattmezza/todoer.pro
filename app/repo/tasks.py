@@ -113,11 +113,11 @@ class TaskForUser(LoggedInUserRepo):
                     AND EXISTS (
                         SELECT ta.uuid FROM tasks ta
                         JOIN sections se ON se.uuid = ta.section
-                        JOIN lists l ON l.uuid = s.list
+                        JOIN lists l ON l.uuid = se.list
                         JOIN spaces sp ON sp.uuid = l.space
                         WHERE sp.creator = :creator
                     )
-            RETURNING tasks.*
+            RETURNING *
             """,
             {"sid": sid, "title": title, "creator": self.user["uuid"]},
         )

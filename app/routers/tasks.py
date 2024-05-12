@@ -144,9 +144,9 @@ async def update_title(
     db: RepoDB = Depends(repo_db),
 ):
     urepo = db.for_user(user)
-    task = http.Opt(urepo.tasks().update_title_by_sid(title, sid)).or_404(
-        f"Task #{sid} not found."
-    )
+    task = http.Opt(
+        await urepo.tasks().update_title_by_sid(title, sid)
+    ).or_404(f"Task #{sid} not found.")
     section = await urepo.sections().by_uuid(task["section"])
     list_ = await urepo.lists().by_uuid(section["list"])
     space = await urepo.spaces().by_uuid(list_["space"])
