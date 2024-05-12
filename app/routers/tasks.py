@@ -167,4 +167,4 @@ async def delete(
 ):
     await db.for_user(user).tasks().del_by_sid(sid)
     res.headers["HX-Trigger"] = f"task-delete, task-{sid}-delete"
-    return res
+    return ""
