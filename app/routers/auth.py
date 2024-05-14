@@ -102,3 +102,9 @@ async def confirm(
 ):
     await db.for_anon().users().update_confirmed_by_sid(sid, code)
     return RedirectResponse("/signin", 303)
+
+
+@router.get("/forgot-password")
+@templating.htmx("Page.ForgotPwd")
+async def forgot_pwd_view():
+    return {}
