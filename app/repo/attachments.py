@@ -1,6 +1,6 @@
 from typing import Mapping
 
-from .utils import LoggedInUserRepo, new_ids
+from .utils import LoggedInUserRepo
 
 
 class AttachmentForUser(LoggedInUserRepo):

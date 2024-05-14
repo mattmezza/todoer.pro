@@ -1,10 +1,13 @@
 import os
 from datetime import datetime, timedelta, timezone
+from typing import Mapping
 
 from dataclasses import dataclass
+from fastapi.responses import Response
 from jose import jwt
 from passlib.context import CryptContext
-from databases import Database
+
+from app.repo import UserForAnon
 
 # to get a string like this run:
 # openssl rand -hex 32
@@ -35,18 +38,11 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 
-async def get_user(db: Database, email: str):
-    return await db.fetch_one(
-        "SELECT * FROM users WHERE email = :email",
-        {"email": email},
-    )
-
-
-async def authenticate_user(db: Database, email: str, password: str):
-    user = await get_user(db, email)
+async def authenticate_user(urepo: UserForAnon, email: str, password: str):
+    user = await urepo.by_email(email)
     if not user:
         return False
-    if not verify_password(password, user.password):
+    if not verify_password(password, user["password"]):
         return False
     return user
 
@@ -60,14 +56,13 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
             minutes=ACCESS_TOKEN_EXPIRE_MINUTES
         )
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def set_auth_cookie(res, user):
+def set_auth_cookie(res: Response, user: Mapping):
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.email},
+        data={"sub": user["email"]},
         expires_delta=access_token_expires,
     )
     res.set_cookie(
@@ -79,7 +74,9 @@ def set_auth_cookie(res, user):
         httponly=True,
         samesite="lax",  # can be one of ["lax", "strict", "none"]]
     )
+    return res
 
 
 def unset_auth_cookie(res):
     res.delete_cookie(key="auth")
+    return res
