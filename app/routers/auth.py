@@ -62,7 +62,7 @@ async def signin(
     urepo = db.for_anon().users()
     user = await authenticate_user(urepo, email, password)
     if not user:
-        return RedirectResponse("/signin?err=auth", 303)
+        return RedirectResponse("/signin?err=auth-credentials", 303)
     await urepo.update_last_login_by_uuid(user["uuid"])
     return set_auth_cookie(RedirectResponse(goto or "/", 303), user)
 

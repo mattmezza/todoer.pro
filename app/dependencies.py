@@ -95,7 +95,9 @@ async def get_current_user(
 ) -> Mapping:
     exc = HTTPException(
         status_code=303,
-        headers={"Location": f"/login?e=auth&p={req.url.path}"},
+        headers={
+            "Location": f"/signin?err=auth-needs-signin&goto={req.url.path}"
+        },
     )
     if auth is None:
         raise exc
@@ -121,5 +123,5 @@ async def get_current_active_user(
     current_user: Annotated[Mapping, Depends(get_current_user)]
 ) -> Mapping:
     if current_user["disabled"]:
-        return RedirectResponse("/login?e=auth-disabled")
+        return RedirectResponse("/signin?err=auth-disabled")
     return current_user
