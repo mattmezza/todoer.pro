@@ -3,7 +3,7 @@ from typing import Mapping
 from fastapi import APIRouter, Depends
 
 from app import tpl
-from app.dependencies import RepoDB, get_current_active_user, repo_db
+from app.deps import RepoDB, get_current_active_user, repo_db
 
 router = APIRouter()
 

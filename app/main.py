@@ -1,7 +1,7 @@
 from fastapi import Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .dependencies import get_current_active_user, hot_reload
+from .deps import get_current_active_user, hot_reload
 from .routers import (
     account,
     attachments,
