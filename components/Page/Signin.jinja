@@ -1,0 +1,45 @@
+{# def goto, error #}
+<Layout.Auth title="Signin">
+    <div class="max-w-sm mx-auto w-full px-4 py-8">
+        <h1 class="text-3xl text-slate-800 dark:text-slate-100 font-bold mb-6">Welcome back! ✨</h1>
+        <!-- Form -->
+        <form action="/signin" method="POST">
+            {% if goto %}<input type="hidden" name="goto" value="{{ goto }}">{% endif %}
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1" for="email">Email Address <span class="text-rose-500">*</span></label>
+                    <input id="email" name="email" class="form-input w-full" type="email" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1" for="password">Password <span class="text-rose-500">*</span></label>
+                    <input id="password" name="password" class="form-input w-full" type="password" autocomplete="on" required>
+                </div>
+            </div>
+            <div class="flex items-center justify-between mt-6">
+                <div class="mr-1">
+                    <a class="text-sm underline hover:no-underline" href="/forgot-password">Forgot Password?</a>
+                </div>
+                <button type="submit" class="btn bg-indigo-500 hover:bg-indigo-600 text-white ml-3">Sign In</button>
+            </div>
+        </form>
+        <!-- Footer -->
+        <div class="pt-5 mt-6 border-t border-slate-200 dark:border-slate-700">
+            <div class="text-sm">
+                Don’t you have an account? <a class="font-medium text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400" href="/signup">Sign Up</a>
+            </div>
+            {%- if error %}
+                <!-- Warning -->
+                <div class="mt-5">
+                    <div class="bg-red-100 dark:bg-red-400/30 text-red-600 dark:text-red-400 px-3 py-2 rounded">
+                        <span>
+                            🚫
+                        </span>
+                        <span class="text-sm">
+                            Invalid credentials
+                        </span>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</Layout.Auth>

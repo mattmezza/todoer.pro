@@ -9,6 +9,7 @@ from .sections import SectionForUser
 from .spaces import SpaceForUser
 from .subtasks import SubtaskForUser
 from .tasks import TaskForUser
+from .users import UserForAnon
 
 
 class ForUser:
@@ -38,9 +39,20 @@ class ForUser:
         return AttachmentForUser(self.user, self.db)
 
 
+class ForAnon:
+    def __init__(self, db: Database):
+        self.db = db
+
+    def users(self) -> UserForAnon:
+        return UserForAnon(self.db)
+
+
 class RepoDB:
     def __init__(self, db: Database):
         self.db = db
 
     def for_user(self, user: Mapping) -> ForUser:
         return ForUser(self.db, user)
+
+    def for_anon(self) -> ForAnon:
+        return ForAnon(self.db)

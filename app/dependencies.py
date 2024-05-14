@@ -11,7 +11,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 
 from .repo import RepoDB
-from .security import ALGORITHM, SECRET_KEY, get_user
+from .security import ALGORITHM, SECRET_KEY
 from .templating import hot_reload, jinx, jinja2, filter_age
 
 db = Database(os.environ["TODOER_DB_URL"])
@@ -60,7 +60,7 @@ def repo_db():
 
 async def get_current_user_api(
     token: Annotated[str, Depends(oauth2_scheme)],
-    db: Annotated[Database, Depends(get_db)],
+    db: RepoDB = Depends(repo_db),
 ):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -74,7 +74,7 @@ async def get_current_user_api(
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    user = await get_user(db, email)
+    user = await db.for_anon().users().by_email(email)
     if user is None:
         raise credentials_exception
     return user
@@ -83,14 +83,14 @@ async def get_current_user_api(
 async def get_current_active_user_api(
     current_user: Annotated[Mapping, Depends(get_current_user_api)]
 ):
-    if current_user.disabled:
+    if current_user["disabled"]:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
 
 async def get_current_user(
     req: Request,
-    db: Annotated[Database, Depends(get_db)],
+    db: RepoDB = Depends(repo_db),
     auth: str | None = Cookie(None),
 ) -> Mapping:
     exc = HTTPException(
@@ -106,10 +106,10 @@ async def get_current_user(
             raise exc
     except JWTError:
         raise exc
-    user = await get_user(db, email)
+    user = await db.for_anon().users().by_email(email)
     if user is None:
         raise exc
-    mm = {k: v for (k, v) in user._mapping.items()}
+    mm = {k: v for (k, v) in user.items()}
     del mm['password']
     mm['email_hash'] = hashlib.md5(
         str(mm['email']).encode("utf-8")
