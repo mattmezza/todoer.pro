@@ -3,14 +3,14 @@ from typing import Annotated, Mapping
 from fastapi import APIRouter, Depends, Form
 from fastapi.responses import HTMLResponse
 
-from app import templating
+from app import tpl
 from app.dependencies import RepoDB, get_current_active_user, repo_db
 
 router = APIRouter()
 
 
 @router.get("/")
-@templating.htmx("Page/Spaces")
+@tpl.htmx("Page/Spaces")
 async def index(
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
@@ -24,7 +24,7 @@ async def index(
 
 
 @router.get("/space/{sid}")
-@templating.htmx("Page/Space")
+@tpl.htmx("Page/Space")
 async def read(
     sid: str,
     db: RepoDB = Depends(repo_db),
@@ -54,7 +54,7 @@ async def read(
 
 
 @router.post("/spaces", response_class=HTMLResponse)
-@templating.htmx("Spaces/ListItem")
+@tpl.htmx("Spaces/ListItem")
 async def add(
     title: Annotated[str, Form()],
     descr: Annotated[str | None, Form()] = None,

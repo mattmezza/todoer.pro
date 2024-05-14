@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
-from app import templating
+from app import tpl
 from app.dependencies import RepoDB, repo_db
 from app.ids import new_ids
 from app.security import (
@@ -44,7 +44,7 @@ async def login_api(
 
 
 @router.get("/signin")
-@templating.htmx("Page.Signin")
+@tpl.htmx("Page.Signin")
 async def login(
     goto: str | None = None,
     err: str | None = None,
@@ -73,7 +73,7 @@ async def logout():
 
 
 @router.get("/signup")
-@templating.htmx("Page.Signup")
+@tpl.htmx("Page.Signup")
 async def signup_view():
     return {}
 
@@ -105,6 +105,6 @@ async def confirm(
 
 
 @router.get("/forgot-password")
-@templating.htmx("Page.ForgotPwd")
+@tpl.htmx("Page.ForgotPwd")
 async def forgot_pwd_view():
     return {}

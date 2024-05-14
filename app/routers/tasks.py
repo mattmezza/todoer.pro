@@ -3,7 +3,7 @@ from typing import Annotated, Mapping
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
-from app import blob, http, templating
+from app import blob, http, tpl
 from app.dependencies import (
     RepoDB,
     get_current_active_user,
@@ -15,7 +15,7 @@ router = APIRouter()
 
 
 @router.post("/tasks")
-@templating.htmx("Tasks.TaskItem")
+@tpl.htmx("Tasks.TaskItem")
 async def add_task(
     req: Request,
     title: Annotated[str, Form()],
@@ -29,7 +29,7 @@ async def add_task(
 
 
 @router.get("/task/{sid}")
-@templating.htmx("Page.Task")
+@tpl.htmx("Page.Task")
 async def view(
     sid: str,
     user: Mapping = Depends(get_current_active_user),
@@ -69,7 +69,7 @@ async def view(
 
 
 @router.put("/task/{sid}")
-@templating.htmx("Tasks.TaskItem")
+@tpl.htmx("Tasks.TaskItem")
 async def update(
     sid: str,
     title: Annotated[str, Form()],
@@ -105,7 +105,7 @@ async def update_descr(
 
 
 @router.put("/task/{sid}/complete")
-@templating.htmx("Tasks.Title")
+@tpl.htmx("Tasks.Title")
 async def update_complete(
     sid: str,
     complete: Annotated[str | None, Form()] = None,
@@ -132,7 +132,7 @@ async def update_complete(
 
 
 @router.put("/task/{sid}/title")
-@templating.htmx("Tasks.Title")
+@tpl.htmx("Tasks.Title")
 async def update_title(
     sid: str,
     title: Annotated[str, Form()],

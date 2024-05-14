@@ -3,14 +3,14 @@ from typing import Mapping
 from databases import Database
 from fastapi import APIRouter, Depends, Request
 
-from app import templating
+from app import tpl
 from app.dependencies import get_current_active_user, get_db
 
 router = APIRouter()
 
 
 @router.get("/dashboard")
-@templating.htmx("Page/Dashboard")
+@tpl.htmx("Page/Dashboard")
 async def dash(
     req: Request,
     db: Database = Depends(get_db),

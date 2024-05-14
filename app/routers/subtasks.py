@@ -3,7 +3,7 @@ from typing import Annotated, Mapping
 from fastapi import APIRouter, Depends, Form
 from fastapi.responses import HTMLResponse
 
-from app import http, templating
+from app import http, tpl
 from app.dependencies import RepoDB, get_current_active_user, repo_db
 
 router = APIRouter()
@@ -22,7 +22,7 @@ async def delete(
 
 
 @router.post("/subtasks")
-@templating.htmx("Subtask")
+@tpl.htmx("Subtask")
 async def add(
     task: Annotated[str, Form()],
     title: Annotated[str, Form()],
@@ -44,7 +44,7 @@ async def add(
 
 
 @router.put("/subtask/{sid}")
-@templating.htmx("Subtask")
+@tpl.htmx("Subtask")
 async def update(
     sid: str,
     title: Annotated[str, Form()],

@@ -12,7 +12,7 @@ from jose import JWTError, jwt
 
 from .repo import RepoDB
 from .security import ALGORITHM, SECRET_KEY
-from .templating import hot_reload, jinx, jinja2, filter_age
+from .tpl import hot_reload, jinx, jinja2, filter_age
 
 db = Database(os.environ["TODOER_DB_URL"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")

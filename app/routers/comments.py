@@ -3,7 +3,7 @@ from typing import Annotated, Mapping
 from fastapi import APIRouter, Depends, Form
 from fastapi.responses import HTMLResponse
 
-from app import http, templating
+from app import http, tpl
 from app.dependencies import RepoDB, get_current_active_user, repo_db
 
 router = APIRouter()
@@ -22,7 +22,7 @@ async def delete(
 
 
 @router.post("/comments")
-@templating.htmx("Comment")
+@tpl.htmx("Comment")
 async def add(
     task: Annotated[str, Form()],
     content: Annotated[str, Form()],

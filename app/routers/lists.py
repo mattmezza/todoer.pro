@@ -4,7 +4,7 @@ from typing import Annotated, Mapping
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
-from app import http, templating
+from app import http, tpl
 from app.dependencies import (
     Renderer,
     get_current_active_user,
@@ -30,7 +30,7 @@ async def delete(
 
 
 @router.get("/list/{sid}")
-@templating.htmx("Page/List")
+@tpl.htmx("Page/List")
 async def view(
     req: Request,
     sid: str,
@@ -66,7 +66,7 @@ async def view(
 
 
 @router.put("/list/{sid}/color")
-@templating.htmx("Lists/Color")
+@tpl.htmx("Lists/Color")
 async def update_color(
     res: HTMLResponse,
     sid: str,
@@ -118,7 +118,7 @@ async def update_descr(
 
 
 @router.post("/lists")
-@templating.htmx("Nav/Lists/Item.jinja")
+@tpl.htmx("Nav/Lists/Item.jinja")
 async def add(
     req: Request,
     space: Annotated[str, Form()],
