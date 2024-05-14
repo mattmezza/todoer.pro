@@ -2,14 +2,14 @@ from typing import Annotated, Mapping
 
 from fastapi import APIRouter, Depends, Query
 
-from app import templating
+from app import tpl
 from app.dependencies import RepoDB, get_current_active_user, repo_db
 
 router = APIRouter()
 
 
 @router.get("/lists")
-@templating.htmx("Nav/Lists")
+@tpl.htmx("Nav/Lists")
 async def nav_lists(
     space: Annotated[str, Query()],
     db: RepoDB = Depends(repo_db),
@@ -22,7 +22,7 @@ async def nav_lists(
 
 
 @router.get("/spaces")
-@templating.htmx("Nav/Spaces")
+@tpl.htmx("Nav/Spaces")
 async def nav_spaces(
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),

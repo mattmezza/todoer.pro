@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Form
 from fastapi.responses import HTMLResponse
 
 from app.dependencies import RepoDB, get_current_active_user, repo_db
-from app import http, templating
+from app import http, tpl
 
 router = APIRouter()
 
@@ -22,7 +22,7 @@ async def delete(
 
 
 @router.get("/section/{sid}")
-@templating.htmx("Section")
+@tpl.htmx("Section")
 async def view(
     sid: str,
     view_complete: bool = False,
@@ -45,7 +45,7 @@ async def view(
 
 
 @router.post("/sections")
-@templating.htmx("Section")
+@tpl.htmx("Section")
 async def add(
     title: Annotated[str, Form()],
     list_id: Annotated[str, Form()],

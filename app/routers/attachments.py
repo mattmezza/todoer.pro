@@ -4,7 +4,7 @@ from typing import Annotated, Mapping
 from fastapi import APIRouter, Depends, Form, UploadFile
 from fastapi.responses import HTMLResponse
 
-from app import blob, http, templating
+from app import blob, http, tpl
 from app.ids import new_ids
 from app.dependencies import RepoDB, get_current_active_user, repo_db
 
@@ -34,7 +34,7 @@ async def delete(
 
 
 @router.post("/attachments")
-@templating.htmx("Attachment")
+@tpl.htmx("Attachment")
 async def add(
     task: Annotated[str, Form()],
     file: UploadFile,
