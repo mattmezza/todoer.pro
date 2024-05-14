@@ -35,7 +35,15 @@
                             🚫
                         </span>
                         <span class="text-sm">
-                            Invalid credentials
+                            {%- if error == "auth-needs-signin" %}
+                            You need to sign in first.
+                            {%- elif error == "auth-disabled" %}
+                            Invalid credentials.
+                            {%- elif error == "auth-credentials" %}
+                            Invalid credentials.
+                            {%- else %}
+                            Invalid credentials.
+                            {% endif %}
                         </span>
                     </div>
                 </div>
