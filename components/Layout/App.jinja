@@ -4,7 +4,7 @@
 <head>
     <title>{% if ENV != "prod" %}[{{ ENV }}] {% endif %}Todoer{%- if title %} - {{ title }}{% endif %}</title>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     {% if ENV == "local" %}
     <link href="/public/style.css?v={{ epoch() }}" rel="stylesheet">
     {% else %}
@@ -14,7 +14,7 @@
     <link rel="icon" href="/public/favicon.ico?v={{ RELEASE or '' }}">
     <link rel="icon" href="/public/favicon.png?v={{ RELEASE or '' }}">
 </head>
-<body hx-ext="loading-states" class="font-inter antialiased bg-slate-100 dark:bg-gray-950 text-slate-600 dark:text-slate-300 sidebar-expanded">
+<body class="font-inter antialiased bg-slate-100 dark:bg-gray-950 text-slate-600 dark:text-slate-300 sidebar-expanded">
     <div class="flex h-[100dvh] overflow-hidden">
             <Nav.Menu spaces={spaces} user={user} space={space} lists={lists} />
         <div class="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden dark:bg-black lg:rounded-l-lg">
@@ -28,12 +28,11 @@
         <Nav.Mobile space={space} />
     </div>
     <Dialog.About />
-    <script src="//unpkg.com/alpinejs" defer></script>
-    <script src="//unpkg.com/htmx.org@1.9.5/dist/htmx.min.js" defer></script>
-    <script src="//unpkg.com/hyperscript.org@0.9.11" defer></script>
-    <script src="//unpkg.com/htmx.org/dist/ext/loading-states.js" defer></script>
+    <script src="//unpkg.com/alpinejs"></script>
+    <script src="//unpkg.com/htmx.org@1.9.5/dist/htmx.min.js"></script>
+    <script src="//unpkg.com/hyperscript.org@0.9.11"></script>
     {% if ENV == "local" %}
-        <script src="//unpkg.com/htmx.org/dist/ext/debug.js" defer></script>
+        <script src="//unpkg.com/htmx.org/dist/ext/debug.js"></script>
         {{ hot_reload.script("ws://localhost:8000/hot-reload") | safe }}
     {% endif %}
     {% block scripts %}
