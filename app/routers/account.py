@@ -1,14 +1,11 @@
 import logging
 from typing import Annotated, Mapping
 
-from databases import Database
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import PlainTextResponse
 
 from app import tpl
-from app.dependencies import (
-    Renderer, get_current_active_user, get_db, renderer
-)
+from app.dependencies import RepoDB, get_current_active_user, repo_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -18,33 +15,26 @@ router = APIRouter()
 @tpl.htmx("Page.Account")
 async def read(
     req: Request,
-    render: Renderer = Depends(renderer),
-    db: Database = Depends(get_db),
+    db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
 ):
-    spaces = await db.fetch_all(
-        """
-        SELECT * FROM spaces
-        WHERE creator = :creator
-        LIMIT 100
-        """,
-        {"creator": user["uuid"]}
-    )
-    return dict(
-        spaces=[ss._mapping for ss in spaces],
-        user=user,
-    )
+    return {
+        "spaces": await db.for_user(user).spaces().all(),
+        "user": user,
+    }
 
 
 @router.put("/account/fullname", response_class=PlainTextResponse)
 async def change_name(
-    req: Request,
+    res: PlainTextResponse,
     name: Annotated[str, Form()],
-    db: Database = Depends(get_db),
+    db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
 ):
-    row = await db.fetch_one(
-        "UPDATE users SET name = :name WHERE uuid = :uuid RETURNING name",
-        {"name": name, "uuid": user["uuid"]},
+    user = (
+        await db.for_user(user)
+        .users()
+        .update_fname_by_uuid(name, user["uuid"])
     )
-    return row.name
+    res.headers["HX-Trigger"] = "account-update"
+    return user["name"]

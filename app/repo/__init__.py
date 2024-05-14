@@ -9,7 +9,7 @@ from .sections import SectionForUser
 from .spaces import SpaceForUser
 from .subtasks import SubtaskForUser
 from .tasks import TaskForUser
-from .users import UserForAnon
+from .users import UserForAnon, UserForUser
 
 
 class ForUser:
@@ -37,6 +37,9 @@ class ForUser:
 
     def attachments(self) -> AttachmentForUser:
         return AttachmentForUser(self.user, self.db)
+
+    def users(self) -> UserForUser:
+        return UserForUser(self.user, self.db)
 
 
 class ForAnon:
