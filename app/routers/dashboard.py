@@ -1,10 +1,9 @@
 from typing import Mapping
 
-from databases import Database
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 
 from app import tpl
-from app.dependencies import get_current_active_user, get_db
+from app.dependencies import RepoDB, get_current_active_user, repo_db
 
 router = APIRouter()
 
@@ -12,23 +11,10 @@ router = APIRouter()
 @router.get("/dashboard")
 @tpl.htmx("Page.Dashboard")
 async def dash(
-    req: Request,
-    db: Database = Depends(get_db),
+    db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
 ):
-    spaces = await db.fetch_all(
-        """
-        SELECT * FROM spaces
-        WHERE creator = :creator
-        ORDER BY creator
-        LIMIT 100
-        """,
-        {"creator": user["uuid"]},
-    )
-    lists = await db.fetch_all("select title, uuid from lists limit 50")
-    return dict(
-        request=req,
-        spaces=spaces,
-        lists=lists,
-        user=user,
-    )
+    return {
+        "spaces": await db.for_user(user).spaces().all(),
+        "user": user,
+    }
