@@ -1,21 +1,16 @@
 from collections import defaultdict
 from typing import Annotated, Mapping
 
-from databases import Database
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
-from fastapi.templating import Jinja2Templates
 
 from app import http, templating
 from app.dependencies import (
     Renderer,
     get_current_active_user,
-    get_db,
-    get_tpl,
     renderer,
     repo_db,
 )
-from app.ids import new_ids
 from app.repo import RepoDB
 
 router = APIRouter()
@@ -132,9 +127,8 @@ async def add(
     color: Annotated[str | None, Form()] = None,
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
-    tpl: Jinja2Templates = Depends(get_tpl),
 ):
     li = http.Opt(
         await db.for_user(user).lists().create(color, title, descr, space)
     ).or_400()
-    return {"list": li, "user": user}, 201, {"HX-Trigger":  "list-create"}
+    return {"list": li, "user": user}, 201, {"HX-Trigger": "list-create"}

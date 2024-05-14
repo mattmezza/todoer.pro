@@ -16,6 +16,7 @@ from .templating import hot_reload, jinx, jinja2, filter_age
 
 db = Database(os.environ["TODOER_DB_URL"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+Renderer = Callable
 
 
 @asynccontextmanager
@@ -23,19 +24,6 @@ async def lifespan(app: FastAPI):
     await db.connect()
     yield
     await db.disconnect()
-
-
-def get_tpl():
-    jinja2.env.globals["ENV"] = os.environ["TODOER_ENV"]
-    jinja2.env.globals["epoch"] = lambda: str(int(time.time()))
-    if os.environ["TODOER_ENV"] == "local":
-        jinja2.env.globals["DEBUG"] = True
-        jinja2.env.globals["hot_reload"] = hot_reload
-    jinja2.env.filters["age"] = filter_age
-    return jinja2
-
-
-Renderer = Callable
 
 
 def renderer() -> Renderer:

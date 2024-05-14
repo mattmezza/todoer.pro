@@ -53,7 +53,6 @@ constants = {
 hot_reload = arel.HotReload(
     paths=[
         arel.Path("app"),
-        arel.Path("htm"),
         arel.Path("components"),
         arel.Path("public"),
         arel.Path("styles"),
