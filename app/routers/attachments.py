@@ -1,11 +1,11 @@
 import logging
 from typing import Annotated, Mapping
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Form, UploadFile
 from fastapi.responses import HTMLResponse
 
 from app import blob, http, tpl
-from app.ids import new_ids
 from app.deps import RepoDB, get_current_active_user, repo_db
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ async def add(
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
-    uuid_new, sid_new = new_ids()
+    uuid_new = str(uuid4())
     content_type = file.content_type
     fname = file.filename
 
@@ -53,7 +53,7 @@ async def add(
     attachment = http.Opt(
         await db.for_user(user)
         .attachments()
-        .create(uuid_new, sid_new, content_type, fname, size, task)
+        .create(uuid_new, content_type, fname, size, task)
     ).or_400()
     return (
         {

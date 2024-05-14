@@ -1,14 +1,15 @@
 import logging
 from datetime import timedelta
 from typing import Annotated
+from uuid import uuid4
 
+import shortuuid
 from fastapi import APIRouter, Depends, Form, HTTPException, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from app import tpl
 from app.deps import RepoDB, repo_db
-from app.ids import new_ids
 from app.security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     authenticate_user,
@@ -87,7 +88,7 @@ async def signup(
     db: RepoDB = Depends(repo_db),
 ):
     pwd = pwd_context.hash(password)
-    _, confirm_code = new_ids()
+    confirm_code = shortuuid.encode(uuid4())[:7]
     user = await db.for_anon().users().create(name, email, pwd, confirm_code)
     # TODO send confirmation email
     logger.info("sending confirmation email should happen here")
