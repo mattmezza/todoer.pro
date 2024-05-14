@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import PlainTextResponse
 
 from app import tpl
-from app.dependencies import RepoDB, get_current_active_user, repo_db
+from app.deps import RepoDB, get_current_active_user, repo_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

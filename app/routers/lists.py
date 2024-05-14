@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from app import http, tpl
-from app.dependencies import (
+from app.deps import (
     Renderer,
     get_current_active_user,
     renderer,

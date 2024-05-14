@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from app import blob, http, tpl
-from app.dependencies import (
+from app.deps import (
     RepoDB,
     get_current_active_user,
     get_db,

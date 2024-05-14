@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from app import tpl
-from app.dependencies import RepoDB, repo_db
+from app.deps import RepoDB, repo_db
 from app.ids import new_ids
 from app.security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,

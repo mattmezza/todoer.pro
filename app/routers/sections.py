@@ -3,7 +3,7 @@ from typing import Annotated, Mapping
 from fastapi import APIRouter, Depends, Form
 from fastapi.responses import HTMLResponse
 
-from app.dependencies import RepoDB, get_current_active_user, repo_db
+from app.deps import RepoDB, get_current_active_user, repo_db
 from app import http, tpl
 
 router = APIRouter()
