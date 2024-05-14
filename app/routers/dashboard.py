@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.get("/dashboard")
-@tpl.htmx("Page/Dashboard")
+@tpl.htmx("Page.Dashboard")
 async def dash(
     req: Request,
     db: Database = Depends(get_db),

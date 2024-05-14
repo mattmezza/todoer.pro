@@ -9,7 +9,7 @@ router = APIRouter()
 
 
 @router.get("/lists")
-@tpl.htmx("Nav/Lists")
+@tpl.htmx("Nav.Lists")
 async def nav_lists(
     space: Annotated[str, Query()],
     db: RepoDB = Depends(repo_db),
@@ -22,7 +22,7 @@ async def nav_lists(
 
 
 @router.get("/spaces")
-@tpl.htmx("Nav/Spaces")
+@tpl.htmx("Nav.Spaces")
 async def nav_spaces(
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
