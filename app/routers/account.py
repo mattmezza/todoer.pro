@@ -3,8 +3,9 @@ from typing import Annotated, Mapping
 
 from databases import Database
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import PlainTextResponse
 
+from app import tpl
 from app.dependencies import (
     Renderer, get_current_active_user, get_db, renderer
 )
@@ -14,6 +15,7 @@ router = APIRouter()
 
 
 @router.get("/account")
+@tpl.htmx("Page.Account")
 async def read(
     req: Request,
     render: Renderer = Depends(renderer),
@@ -28,13 +30,9 @@ async def read(
         """,
         {"creator": user["uuid"]}
     )
-    return HTMLResponse(
-        render(
-            "Page/Account",
-            request=req,
-            spaces=[ss._mapping for ss in spaces],
-            user=user,
-        )
+    return dict(
+        spaces=[ss._mapping for ss in spaces],
+        user=user,
     )
 
 
