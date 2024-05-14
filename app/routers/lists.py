@@ -30,7 +30,7 @@ async def delete(
 
 
 @router.get("/list/{sid}")
-@tpl.htmx("Page/List")
+@tpl.htmx("Page.List")
 async def view(
     req: Request,
     sid: str,
@@ -66,7 +66,7 @@ async def view(
 
 
 @router.put("/list/{sid}/color")
-@tpl.htmx("Lists/Color")
+@tpl.htmx("Lists.Color")
 async def update_color(
     res: HTMLResponse,
     sid: str,
@@ -118,7 +118,7 @@ async def update_descr(
 
 
 @router.post("/lists")
-@tpl.htmx("Nav/Lists/Item.jinja")
+@tpl.htmx("Nav.Lists.Item")
 async def add(
     req: Request,
     space: Annotated[str, Form()],
