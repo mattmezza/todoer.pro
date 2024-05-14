@@ -8,6 +8,7 @@
     <ul
         hx-get="/nav/spaces"
         hx-trigger="space-delete from:body, space-create from:body, space-update from:body"
+        hx-target="closest div"
         class="mt-3 text-sm font-semibold">
         {% for space in spaces %}
             <Nav.Spaces.Item space={space} />
