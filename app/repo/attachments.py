@@ -1,6 +1,6 @@
 from typing import Mapping
 
-from .utils import LoggedInUserRepo
+from .utils import LoggedInUserRepo, new_ids
 
 
 class AttachmentForUser(LoggedInUserRepo):
@@ -79,12 +79,12 @@ class AttachmentForUser(LoggedInUserRepo):
     async def create(
         self,
         uuid_new: str,
-        sid_new: str,
         content_type: str,
         fname: str,
         size: int,
         task_uuid: str,
     ) -> Mapping:
+        _, sid_new = new_ids()
         attachment = await self.db.fetch_one(
             """
             INSERT INTO attachments (
