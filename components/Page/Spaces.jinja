@@ -1,20 +1,20 @@
 {# def user, spaces, tasks_by_space #}
 <Layout.App spaces={spaces} user={user} title="Spaces">
     <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
-        <h1 class="text-3xl md:text-4xl font-bold">Spaces</h1>
+        <h1 class="text-3xl md:text-4xl font-bold md:px-4">Spaces</h1>
         <ul class="my-16 space-y-1">
             {% for space in spaces %}
             <Spaces.ListItem space={space} tasks_by_space={tasks_by_space} />
             {% endfor %}
         </ul>
-        <Btn.Create id="btn-space-create">Add space</Btn.Create>
+        <Btn.Create id="btn-space-create" class="mb-24">Add space</Btn.Create>
         <form
             style="display: none"
             hx-target="previous ul"
             hx-swap="beforeend"
             hx-post="/spaces"
             hx-on::after-request="this.reset()"
-            class="rounded-sm border border-slate-600 add-task-form mb-2"
+            class="rounded-sm border border-slate-600 add-task-form mb-8"
             _="on reset or keyup[key is 'Escape'] hide me then show #btn-space-create">
             <div class="py-2"">
                 <input

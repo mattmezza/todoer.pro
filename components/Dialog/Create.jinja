@@ -7,10 +7,6 @@
         class="flex flex-col p-8"
         _="on submit reset() on me then close() the closest <dialog /> on reset close() the closest <dialog />"
     >
-        {% for name, val in hidden_vals.items() %}
-            <input type="hidden" value="{{ val }}" name="{{ name }}">
-        {% endfor %}
-
         <header>
             <div class="flex items-center justify-start gap-2">
                 <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-rose-500">
@@ -45,5 +41,8 @@
                 </div>
             </div>
         </footer>
+        {% for name, val in hidden_vals.items() %}
+            <input type="hidden" value="{{ val }}" name="{{ name }}">
+        {% endfor %}
     </form>
 </dialog>
