@@ -17,11 +17,11 @@
                     <Nav.Links.Item href="/">Spaces</Nav.Links.Item>
                 </ul>
             </div>
-            {%- if spaces and not lists %}<Nav.Spaces spaces={spaces} />{% endif %}
-            {%- if space and lists %}<Nav.Lists space={space} lists={lists} />{% endif %}
+            {%- if spaces and lists is not defined %}<Nav.Spaces spaces={spaces} />{% endif %}
+            {%- if space and lists is defined %}<Nav.Lists space={space} lists={lists} />{% endif %}
         </div>
         <div class="flex-grow"></div>
-        <Nav.UserBtn user={user} />
+        <Nav.UserBtn user={user} spaces={spaces} space={space} />
         <!--<div class="text-xs font-light text-slate-300 dark:text-slate-700 text-center">&copy; 2024 - <em>{{ RELEASE }}</em></div>-->
     </div>
 </div>
