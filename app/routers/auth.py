@@ -22,6 +22,7 @@ from app.security import (
 logger = logging.getLogger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 router = APIRouter()
+URL_AFTER_SIGNIN = "/dashboard"
 
 
 # @router.post("/token", response_model=Token)
@@ -65,7 +66,9 @@ async def signin(
     if not user:
         return RedirectResponse("/signin?err=auth-credentials", 303)
     await urepo.update_last_login_by_uuid(user["uuid"])
-    return set_auth_cookie(RedirectResponse(goto or "/", 303), user)
+    return set_auth_cookie(
+        RedirectResponse(goto or URL_AFTER_SIGNIN, 303), user
+    )
 
 
 @router.get("/signout")
@@ -92,7 +95,7 @@ async def signup(
     user = await db.for_anon().users().create(name, email, pwd, confirm_code)
     # TODO send confirmation email
     logger.info("sending confirmation email should happen here")
-    return set_auth_cookie(RedirectResponse("/", 303), user)
+    return set_auth_cookie(RedirectResponse(URL_AFTER_SIGNIN, 303), user)
 
 
 @router.get("/{sid}/confirmation/{code}")
