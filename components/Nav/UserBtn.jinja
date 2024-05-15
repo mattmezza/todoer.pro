@@ -31,10 +31,15 @@
         aria-expanded="false"
         aria-haspopup>
         <img class="w-8 h-8 rounded-full" src="https://www.gravatar.com/avatar/{{ user.email_hash }}.jpg?s=100" width="32" height="32" alt="User">
-        <div class="ml-1 text-left">
+        <div class="ml-1 text-left flex-grow">
             <div class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ user.name|default('') }}</div>
             {%- if space %}<div class="text-xs text-slate-500 dark:text-slate-400 font-mono">{{ space.title[:20] }}</div>{% endif %}
-        <div>
+        </div>
+        <div class="text-slate-300 dark:text-slate-700">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+              <path fill-rule="evenodd" d="M11.47 4.72a.75.75 0 0 1 1.06 0l3.75 3.75a.75.75 0 0 1-1.06 1.06L12 6.31 8.78 9.53a.75.75 0 0 1-1.06-1.06l3.75-3.75Zm-3.75 9.75a.75.75 0 0 1 1.06 0L12 17.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-3.75 3.75a.75.75 0 0 1-1.06 0l-3.75-3.75a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+            </svg>
+        </div>
     </button>
     <!-- Panel -->
     <div
