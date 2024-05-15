@@ -82,6 +82,7 @@ async def delete(
 ):
     await db.for_user(user).spaces().delete(sid)
     res.headers["HX-Trigger"] = "space-delete"
+    res.headers["HX-Redirect"] = "/spaces"
     return ""
 
 
