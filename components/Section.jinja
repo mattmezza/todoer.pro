@@ -62,8 +62,8 @@
                 class="form-input block py-1 px-23 border-0 w-full font-bold placeholder:font-bold"
                 name="title"
                 placeholder="Task name"
+                required
                 autofocus>
-            <input type="hidden" name="section" value="{{ section.uuid }}">
             <textarea
                 autofocus
                 name="descr"
@@ -90,6 +90,7 @@
                 <button type="submit" class="btn py-1 bg-indigo-600 text-white">Add task</button>
             </div>
         </div>
+        <input type="hidden" name="section" value="{{ section.uuid }}">
     </form>
     {% if view_complete %}
     <div class="section-complete">
