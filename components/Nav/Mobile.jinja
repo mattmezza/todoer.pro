@@ -1,15 +1,15 @@
 {# def space, spaces #}
-<div x-data="{ open: false }" class="lg:hidden fixed bottom-0 w-full dark:bg-gray-950/80 backdrop-blur-sm py-4 flex flex-col gap-8 items-center rounded-t" @click.outside="open = false">
+<div x-data="{ open: true }" class="lg:hidden fixed bottom-0 w-full dark:bg-gray-950/80 backdrop-blur-sm py-4 flex flex-col gap-8 items-center rounded-t" @click.outside="open = false">
     <button @click="open = true" x-show="!open" class="hover:text-indigo-500 w-full cursor-pointer font-bold flex justify-center">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
           <path fill-rule="evenodd" d="M3 6.75A.75.75 0 0 1 3.75 6h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 6.75ZM3 12a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 12Zm0 5.25a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd" />
         </svg>
     </button>
     <!--<button @click="open = false" x-show="open" class="hover:text-indigo-500 w-full cursor-pointer uppercase font-bold">Close</button>-->
-    <div x-show="open" class="space-y-4">
-        <div class="text-left space-y-2">
+    <div x-show="open" class="space-y-4 w-full px-4">
+        <div class="text-left space-y-3 text-lg">
             <a href="/spaces" class="uppercase font-bold hover:text-slate-100 hover:font-bold cursor-pointer">Spaces</a>
-            <ul class="font-mono">
+            <ul class="font-mono space-y-1">
                 {% for space in spaces %}
                 <li>
                     <a class="hover:text-slate-100 hover:font-bold cursor-pointer" href="/space/{{ space.sid }}">
