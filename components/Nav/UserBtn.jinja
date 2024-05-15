@@ -54,7 +54,7 @@
                 {% for sp in spaces %}
                 <li>
                     <a
-                        class="text-sm hover:font-semibold flex items-center py-1 px-3{%- if space.sid == sp.sid %} font-bold dark:text-white text-black{% else %} font-medium dark:text-zinc-200{% endif %}"
+                        class="text-sm hover:font-semibold flex items-center py-1 px-3{%- if space and space.sid == sp.sid %} font-bold dark:text-white text-black{% else %} font-medium dark:text-zinc-200{% endif %}"
                         href="/space/{{ sp.sid }}">
                         {{ sp.title[:20] }}
                     </a>
