@@ -141,7 +141,7 @@ class TaskForUser(LoggedInUserRepo):
                         JOIN spaces sp ON sp.uuid = l.space
                         WHERE sp.creator = :creator
                     )
-            RETURNING tasks.*
+            RETURNING *
             """,
             {
                 "sid": sid,
@@ -172,12 +172,12 @@ class TaskForUser(LoggedInUserRepo):
                         JOIN spaces sp ON sp.uuid = l.space
                         WHERE sp.creator = :creator
                     )
-            RETURNING tasks.*
+            RETURNING *
             """,
             {
                 "sid": sid,
                 "title": title,
-                "descr": descr if descr else "NULL",
+                "descr": descr,
                 "complete": 1 if complete else 0,
                 "completed": datetime.utcnow() if complete else "NULL",
                 "creator": self.user["uuid"],
