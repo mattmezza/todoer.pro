@@ -9,7 +9,7 @@ from app.deps import RepoDB, get_current_active_user, repo_db
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("/spaces")
 @tpl.htmx("Page/Spaces")
 async def index(
     db: RepoDB = Depends(repo_db),
