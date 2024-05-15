@@ -43,23 +43,26 @@
         x-show="open"
         :id="$id('dropdown-button')"
         style="display: none">
-        <ul class="border-b border-slate-300 dark:border-slate-800 pb-1 mb-1">
-            {% for space in spaces %}
-            <li>
-                <a
-                    class="font-medium text-sm dark:text-zinc-200 hover:font-semibold flex items-center py-1 px-3"
-                    href="/space/{{ space.sid }}">
-                    {{ space.title[:20] }}
-                </a>
-            </li>
-            {% endfor %}
-        </ul>
+        <div class="py-2 mb-2 border-b border-slate-300 dark:border-slate-800">
+            <h1 class="uppercase dark:text-slate-500 text-slate-600 font-semibold text-xs px-3">Spaces</h1>
+            <ul class="font-mono">
+                {% for sp in spaces %}
+                <li>
+                    <a
+                        class="text-sm hover:font-semibold flex items-center py-1 px-3{%- if space.sid == sp.sid %} font-bold dark:text-white text-black{% else %} font-medium dark:text-zinc-200{% endif %}"
+                        href="/space/{{ sp.sid }}">
+                        {{ sp.title[:20] }}
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
         <ul>
             <li>
                 <a
                     class="font-medium text-sm dark:text-zinc-200 hover:font-semibold flex items-center py-1 px-3"
                     href="/spaces">
-                    Spaces
+                    All spaces
                 </a>
             </li>
             <li>
