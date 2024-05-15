@@ -23,9 +23,14 @@ async def delete(
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
-    await db.for_user(user).lists().del_by_sid(sid)
+    urepo = db.for_user(user)
+    lrepo = urepo.lists()
+    list_ = http.Opt(await lrepo.by_sid(sid)).or_404(f"List #{sid} not found.")
+    space = await urepo.spaces().by_uuid(list_["space"])
+    await lrepo.del_by_sid(sid)
     res = HTMLResponse("")
     res.headers["HX-Trigger"] = f"list-delete, list-{sid}-delete"
+    res.headers["HX-Redirect"] = f"/space/{space['sid']}"
     return res
 
 
