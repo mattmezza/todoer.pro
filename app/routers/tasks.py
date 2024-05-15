@@ -43,7 +43,8 @@ async def view(
     section = await urepo.sections().by_uuid(task["section"])
     lrepo = urepo.lists()
     list_ = await lrepo.by_uuid(section["list"])
-    space = await urepo.spaces().by_uuid(list_["space"])
+    srepo = urepo.spaces()
+    space = await srepo.by_uuid(list_["space"])
     lists = await lrepo.all_by_space(space["sid"])
     task_id = task["uuid"]
     comments = await urepo.comments().by_task(task_id)
@@ -61,6 +62,7 @@ async def view(
         "list": list_,
         "lists": lists,
         "space": space,
+        "spaces": await srepo.all(),
         "comments": comments,
         "subtasks": subtasks,
         "attachments": attachments,

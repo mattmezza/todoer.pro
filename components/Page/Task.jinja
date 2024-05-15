@@ -1,6 +1,6 @@
-{# def user, space, lists, list, section, task, subtasks, attachments, comments #}
-<Layout.App spaces={None} space={space} user={user} title={list.title} lists={lists}>
-<div class="py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
+{# def user, space, spaces, lists, list, section, task, subtasks, attachments, comments #}
+<Layout.App spaces={spaces} space={space} user={user} title={list.title} lists={lists}>
+<div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
     <div class="mb-8 space-y-4">
         <a href="/list/{{ list.sid }}" class="flex items-center gap-1 text-sm cursor-pointer mb-2 hover:text-white">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
