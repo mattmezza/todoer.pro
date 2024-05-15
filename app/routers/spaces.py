@@ -69,7 +69,7 @@ async def add(
             user=user,
         ),
         200,
-        {"HX-Trigger": "space-create"},
+        {"HX-Trigger": "space-create", "HX-Redirect": "/spaces"},
     )
 
 
