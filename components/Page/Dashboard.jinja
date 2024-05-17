@@ -1,8 +1,8 @@
 {# def user, spaces #}
 <Layout.App spaces={spaces} user={user}>
-    <div class="py-2 min-h-[100vh]" id="home-bg">
+    <div class="py-2 min-h-[100vh]" id="content-bg">
         <div class="px-2 md:px-8">
-            <h1 class="mt-16 md:mt-24 text-2xl md:text-5xl font-bold">👋 Hi, {{ user.name }}!</h1>
+            <h1 class="mt-16 md:mt-24 text-2xl md:text-5xl font-bold">👋 Hi, {{ user.name|d("there", True) }}!</h1>
             <div class="h-[300px]">
             </div>
         </div>
@@ -38,7 +38,7 @@
     <script defer>
     if (window.innerWidth > 512) {
         VANTA.TOPOLOGY({
-            el: "#home-bg",
+            el: "#content-bg",
             mouseControls: true,
             touchControls: true,
             gyroControls: true,
