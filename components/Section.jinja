@@ -41,7 +41,7 @@
         </div>
     </div>
     {% endif %}
-    <ul class="list-none">
+    <ul class="list-none space-y-3 mb-8">
         {% for task in tasks %}
         {%- if task.complete == 0 %}
             <Tasks.TaskItem task={task} />
