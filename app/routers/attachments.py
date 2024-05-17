@@ -2,7 +2,7 @@ import logging
 from typing import Annotated, Mapping
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Form, UploadFile
+from fastapi import APIRouter, Depends, Form, UploadFile, Request
 from fastapi.responses import HTMLResponse
 
 from app import blob, http, tpl
@@ -14,6 +14,7 @@ router = APIRouter()
 
 @router.delete("/attachment/{sid}", response_class=HTMLResponse)
 async def delete(
+    req: Request,
     res: HTMLResponse,
     sid: str,
     user: Mapping = Depends(get_current_active_user),
@@ -36,6 +37,7 @@ async def delete(
 @router.post("/attachments")
 @tpl.htmx("Attachment")
 async def add(
+    req: Request,
     task: Annotated[str, Form()],
     file: UploadFile,
     user: Mapping = Depends(get_current_active_user),

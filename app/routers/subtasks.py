@@ -1,6 +1,6 @@
 from typing import Annotated, Mapping
 
-from fastapi import APIRouter, Depends, Form
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
 from app import http, tpl
@@ -11,6 +11,7 @@ router = APIRouter()
 
 @router.delete("/subtask/{sid}", response_class=HTMLResponse)
 async def delete(
+    req: Request,
     res: HTMLResponse,
     sid: str,
     user: Mapping = Depends(get_current_active_user),
@@ -24,6 +25,7 @@ async def delete(
 @router.post("/subtasks")
 @tpl.htmx("Subtask")
 async def add(
+    req: Request,
     task: Annotated[str, Form()],
     title: Annotated[str, Form()],
     descr: Annotated[str | None, Form()] = None,
@@ -46,6 +48,7 @@ async def add(
 @router.put("/subtask/{sid}")
 @tpl.htmx("Subtask")
 async def update(
+    req: Request,
     sid: str,
     title: Annotated[str, Form()],
     descr: Annotated[str | None, Form()] = None,

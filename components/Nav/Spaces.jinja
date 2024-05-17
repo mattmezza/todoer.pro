@@ -14,6 +14,7 @@
             <Nav.Spaces.Item space={space} />
         {% endfor %}
     </ul>
+    {%- if False %}
     <button
         class="btn block text-slate-500 transition cursor-pointer hover:text-indigo-600 active:scale-95 group gap-2"
         _="on click showModal() on the next <dialog />"
@@ -70,4 +71,5 @@
             </div>
         </div>
     </Dialog.Create>
+    {% endif %}
 </div>

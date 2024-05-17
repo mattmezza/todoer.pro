@@ -4,7 +4,7 @@ from typing import Annotated
 from uuid import uuid4
 
 import shortuuid
-from fastapi import APIRouter, Depends, Form, HTTPException, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
@@ -48,6 +48,7 @@ async def login_api(
 @router.get("/signin")
 @tpl.htmx("Page.Signin")
 async def login(
+    req: Request,
     goto: str | None = None,
     err: str | None = None,
 ):
@@ -78,7 +79,7 @@ async def logout():
 
 @router.get("/signup")
 @tpl.htmx("Page.Signup")
-async def signup_view():
+async def signup_view(req: Request):
     return {}
 
 
@@ -110,5 +111,5 @@ async def confirm(
 
 @router.get("/forgot-password")
 @tpl.htmx("Page.ForgotPwd")
-async def forgot_pwd_view():
+async def forgot_pwd_view(req: Request):
     return {}

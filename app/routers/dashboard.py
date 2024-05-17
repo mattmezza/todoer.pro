@@ -1,6 +1,6 @@
 from typing import Mapping
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app import tpl
 from app.deps import RepoDB, get_current_active_user, repo_db
@@ -11,6 +11,7 @@ router = APIRouter()
 @router.get("/dashboard")
 @tpl.htmx("Page.Dashboard")
 async def dash(
+    req: Request,
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
 ):

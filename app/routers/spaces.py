@@ -1,6 +1,6 @@
 from typing import Annotated, Mapping
 
-from fastapi import APIRouter, Depends, Form
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
 from app import tpl
@@ -12,6 +12,7 @@ router = APIRouter()
 @router.get("/spaces")
 @tpl.htmx("Page/Spaces")
 async def index(
+    req: Request,
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
 ):
@@ -26,6 +27,7 @@ async def index(
 @router.get("/space/{sid}")
 @tpl.htmx("Page/Space")
 async def read(
+    req: Request,
     sid: str,
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
@@ -56,6 +58,7 @@ async def read(
 @router.post("/spaces", response_class=HTMLResponse)
 @tpl.htmx("Spaces/ListItem")
 async def add(
+    req: Request,
     title: Annotated[str, Form()],
     descr: Annotated[str | None, Form()] = None,
     db: RepoDB = Depends(repo_db),
@@ -75,6 +78,7 @@ async def add(
 
 @router.delete("/space/{sid}", response_class=HTMLResponse)
 async def delete(
+    req: Request,
     res: HTMLResponse,
     sid: str,
     db: RepoDB = Depends(repo_db),
@@ -88,6 +92,7 @@ async def delete(
 
 @router.put("/space/{sid}/title", response_class=HTMLResponse)
 async def update_title(
+    req: Request,
     res: HTMLResponse,
     sid: str,
     title: Annotated[str, Form()],
@@ -100,6 +105,7 @@ async def update_title(
 
 @router.put("/space/{sid}/descr", response_class=HTMLResponse)
 async def update_descr(
+    req: Request,
     res: HTMLResponse,
     sid: str,
     descr: Annotated[str | None, Form()] = None,
