@@ -41,15 +41,15 @@
         </div>
     </div>
     {% endif %}
-    <ul class="list-none space-y-3 mb-2">
+    <ul class="list-none space-y-3">
         {% for task in tasks|rejectattr("complete") %}
             <Tasks.TaskItem task={task} />
         {% endfor %}
     </ul>
-    <Btn.Create id={"btn-task-create-" + section.sid}>Add task</Btn.Create>
+    <Btn.Create id={"btn-task-create-" + section.sid} class="!justify-start ml-2" with_text_reveal={False} tabindex="0">Add task</Btn.Create>
     <form
         style="display: none"
-        class="rounded-sm border border-slate-600 add-task-form my-4 ml-6"
+        class="rounded-sm border border-slate-600 add-task-form my-4 md:ml-6"
         hx-target="previous ul"
         hx-swap="beforeend"
         hx-post="/tasks"
