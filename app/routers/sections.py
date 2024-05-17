@@ -1,6 +1,6 @@
 from typing import Annotated, Mapping
 
-from fastapi import APIRouter, Depends, Form
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
 from app.deps import RepoDB, get_current_active_user, repo_db
@@ -11,6 +11,7 @@ router = APIRouter()
 
 @router.delete("/section/{sid}", response_class=HTMLResponse)
 async def delete(
+    req: Request,
     res: HTMLResponse,
     sid: str,
     user: Mapping = Depends(get_current_active_user),
@@ -24,6 +25,7 @@ async def delete(
 @router.get("/section/{sid}")
 @tpl.htmx("Section")
 async def view(
+    req: Request,
     sid: str,
     view_complete: bool = False,
     db: RepoDB = Depends(repo_db),
@@ -47,6 +49,7 @@ async def view(
 @router.post("/sections")
 @tpl.htmx("Section")
 async def add(
+    req: Request,
     title: Annotated[str, Form()],
     list_id: Annotated[str, Form()],
     user: Mapping = Depends(get_current_active_user),

@@ -26,6 +26,7 @@ async def read(
 
 @router.put("/account/fullname", response_class=PlainTextResponse)
 async def change_name(
+    req: Request,
     res: PlainTextResponse,
     name: Annotated[str, Form()],
     db: RepoDB = Depends(repo_db),

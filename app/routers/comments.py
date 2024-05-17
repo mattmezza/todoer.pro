@@ -1,6 +1,6 @@
 from typing import Annotated, Mapping
 
-from fastapi import APIRouter, Depends, Form
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
 from app import http, tpl
@@ -11,6 +11,7 @@ router = APIRouter()
 
 @router.delete("/comment/{sid}", response_class=HTMLResponse)
 async def delete(
+    req: Request,
     res: HTMLResponse,
     sid: str,
     user: Mapping = Depends(get_current_active_user),
@@ -24,6 +25,7 @@ async def delete(
 @router.post("/comments")
 @tpl.htmx("Comment")
 async def add(
+    req: Request,
     task: Annotated[str, Form()],
     content: Annotated[str, Form()],
     user: Mapping = Depends(get_current_active_user),

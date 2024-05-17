@@ -73,6 +73,7 @@ async def view(
 @router.put("/list/{sid}/color")
 @tpl.htmx("Lists.Color")
 async def update_color(
+    req: Request,
     res: HTMLResponse,
     sid: str,
     color: Annotated[str, Form()],
@@ -92,6 +93,7 @@ async def update_color(
 
 @router.put("/list/{sid}/title")
 async def update_title(
+    req: Request,
     res: HTMLResponse,
     sid: str,
     title: Annotated[str, Form()],
@@ -108,6 +110,7 @@ async def update_title(
 
 @router.put("/list/{sid}/descr")
 async def update_descr(
+    req: Request,
     res: HTMLResponse,
     sid: str,
     descr: Annotated[str | None, Form()] = None,

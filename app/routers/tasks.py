@@ -31,6 +31,7 @@ async def add_task(
 @router.get("/task/{sid}")
 @tpl.htmx("Page.Task")
 async def view(
+    req: Request,
     sid: str,
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
@@ -73,6 +74,7 @@ async def view(
 @router.put("/task/{sid}")
 @tpl.htmx("Tasks.TaskItem")
 async def update(
+    req: Request,
     sid: str,
     title: Annotated[str, Form()],
     descr: Annotated[str | None, Form()] = None,
@@ -95,6 +97,7 @@ async def update(
 
 @router.put("/task/{sid}/descr", response_class=PlainTextResponse)
 async def update_descr(
+    req: Request,
     res: PlainTextResponse,
     sid: str,
     descr: Annotated[str | None, Form()] = None,
@@ -109,6 +112,7 @@ async def update_descr(
 @router.put("/task/{sid}/complete")
 @tpl.htmx("Tasks.Title")
 async def update_complete(
+    req: Request,
     sid: str,
     complete: Annotated[str | None, Form()] = None,
     user: Mapping = Depends(get_current_active_user),
@@ -136,6 +140,7 @@ async def update_complete(
 @router.put("/task/{sid}/title")
 @tpl.htmx("Tasks.Title")
 async def update_title(
+    req: Request,
     sid: str,
     title: Annotated[str, Form()],
     user: Mapping = Depends(get_current_active_user),
@@ -162,6 +167,7 @@ async def update_title(
 
 @router.delete("/task/{sid}", response_class=HTMLResponse)
 async def delete(
+    req: Request,
     res: HTMLResponse,
     sid: str,
     user: Mapping = Depends(get_current_active_user),

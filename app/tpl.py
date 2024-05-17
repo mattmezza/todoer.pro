@@ -7,6 +7,7 @@ from typing import Type
 import arel
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
+from jinja2 import pass_context
 from jinjax import Catalog
 
 
@@ -46,6 +47,18 @@ def filter_age(dateiso: str) -> str:
     return age(datetime.fromisoformat(dateiso))
 
 
+@pass_context
+def url_for(ctx: dict, name: str, **path_params) -> str:
+    req = ctx["req"]
+    return req.url_for(name, **path_params)
+
+
+@pass_context
+def cur_path_starts_with(ctx: dict, path: str) -> bool:
+    req = ctx["req"]
+    return req.url.path.startswith(path)
+
+
 constants = {
     "RELEASE": os.environ["TODOER_RELEASE"],
     "ENV": os.environ["TODOER_ENV"],
@@ -72,16 +85,24 @@ jinx = Catalog(jinja_env=jinja2.env)
 jinx.add_folder("components")
 jinx.jinja_env.globals["ENV"] = os.environ["TODOER_ENV"]
 jinx.jinja_env.globals["RELEASE"] = os.environ["TODOER_RELEASE"]
+jinx.jinja_env.globals["url_for"] = url_for
+jinx.jinja_env.globals["cur_path_starts_with"] = cur_path_starts_with
+jinx.jinja_env.globals["request"] = None
 
 
 def htmx(tpl: str, resp: Type[Response] = HTMLResponse):
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            ret = await func(*args, **kwargs)
+            req = kwargs.get("req", None)
+            assert (
+                req
+            ), "Don't forget to export 'req: Request' from your FastAPI route."
+            jinx.jinja_env.globals["req"] = req
             data = {}
             code = 200
             headers = {}
+            ret = await func(*args, **kwargs)
             if type(ret) is tuple:
                 data = ret[0]
                 code = ret[1] if len(ret) > 1 else 200
@@ -89,5 +110,7 @@ def htmx(tpl: str, resp: Type[Response] = HTMLResponse):
             else:
                 data = ret
             return resp(jinx.render(tpl, **data), code, headers)
+
         return wrapper
+
     return decorator
