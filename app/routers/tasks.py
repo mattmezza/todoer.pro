@@ -120,7 +120,7 @@ async def update_complete(
 ):
     urepo = db.for_user(user)
     task = http.Opt(
-        urepo.tasks().update_completed_by_sid(complete, sid)
+        await urepo.tasks().update_completed_by_sid(complete, sid)
     ).or_404(f"Task #{sid} not found.")
     section = await urepo.sections().by_uuid(task["section"])
     list_ = await urepo.lists().by_uuid(section["list"])
