@@ -3,10 +3,10 @@
 <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
     <div class="mb-8 space-y-4">
         <a href="/list/{{ list.sid }}" class="flex items-center gap-1 text-sm cursor-pointer mb-2 hover:text-white">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 15.75L3 12m0 0l3.75-3.75M3 12h18" />
             </svg>
-            <span>Back to list</span>
+            <span class="font-mono">{{ list.title }}</span>
             <!--<span class="rounded-full w-3 h-3" style="background: {{ list.color }}">&nbsp;</span>
             <span>{{ list.title }}</span>-->
         </a>
@@ -50,16 +50,7 @@
                 <Subtask subtask={subt} />
             {% endfor %}
         </ul>
-        <div id="add-subtask-btn" class="flex flex-row space-x-1 items-center rounded px-3 py-0 group cursor-pointer" _="on click hide me then show the next <form /> then focus() the next <input />">
-            <button tabindex="0" class="btn group-hover:text-indigo-500 gap-2">
-                <div class="group-hover:bg-indigo-500 group-hover:text-white rounded-full">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
-                    </svg>
-                </div>
-                <span>Add sub-task</span>
-            </button>
-        </div>
+        <Btn.Create id="btn-subtask-create">Add sub-task</Btn.Create>
         <form
             style="display: none"
             class="rounded-sm border border-slate-600"
@@ -67,7 +58,7 @@
             hx-swap="beforeend"
             hx-post="/subtasks"
             hx-on::after-request="this.reset()"
-            _="on keyup[key is 'Escape'] reset() on me then hide me then show #add-subtask-btn">
+            _="on keyup[key is 'Escape'] reset() on me then hide me then show #btn-subtask-create">
             <div class="py-2"">
                 <input class="form-input block py-1 px-23 border-0 w-full placeholder:font-semibold font-semibold" name="title" placeholder="Sub-task name" required autofocus>
                 <textarea
@@ -93,7 +84,7 @@
                 <div>
                 </div>
                 <div class="space-x-2">
-                    <button type="reset" class="btn py-1" _="on click hide the closest <form /> then show #add-subtask-btn">Cancel</button>
+                    <button type="reset" class="btn py-1" _="on click hide the closest <form /> then show #btn-subtask-create">Cancel</button>
                     <button type="submit" class="btn py-1 bg-indigo-600 text-white">Add sub-task</button>
                 </div>
             </div>
@@ -122,7 +113,7 @@
                     hx-target="previous ul"
                     hx-swap="beforeend"
                     hx-trigger="submit"
-                    class="max-w-xs rounded bg-white/5"
+                    class="max-w-xs rounded bg-white/5 hover:cursor-pointer"
                     _='on htmx:beforeRequest show #progress then hide #upload then show #uploading on htmx:xhr:progress(loaded, total) set #progress.value to (loaded/total)*100 on htmx:afterRequest reset() me then set #progress.value to 0 then hide #progress then hide #uploading then show #upload'>
                     <div class="dark:text-zing-200 text-xs cursor-wait w-full text-center animate-pulse duration-150">
                     </div>
@@ -135,7 +126,7 @@
                                 </svg>
                             </div>
                             <span id="post-attachment-fname">Click or drag file here</span>
-                            <input id="post-attachment" onchange="validate(this)" class="opacity-0 absolute file:top-0 left-0 file:w-full text-xs file:py-2" type='file' name='file'>
+                            <input id="post-attachment" onchange="validate(this)" class="opacity-0 absolute file:top-0 left-0 file:w-full text-xs file:py-2 file:cursor-pointer" type='file' name='file'>
                         </div>
                         <div>
                             <progress style="display: none" id='progress' value='0' max='100' class="h-1 w-full rounded"></progress>
@@ -158,17 +149,14 @@
             {#{ commen|safe }#}
             {#% endfor %#}
         </ul>
-        <div id="add-comment-btn" class="flex flex-row space-x-1 items-center rounded px-3 py-0 group cursor-pointer" _="on click hide me then show the next <form /> then focus() the next <textarea />">
-            <button tabindex="0" class="btn group-hover:text-indigo-500 gap-2">
-                <div class="group-hover:bg-indigo-500 group-hover:text-white rounded-full">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
-                    </svg>
-                </div>
-                <span>Add comment</span>
-            </button>
-        </div>
-        <form style="display: none" class="rounded-sm border border-slate-600" hx-target="previous ul" hx-swap="beforeend" hx-post="/comments" hx-on::after-request="this.reset()" _="on reset or keyup[key is 'Escape'] hide me then show #add-comment-btn">
+        <Btn.Create id="btn-comment-create">Add comment</Btn.Create>
+        <form
+            style="display: none"
+            class="rounded-sm border border-slate-600"
+            hx-target="previous ul" hx-swap="beforeend"
+            hx-post="/comments"
+            hx-on::after-request="this.reset()"
+            _="on reset or keyup[key is 'Escape'] hide me then show #btn-comment-create">
             <div class="py-2"">
                 <textarea
                     name="content"
