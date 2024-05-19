@@ -18,7 +18,7 @@
                 </ul>
             </div>
             {%- if cur_path_starts_with("/dashboard") -%}
-                {%- if spaces %}<Nav.Spaces spaces={spaces} />{% endif %}
+                {%- if spaces and spaces|rejectattr("default")|list|length %}<Nav.Spaces spaces={spaces} />{% endif %}
             {%- else -%}
                 {%- if space and lists is defined %}<Nav.Lists space={space} lists={lists} />{% endif -%}
             {%- endif -%}
