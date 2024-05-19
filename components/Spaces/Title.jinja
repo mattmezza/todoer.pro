@@ -6,7 +6,7 @@
         _="on click hide me then show the next <form /> then select() the next <input />"
         {%- endif %}
     >
-            {{ space.title }}
+            @{{ space.title }}
     </h1>
     {% if not space.default %}
     <form class="flex items-center gap-1 w-full" hx-put="/space/{{ space.sid }}/title" hx-target="previous h1" style="display: none" _="on submit or reset hide me then show the previous <h1 />">
