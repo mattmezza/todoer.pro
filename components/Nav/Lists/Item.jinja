@@ -6,7 +6,7 @@
         <div class="flex items-center justify-between">
             <div class="flex items-center">
                 <span class="rounded-full shrink-0 w-6 h-6" style="background-color: {{ list.color }}">&nbsp;</span>
-                <span class="text-sm ml-3 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200 text-ellipsis overflow-hidden">{{ list.title[0:20] }}</span>
+                <span class="text-sm ml-3 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200 text-ellipsis overflow-hidden">#{{ list.title[0:20] }}</span>
             </div>
             <div class="flex flex-shrink-0 ml-2">
                 {%- if False %}
