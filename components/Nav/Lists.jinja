@@ -41,7 +41,7 @@
     </button>
     <Dialog.Create
         title={"Add a new list"}
-        subtitle={"Spaces help you to separate environments. Work from personal life, project a from project b, etc... You got the gist!"}
+        subtitle={"Lists are like containers of common things."}
         action={"/lists"}
         hx-target="#nav-lists"
         hx-swap="beforeend"
@@ -65,7 +65,7 @@
                 <input
                     tabindex="0"
                     class="form-input w-full" name="title"
-                    placeholder="Type here..."
+                    placeholder="#trip-to-paris"
                     autofocus
                     required>
                 <div class="text-xs flex flex-row items-center justify-end">
@@ -76,7 +76,7 @@
                     <span>Description</span>
                 </div>
                 <textarea class="form-input w-full resize-none" name="descr"
-                    placeholder="Type here..."></textarea>
+                    placeholder="A checklist of things to pack for the trip."></textarea>
                 <div class="text-xs flex flex-row items-center justify-end">
                 </div>
             </div>
