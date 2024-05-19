@@ -23,7 +23,7 @@ class SpaceForUser(LoggedInUserRepo):
                s.*,
                 COUNT(l.uuid) AS lists
             FROM spaces s
-            LEFT JOIN lists l ON l.space = s.uuid
+            JOIN lists l ON l.space = s.uuid
             WHERE s.creator = :creator
                 AND s.sid = :sid
             """,

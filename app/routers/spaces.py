@@ -3,7 +3,7 @@ from typing import Annotated, Mapping
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
-from app import svc, tpl
+from app import http, svc, tpl
 from app.deps import RepoDB, get_current_active_user, repo_db
 
 router = APIRouter()
@@ -36,7 +36,9 @@ async def read(
     repo = db.for_user(user)
     repo_spaces = repo.spaces()
     repo_sections = repo.sections()
-    space = await repo_spaces.by_sid_with_tot_lists(sid)
+    space = http.Opt(await repo_spaces.by_sid(sid)).or_404(
+        f"Space '{sid}' not found."
+    )
     num_tasks = await repo_spaces.num_tasks(sid)
     repo_lists = repo.lists()
     lists = await repo_lists.all_by_space(sid)
