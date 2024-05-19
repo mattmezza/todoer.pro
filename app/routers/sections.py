@@ -3,8 +3,8 @@ from typing import Annotated, Mapping
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
-from app.deps import RepoDB, get_current_active_user, repo_db
 from app import http, tpl
+from app.deps import RepoDB, get_current_active_user, repo_db
 
 router = APIRouter()
 
@@ -56,7 +56,7 @@ async def add(
     db: RepoDB = Depends(repo_db),
 ):
     section = http.Opt(
-        await db.for_user(user).sections().create(title, list_id)
+        await db.for_user(user).sections().insert(title, list_id)
     ).or_400()
     return {
         "section": section,

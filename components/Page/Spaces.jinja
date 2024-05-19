@@ -3,7 +3,7 @@
     <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
         <h1 class="text-3xl md:text-4xl font-bold md:px-4">Spaces</h1>
         <ul class="my-16 space-y-1">
-            {% for space in spaces %}
+            {% for space in spaces|rejectattr("default") %}
             <Spaces.ListItem space={space} tasks_by_space={tasks_by_space} />
             {% endfor %}
         </ul>

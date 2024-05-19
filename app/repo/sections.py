@@ -82,13 +82,16 @@ class SectionForUser(LoggedInUserRepo):
             {"sid": sid, "creator": self.user["uuid"]},
         )
 
-    async def create(self, title: str, list_id: str) -> Mapping | None:
+    async def insert(
+        self, title: str, list_id: str, default: bool = False
+    ) -> Mapping | None:
         uuid_new, sid_new = new_ids()
         section = await self.db.fetch_one(
             """INSERT INTO sections (
                 uuid,
                 sid,
                 `order`,
+                `default`,
                 title,
                 creator,
                 list
@@ -96,7 +99,8 @@ class SectionForUser(LoggedInUserRepo):
             VALUES (
                 :uuid,
                 :sid,
-                (SELECT MAX(`order`) + 1 FROM sections WHERE list = :list),
+                COALESCE((SELECT MAX(`order`) + 1 FROM sections WHERE list = :list), 1),
+                :default,
                 :title,
                 :creator,
                 :list
@@ -106,6 +110,7 @@ class SectionForUser(LoggedInUserRepo):
                 "uuid": uuid_new,
                 "sid": sid_new,
                 "title": title.strip(),
+                "default": 1 if default else 0,
                 "creator": self.user["uuid"],
                 "list": list_id,
             },

@@ -59,3 +59,6 @@ class RepoDB:
 
     def for_anon(self) -> ForAnon:
         return ForAnon(self.db)
+
+    def transaction(self):
+        return self.db.transaction()

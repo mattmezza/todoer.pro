@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime
 from typing import Mapping
 
@@ -56,6 +57,17 @@ class TaskForUser(LoggedInUserRepo):
             },
         )
         return [tt._mapping for tt in tasks]
+
+    async def by_section_for_list(
+        self,
+        list_uuid: str,
+        limit: int = 100,
+    ) -> list[Mapping]:
+        tasks = await self.by_list(list_uuid, limit)
+        tasks_by_section = defaultdict(list)
+        for t in tasks:
+            tasks_by_section[t["section"]].append(t)
+        return tasks_by_section
 
     async def by_section(
         self,

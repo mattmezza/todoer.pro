@@ -1,0 +1,48 @@
+{# def space #}
+<form
+    style="display: none"
+    hx-target="previous ul"
+    hx-swap="beforeend"
+    hx-post="/lists"
+    hx-on::after-request="this.reset()"
+    class="rounded-sm border border-slate-600 add-task-form mb-16"
+    _="on reset or keyup[key is 'Escape'] hide me then show #btn-list-create">
+    <div class="py-2"">
+        <input
+            name="title"
+            placeholder="List name"
+            autofocus
+            required
+            class="form-input block py-1 px-23 border-0 w-full font-bold placeholder:font-bold"
+        >
+        <textarea
+            autofocus
+            name="descr"
+            placeholder="Description"
+            x-data="{
+                resize () {
+                    $el.style.height = '0px';
+                    $el.style.height = $el.scrollHeight + 'px'
+                }
+            }"
+            x-init="resize()"
+            @input="resize()"
+            @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
+            @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
+            _="on keyup[key is 'Escape'] reset() the closest <form />"
+            class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
+            ></textarea>
+    </div>
+    <div class="flex flex-row justify-between items-center border-t border-slate-600 px-3 py-2">
+        <div>
+        </div>
+        <div class="space-x-2">
+            <button type="reset" class="btn py-1">Cancel</button>
+            <button type="submit" class="btn py-1 bg-indigo-600 text-white">
+                Add list
+            </button>
+        </div>
+    </div>
+    <input type="hidden" name="color" value="#ff0000">
+    <input type="hidden" name="space" value="{{ space.uuid }}">
+</form>

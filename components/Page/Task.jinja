@@ -2,11 +2,11 @@
 <Layout.App spaces={spaces} space={space} user={user} title={list.title} lists={lists}>
 <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
     <div class="mb-8 space-y-4">
-        <a href="/list/{{ list.sid }}" class="flex items-center gap-1 text-sm cursor-pointer mb-2 hover:text-white">
+        <a href="{% if list.default %}/space/{{ space.sid }}{% else %}/list/{{ list.sid }}{% endif %}" class="flex items-center gap-1 text-sm cursor-pointer mb-2 hover:text-white">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 15.75L3 12m0 0l3.75-3.75M3 12h18" />
             </svg>
-            <span class="font-mono">{{ list.title }}</span>
+            <span class="font-mono">{{ space.title if list.default else list.title }}</span>
             <!--<span class="rounded-full w-3 h-3" style="background: {{ list.color }}">&nbsp;</span>
             <span>{{ list.title }}</span>-->
         </a>

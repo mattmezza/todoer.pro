@@ -1,127 +1,44 @@
-{# def user, spaces, space, lists, tasks_by_list, sections_by_list #}
+{# def
+    user,
+    spaces,
+    space,
+    lists,
+    list_inbox,
+    sections_inbox,
+    tasks_by_section_inbox,
+    tasks_by_list,
+    sections_by_list,
+    view_complete
+#}
 <Layout.App spaces={spaces} space={space} user={user} title={space.title} lists={lists}>
 <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
     <div class="flex justify-between items-center gap-4 md:p-4">
-        <div class="w-full">
-            <h1
-                class="text-2xl md:text-4xl font-bold cursor-pointer dark:hover:text-white hover:text-black rounded px-2 py-1 font-mono"
-                _="on click hide me then show the next <form /> then select() the next <input />">
-                    {{ space.title }}
-            </h1>
-            <form class="flex items-center gap-1 w-full" hx-put="/space/{{ space.sid }}/title" hx-target="previous h1" style="display: none" _="on submit or reset hide me then show the previous <h1 />">
-                <input class="form-input px-2 py-1 text-2xl font-bold text-white flex-grow md:text-4xl" name="title" value="{{ space.title }}" _="on keyup[key is 'Escape'] reset() on the closest <form />">
-                <button type="reset" class="btn text-xs py-0.5 text-white cursor-pointer">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
-                      <path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
-                    </svg>
-                </button>
-                <button type="submit" class="btn bg-indigo-500 text-xs py-0.5 text-white cursor-pointer">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
-                      <path fill-rule="evenodd" d="M19.916 4.626a.75.75 0 0 1 .208 1.04l-9 13.5a.75.75 0 0 1-1.154.114l-6-6a.75.75 0 0 1 1.06-1.06l5.353 5.353 8.493-12.74a.75.75 0 0 1 1.04-.207Z" clip-rule="evenodd" />
-                    </svg>
-                </button>
-            </form>
-        </div>
-        <Menu.Ctx>
-            <button tabindex="0" class="flex gap-2 w-full first-of-type:rounded-t-md last-of-type:rounded-b-md px-4 py-2.5 text-left text-xs items-center hover:bg-gray-50 dark:hover:bg-gray-800 disabled:text-gray-500" title="Rename" _="on click hide the previous <h1 /> then show the previous <form /> then select() the previous <input />">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                </svg>
-                <span>Rename</span>
-            </button>
-            <button
-                tabindex="0"
-                class="text-red-600 flex gap-2 w-full first-of-type:rounded-t-md last-of-type:rounded-b-md px-4 py-2.5 text-left text-xs items-center hover:bg-gray-50 dark:hover:bg-gray-800 disabled:text-gray-500 hover:text-red-500 gap-1 group"
-                hx-delete="/space/{{ space.sid }}"
-                hx-confirm="Are you sure? You will lose all of this space's lists, sections and tasks."
-                hx-target="#main"
-                hx-replace-url="/"
-                title="Delete list">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                </svg>
-                <span>Delete</span>
-            </button>
-        </Menu.Ctx>
+        <Spaces.Title space={space} />
+            <Spaces.Actions space={space} view_complete={view_complete} />
     </div>
-    <div class="dark:hover:text-white cursor-pointer rounded text-sm dark:text-zinc-100 px-2 md:px-6 text-sm mt-4 whitespace-pre" _="on click hide me then show the next <form /> then select() on the next <textarea />">
-        {%- if space.descr %}{{ space.descr }}{%- else -%}<span class="dark:text-slate-700 dark:hover:text-slate-400 text-sm italic">(no description)</span>{% endif %}
-    </div>
-    <form hx-put="/space/{{ space.sid }}/descr" hx-target="previous div" style="display: none" _="on submit or reset hide me then show the previous <div /> from me" class="rounded border border-slate-600 p-1">
-        <textarea
-            autofocus
-            name="descr"
-            placeholder="Description..."
-            x-data="{
-                resize () {
-                    $el.style.height = '0px';
-                    $el.style.height = $el.scrollHeight + 'px'
-                }
-            }"
-            x-init="resize()"
-            @input="resize()"
-            _="on keyup[key is 'Escape'] reset() the closest <form />"
-            class="form-input h-auto min-h-[3lh] block py-1 px-23 border-0 w-full resize-none"
-            >{% if space.descr %}{{ space.descr }}{% endif %}</textarea>
-        <div class="flex justify-between items-center p-2">
-            <div></div>
-            <div class="">
-                <button type="reset" class="btn text-xs py-0.5 text-white">Cancel</button>
-                <button type="submit" class="btn bg-indigo-500 text-xs py-0.5 text-white">Save</button>
-            </div>
-        </div>
-    </form>
-    <ul class="my-16 space-y-1">
-        {% for _list in lists %}
-            <Lists.ListItem list={_list} num_tasks={tasks_by_list[_list.uuid]} num_sections={sections_by_list[_list.uuid]} />
-        {% endfor %}
+    {% if not space.default %}
+    <Spaces.Descr space={space} />
+    {% endif %}
+
+    <!-- default section (inbox) -->
+    <ul class="py-8 sections">
+        {% set section_def = sections_inbox|selectattr("default")|first %}
+        <Section
+            section={section_def}
+            view_complete={view_complete}
+            tasks={tasks_by_section_inbox[section_def.uuid]}
+        />
     </ul>
-    <Btn.Create id="btn-list-create" class="mb-24">Add list</Btn.Create>
-    <form
-        style="display: none"
-        hx-target="previous ul"
-        hx-swap="beforeend"
-        hx-post="/lists"
-        hx-on::after-request="this.reset()"
-        class="rounded-sm border border-slate-600 add-task-form mb-16"
-        _="on reset or keyup[key is 'Escape'] hide me then show #btn-list-create">
-        <div class="py-2"">
-            <input
-                name="title"
-                placeholder="List name"
-                autofocus
-                required
-                class="form-input block py-1 px-23 border-0 w-full font-bold placeholder:font-bold"
-            >
-            <textarea
-                autofocus
-                name="descr"
-                placeholder="Description"
-                x-data="{
-                    resize () {
-                        $el.style.height = '0px';
-                        $el.style.height = $el.scrollHeight + 'px'
-                    }
-                }"
-                x-init="resize()"
-                @input="resize()"
-                @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
-                @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
-                _="on keyup[key is 'Escape'] reset() the closest <form />"
-                class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
-                ></textarea>
-        </div>
-        <div class="flex flex-row justify-between items-center border-t border-slate-600 px-3 py-2">
-            <div>
-            </div>
-            <div class="space-x-2">
-                <button type="reset" class="btn py-1">Cancel</button>
-                <button type="submit" class="btn py-1 bg-indigo-600 text-white">
-                    Add list
-                </button>
-            </div>
-        </div>
-        <input type="hidden" name="color" value="#ff0000">
-        <input type="hidden" name="space" value="{{ space.uuid }}">
-    </form>
+    <!-- sections -->
+    <ul class="py-8 sections">
+    {% for section in sections_inbox|rejectattr("default") %}
+        <Section
+            section={section}
+            view_complete={view_complete}
+            tasks={tasks_by_section_inbox[section.uuid]}
+        />
+    {% endfor %}
+    </ul>
+    <Btn.Create id="btn-section-create" class="mb-24">Add section</Btn.Create>
+    <Lists.SectionAddForm list={list_inbox} />
 </Layout.App>

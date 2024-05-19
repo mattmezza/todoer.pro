@@ -29,6 +29,19 @@ class ListForUser(LoggedInUserRepo):
         )
         return list_._mapping if list_ else None
 
+    async def default_for_space(self, sid: str) -> Mapping | None:
+        list_ = await self.db.fetch_one(
+            """
+            SELECT l.* FROM lists l
+            JOIN spaces s ON s.uuid = l.space
+            WHERE l.`default` = 1
+                AND s.sid = :sid
+                AND s.creator = :creator
+            """,
+            {"sid": sid, "creator": self.user["uuid"]},
+        )
+        return list_._mapping if list_ else None
+
     async def all(self, limit: int = 100) -> list[Mapping]:
         lists = await self.db.fetch_all(
             """
@@ -56,7 +69,7 @@ class ListForUser(LoggedInUserRepo):
         )
         return [li._mapping for li in lists]
 
-    async def num_sections_by_list(self, sid: str) -> Mapping | None:
+    async def num_sections_by_list_for_space(self, sid: str) -> Mapping | None:
         num_sections_in_list = await self.db.fetch_all(
             """
             SELECT
@@ -76,7 +89,7 @@ class ListForUser(LoggedInUserRepo):
             sections_by_list[num_section.list] = num_section.sections_tot
         return sections_by_list
 
-    async def num_tasks_by_list(self, sid: str) -> Mapping | None:
+    async def num_tasks_by_list_for_space(self, sid: str) -> Mapping | None:
         num_tasks_in_list = await self.db.fetch_all(
             """
             SELECT
@@ -142,8 +155,13 @@ class ListForUser(LoggedInUserRepo):
         )
         return li.color if li is not None else None
 
-    async def create(
-        self, color: str | None, title: str, descr: str | None, space: str
+    async def insert(
+        self,
+        color: str | None,
+        title: str,
+        descr: str | None,
+        space: str,
+        default: bool = False,
     ) -> Mapping | None:
         uuid_new, sid_new = new_ids()
         uuid_new_section, sid_new_section = new_ids()
@@ -151,9 +169,9 @@ class ListForUser(LoggedInUserRepo):
             li = await self.db.fetch_one(
                 """
                 INSERT INTO lists (
-                    uuid, sid, title, descr, color, creator, space
+                    uuid, sid, title, descr, color, creator, space, `default`
                 )
-                VALUES (:uuid, :sid, :title, :descr, :color, :creator, :space)
+                VALUES (:uuid, :sid, :title, :descr, :color, :creator, :space, :default)
                 RETURNING *, 0 as incomplete
                 """,
                 {
@@ -162,30 +180,9 @@ class ListForUser(LoggedInUserRepo):
                     "space": space,
                     "title": title.strip(),
                     "descr": descr.strip() if descr else None,
+                    "default": 1 if default else 0,
                     "color": color,
                     "creator": self.user["uuid"],
-                },
-            )
-            if li is None:
-                return None
-            _ = await self.db.fetch_one(
-                """INSERT INTO sections (
-                    uuid,
-                    sid,
-                    `order`,
-                    `default`,
-                    title,
-                    creator,
-                    list
-                )
-                VALUES (:uuid, :sid, 0, 1, :title, :creator, :list)
-                RETURNING *""",
-                {
-                    "uuid": uuid_new_section,
-                    "sid": sid_new_section,
-                    "title": "Main",
-                    "creator": self.user["uuid"],
-                    "list": uuid_new,
                 },
             )
             return None if li is None else li._mapping
