@@ -1,9 +1,7 @@
 import logging
 from datetime import timedelta
 from typing import Annotated
-from uuid import uuid4
 
-import shortuuid
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm

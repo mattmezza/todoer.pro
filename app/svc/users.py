@@ -15,11 +15,15 @@ async def signup(
 ) -> tuple[Mapping, Mapping, Mapping, Mapping]:
     confirm_code = shortuuid.encode(uuid4())[:7]
     async with db.transaction():
-        user = await db.for_anon().users().insert(
-            name, email, pwd, confirm_code
+        user = (
+            await db.for_anon().users().insert(name, email, pwd, confirm_code)
         )
         inbox = await spaces.create(
-            user, db, spaces.SPACE_INBOX_TITLE, spaces.SPACE_INBOX_DESCR
+            user,
+            db,
+            spaces.SPACE_INBOX_TITLE,
+            spaces.SPACE_INBOX_DESCR,
+            default=True,
         )
     # TODO send confirmation email
     logger.info("sending confirmation email should happen here")
