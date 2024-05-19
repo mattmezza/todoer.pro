@@ -1,7 +1,14 @@
 {# def user, spaces, tasks_by_space #}
 <Layout.App spaces={spaces} user={user} title="Spaces">
     <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
-        <h1 class="text-3xl md:text-4xl font-bold md:px-4">Spaces</h1>
+        <div class="flex justify-between items-center gap-4 md:p-4">
+            <h1 class="text-2xl md:text-4xl font-bold px-2 py-1">Spaces</h1>
+        </div>
+        <div class="rounded text-sm dark:text-zinc-100 px-2 md:px-6 text-sm mt-4">
+            Spaces help you to separate environments. Work from personal life, project a from project b, etc... You got the gist!
+            <br />
+            Create as many as you need with the + button below.
+        </div>
         <ul class="my-16 space-y-1">
             {% for space in spaces|rejectattr("default") %}
             <Spaces.ListItem space={space} tasks_by_space={tasks_by_space} />
