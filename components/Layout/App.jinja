@@ -45,6 +45,11 @@
     {% endif %}
     {% block scripts %}
     {% endblock %}
+    <script>
+    function dismissAllDialogs() {
+        Array.from(document.getElementsByTagName("dialog")).forEach(el => el.close())
+    }
+    </script>
     {{ catalog.render_assets() }}
 </body>
 </html>
