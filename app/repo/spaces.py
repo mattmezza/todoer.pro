@@ -110,13 +110,16 @@ class SpaceForUser(LoggedInUserRepo):
             tasks_by_space[num_task.space] = num_task.tasks_tot
         return tasks_by_space
 
-    async def insert(self, title: str, descr: str | None) -> Mapping | None:
+    async def insert(
+        self, title: str, descr: str | None, default: bool = False
+    ) -> Mapping | None:
         uuid_new, sid_new = new_ids()
         sp = await self.db.fetch_one(
             """INSERT INTO spaces (
                 uuid,
                 sid,
                 title,
+                descr,
                 descr,
                 creator
             )
@@ -125,6 +128,7 @@ class SpaceForUser(LoggedInUserRepo):
                 :sid,
                 :title,
                 :descr,
+                :default,
                 :creator
             )
             RETURNING *""",
@@ -133,6 +137,7 @@ class SpaceForUser(LoggedInUserRepo):
                 "sid": sid_new,
                 "title": title.strip(),
                 "descr": descr.strip() if descr else None,
+                "default": 1 if default else 0,
                 "creator": self.user["uuid"],
             },
         )
@@ -172,3 +177,14 @@ class SpaceForUser(LoggedInUserRepo):
             {"sid": sid, "descr": descr, "creator": self.user["uuid"]},
         )
         return None if se is None else se.descr
+
+    async def default(self) -> Mapping | None:
+        space = await self.db.fetch_one(
+            """
+            SELECT * FROM spaces
+            WHERE `default` = 1
+                AND creator = :creator
+            """,
+            {"creator": self.user["uuid"]},
+        )
+        return space._mapping if space else None

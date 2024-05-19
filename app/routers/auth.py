@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
-from app import tpl
+from app import svc, tpl
 from app.deps import RepoDB, repo_db
 from app.security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
@@ -92,10 +92,7 @@ async def signup(
     db: RepoDB = Depends(repo_db),
 ):
     pwd = pwd_context.hash(password)
-    confirm_code = shortuuid.encode(uuid4())[:7]
-    user = await db.for_anon().users().create(name, email, pwd, confirm_code)
-    # TODO send confirmation email
-    logger.info("sending confirmation email should happen here")
+    user, *_ = await svc.users.signup(db, email, name, pwd)
     return set_auth_cookie(RedirectResponse(URL_AFTER_SIGNIN, 303), user)
 
 

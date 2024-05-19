@@ -10,7 +10,7 @@
         hx-trigger="space-delete from:body, space-create from:body, space-update from:body"
         hx-target="closest div"
         class="mt-3 text-sm font-semibold">
-        {% for space in spaces %}
+        {% for space in spaces|rejectattr("default") %}
             <Nav.Spaces.Item space={space} />
         {% endfor %}
     </ul>

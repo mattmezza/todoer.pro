@@ -38,7 +38,7 @@ class UserForAnon(AnonymousRepo):
         )
         return user._mapping if user else None
 
-    async def create(
+    async def insert(
         self, name: str, email: str, pwd: str, confirm_code: str
     ) -> Mapping | None:
         uuid_new, sid_new = new_ids()
@@ -57,21 +57,6 @@ class UserForAnon(AnonymousRepo):
                     "email": email,
                     "password": pwd,
                     "confirm_code": confirm_code,
-                },
-            )
-            uuid_ws, sid_ws = new_ids()
-            await self.db.execute(
-                """
-                INSERT INTO workspaces
-                    (uuid, sid, title, descr, creator)
-                VALUES (:uuid, :sid, :title, :descr, :creator)
-                """,
-                {
-                    "uuid": uuid_ws,
-                    "sid": sid_ws,
-                    "title": "@personal",
-                    "descr": None,
-                    "creator": user.uuid,
                 },
             )
             return user._mapping if user else None

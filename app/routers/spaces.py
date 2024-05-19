@@ -3,7 +3,7 @@ from typing import Annotated, Mapping
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
-from app import tpl
+from app import svc, tpl
 from app.deps import RepoDB, get_current_active_user, repo_db
 
 router = APIRouter()
@@ -29,22 +29,34 @@ async def index(
 async def read(
     req: Request,
     sid: str,
+    view_complete: bool = False,
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
 ):
     repo = db.for_user(user)
     repo_spaces = repo.spaces()
+    repo_sections = repo.sections()
     space = await repo_spaces.by_sid_with_tot_lists(sid)
     num_tasks = await repo_spaces.num_tasks(sid)
     repo_lists = repo.lists()
     lists = await repo_lists.all_by_space(sid)
-    sections_by_list = await repo_lists.num_sections_by_list(sid)
-    tasks_by_list = await repo_lists.num_tasks_by_list(sid)
+    list_inbox = await repo_lists.default_for_space(sid)
+    sections_inbox = await repo_sections.by_list(list_inbox["uuid"])
+    repo_tasks = repo.tasks()
+    tasks_by_section_inbox = await repo_tasks.by_section_for_list(
+        list_inbox["uuid"]
+    )
+    sections_by_list = await repo_lists.num_sections_by_list_for_space(sid)
+    tasks_by_list = await repo_lists.num_tasks_by_list_for_space(sid)
     return (
         dict(
             spaces=await repo_spaces.all(),
             space=space,
             lists=lists,
+            list_inbox=list_inbox,
+            sections_inbox=sections_inbox,
+            tasks_by_section_inbox=tasks_by_section_inbox,
+            view_complete=view_complete,
             tasks_by_space=num_tasks["tasks_tot"] if num_tasks else 0,
             tasks_by_list=tasks_by_list,
             sections_by_list=sections_by_list,
@@ -64,7 +76,7 @@ async def add(
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
 ):
-    sp = await db.for_user(user).spaces().insert(title, descr)
+    sp, *_ = await svc.spaces.create(user, db, title, descr, default=False)
     return (
         dict(
             space=dict(sp) | {"lists": 0},
@@ -114,3 +126,47 @@ async def update_descr(
 ):
     res.headers["HX-Trigger"] = "space-update"
     return await db.for_user(user).spaces().update_descr(sid, descr)
+
+
+@router.get("/inbox")
+@tpl.htmx("Page/Space")
+async def inbox(
+    req: Request,
+    view_complete: bool = False,
+    db: RepoDB = Depends(repo_db),
+    user: Mapping = Depends(get_current_active_user),
+):
+    repo = db.for_user(user)
+    repo_spaces = repo.spaces()
+    space = await repo_spaces.default()
+    num_tasks = await repo_spaces.num_tasks(space["sid"])
+    repo_lists = repo.lists()
+    repo_sections = repo.sections()
+    lists = await repo_lists.all_by_space(space["sid"])
+    list_inbox = await repo_lists.default_for_space(space["sid"])
+    sections_inbox = await repo_sections.by_list(list_inbox["uuid"])
+    sections_by_list = await repo_lists.num_sections_by_list_for_space(
+        space["sid"]
+    )
+    tasks_by_list = await repo_lists.num_tasks_by_list_for_space(space["sid"])
+    repo_tasks = repo.tasks()
+    tasks_by_section_inbox = await repo_tasks.by_section_for_list(
+        list_inbox["uuid"]
+    )
+    return (
+        dict(
+            spaces=await repo_spaces.all(),
+            space=space,
+            lists=lists,
+            list_inbox=list_inbox,
+            sections_inbox=sections_inbox,
+            tasks_by_section_inbox=tasks_by_section_inbox,
+            view_complete=view_complete,
+            tasks_by_space=num_tasks["tasks_tot"] if num_tasks else 0,
+            tasks_by_list=tasks_by_list,
+            sections_by_list=sections_by_list,
+            user=user,
+        ),
+        200,
+        {"HX-Trigger": "space-read"},
+    )

@@ -4,7 +4,7 @@ from typing import Annotated, Mapping
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
-from app import http, tpl
+from app import http, svc, tpl
 from app.deps import (
     Renderer,
     get_current_active_user,
@@ -54,11 +54,8 @@ async def view(
     sections = await section_r.by_list(li["uuid"])
     tarepo = user_repo.tasks()
     tasks_by_section = defaultdict(list)
-    tasks = await tarepo.by_list(li["uuid"])
-    for t in tasks:
-        tasks_by_section[t["section"]].append(t)
+    tasks_by_section = await tarepo.by_section_for_list(li["uuid"])
     return {
-        "request": req,
         "spaces": await space_r.all(),
         "space": space,
         "lists": await list_r.all_by_space(space["sid"]),
@@ -136,7 +133,7 @@ async def add(
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
-    li = http.Opt(
-        await db.for_user(user).lists().create(color, title, descr, space)
-    ).or_400()
+    li, _ = await svc.lists.create(
+        user, db, color, title, descr, space, default=False
+    )
     return {"list": li, "user": user}, 201, {"HX-Trigger": "list-create"}
