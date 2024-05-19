@@ -20,7 +20,7 @@ from app.security import (
 logger = logging.getLogger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 router = APIRouter()
-URL_AFTER_SIGNIN = "/dashboard"
+URL_AFTER_SIGNIN = "/inbox"
 
 
 # @router.post("/token", response_model=Token)
