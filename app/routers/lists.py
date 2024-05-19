@@ -136,4 +136,8 @@ async def add(
     li, _ = await svc.lists.create(
         user, db, color, title, descr, space, default=False
     )
-    return {"list": li, "user": user}, 201, {"HX-Trigger": "list-create"}
+    return (
+        {"list": li, "user": user},
+        201,
+        {"HX-Trigger": "list-create", "HX-Redirect": f"/list/{li.sid}"},
+    )
