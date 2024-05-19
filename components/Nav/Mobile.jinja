@@ -9,7 +9,7 @@
     <div x-show="open" class="space-y-4 w-full px-4">
         <div class="text-left space-y-3 text-lg">
             {%- if cur_path_starts_with("/dashboard") -%}
-                {% if spaces and not space %}
+                {% if spaces and not space and spaces|rejectattr("default")|list|length %}
                 <a href="/spaces" class="uppercase font-bold hover:text-slate-100 hover:font-bold cursor-pointer">Spaces</a>
                 <ul class="font-mono space-y-1">
                     {% for space in spaces|rejectattr("default") %}
@@ -22,7 +22,7 @@
                 </ul>
                 {% endif %}
             {% else %}
-                {% if space and lists is defined %}
+                {% if space and lists is defined and not space.default %}
                 <a href="/space/{{ space.sid }}" class="uppercase font-bold hover:text-slate-100 hover:font-bold cursor-pointer">Lists</a>
                 <ul class="font-mono space-y-1">
                     {% for list_ in lists|rejectattr("default") %}
