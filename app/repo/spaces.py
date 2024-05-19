@@ -120,7 +120,7 @@ class SpaceForUser(LoggedInUserRepo):
                 sid,
                 title,
                 descr,
-                descr,
+                `default`,
                 creator
             )
             VALUES (
