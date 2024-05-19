@@ -1,7 +1,8 @@
 FROM node:alpine as tailwindcss
 WORKDIR /tmp
 COPY package*.json postcss.config.js tailwind.config.js ./
-ADD htm ./htm
+ADD components ./components
+ADD app ./app
 ADD styles ./styles
 RUN npm install
 RUN npx tailwindcss -i styles/global.css -o style.css --minify
@@ -17,7 +18,7 @@ COPY --from=builder /tmp/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir --upgrade -r /tmp/requirements.txt
 WORKDIR /app
 COPY app ./app
-COPY htm ./htm
+ADD components ./components
 COPY public ./public
 COPY --from=tailwindcss /tmp/style.css ./public/style.css
 EXPOSE 80
