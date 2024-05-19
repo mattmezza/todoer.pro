@@ -1,0 +1,32 @@
+{# def title #}
+<!doctype html>
+<html>
+<head>
+    <title>{% if ENV != "prod" %}[{{ ENV }}] {% endif %}Todoer{%- if title %} - {{ title }}{% endif %}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    {% if ENV == "local" %}
+    <link href="/public/style.css?v={{ epoch() }}" rel="stylesheet">
+    {% else %}
+    <link href="/public/style.css?v={{ RELEASE or '' }}" rel="stylesheet">
+    {% endif %}
+    <!-- emoji to png|ico via https://emojifavicon.dev -->
+    <link rel="icon" href="/public/favicon.ico?v={{ RELEASE or '' }}">
+    <link rel="icon" href="/public/favicon.png?v={{ RELEASE or '' }}">
+</head>
+<body class="px-4 md:px-8 py-4 dark:bg-black dark:text-zinc-100 min-h-screen">
+    <header class="">
+        <a href="/">
+            <Nav.Logo class="text-3xl justify-center md:justify-start" />
+        </a>
+    </header>
+    <main class="mt-32 md:mt-64 text-center">
+        {{ content }}
+    </main>
+    {% if ENV == "local" %}
+        {{ hot_reload.script("ws://localhost:8000/hot-reload") | safe }}
+    {% endif %}
+    {{ catalog.render_assets() }}
+</body>
+
+
