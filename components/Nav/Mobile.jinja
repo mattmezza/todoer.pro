@@ -15,20 +15,20 @@
                     {% for space in spaces|rejectattr("default") %}
                     <li>
                         <a class="hover:text-slate-100 hover:font-bold cursor-pointer" href="/space/{{ space.sid }}">
-                            {{ space.title[0:30] }}
+                            @{{ space.title[0:30] }}
                         </a>
                     </li>
                     {% endfor %}
                 </ul>
                 {% endif %}
             {% else %}
-                {% if space and lists is defined and not space.default %}
+            {% if space and lists is defined and lists|rejectattr("default")|list|length > 0 and not space.default %}
                 <a href="/space/{{ space.sid }}" class="uppercase font-bold hover:text-slate-100 hover:font-bold cursor-pointer">Lists</a>
                 <ul class="font-mono space-y-1">
                     {% for list_ in lists|rejectattr("default") %}
                     <li>
                         <a class="hover:text-slate-100 hover:font-bold cursor-pointer" href="/list/{{ list_.sid }}">
-                            {{ list_.title[0:30] }}
+                            #{{ list_.title[0:30] }}
                         </a>
                     </li>
                     {% endfor %}
