@@ -1,6 +1,7 @@
 from collections import defaultdict
 from datetime import datetime
 from typing import Mapping
+from uuid import UUID
 
 from .utils import LoggedInUserRepo, new_ids
 
@@ -111,6 +112,27 @@ class TaskForUser(LoggedInUserRepo):
             RETURNING descr
             """,
             {"sid": sid, "descr": descr, "creator": self.user["uuid"]},
+        )
+        return ta.descr if ta is not None else None
+
+    async def update_section(
+        self, section: UUID, sid: str
+    ) -> str | None:
+        ta = await self.db.fetch_one(
+            """
+            UPDATE tasks
+                SET section = :section, updated = CURRENT_TIMESTAMP
+                WHERE sid = :sid
+                    AND EXISTS (
+                        SELECT ta.uuid FROM tasks ta
+                        JOIN sections se ON se.uuid = ta.section
+                        JOIN lists l ON l.uuid = se.list
+                        JOIN spaces sp ON sp.uuid = l.space
+                        WHERE sp.creator = :creator
+                    )
+            RETURNING *
+            """,
+            {"sid": sid, "section": str(section), "creator": self.user["uuid"]}
         )
         return ta.descr if ta is not None else None
 

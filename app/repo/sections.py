@@ -82,6 +82,23 @@ class SectionForUser(LoggedInUserRepo):
             {"sid": sid, "creator": self.user["uuid"]},
         )
 
+    async def all_by_list(
+        self, list_uuid: str, limit: int = 100
+    ) -> Mapping | None:
+        sections = await self.db.fetch_all(
+            """
+            SELECT se.* FROM sections se
+            JOIN lists l ON l.uuid = se.list
+            JOIN spaces s ON s.uuid = l.space
+            WHERE s.creator = :creator
+                AND l.uuid = :list
+            ORDER BY se.created ASC
+            LIMIT :limit
+            """,
+            {"limit": limit, "creator": self.user["uuid"], "list": list_uuid},
+        )
+        return [se._mapping for se in sections]
+
     async def insert(
         self, title: str, list_id: str, default: bool = False
     ) -> Mapping | None:
