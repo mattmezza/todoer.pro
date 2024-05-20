@@ -1,5 +1,6 @@
 from collections import defaultdict
 from typing import Mapping
+from uuid import UUID
 
 from .utils import LoggedInUserRepo, new_ids
 
@@ -154,6 +155,21 @@ class ListForUser(LoggedInUserRepo):
             {"sid": sid, "color": color, "creator": self.user["uuid"]},
         )
         return li.color if li is not None else None
+
+    async def update_space_by_sid(
+        self, space: UUID, sid: str
+    ) -> str | None:
+        li = await self.db.fetch_one(
+            """
+            UPDATE lists
+                SET space = :space
+                WHERE sid = :sid
+                AND creator = :creator
+            RETURNING *
+            """,
+            {"sid": sid, "space": str(space), "creator": self.user["uuid"]},
+        )
+        return li._mapping if li is not None else None
 
     async def insert(
         self,
