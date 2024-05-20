@@ -109,7 +109,7 @@ class SubtaskForUser(LoggedInUserRepo):
         subtask = await self.db.fetch_one(
             """
             UPDATE subtasks
-            SET complete = :complete, title = :title, descr = :descr
+            SET complete = :complete, title = :title, descr = :descr, updated = CURRENT_TIMESTAMP
             WHERE sid = :sid AND task IN (
                 SELECT uuid FROM tasks WHERE section IN (
                     SELECT uuid FROM sections WHERE creator = :user
