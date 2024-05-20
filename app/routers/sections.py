@@ -17,7 +17,7 @@ async def delete(
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
-    await db.for_user(user).tasks().del_by_sid(sid)
+    await db.for_user(user).sections().del_by_sid(sid)
     res.headers["HX-Trigger"] = f"section-delete, section-{sid}-delete"
     return ""
 
