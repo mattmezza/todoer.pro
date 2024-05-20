@@ -25,7 +25,7 @@
     </form>
     <!-- title -->
     <h1 class="text-2xl font-bold cursor-pointer hover:text-white rounded px-2 py-1 font-mono"
-        _="on click hide me then show the next <form /> then select() the next <input />">{{ list.title }}</h1>
+        _="on click hide me then show the next <form /> then select() the next <input />">#{{ list.title }}</h1>
     <form class="flex items-center gap-1 w-full" hx-put="/list/{{ list.sid }}/title" hx-target="previous h1" style="display: none" _="on submit or reset hide me then show the previous <h1 />">
         <input class="form-input px-2 py-1 text-2xl font-bold text-white w-full grow font-mono" name="title" value="{{ list.title }}" _="on keyup[key is 'Escape'] reset() on the closest <form />">
         <div class="flex items-center">
