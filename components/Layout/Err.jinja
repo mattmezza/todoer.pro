@@ -4,6 +4,8 @@
 <head>
     <title>{% if ENV != "prod" %}[{{ ENV }}] {% endif %}Todoer{%- if title %} - {{ title }}{% endif %}</title>
     <meta charset="UTF-8">
+    <meta name="theme-color" content="#4338ca" />
+    <link rel="manifest" href="/public/manifest.json">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     {% if ENV == "local" %}
     <link href="/public/style.css?v={{ epoch() }}" rel="stylesheet">
