@@ -121,7 +121,7 @@ class ListForUser(LoggedInUserRepo):
         li = await self.db.fetch_one(
             """
             UPDATE lists
-                SET title = :title
+                SET title = :title, updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                 AND creator = :creator
             RETURNING title
@@ -134,7 +134,7 @@ class ListForUser(LoggedInUserRepo):
         li = await self.db.fetch_one(
             """
             UPDATE lists
-                SET descr = :descr
+                SET descr = :descr, updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                 AND creator = :creator
             RETURNING descr
@@ -147,7 +147,7 @@ class ListForUser(LoggedInUserRepo):
         li = await self.db.fetch_one(
             """
             UPDATE lists
-                SET color = :color
+                SET color = :color, updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                 AND creator = :creator
             RETURNING color
@@ -162,7 +162,7 @@ class ListForUser(LoggedInUserRepo):
         li = await self.db.fetch_one(
             """
             UPDATE lists
-                SET space = :space
+                SET space = :space, updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                 AND creator = :creator
             RETURNING *

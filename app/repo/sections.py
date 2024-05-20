@@ -53,7 +53,7 @@ class SectionForUser(LoggedInUserRepo):
         section = await self.db.fetch_one(
             """
             UPDATE sections
-                SET title = :title
+                SET title = :title, updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                     AND EXISTS (
                         SELECT s.sid FROM sections s

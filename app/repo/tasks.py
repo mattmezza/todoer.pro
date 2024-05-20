@@ -99,7 +99,7 @@ class TaskForUser(LoggedInUserRepo):
         ta = await self.db.fetch_one(
             """
             UPDATE tasks
-                SET descr = :descr
+                SET descr = :descr, updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                     AND EXISTS (
                         SELECT ta.uuid FROM tasks ta
@@ -120,7 +120,7 @@ class TaskForUser(LoggedInUserRepo):
         ta = await self.db.fetch_one(
             """
             UPDATE tasks
-                SET title = :title
+                SET title = :title, updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                     AND EXISTS (
                         SELECT ta.uuid FROM tasks ta

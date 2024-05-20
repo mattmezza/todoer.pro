@@ -156,7 +156,7 @@ class SpaceForUser(LoggedInUserRepo):
         sp = await self.db.fetch_one(
             """
             UPDATE spaces
-                SET title = :title
+                SET title = :title, updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                 AND creator = :creator
             RETURNING title
@@ -169,7 +169,7 @@ class SpaceForUser(LoggedInUserRepo):
         se = await self.db.fetch_one(
             """
             UPDATE spaces
-                SET descr = :descr
+                SET descr = :descr, updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                 AND creator = :creator
             RETURNING descr
