@@ -101,7 +101,7 @@ async def update_title(
     t = http.Opt(
         await db.for_user(user).lists().update_title_by_sid(title, sid)
     ).or_404(f"List #{sid} not found.")
-    res = PlainTextResponse(t)
+    res = PlainTextResponse("#" + t)
     res.headers["HX-Trigger"] = f"list-update, list-{sid}-update"
     return res
 
