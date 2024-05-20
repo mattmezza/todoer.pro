@@ -1,5 +1,6 @@
 from collections import defaultdict
 from typing import Annotated, Mapping
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
@@ -119,6 +120,23 @@ async def update_descr(
     ).or_404(f"List #{sid} not found.")
     res = PlainTextResponse(d)
     res.headers["HX-Trigger"] = f"list-update, list-{sid}-update"
+    return res
+
+
+@router.put("/list/{sid}/space")
+async def update_space(
+    req: Request,
+    res: HTMLResponse,
+    sid: str,
+    space: Annotated[UUID, Form()],
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    _ = http.Opt(
+        await db.for_user(user).lists().update_space_by_sid(space, sid)
+    ).or_404(f"List #{sid} not found.")
+    res = PlainTextResponse()
+    res.headers["HX-Redirect"] = f"/list/{sid}"
     return res
 
 
