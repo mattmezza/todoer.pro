@@ -114,7 +114,7 @@ async def update_title(
     user: Mapping = Depends(get_current_active_user),
 ):
     res.headers["HX-Trigger"] = "space-update"
-    return await db.for_user(user).spaces().update_title(sid, title)
+    return "@" + await db.for_user(user).spaces().update_title(sid, title)
 
 
 @router.put("/space/{sid}/descr", response_class=HTMLResponse)
