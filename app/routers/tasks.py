@@ -1,4 +1,5 @@
 from typing import Annotated, Mapping
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
@@ -41,9 +42,11 @@ async def view(
     task = http.Opt(await urepo.tasks().by_sid(sid)).or_404(
         f"Task #{sid} not found."
     )
-    section = await urepo.sections().by_uuid(task["section"])
+    secrepo = urepo.sections()
+    section = await secrepo.by_uuid(task["section"])
     lrepo = urepo.lists()
     list_ = await lrepo.by_uuid(section["list"])
+    sections = await secrepo.all_by_list(list_.uuid)
     srepo = urepo.spaces()
     space = await srepo.by_uuid(list_["space"])
     lists = await lrepo.all_by_space(space["sid"])
@@ -60,6 +63,7 @@ async def view(
     return {
         "task": task,
         "section": section,
+        "sections": sections,
         "list": list_,
         "lists": lists,
         "space": space,
@@ -107,6 +111,20 @@ async def update_descr(
     descr = await db.for_user(user).tasks().update_descr_by_sid(descr, sid)
     res.headers["HX-Trigger"] = f"task-update, task-{sid}-update"
     return descr
+
+
+@router.put("/task/{sid}/section", response_class=PlainTextResponse)
+async def update_section(
+    req: Request,
+    res: PlainTextResponse,
+    sid: str,
+    section: Annotated[UUID, Form()],
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    _ = await db.for_user(user).tasks().update_section(section, sid)
+    res.headers["HX-Redirect"] = f"/task/{sid}"
+    return ""
 
 
 @router.put("/task/{sid}/complete")
