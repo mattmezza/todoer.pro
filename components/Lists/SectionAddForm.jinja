@@ -6,7 +6,7 @@
     hx-post="/sections"
     hx-on::after-request="this.reset()"
     class="rounded-sm border border-slate-600 add-task-form mb-16"
-    _="on reset or keyup[key is 'Escape'] hide me then show #btn-section-create">
+    _="on keyup[key is 'Escape'] hide me then show #btn-section-create">
     <div class="py-2"">
         <input
             name="title"
@@ -19,7 +19,7 @@
         <div>
         </div>
         <div class="space-x-2">
-            <button type="reset" class="btn py-1">Cancel</button>
+            <button _="on click hide closest <form /> then show #btn-section-create" type="reset" class="btn py-1">Cancel</button>
             <button type="submit" class="btn py-1 bg-indigo-600 text-white">
                 Add space
             </button>
