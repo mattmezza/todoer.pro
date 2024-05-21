@@ -62,7 +62,7 @@
         />
     </ul>
     <!-- sections -->
-    <ul class="py-8 sections">
+    <ul id="sections" class="py-8 sections">
     {% for section in sections|rejectattr("default") %}
         <Section
             section={section}
