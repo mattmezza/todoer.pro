@@ -5,7 +5,7 @@
         href="/list/{{ list.sid }}"
         class="px-2 md:px-6 py-4 md:py-6 flex-grow transition-all active:scale-95 cursor-pointer">
         <h2 class="text-lg font-semibold mb-2">{{ list.title }}</h2>
-        <p class="text-sm mb-4 whitespace-pre">{{ list.descr or '' }}</p>
+        <p class="text-sm mb-4 whitespace-pre-wrap">{{ list.descr or '' }}</p>
         <div class="flex flex-row gap-4 text-xs">
             <div>
                 <span class="font-mono">{{ num_tasks }}</span> tasks
