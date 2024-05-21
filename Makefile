@@ -13,6 +13,7 @@ tailwind:  ## compiles css with tailwindcss
 .PHONY: release
 release:  ## creates a release on github (e.g. make release VERSION=v0.20)
 	gh release create $(VERSION) --generate-notes
+	git fetch --all
 
 .PHONY: build
 build:  ## builds a docker image for specific env (e.g. make build ENV=local VERSION=v0.20)
