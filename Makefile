@@ -11,16 +11,16 @@ tailwind:  ## compiles css with tailwindcss
 	npx tailwindcss -i styles/global.css -o public/style.css --minify
 
 .PHONY: release
-release:  ## creates a release on github (e.g. make release VERSION=v0.20)
-	gh release create $(VERSION) --generate-notes
+release:  ## creates a release on github (e.g. make release name=v0.20)
+	gh release create $(name) --generate-notes
 	git fetch --all
 
 .PHONY: build
-build:  ## builds a docker image for specific env (e.g. make build ENV=local VERSION=v0.20)
+build:  ## builds a docker image for specific env (e.g. make build env=local name=v0.20)
 	git fetch --all
-	git checkout $(VERSION)
-	./scripts/build.sh $(ENV)
+	git checkout $(name)
+	./scripts/build.sh $(env)
 
 .PHONY: deploy
-deploy: build ## deploys a specific release onto specific env (e.g. make deploy ENV=prod VERSION=v0.20)
-	./scripts/deploy.sh -e$(ENV)
+deploy: build ## deploys a specific release onto specific env (e.g. make deploy env=prod name=v0.20)
+	./scripts/deploy.sh -e$(env)
