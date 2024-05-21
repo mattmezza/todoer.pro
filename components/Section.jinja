@@ -1,6 +1,5 @@
 {# def section, view_complete, tasks #}
 <li
-    draggable="{% if section.default %}false{% else %}true{% endif %}"
     class="py-4 section"
     hx-trigger="section-update-{{ section.sid}} from:body, section-{{ section.sid }}-task-complete from:body, section-{{ section.sid }}-task-incomplete from:body"
     hx-get="/section/{{ section.sid }}"
