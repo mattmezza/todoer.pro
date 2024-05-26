@@ -75,8 +75,13 @@
                 <div class="text-xs flex flex-row items-center">
                     <span>Description</span>
                 </div>
-                <textarea class="form-input w-full resize-none" name="descr"
-                    placeholder="A checklist of things to pack for the trip."></textarea>
+                <textarea
+                    class="form-input w-full resize-none"
+                    name="descr"
+                    placeholder="A checklist of things to pack for the trip."
+                    @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
+                    @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
+                ></textarea>
                 <div class="text-xs flex flex-row items-center justify-end">
                 </div>
             </div>
