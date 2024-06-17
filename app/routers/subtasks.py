@@ -33,7 +33,9 @@ async def add(
     db: RepoDB = Depends(repo_db),
 ):
     subtask = http.Opt(
-        await db.for_user(user).subtasks().create(title, descr, task)
+        await db.for_user(user)
+        .subtasks()
+        .create(title.strip(), descr.strip() if descr else None, task)
     ).or_400()
     return (
         {
@@ -57,7 +59,9 @@ async def update(
     db: RepoDB = Depends(repo_db),
 ):
     subtask = http.Opt(
-        await db.for_user(user).subtasks().update(sid, title, descr, complete)
+        await db.for_user(user)
+        .subtasks()
+        .update(sid, title.strip(), descr.strip() if descr else None, complete)
     ).or_400()
     hx_trigger = f"subtask-update, subtask-{sid}-update"
     if subtask.complete == 1:

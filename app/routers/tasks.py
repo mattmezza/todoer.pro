@@ -25,7 +25,11 @@ async def add_task(
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
-    task = await db.for_user(user).tasks().create(title, descr, section)
+    task = (
+        await db.for_user(user)
+        .tasks()
+        .create(title.strip(), descr.strip() if descr else None, section)
+    )
     return {"task": task}, 201, {"HX-Trigger": "task-create"}
 
 
@@ -89,7 +93,9 @@ async def update(
     task = http.Opt(
         await db.for_user(user)
         .tasks()
-        .update_task_by_sid(complete, title, descr, sid)
+        .update_task_by_sid(
+            complete, title.strip(), descr.strip() if descr else None, sid
+        )
     ).or_404(f"Task #{sid} not found.")
     hx_trigger = f"task-update, task-{sid}-update"
     if task.complete == 1:
@@ -108,7 +114,11 @@ async def update_descr(
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
-    descr = await db.for_user(user).tasks().update_descr_by_sid(descr, sid)
+    descr = (
+        await db.for_user(user)
+        .tasks()
+        .update_descr_by_sid(descr.strip() if descr else None, sid)
+    )
     res.headers["HX-Trigger"] = f"task-update, task-{sid}-update"
     return descr
 
@@ -166,7 +176,7 @@ async def update_title(
 ):
     urepo = db.for_user(user)
     task = http.Opt(
-        await urepo.tasks().update_title_by_sid(title, sid)
+        await urepo.tasks().update_title_by_sid(title.strip(), sid)
     ).or_404(f"Task #{sid} not found.")
     section = await urepo.sections().by_uuid(task["section"])
     list_ = await urepo.lists().by_uuid(section["list"])

@@ -32,7 +32,7 @@ async def add(
     db: RepoDB = Depends(repo_db),
 ):
     comment = http.Opt(
-        await db.for_user(user).comments().create(content, task)
+        await db.for_user(user).comments().create(content.strip(), task)
     ).or_400()
     return (
         {

@@ -4,7 +4,8 @@ from typing import Mapping
 from app.repo import RepoDB
 
 
-LIST_INBOX_COLOR = "FF0000"
+DEFAULT_COLOR = "FF0000"
+LIST_INBOX_COLOR = DEFAULT_COLOR
 LIST_INBOX_TITLE = "inbox"
 LIST_INBOX_DESCR = None
 SECTION_INBOX_TITLE = "inbox"
@@ -15,7 +16,7 @@ async def create(
     db: RepoDB,
     color: str,
     title: str,
-    descr: str,
+    descr: str | None,
     space_uuid: str,
     default: bool,
 ) -> tuple[Mapping, Mapping]:

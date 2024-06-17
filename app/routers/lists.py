@@ -80,7 +80,7 @@ async def update_color(
     db: RepoDB = Depends(repo_db),
 ):
     col = http.Opt(
-        await db.for_user(user).lists().update_color_by_sid(color, sid)
+        await db.for_user(user).lists().update_color_by_sid(color.strip(), sid)
     ).or_404(f"List #{sid} not found.")
     return (
         dict(color=col),
@@ -99,7 +99,7 @@ async def update_title(
     db: RepoDB = Depends(repo_db),
 ):
     t = http.Opt(
-        await db.for_user(user).lists().update_title_by_sid(title, sid)
+        await db.for_user(user).lists().update_title_by_sid(title.strip(), sid)
     ).or_404(f"List #{sid} not found.")
     res = PlainTextResponse("#" + t)
     res.headers["HX-Trigger"] = f"list-update, list-{sid}-update"
@@ -116,7 +116,9 @@ async def update_descr(
     db: RepoDB = Depends(repo_db),
 ):
     d = http.Opt(
-        await db.for_user(user).lists().update_descr_by_sid(descr, sid)
+        await db.for_user(user)
+        .lists()
+        .update_descr_by_sid(descr.strip() if descr else None, sid)
     ).or_404(f"List #{sid} not found.")
     res = PlainTextResponse(d)
     res.headers["HX-Trigger"] = f"list-update, list-{sid}-update"
@@ -152,7 +154,13 @@ async def add(
     db: RepoDB = Depends(repo_db),
 ):
     li, _ = await svc.lists.create(
-        user, db, color, title, descr, space, default=False
+        user,
+        db,
+        color if color else svc.lists.DEFAULT_COLOR,
+        title.strip(),
+        descr.strip() if descr else None,
+        space,
+        default=False,
     )
     return (
         {"list": li, "user": user},

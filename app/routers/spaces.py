@@ -78,7 +78,13 @@ async def add(
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
 ):
-    sp, *_ = await svc.spaces.create(user, db, title, descr, default=False)
+    sp, *_ = await svc.spaces.create(
+        user,
+        db,
+        title.strip(),
+        descr.strip() if descr else None,
+        default=False,
+    )
     return (
         dict(
             space=dict(sp) | {"lists": 0},
@@ -114,7 +120,9 @@ async def update_title(
     user: Mapping = Depends(get_current_active_user),
 ):
     res.headers["HX-Trigger"] = "space-update"
-    return "@" + await db.for_user(user).spaces().update_title(sid, title)
+    return "@" + await db.for_user(user).spaces().update_title(
+        sid, title.strip()
+    )
 
 
 @router.put("/space/{sid}/descr", response_class=HTMLResponse)
@@ -127,7 +135,11 @@ async def update_descr(
     user: Mapping = Depends(get_current_active_user),
 ):
     res.headers["HX-Trigger"] = "space-update"
-    return await db.for_user(user).spaces().update_descr(sid, descr)
+    return (
+        await db.for_user(user)
+        .spaces()
+        .update_descr(sid, descr.strip() if descr else None)
+    )
 
 
 @router.get("/inbox")
