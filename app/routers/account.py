@@ -35,7 +35,7 @@ async def change_name(
     user = (
         await db.for_user(user)
         .users()
-        .update_fname_by_uuid(name, user["uuid"])
+        .update_fname_by_uuid(name.strip(), user["uuid"])
     )
     res.headers["HX-Trigger"] = "account-update"
     return user["name"]
