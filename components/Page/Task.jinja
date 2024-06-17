@@ -161,7 +161,9 @@
             {#{ commen|safe }#}
             {#% endfor %#}
         </ul>
-        <Btn.Create id="btn-comment-create">Add comment</Btn.Create>
+        <div class="flex justify-start">
+            <Btn.Create id="btn-comment-create" with-text-reveal={False}>Add comment</Btn.Create>
+        </div>
         <form
             style="display: none"
             class="rounded-sm border border-slate-600"
