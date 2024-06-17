@@ -18,6 +18,8 @@ My personal TODO app.
 - `dev` builds images for dev environment
 - `prod` builds images for prod environment
 - `release` uses `gh` to create a release (`make release VERSION=v0.20`)
+- `build` uses `build.sh` script to build a release for an environment
+- `deploy` uses `deploy.sh` script to deploy a release for an environment
 
 ## Scripts
 
