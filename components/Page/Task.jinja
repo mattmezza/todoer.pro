@@ -72,7 +72,7 @@
                 hx-on::after-request="this.reset()"
                 _="on keyup[key is 'Escape'] reset() on me then hide me then show #btn-subtask-create">
                 <div class="py-2"">
-                    <input class="form-input block py-1 px-23 border-0 w-full placeholder:font-semibold font-semibold" name="title" placeholder="Sub-task name" required autofocus>
+                    <input autocapitalize="none" class="form-input block py-1 px-23 border-0 w-full placeholder:font-semibold font-semibold" name="title" placeholder="Sub-task name" required autofocus>
                     <textarea
                         autofocus
                         name="descr"
