@@ -45,7 +45,7 @@
         hx-target="previous ul"
         hx-swap="beforeend"
         hx-post="/tasks"
-        hx-on::after-request="this.reset()"
+        hx-on::after-request="this.reset();this.querySelector('input[name=title]').focus()"
         _="on keyup[key is 'Escape'] hide me then show #btn-task-create-{{ section.sid }}">
         <div class="py-2"">
             <input
