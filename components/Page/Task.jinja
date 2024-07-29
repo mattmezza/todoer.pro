@@ -12,7 +12,7 @@
                 {%- else -%}
                     /list/{{ list.sid }}
                 {%- endif -%}
-            " class="flex items-center gap-1 text-sm cursor-pointer mb-2 hover:text-white">
+            " class="flex items-center gap-1 cursor-pointer mb-2 hover:text-white">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 15.75L3 12m0 0l3.75-3.75M3 12h18" />
             </svg>
@@ -25,7 +25,7 @@
         </div>
         <!-- descr -->
         <div class="hover:text-white cursor-pointer rounded text-sm min-h-[3lh] whitespace-pre-wrap px-2" _="on click hide me then show the next <form /> then select() on the next <textarea />">
-{%- if task.descr %}{{ task.descr }}{% else %}<span class="dark:text-slate-700 text-sm italic">(no description)</span>{% endif %}
+{%- if task.descr %}{{ task.descr }}{% else %}<span class="dark:text-slate-700">(no description)</span>{% endif %}
         </div>
         <form hx-put="/task/{{ task.sid }}/descr" hx-target="previous div" style="display: none" _="on submit or reset hide me then show the previous <div /> from me" class="rounded border border-slate-600 p-1">
             <textarea
@@ -48,8 +48,8 @@
             <div class="flex justify-between items-center p-2">
                 <div></div>
                 <div class="">
-                    <button type="reset" class="btn text-xs py-0.5 text-white">Cancel</button>
-                    <button type="submit" class="btn bg-indigo-500 text-xs py-0.5 text-white">Save</button>
+                    <button type="reset" class="btn text py-0.5 text-white">Cancel</button>
+                    <button type="submit" class="btn bg-indigo-500 text py-0.5 text-white">Save</button>
                 </div>
             </div>
         </form>
@@ -127,9 +127,9 @@
                     hx-trigger="submit"
                     class="max-w-xs rounded bg-white/5 hover:cursor-pointer"
                     _='on htmx:beforeRequest show #progress then hide #upload then show #uploading on htmx:xhr:progress(loaded, total) set #progress.value to (loaded/total)*100 on htmx:afterRequest reset() me then set #progress.value to 0 then hide #progress then hide #uploading then show #upload'>
-                    <div class="dark:text-zing-200 text-xs cursor-wait w-full text-center animate-pulse duration-150">
+                    <div class="dark:text-zing-200 text-sm cursor-wait w-full text-center animate-pulse duration-150">
                     </div>
-                    <label for="post-attachment" class="dark:text-zinc-200 text-xs cursor-pointer w-full">
+                    <label for="post-attachment" class="dark:text-zinc-200 text-sm cursor-pointer w-full">
                         <div id="uploading" style="display: none" class="btn text-center w-full px-16 animate-pulse duration-150 cursor-wait">Uploading...</div>
                         <div id="upload" style="display: flex" class="btn group hover:text-indigo-500 gap-2 w-full justify-start relative">
                             <div class="group-hover:bg-indigo-500 group-hover:text-white rounded-full">
@@ -138,7 +138,7 @@
                                 </svg>
                             </div>
                             <span id="post-attachment-fname">Click or drag file here</span>
-                            <input id="post-attachment" onchange="validate(this)" class="opacity-0 absolute file:top-0 left-0 file:w-full text-xs file:py-2 file:cursor-pointer" type='file' name='file'>
+                            <input id="post-attachment" onchange="validate(this)" class="opacity-0 absolute file:top-0 left-0 file:w-full text-sm file:py-2 file:cursor-pointer" type='file' name='file'>
                         </div>
                         <div>
                             <progress style="display: none" id='progress' value='0' max='100' class="h-1 w-full rounded"></progress>

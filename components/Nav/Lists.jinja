@@ -49,17 +49,17 @@
     >
         <div class="flex flex-col gap-3 mt-4">
             <div class="space-y-1">
-                <div class="text-xs flex flex-row items-center">
+                <div class="text-sm flex flex-row items-center">
                     <span>Color</span>
                 </div>
                 <input tabindex="1" type="color"
                     class="bg-transparent border-0 rounded outline-none" name="color"
                     value="#ff0000" />
-                <div class="text-xs flex flex-row items-center justify-end">
+                <div class="text-sm flex flex-row items-center justify-end">
                 </div>
             </div>
             <div class="space-y-1">
-                <div class="text-xs flex flex-row items-center">
+                <div class="text-sm flex flex-row items-center">
                     <span>List name</span>
                 </div>
                 <input
@@ -68,11 +68,11 @@
                     placeholder="#trip-to-paris"
                     autofocus
                     required>
-                <div class="text-xs flex flex-row items-center justify-end">
+                <div class="text-sm flex flex-row items-center justify-end">
                 </div>
             </div>
             <div class="space-y-1">
-                <div class="text-xs flex flex-row items-center">
+                <div class="text-sm flex flex-row items-center">
                     <span>Description</span>
                 </div>
                 <textarea
@@ -82,7 +82,7 @@
                     @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                     @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                 ></textarea>
-                <div class="text-xs flex flex-row items-center justify-end">
+                <div class="text-sm flex flex-row items-center justify-end">
                 </div>
             </div>
         </div>
