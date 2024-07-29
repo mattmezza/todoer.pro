@@ -1,6 +1,6 @@
 {#def task, view_complete #}
 <Menu.Ctx>
-    {% set btn_cls = "flex gap-2 w-full first-of-type:rounded-t-md last-of-type:rounded-b-md px-4 py-2.5 text-left text-xs items-center hover:bg-gray-50 dark:hover:bg-gray-800 disabled:text-gray-500" %}
+    {% set btn_cls = "flex gap-2 w-full first-of-type:rounded-t-md last-of-type:rounded-b-md px-4 py-2.5 text-left items-center hover:bg-gray-50 dark:hover:bg-gray-800 disabled:text-gray-500" %}
     <button
         tabindex="0"
         class="{{ btn_cls }}"
@@ -43,7 +43,7 @@
 {#
     <button
         tabindex="0"
-        class="text-red-600 flex gap-2 w-full first-of-type:rounded-t-md last-of-type:rounded-b-md px-4 py-2.5 text-left text-xs items-center hover:bg-gray-50 dark:hover:bg-gray-800 disabled:text-gray-500 hover:text-red-500 gap-1 group active:scale-95"
+        class="text-red-600 flex gap-2 w-full first-of-type:rounded-t-md last-of-type:rounded-b-md px-4 py-2.5 text-left text-xs items-center hover:bg-gray-50 dark:hover:bg-gray-800 disabled:text-gray-500 hover:text-red-500 group active:scale-95"
         hx-delete="/task/{{ task.sid }}"
         hx-confirm="Are you sure? You will lose all of this task's subtasks."
         title="Delete task">
