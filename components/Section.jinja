@@ -21,7 +21,7 @@
             </button>
             <div class="flex items-end gap-1">
                 <h2 class="font-semibold font-mono">${{ section.title }}</h2>
-                <span class="text-zinc-400 dark:text-slate-700">{{ tasks|rejectattr("complete")|list|length  }}</span>
+                <span class="text-zinc-400 dark:text-slate-700 font-mono">{{ tasks|rejectattr("complete")|list|length  }}</span>
             </div>
         </div>
         <div class="mr-5">
@@ -85,12 +85,12 @@
     </form>
     {% if view_complete %}
     <div class="section-complete mb-8 space-y-2">
-        <span class="font-bold uppercase text-xs ml-2">Complete</span>
+        <span class="font-bold uppercase text-sm ml-2">Complete</span>
         <ul class="list-none space-y-3 mb-8">
             {% for task in tasks|selectattr("complete") if tasks|selectattr("complete")|list|length %}
                 <Tasks.TaskItem task={task} />
             {% else %}
-                <span class="text-xs text-slate-700 dark:text-slate-300 italic ml-2">(no completed tasks)</span>
+                <span class="text-sm text-slate-700 dark:text-slate-600 ml-2">(no completed tasks)</span>
             {% endfor %}
         </ul>
     </div>
