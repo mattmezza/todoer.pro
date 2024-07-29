@@ -3,6 +3,6 @@
     <img class="w-6 h-6 rounded-full" src="https://www.gravatar.com/avatar/{{ comment.author_email_hash }}.jpg?s=100" width="32" height="32" alt="User">
     <div class="border-l-4 dark:border-slate-400 px-2 flex-grow whitespace-pre-line">{{ comment.content }}</div>
 </div>
-<div class="text-xs italic dark:text-slate-600 text-right" title="{{ comment.created }}">
+<div class="text-sm italic dark:text-slate-600 text-right" title="{{ comment.created }}">
     {{ comment.created|age }}
 </div>

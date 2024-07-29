@@ -16,12 +16,12 @@
                     <input hx-put="/subtask/{{ subtask.sid }}" hx-target="closest li" hx-swap="outerHTML" hx-trigger="click consume" name="complete" hx-push-url="false" type="checkbox" {% if subtask.complete %}checked{% endif %} class="form-checkbox w-5 h-5 rounded-full peer cursor-pointer">
                     <input name="title" type="hidden" value="{{ subtask.title }}" />
                     {% if subtask.descr %}<input name="descr" type="hidden" value="{{ subtask.descr }}" />{% endif %}
-                    <span class="font-semibold text-slate-800 dark:text-slate-100 peer-checked:line-through ml-3 text-sm">{{ subtask.title }}</span>
+                    <span class="font-semibold text-slate-800 dark:text-slate-100 peer-checked:line-through ml-3">{{ subtask.title }}</span>
                 </div>
             </div>
             {% if subtask.descr %}
             <div class="ml-8">
-                <p class="font-medium text-slate-500 dark:text-slate-400 peer-checked:line-through text-xs">
+                <p class="font-medium text-slate-500 dark:text-slate-400 peer-checked:line-through">
                     {{ subtask.descr }}
                 </p>
             </div>

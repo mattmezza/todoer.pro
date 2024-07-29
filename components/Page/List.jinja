@@ -1,7 +1,7 @@
 {# def user, spaces, space, lists, list, sections, view_complete, tasks_by_section #}
 <Layout.App spaces={spaces} space={space} user={user} title={list.title} lists={lists}>
 <div class="py-4 md:py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
-    <a href="/space/{{ space.sid }}" class="flex items-center gap-1 text-sm cursor-pointer mb-2 hover:text-white">
+    <a href="/space/{{ space.sid }}" class="flex items-center gap-1 cursor-pointer mb-2 hover:text-white">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 15.75L3 12m0 0l3.75-3.75M3 12h18" />
         </svg>
@@ -17,7 +17,7 @@
             <form class="space-y-8 mx-auto" hx-put="/list/{{ list.sid }}/space">
                 <div class="">
                     <h1 class="font-bold text-2xl">Move list <span class="font-mono">#{{ list.title }}</span> to a different space</h1>
-                    <h2 class="text-xs">Choose to which space you want to move <span class="font-mono">#{{ list.title }}</span></h2>
+                    <h2 class="text-sm">Choose to which space you want to move <span class="font-mono">#{{ list.title }}</span></h2>
                 </div>
                 <main>
                     <select name="space" class="rounded dark:bg-black dark:text-white cursor-pointer border-0 ring-0 w-full text-center font-mono px-4 py-2">

@@ -3,7 +3,7 @@
     <form class="space-y-8 mx-auto" hx-put="/task/{{ task.sid }}/section">
         <div class="">
             <h1 class="font-bold text-2xl">Move this task to a different section</h1>
-            <h2 class="text-xs">Choose to which section you want to move <span class="underlined">{{ task.title }}</span></h2>
+            <h2 class="text-sm">Choose to which section you want to move <span class="underlined">{{ task.title }}</span></h2>
         </div>
         <main>
             <select name="section" class="rounded dark:bg-black dark:text-white cursor-pointer border-0 ring-0 w-full text-center font-mono px-4 py-2">
