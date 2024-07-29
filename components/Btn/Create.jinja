@@ -1,7 +1,7 @@
-{# def with_text_reveal=True #}
+{# def with_text_reveal=True, focus_tag="input" #}
 {% do attrs.set(class=".btn-create flex flex-row space-x-1 items-center justify-center text-zinc-600 rounded px-3 py-3 group cursor-pointer") %}
 <div
-    _="on click hide me then show the next <form /> then focus() the next <input />"
+    _="on click hide me then show the next <form /> then focus() the next <{{- focus_tag -}} />"
     {{ attrs.render() }}
 >
     <button tabindex="0" class="btn text-slate-700 dark:text-slate-400 group-hover:text-indigo-500 gap-1">
