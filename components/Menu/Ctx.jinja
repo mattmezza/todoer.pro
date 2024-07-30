@@ -33,7 +33,7 @@
             :aria-controls="$id('dropdown-button')"
             type="button"
             tabindex="0"
-            class="flex items-center p-2 hover:bg-gray-400/20 rounded-full"
+            class="flex items-center p-2 hover:bg-gray-400/20 rounded-full z-10"
         >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
@@ -46,7 +46,7 @@
             x-show="open"
             :id="$id('dropdown-button')"
             style="display: none;"
-            class="absolute right-0 mt-2 w-48 rounded-md bg-white dark:bg-gray-950 shadow-md text-sm font-semibold"
+            class="absolute right-0 mt-2 w-48 rounded-md bg-white dark:bg-gray-950 shadow-md text-sm font-semibold z-50"
         >
             {{ content }}
         </div>

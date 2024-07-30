@@ -145,6 +145,69 @@ async def update_list(
     _ = http.Opt(
         await db.for_user(user).sections().update_list_by_sid(list, sid)
     ).or_404(f"Section #{sid} not found.")
-    res = HTMLResponse("")
     res.headers["HX-Trigger"] = f"section-update, section-{sid}-update"
     return res
+
+
+@router.patch("/section/{sid}/move-up")
+@tpl.htmx("Section")
+async def move_up(
+    req: Request,
+    res: HTMLResponse,
+    sid: str,
+    view_complete: bool = False,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    repo = db.for_user(user)
+    section = http.Opt(
+        await repo.sections().move_up(sid)
+    ).or_404(f"Section #{sid} not found.")
+    tarepo = repo.tasks()
+    tasks = await tarepo.by_section(section["uuid"])
+    list_ = await repo.lists().by_uuid(section["list"])
+    space = await repo.spaces().by_uuid(list_["space"])
+    lists = await repo.lists().all_by_space(space["uuid"])
+    return (
+        {
+            "section": section,
+            "tasks": tasks,
+            "lists": lists,
+            "view_complete": view_complete,
+            "user": user,
+        },
+        200,
+        {"HX-Trigger": f"list-update, list-{list_['sid']}-update"},
+    )
+
+
+@router.patch("/section/{sid}/move-down")
+@tpl.htmx("Section")
+async def move_down(
+    req: Request,
+    res: HTMLResponse,
+    sid: str,
+    view_complete: bool = False,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    repo = db.for_user(user)
+    section = http.Opt(
+        await repo.sections().move_down(sid)
+    ).or_404(f"Section #{sid} not found.")
+    tarepo = repo.tasks()
+    tasks = await tarepo.by_section(section["uuid"])
+    list_ = await repo.lists().by_uuid(section["list"])
+    space = await repo.spaces().by_uuid(list_["space"])
+    lists = await repo.lists().all_by_space(space["uuid"])
+    return (
+        {
+            "section": section,
+            "tasks": tasks,
+            "lists": lists,
+            "view_complete": view_complete,
+            "user": user,
+        },
+        200,
+        {"HX-Trigger": f"list-update, list-{list_['sid']}-update"},
+    )

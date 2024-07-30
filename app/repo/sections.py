@@ -39,7 +39,7 @@ class SectionForUser(LoggedInUserRepo):
             JOIN spaces s ON s.uuid = l.space
             WHERE s.creator = :creator
                 AND se.list = :list_uuid
-            ORDER BY se.created ASC
+            ORDER BY se.`order` ASC, se.created ASC
             LIMIT :limit
             """,
             {
@@ -137,9 +137,7 @@ class SectionForUser(LoggedInUserRepo):
         )
         return section._mapping if section else None
 
-    async def update_list_by_sid(
-        self, list: UUID, sid: str
-    ) -> Mapping | None:
+    async def update_list_by_sid(self, list: UUID, sid: str) -> Mapping | None:
         section = await self.db.fetch_one(
             """
             UPDATE sections
@@ -151,3 +149,185 @@ class SectionForUser(LoggedInUserRepo):
             {"sid": sid, "list": str(list), "creator": self.user["uuid"]},
         )
         return section._mapping if section is not None else None
+
+    async def move_up(self, sid: str) -> None:
+        section = await self.db.fetch_one(
+            """
+            SELECT * FROM sections
+            WHERE sid = :sid
+            AND creator = :creator
+            """,
+            {"sid": sid, "creator": self.user["uuid"]},
+        )
+        section_before = await self.db.fetch_one(
+            """
+            SELECT * FROM sections
+            WHERE `order` < :order
+            AND list = :list
+            AND creator = :creator
+            ORDER BY `order` DESC
+            LIMIT 1
+            """,
+            {
+                "order": section["order"],
+                "list": section["list"],
+                "creator": self.user["uuid"],
+            },
+        )
+        if section_before is None:
+            return section._mapping if section is not None else None
+        order_before = section_before["order"]
+        section_before = await self.db.fetch_one(
+            """
+            UPDATE sections
+                SET `order` = :order,
+                updated = CURRENT_TIMESTAMP
+            WHERE sid = :sid
+            RETURNING *
+            """,
+            {
+                "sid": section_before["sid"],
+                "order": section["order"],
+            },
+        )
+        section = await self.db.fetch_one(
+            """
+            UPDATE sections
+                SET `order` = :order,
+                updated = CURRENT_TIMESTAMP
+            WHERE sid = :sid
+            RETURNING *
+            """,
+            {
+                "sid": sid,
+                "order": order_before,
+            },
+        )
+        return section._mapping if section is not None else None
+
+    async def move_down(self, sid: str) -> None:
+        section = await self.db.fetch_one(
+            """
+            SELECT * FROM sections
+            WHERE sid = :sid
+            AND creator = :creator
+            """,
+            {"sid": sid, "creator": self.user["uuid"]},
+        )
+        section_after = await self.db.fetch_one(
+            """
+            SELECT * FROM sections
+            WHERE `order` > :order
+            AND list = :list
+            AND creator = :creator
+            ORDER BY `order` ASC
+            LIMIT 1
+            """,
+            {
+                "order": section["order"],
+                "list": section["list"],
+                "creator": self.user["uuid"],
+            },
+        )
+        if section_after is None:
+            return section._mapping if section is not None else None
+        order_after = section_after["order"]
+        section_after = await self.db.fetch_one(
+            """
+            UPDATE sections
+                SET `order` = :order,
+                updated = CURRENT_TIMESTAMP
+            WHERE sid = :sid
+            RETURNING *
+            """,
+            {
+                "sid": section_after["sid"],
+                "order": section["order"],
+            },
+        )
+        section = await self.db.fetch_one(
+            """
+            UPDATE sections
+                SET `order` = :order,
+                updated = CURRENT_TIMESTAMP
+            WHERE sid = :sid
+            RETURNING *
+            """,
+            {
+                "sid": sid,
+                "order": order_after,
+            },
+        )
+        return section._mapping if section is not None else None
+
+    async def move_top(self, sid: str) -> None:
+        async with self.db.transaction():
+            section = await self.db.fetch_one(
+                """
+                SELECT * FROM sections
+                WHERE sid = :sid
+                AND creator = :creator
+                """,
+                {"sid": sid, "creator": self.user["uuid"]},
+            )
+            await self.db.execute(
+                """
+                UPDATE sections
+                    SET `order` = (
+                        SELECT MIN(`order`) FROM sections
+                        WHERE list = :list
+                        AND creator = :creator
+                    )
+                    WHERE sid = :sid
+                    AND list = :list
+                    AND creator = :creator
+                """,
+                {
+                    "sid": sid,
+                    "list": section["list"],
+                    "creator": self.user["uuid"],
+                },
+            )
+            await self.db.execute(
+                """
+                UPDATE sections
+                    SET `order` = `order` + 1
+                    WHERE sid != :sid
+                    AND list = :list
+                    AND creator = :creator
+                """,
+                {
+                    "sid": sid,
+                    "list": section["list"],
+                    "creator": self.user["uuid"],
+                },
+            )
+
+    async def move_bottom(self, sid: str) -> None:
+        async with self.db.transaction():
+            section = await self.db.fetch_one(
+                """
+                SELECT * FROM sections
+                WHERE sid = :sid
+                AND creator = :creator
+                """,
+                {"sid": sid, "creator": self.user["uuid"]},
+            )
+            await self.db.execute(
+                """
+                UPDATE sections
+                    SET `order` = (
+                        SELECT MAX(``) FROM sections
+                            WHERE list = :list
+                            AND creator = :creator
+                        ) + 1
+                    WHERE sid = :sid
+                    AND list = :list
+                    AND creator = :creator
+                """,
+                {
+                    "sid": sid,
+                    "list": section["list"],
+                    "creator": self.user["uuid"],
+                },
+            )
