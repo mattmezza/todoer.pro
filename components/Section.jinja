@@ -21,7 +21,10 @@
             </button>
             <div class="flex items-end gap-1">
                 <h2 class="font-semibold font-mono">${{ section.title }}</h2>
-                <span class="text-zinc-400 dark:text-slate-700 font-mono">{{ tasks|selectattr("complete")|list|length  }}/{{ tasks|length  }}</span>
+                {% set complete = tasks|selectattr("complete")|list|length %}
+                {% set total = tasks|length %}
+                {% set completion = complete / total * 100 if total else 0 %}
+                <span class="text-zinc-400 dark:text-slate-700 font-mono">{{ completion|round|int  }}%</span>
             </div>
         </div>
         <div class="mr-5">
