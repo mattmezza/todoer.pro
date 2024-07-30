@@ -49,7 +49,9 @@ class SectionForUser(LoggedInUserRepo):
         )
         return [ss._mapping for ss in sections]
 
-    async def update_title_by_sid(self, title: str, sid: str) -> str | None:
+    async def update_title_by_sid(
+        self, title: str, sid: str
+    ) -> Mapping | None:
         section = await self.db.fetch_one(
             """
             UPDATE sections
@@ -61,11 +63,11 @@ class SectionForUser(LoggedInUserRepo):
                         JOIN spaces sp ON sp.uuid = l.space
                         WHERE sp.creator = :creator
                     )
-            RETURNING title
+            RETURNING *
             """,
             {"sid": sid, "title": title, "creator": self.user["uuid"]},
         )
-        return section.descr if section is not None else None
+        return None if section is None else section._mapping
 
     async def del_by_sid(self, sid: str) -> None:
         await self.db.execute(

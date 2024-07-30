@@ -98,6 +98,7 @@ async def update(
         )
     ).or_404(f"Task #{sid} not found.")
     hx_trigger = f"task-update, task-{sid}-update"
+    hx_trigger += f", section-{task['section']}-update"
     if task.complete == 1:
         hx_trigger += f", task-complete task-{sid}-complete"
     else:
