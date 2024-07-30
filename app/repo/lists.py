@@ -158,7 +158,7 @@ class ListForUser(LoggedInUserRepo):
 
     async def update_space_by_sid(
         self, space: UUID, sid: str
-    ) -> str | None:
+    ) -> Mapping | None:
         li = await self.db.fetch_one(
             """
             UPDATE lists

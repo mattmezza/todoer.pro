@@ -58,6 +58,7 @@
             section={section_def}
             view_complete={view_complete}
             tasks={tasks_by_section[section_def.uuid]}
+            lists={lists}
         />
     </ul>
     <!-- sections -->
@@ -67,6 +68,7 @@
             section={section}
             view_complete={view_complete}
             tasks={tasks_by_section[section.uuid]}
+            lists={lists}
         />
     {% endfor %}
     </ul>

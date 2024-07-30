@@ -1,4 +1,5 @@
 from typing import Annotated, Mapping
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
@@ -38,9 +39,13 @@ async def view(
     )
     tarepo = repo.tasks()
     tasks = await tarepo.by_section(section["uuid"])
+    list_ = await repo.lists().by_uuid(section["list"])
+    space = await repo.spaces().by_uuid(list_["space"])
+    lists = await repo.lists().all_by_space(space["uuid"])
     return {
         "section": section,
         "tasks": tasks,
+        "lists": lists,
         "view_complete": view_complete,
         "user": user,
     }
@@ -60,9 +65,13 @@ async def read_title(
         await urepo.sections().by_sid(sid)
     ).or_404(f"Section #{sid} not found.")
     tasks = await urepo.tasks().by_section(section["uuid"])
+    list_ = await urepo.lists().by_uuid(section["list"])
+    space = await urepo.spaces().by_uuid(list_["space"])
+    lists = await urepo.lists().all_by_space(space["uuid"])
     return {
         "section": section,
         "tasks": tasks,
+        "lists": lists,
         "view_complete": view_complete,
     }
 
@@ -82,10 +91,14 @@ async def update_title(
         await urepo.sections().update_title_by_sid(title.strip(), sid)
     ).or_404(f"Section #{sid} not found.")
     tasks = await urepo.tasks().by_section(section["uuid"])
+    list_ = await urepo.lists().by_uuid(section["list"])
+    space = await urepo.spaces().by_uuid(list_["space"])
+    lists = await urepo.lists().all_by_space(space["uuid"])
     return (
         {
             "section": section,
             "tasks": tasks,
+            "lists": lists,
             "view_complete": view_complete,
         },
         200,
@@ -102,14 +115,36 @@ async def add(
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
+    urepo = db.for_user(user)
     section = http.Opt(
-        await db.for_user(user).sections().insert(title, list_id)
+        await urepo.sections().insert(title, list_id)
     ).or_400()
+    list_ = await urepo.lists().by_uuid(section["list"])
+    space = await urepo.spaces().by_uuid(list_["space"])
+    lists = await urepo.lists().all_by_space(space["uuid"])
     return {
         "section": section,
         "user": user,
+        "lists": lists,
         "tasks": [],
         "tasks_incomplete": [],
         "tasks_complete": [],
         "view_complete": False,
     }, 201, {"HX-Trigger":  "section-create"}
+
+
+@router.put("/section/{sid}/list")
+async def update_list(
+    req: Request,
+    res: HTMLResponse,
+    sid: str,
+    list: Annotated[UUID, Form()],
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    _ = http.Opt(
+        await db.for_user(user).sections().update_list_by_sid(list, sid)
+    ).or_404(f"Section #{sid} not found.")
+    res = HTMLResponse("")
+    res.headers["HX-Trigger"] = f"section-update, section-{sid}-update"
+    return res
