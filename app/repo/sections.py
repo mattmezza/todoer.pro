@@ -1,4 +1,5 @@
 from typing import Mapping
+from uuid import UUID
 
 from .utils import LoggedInUserRepo, new_ids
 
@@ -135,3 +136,18 @@ class SectionForUser(LoggedInUserRepo):
             },
         )
         return section._mapping if section else None
+
+    async def update_list_by_sid(
+        self, list: UUID, sid: str
+    ) -> Mapping | None:
+        section = await self.db.fetch_one(
+            """
+            UPDATE sections
+                SET list = :list, updated = CURRENT_TIMESTAMP
+                WHERE sid = :sid
+                AND creator = :creator
+            RETURNING *
+            """,
+            {"sid": sid, "list": str(list), "creator": self.user["uuid"]},
+        )
+        return section._mapping if section is not None else None

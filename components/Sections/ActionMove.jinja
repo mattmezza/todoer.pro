@@ -1,0 +1,37 @@
+{# def section, lists #}
+<Dialog.Closable id={"dialog-section-" + section.sid + "-move"} class="md:w-1/3 dialog-section-move">
+    <form class="space-y-8 mx-auto" hx-put="/section/{{ section.sid }}/list" hx-target="closest .section" hx-swap="outerHTML">
+        <div class="">
+            <h1 class="font-bold text-2xl">Move this section to a different list</h1>
+            <h2 class="text-sm">Choose to which list you want to move <span class="underlined">{{ section.title }}</span></h2>
+        </div>
+        <main>
+            <select name="list" class="rounded dark:bg-black dark:text-white cursor-pointer border-0 ring-0 w-full text-center font-mono px-4 py-2">
+                {% for li in lists|rejectattr("uuid", "==", section.list) %}
+                <option class="cursor-pointer" value="{{ li.uuid }}">
+                    #{{ li.title }}
+                </option>
+                {% else %}
+                    <p class="text-slate-300 dark:text-slate-700">You only have one list in this space.</p>
+                {% endfor %}
+            </select>
+        </main>
+        <footer class="flex justify-center items-center gap-4">
+            <button
+                type="reset"
+                onclick="document.getElementById('dialog-section-{{section.sid}}-move').close()"
+                class="px-12 py-2 rounded text-white font-bold uppercase hover:bg-slate-700 transitions-all active:pulse-95"
+                >
+                Cancel
+            </button>
+            {% if lists|rejectattr("uuid", "==", section.list)|list|length %}
+            <button
+                type="submit"
+                class="px-12 py-2 rounded bg-indigo-600 text-white font-bold uppercase hover:bg-indigo-700 transitions-all active:pulse-95"
+                >
+                Move
+            </button>
+            {% endif %}
+        </footer>
+    </form>
+</Dialog.Closable>

@@ -1,4 +1,4 @@
-{# def section, tasks, view_complete #}
+{# def section, tasks, lists, view_complete #}
 <div class="section-{{section.sid}}-head flex items-center justify-between border-b border-slate-200/20 dark:border-slate-400/20 group mb-3 pl-2 py-1"
     hx-trigger="section-{{ section.uuid }}-update from:body"
     hx-get="/section/{{ section.sid}}/title"
@@ -50,5 +50,6 @@
         </div>
         <div class="mx-2">
             <Sections.Actions section={section} view_complete={view_complete} />
+            <Sections.ActionMove section={section} lists={lists} />
         </div>
     </div>
