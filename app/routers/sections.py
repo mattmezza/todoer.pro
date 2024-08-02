@@ -34,9 +34,16 @@ async def view(
 ):
     repo = db.for_user(user)
     serepo = repo.sections()
-    section = http.Opt(await serepo.by_sid(sid)).or_404(
+    section = dict(http.Opt(await serepo.by_sid(sid)).or_404(
         f"Section #{sid} not found."
-    )
+    ))
+    sections = await serepo.all_by_list(section["list"])
+    if len(sections) <= 2:
+        section["is_first"] = True
+        section["is_last"] = True
+    else:
+        section["is_first"] = sections[1]["sid"] == sid
+        section["is_last"] = sections[-1]["sid"] == sid
     tarepo = repo.tasks()
     tasks = await tarepo.by_section(section["uuid"])
     list_ = await repo.lists().by_uuid(section["list"])
@@ -61,9 +68,17 @@ async def read_title(
     db: RepoDB = Depends(repo_db),
 ):
     urepo = db.for_user(user)
-    section = http.Opt(
-        await urepo.sections().by_sid(sid)
-    ).or_404(f"Section #{sid} not found.")
+    serepo = urepo.sections()
+    section = dict(http.Opt(
+        await serepo.by_sid(sid)
+    ).or_404(f"Section #{sid} not found."))
+    sections = await serepo.all_by_list(section["list"])
+    if len(sections) <= 2:
+        section["is_first"] = True
+        section["is_last"] = True
+    else:
+        section["is_first"] = sections[1]["sid"] == sid
+        section["is_last"] = sections[-1]["sid"] == sid
     tasks = await urepo.tasks().by_section(section["uuid"])
     list_ = await urepo.lists().by_uuid(section["list"])
     space = await urepo.spaces().by_uuid(list_["space"])
@@ -87,9 +102,17 @@ async def update_title(
     db: RepoDB = Depends(repo_db),
 ):
     urepo = db.for_user(user)
-    section = http.Opt(
-        await urepo.sections().update_title_by_sid(title.strip(), sid)
-    ).or_404(f"Section #{sid} not found.")
+    serepo = urepo.sections()
+    section = dict(http.Opt(
+        await serepo.update_title_by_sid(title.strip(), sid)
+    ).or_404(f"Section #{sid} not found."))
+    sections = await serepo.all_by_list(section["list"])
+    if len(sections) <= 2:
+        section["is_first"] = True
+        section["is_last"] = True
+    else:
+        section["is_first"] = sections[1]["sid"] == sid
+        section["is_last"] = sections[-1]["sid"] == sid
     tasks = await urepo.tasks().by_section(section["uuid"])
     list_ = await urepo.lists().by_uuid(section["list"])
     space = await urepo.spaces().by_uuid(list_["space"])
@@ -116,9 +139,12 @@ async def add(
     db: RepoDB = Depends(repo_db),
 ):
     urepo = db.for_user(user)
-    section = http.Opt(
-        await urepo.sections().insert(title, list_id)
-    ).or_400()
+    serepo = urepo.sections()
+    section = dict(http.Opt(
+        await serepo.insert(title, list_id)
+    ).or_400())
+    section["is_first"] = section["order"] == 1
+    section["is_last"] = True
     list_ = await urepo.lists().by_uuid(section["list"])
     space = await urepo.spaces().by_uuid(list_["space"])
     lists = await urepo.lists().all_by_space(space["uuid"])
@@ -130,7 +156,7 @@ async def add(
         "tasks_incomplete": [],
         "tasks_complete": [],
         "view_complete": False,
-    }, 201, {"HX-Trigger":  "section-create"}
+    }, 201, {"HX-Trigger":  f"section-create, list-update, list-{list_id}-update"}
 
 
 @router.put("/section/{sid}/list")
@@ -160,9 +186,17 @@ async def move_up(
     db: RepoDB = Depends(repo_db),
 ):
     repo = db.for_user(user)
-    section = http.Opt(
-        await repo.sections().move_up(sid)
-    ).or_404(f"Section #{sid} not found.")
+    serepo = repo.sections()
+    section = dict(http.Opt(
+        await serepo.move_up(sid)
+    ).or_404(f"Section #{sid} not found."))
+    sections = await serepo.all_by_list(section["list"])
+    if len(sections) <= 2:
+        section["is_first"] = True
+        section["is_last"] = True
+    else:
+        section["is_first"] = sections[1]["sid"] == sid
+        section["is_last"] = sections[-1]["sid"] == sid
     tarepo = repo.tasks()
     tasks = await tarepo.by_section(section["uuid"])
     list_ = await repo.lists().by_uuid(section["list"])
@@ -192,9 +226,93 @@ async def move_down(
     db: RepoDB = Depends(repo_db),
 ):
     repo = db.for_user(user)
-    section = http.Opt(
-        await repo.sections().move_down(sid)
-    ).or_404(f"Section #{sid} not found.")
+    serepo = repo.sections()
+    section = dict(http.Opt(
+        await serepo.move_down(sid)
+    ).or_404(f"Section #{sid} not found."))
+    sections = await serepo.all_by_list(section["list"])
+    if len(sections) <= 2:
+        section["is_first"] = True
+        section["is_last"] = True
+    else:
+        section["is_first"] = sections[1]["sid"] == sid
+        section["is_last"] = sections[-1]["sid"] == sid
+    tarepo = repo.tasks()
+    tasks = await tarepo.by_section(section["uuid"])
+    list_ = await repo.lists().by_uuid(section["list"])
+    space = await repo.spaces().by_uuid(list_["space"])
+    lists = await repo.lists().all_by_space(space["uuid"])
+    return (
+        {
+            "section": section,
+            "tasks": tasks,
+            "lists": lists,
+            "view_complete": view_complete,
+            "user": user,
+        },
+        200,
+        {"HX-Trigger": f"list-update, list-{list_['sid']}-update"},
+    )
+
+
+@router.patch("/section/{sid}/move-top")
+@tpl.htmx("Section")
+async def move_top(
+    req: Request,
+    res: HTMLResponse,
+    sid: str,
+    view_complete: bool = False,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    repo = db.for_user(user)
+    serepo = repo.sections()
+    section = dict(http.Opt(
+        await serepo.move_top(sid)
+    ).or_404(f"Section #{sid} not found."))
+    sections = await serepo.all_by_list(section["list"])
+    section["is_first"] = True
+    section["is_last"] = False
+    if len(sections) <= 2:
+        section["is_last"] = True
+    tarepo = repo.tasks()
+    tasks = await tarepo.by_section(section["uuid"])
+    list_ = await repo.lists().by_uuid(section["list"])
+    space = await repo.spaces().by_uuid(list_["space"])
+    lists = await repo.lists().all_by_space(space["uuid"])
+    return (
+        {
+            "section": section,
+            "tasks": tasks,
+            "lists": lists,
+            "view_complete": view_complete,
+            "user": user,
+        },
+        200,
+        {"HX-Trigger": f"list-update, list-{list_['sid']}-update"},
+    )
+
+
+@router.patch("/section/{sid}/move-bottom")
+@tpl.htmx("Section")
+async def move_bottom(
+    req: Request,
+    res: HTMLResponse,
+    sid: str,
+    view_complete: bool = False,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    repo = db.for_user(user)
+    serepo = repo.sections()
+    section = dict(http.Opt(
+        await serepo.move_bottom(sid)
+    ).or_404(f"Section #{sid} not found."))
+    sections = await serepo.all_by_list(section["list"])
+    section["is_first"] = False
+    section["is_last"] = True
+    if len(sections) <= 2:
+        section["is_first"] = True
     tarepo = repo.tasks()
     tasks = await tarepo.by_section(section["uuid"])
     list_ = await repo.lists().by_uuid(section["list"])

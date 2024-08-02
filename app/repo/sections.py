@@ -48,7 +48,11 @@ class SectionForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        return [ss._mapping for ss in sections]
+        res = [dict(ss._mapping) for ss in sections]
+        for i, ss in enumerate(res):
+            ss["is_first"] = i == 1 or ss["default"] is True
+            ss["is_last"] = i == len(res) - 1 or ss["default"] is True
+        return res
 
     async def update_title_by_sid(
         self, title: str, sid: str
@@ -71,19 +75,37 @@ class SectionForUser(LoggedInUserRepo):
         return None if section is None else section._mapping
 
     async def del_by_sid(self, sid: str) -> None:
-        await self.db.execute(
-            """
-            DELETE FROM sections
-            WHERE sid = :sid
-                AND EXISTS (
-                    SELECT s.sid FROM sections s
-                    JOIN lists l ON l.uuid = s.list
-                    JOIN spaces sp ON sp.uuid = l.space
-                    WHERE sp.creator = :creator
-                )
-            """,
-            {"sid": sid, "creator": self.user["uuid"]},
-        )
+        async with self.db.transaction():
+            section = await self.db.fetch_one(
+                """
+                DELETE FROM sections
+                WHERE sid = :sid
+                    AND EXISTS (
+                        SELECT s.sid FROM sections s
+                        JOIN lists l ON l.uuid = s.list
+                        JOIN spaces sp ON sp.uuid = l.space
+                        WHERE sp.creator = :creator
+                    )
+                RETURNING *
+                """,
+                {"sid": sid, "creator": self.user["uuid"]},
+            )
+            if section is None:
+                return
+            await self.db.execute(
+                """
+                UPDATE sections
+                SET `order` = `order` - 1
+                WHERE `order` > :order
+                AND list = :list
+                AND creator = :creator
+                """,
+                {
+                    "order": section["order"],
+                    "list": section["list"],
+                    "creator": self.user["uuid"],
+                },
+            )
 
     async def all_by_list(
         self, list_uuid: str, limit: int = 100
@@ -95,12 +117,16 @@ class SectionForUser(LoggedInUserRepo):
             JOIN spaces s ON s.uuid = l.space
             WHERE s.creator = :creator
                 AND l.uuid = :list
-            ORDER BY se.created ASC
+            ORDER BY se.`order` ASC, se.created ASC
             LIMIT :limit
             """,
             {"limit": limit, "creator": self.user["uuid"], "list": list_uuid},
         )
-        return [se._mapping for se in sections]
+        res = [dict(ss._mapping) for ss in sections]
+        for i, ss in enumerate(res):
+            ss["is_first"] = i == 1 or ss["default"] is True
+            ss["is_last"] = i == len(res) - 1 and ss["default"] is True
+        return res
 
     async def insert(
         self, title: str, list_id: str, default: bool = False
@@ -163,6 +189,7 @@ class SectionForUser(LoggedInUserRepo):
             """
             SELECT * FROM sections
             WHERE `order` < :order
+            AND `default` = 0
             AND list = :list
             AND creator = :creator
             ORDER BY `order` DESC
@@ -270,17 +297,14 @@ class SectionForUser(LoggedInUserRepo):
                 """,
                 {"sid": sid, "creator": self.user["uuid"]},
             )
-            await self.db.execute(
+            section = await self.db.fetch_one(
                 """
                 UPDATE sections
-                    SET `order` = (
-                        SELECT MIN(`order`) FROM sections
-                        WHERE list = :list
-                        AND creator = :creator
-                    )
+                    SET `order` = 1
                     WHERE sid = :sid
                     AND list = :list
                     AND creator = :creator
+                RETURNING *
                 """,
                 {
                     "sid": sid,
@@ -293,6 +317,8 @@ class SectionForUser(LoggedInUserRepo):
                 UPDATE sections
                     SET `order` = `order` + 1
                     WHERE sid != :sid
+                    AND `order` > 0
+                    AND `default` = 0
                     AND list = :list
                     AND creator = :creator
                 """,
@@ -302,6 +328,7 @@ class SectionForUser(LoggedInUserRepo):
                     "creator": self.user["uuid"],
                 },
             )
+            return section._mapping if section is not None else None
 
     async def move_bottom(self, sid: str) -> None:
         async with self.db.transaction():
@@ -313,17 +340,19 @@ class SectionForUser(LoggedInUserRepo):
                 """,
                 {"sid": sid, "creator": self.user["uuid"]},
             )
-            await self.db.execute(
+            order_old = section["order"]
+            section = await self.db.fetch_one(
                 """
                 UPDATE sections
                     SET `order` = (
-                        SELECT MAX(``) FROM sections
+                        SELECT MAX(`order`) FROM sections
                             WHERE list = :list
                             AND creator = :creator
-                        ) + 1
+                        )
                     WHERE sid = :sid
                     AND list = :list
                     AND creator = :creator
+                    RETURNING *
                 """,
                 {
                     "sid": sid,
@@ -331,3 +360,21 @@ class SectionForUser(LoggedInUserRepo):
                     "creator": self.user["uuid"],
                 },
             )
+            await self.db.execute(
+                """
+                UPDATE sections
+                    SET `order` = `order` - 1
+                    WHERE sid != :sid
+                    AND `order` > :order
+                    AND `default` = 0
+                    AND list = :list
+                    AND creator = :creator
+                """,
+                {
+                    "sid": sid,
+                    "list": section["list"],
+                    "creator": self.user["uuid"],
+                    "order": order_old,
+                },
+            )
+            return section._mapping if section is not None else None
