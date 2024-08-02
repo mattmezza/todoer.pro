@@ -30,10 +30,15 @@
     {% endif %}
 #}
     <hr class="border-slate-900">
+    {% if section.is_first == False %}
     <button
         tabindex="0"
         class="{{ btn_cls }}"
-        title="Move section to the top">
+        title="Move section to the top"
+        hx-swap="afterbegin"
+        hx-on:htmx:after-request="this.closest('.section').remove()"
+        hx-target="closest .sections"
+        hx-patch="/section/{{ section.sid }}/move-top">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 size-6">
           <path stroke-linecap="round" stroke-linejoin="round" d="m9 9 6-6m0 0 6 6m-6-6v12a6 6 0 0 1-12 0v-3" />
         </svg>
@@ -52,6 +57,8 @@
         </svg>
         <span>Move up</span>
     </button>
+    {% endif %}
+    {% if section.is_last == False %}
     <button
         tabindex="0"
         class="{{ btn_cls }}"
@@ -68,12 +75,17 @@
     <button
         tabindex="0"
         class="{{ btn_cls }}"
-        title="Move section to the bottom">
+        title="Move section to the bottom"
+        hx-swap="beforeend"
+        hx-on:htmx:after-request="this.closest('.section').remove()"
+        hx-target="closest .sections"
+        hx-patch="/section/{{ section.sid }}/move-bottom">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 size-6">
           <path stroke-linecap="round" stroke-linejoin="round" d="m15 15-6 6m0 0-6-6m6 6V9a6 6 0 0 1 12 0v3" />
         </svg>
         <span>Move to bottom</span>
     </button>
+    {% endif %}
     <hr class="border-slate-900">
 
     <Menu.CtxItem
