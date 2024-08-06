@@ -170,7 +170,6 @@ async def add(
 @router.put("/section/{sid}/list")
 async def update_list(
     req: Request,
-    res: HTMLResponse,
     sid: str,
     list: Annotated[UUID, Form()],
     user: Mapping = Depends(get_current_active_user),
@@ -179,8 +178,11 @@ async def update_list(
     _ = http.Opt(
         await db.for_user(user).sections().update_list_by_sid(list, sid)
     ).or_404(f"Section #{sid} not found.")
-    res.headers["HX-Trigger"] = f"section-update, section-{sid}-update"
-    return res
+    return HTMLResponse(
+        content="",
+        status_code=200,
+        headers={"HX-Trigger": f"section-update, section-{sid}-update"},
+    )
 
 
 @router.patch("/section/{sid}/move-up")
@@ -301,6 +303,7 @@ async def move_top(
             "section": section,
             "tasks": tasks,
             "lists": lists,
+            "list": list_,
             "view_complete": view_complete,
             "user": user,
         },

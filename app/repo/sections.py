@@ -164,17 +164,37 @@ class SectionForUser(LoggedInUserRepo):
         return section._mapping if section else None
 
     async def update_list_by_sid(self, list: UUID, sid: str) -> Mapping | None:
-        section = await self.db.fetch_one(
-            """
-            UPDATE sections
-                SET list = :list, updated = CURRENT_TIMESTAMP
-                WHERE sid = :sid
+        async with self.db.transaction():
+            section = await self.by_sid(sid)
+            if section is None:
+                return None
+            list_old = section["list"]
+            order_old = section["order"]
+            # move section to new list appending it to the end
+            section = await self.db.fetch_one(
+                """
+                UPDATE sections
+                    SET
+                        list = :list,
+                        updated = CURRENT_TIMESTAMP,
+                        `order` = COALESCE((SELECT MAX(`order`) + 1 FROM sections WHERE list = :list), 1)
+                    WHERE sid = :sid
+                    AND creator = :creator
+                RETURNING *
+                """,
+                {"sid": sid, "list": str(list), "creator": self.user["uuid"]},
+            )
+            await self.db.execute(
+                """
+                UPDATE sections
+                SET `order` = `order` - 1
+                WHERE list = :list
+                AND `order` > :order
                 AND creator = :creator
-            RETURNING *
-            """,
-            {"sid": sid, "list": str(list), "creator": self.user["uuid"]},
-        )
-        return section._mapping if section is not None else None
+                """,
+                {"list": list_old, "order": order_old, "creator": self.user["uuid"]},
+            )
+            return section._mapping if section is not None else None
 
     async def move_up(self, sid: str) -> None:
         section = await self.db.fetch_one(
