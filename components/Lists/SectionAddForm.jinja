@@ -1,7 +1,7 @@
 {# def list #}
 <form
     style="display: none"
-    hx-target="#sections"
+    hx-target="previous .sections"
     hx-swap="beforeend"
     hx-post="/sections"
     hx-on::after-request="this.reset()"
