@@ -1,4 +1,4 @@
-{# def section, tasks, lists, view_complete #}
+{# def section, tasks, lists, list, view_complete #}
 <div class="section-{{section.sid}}-head mb-3"
     hx-trigger="section-{{ section.uuid }}-update from:body, section-{{ section.sid }}-update from:body, list-update from:body"
     hx-get="/section/{{ section.sid}}/title"
@@ -55,7 +55,7 @@
         </div>
     </div>
     <div class="flex justify-center items-center gap-0">
-        <hr class="border-green-700" style="width: {{ completion|round|int }}%;">
+        <hr style="width: {{ completion|round|int }}%; border-color: {{ list.color }};">
         {% set remainder = 100 - completion %}
         <hr class="border-slate-200/20 dark:border-slate-400/20" style="width: {{ remainder|round|int }}%;">
     </div>
