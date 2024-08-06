@@ -1,13 +1,21 @@
 {# def user, spaces, space, lists, list, sections, view_complete, tasks_by_section #}
 <Layout.App spaces={spaces} space={space} user={user} title={list.title} lists={lists}>
 <div class="py-4 md:py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
+<!--
     <a href="/space/{{ space.sid }}" class="flex items-center gap-1 cursor-pointer mb-2 hover:text-white ml-2 md:ml-0">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 15.75L3 12m0 0l3.75-3.75M3 12h18" />
         </svg>
         <span class="font-mono">@{{ space.title }}</span>
     </a>
-
+-->
+    <div class="ml-2 md:ml-0">
+        <Breadcrumbs>
+            <Breadcrumb title="Go to space." href={"/space/" + space.sid}>
+                @{{ space.title }}
+            </Breadcrumb>
+        </Breadcrumbs>
+    </div>
     <div class="flex justify-between items-center gap-4 p-4">
         <Lists.Title list={list} />
         <Lists.Actions list={list} view_complete={view_complete} />
