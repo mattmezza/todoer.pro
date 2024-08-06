@@ -1,5 +1,6 @@
 {# def section, view_complete, tasks, lists, list #}
 <li
+    id="section-{{ section.sid }}"
     class="py-4 section {% if section.is_first %}first{% endif %} {% if section.is_last %}last{% endif %}"
     hx-trigger="section-update-{{ section.sid}} from:body, section-{{ section.sid }}-task-complete from:body, section-{{ section.sid }}-task-incomplete from:body"
     hx-get="/section/{{ section.sid }}"
