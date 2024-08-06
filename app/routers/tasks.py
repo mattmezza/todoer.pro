@@ -25,12 +25,16 @@ async def add_task(
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
-    task = (
-        await db.for_user(user)
-        .tasks()
-        .create(title.strip(), descr.strip() if descr else None, section)
+    urepo = db.for_user(user)
+    task = await urepo.tasks().create(
+        title.strip(), descr.strip() if descr else None, section
     )
-    return {"task": task}, 201, {"HX-Trigger": "task-create"}
+    section = await urepo.sections().by_uuid(section)
+    return (
+        {"task": task},
+        201,
+        {"HX-Trigger": f"task-create, section-{section.sid}-update"},
+    )
 
 
 @router.get("/task/{sid}")
