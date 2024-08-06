@@ -1,9 +1,10 @@
 {# def section, tasks, lists, view_complete #}
-<div class="section-{{section.sid}}-head flex items-center justify-between border-b border-slate-200/20 dark:border-slate-400/20 group mb-3 pl-2 py-1"
+<div class="section-{{section.sid}}-head mb-3"
     hx-trigger="section-{{ section.uuid }}-update from:body, section-{{ section.sid }}-update from:body, list-update from:body"
     hx-get="/section/{{ section.sid}}/title"
     hx-swap="outerHTML"
     hx-target="this">
+    <div class="flex items-center justify-between group pl-2 py-1">
         <div class="flex items-center gap-2 flex-grow">
             <!-- Caret button -->
             <button _="on click hide the next <ul /> then hide #btn-task-create-{{ section.sid }} then hide me then show the next <button />" class="p-1">
@@ -53,3 +54,9 @@
             <Sections.ActionMove section={section} lists={lists} />
         </div>
     </div>
+    <div class="flex justify-center items-center gap-0">
+        <hr class="border-green-700" style="width: {{ completion|round|int }}%;">
+        {% set remainder = 100 - completion %}
+        <hr class="border-slate-200/20 dark:border-slate-400/20" style="width: {{ remainder|round|int }}%;">
+    </div>
+</div>
