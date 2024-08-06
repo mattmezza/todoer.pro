@@ -34,9 +34,9 @@ async def view(
 ):
     repo = db.for_user(user)
     serepo = repo.sections()
-    section = dict(http.Opt(await serepo.by_sid(sid)).or_404(
-        f"Section #{sid} not found."
-    ))
+    section = dict(
+        http.Opt(await serepo.by_sid(sid)).or_404(f"Section #{sid} not found.")
+    )
     sections = await serepo.all_by_list(section["list"])
     if len(sections) <= 2:
         section["is_first"] = True
@@ -70,9 +70,9 @@ async def read_title(
 ):
     urepo = db.for_user(user)
     serepo = urepo.sections()
-    section = dict(http.Opt(
-        await serepo.by_sid(sid)
-    ).or_404(f"Section #{sid} not found."))
+    section = dict(
+        http.Opt(await serepo.by_sid(sid)).or_404(f"Section #{sid} not found.")
+    )
     sections = await serepo.all_by_list(section["list"])
     if len(sections) <= 2:
         section["is_first"] = True
@@ -105,9 +105,11 @@ async def update_title(
 ):
     urepo = db.for_user(user)
     serepo = urepo.sections()
-    section = dict(http.Opt(
-        await serepo.update_title_by_sid(title.strip(), sid)
-    ).or_404(f"Section #{sid} not found."))
+    section = dict(
+        http.Opt(await serepo.update_title_by_sid(title.strip(), sid)).or_404(
+            f"Section #{sid} not found."
+        )
+    )
     sections = await serepo.all_by_list(section["list"])
     if len(sections) <= 2:
         section["is_first"] = True
@@ -143,24 +145,26 @@ async def add(
 ):
     urepo = db.for_user(user)
     serepo = urepo.sections()
-    section = dict(http.Opt(
-        await serepo.insert(title, list_id)
-    ).or_400())
+    section = dict(http.Opt(await serepo.insert(title, list_id)).or_400())
     section["is_first"] = section["order"] == 1
     section["is_last"] = True
     list_ = await urepo.lists().by_uuid(section["list"])
     space = await urepo.spaces().by_uuid(list_["space"])
     lists = await urepo.lists().all_by_space(space["uuid"])
-    return {
-        "section": section,
-        "user": user,
-        "lists": lists,
-        "list": list_,
-        "tasks": [],
-        "tasks_incomplete": [],
-        "tasks_complete": [],
-        "view_complete": False,
-    }, 201, {"HX-Trigger":  f"section-create, list-update, list-{list_id}-update"}
+    return (
+        {
+            "section": section,
+            "user": user,
+            "lists": lists,
+            "list": list_,
+            "tasks": [],
+            "tasks_incomplete": [],
+            "tasks_complete": [],
+            "view_complete": False,
+        },
+        201,
+        {"HX-Trigger": f"section-create, list-update, list-{list_id}-update"},
+    )
 
 
 @router.put("/section/{sid}/list")
@@ -191,9 +195,11 @@ async def move_up(
 ):
     repo = db.for_user(user)
     serepo = repo.sections()
-    section = dict(http.Opt(
-        await serepo.move_up(sid)
-    ).or_404(f"Section #{sid} not found."))
+    section = dict(
+        http.Opt(await serepo.move_up(sid)).or_404(
+            f"Section #{sid} not found."
+        )
+    )
     sections = await serepo.all_by_list(section["list"])
     if len(sections) <= 2:
         section["is_first"] = True
@@ -232,9 +238,11 @@ async def move_down(
 ):
     repo = db.for_user(user)
     serepo = repo.sections()
-    section = dict(http.Opt(
-        await serepo.move_down(sid)
-    ).or_404(f"Section #{sid} not found."))
+    section = dict(
+        http.Opt(await serepo.move_down(sid)).or_404(
+            f"Section #{sid} not found."
+        )
+    )
     sections = await serepo.all_by_list(section["list"])
     if len(sections) <= 2:
         section["is_first"] = True
@@ -273,9 +281,11 @@ async def move_top(
 ):
     repo = db.for_user(user)
     serepo = repo.sections()
-    section = dict(http.Opt(
-        await serepo.move_top(sid)
-    ).or_404(f"Section #{sid} not found."))
+    section = dict(
+        http.Opt(await serepo.move_top(sid)).or_404(
+            f"Section #{sid} not found."
+        )
+    )
     sections = await serepo.all_by_list(section["list"])
     section["is_first"] = True
     section["is_last"] = False
@@ -311,9 +321,11 @@ async def move_bottom(
 ):
     repo = db.for_user(user)
     serepo = repo.sections()
-    section = dict(http.Opt(
-        await serepo.move_bottom(sid)
-    ).or_404(f"Section #{sid} not found."))
+    section = dict(
+        http.Opt(await serepo.move_bottom(sid)).or_404(
+            f"Section #{sid} not found."
+        )
+    )
     sections = await serepo.all_by_list(section["list"])
     section["is_first"] = False
     section["is_last"] = True
