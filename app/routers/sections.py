@@ -53,6 +53,7 @@ async def view(
         "section": section,
         "tasks": tasks,
         "lists": lists,
+        "list": list_,
         "view_complete": view_complete,
         "user": user,
     }
@@ -86,6 +87,7 @@ async def read_title(
     return {
         "section": section,
         "tasks": tasks,
+        "list": list_,
         "lists": lists,
         "view_complete": view_complete,
     }
@@ -121,6 +123,7 @@ async def update_title(
         {
             "section": section,
             "tasks": tasks,
+            "list": list_,
             "lists": lists,
             "view_complete": view_complete,
         },
@@ -152,6 +155,7 @@ async def add(
         "section": section,
         "user": user,
         "lists": lists,
+        "list": list_,
         "tasks": [],
         "tasks_incomplete": [],
         "tasks_complete": [],
@@ -207,6 +211,7 @@ async def move_up(
             "section": section,
             "tasks": tasks,
             "lists": lists,
+            "list": list_,
             "view_complete": view_complete,
             "user": user,
         },
@@ -247,6 +252,7 @@ async def move_down(
             "section": section,
             "tasks": tasks,
             "lists": lists,
+            "list": list_,
             "view_complete": view_complete,
             "user": user,
         },
@@ -323,6 +329,7 @@ async def move_bottom(
             "section": section,
             "tasks": tasks,
             "lists": lists,
+            "list": list_,
             "view_complete": view_complete,
             "user": user,
         },
