@@ -4,7 +4,7 @@ from typing import Mapping
 from app.repo import RepoDB
 
 
-DEFAULT_COLOR = "FF0000"
+DEFAULT_COLOR = "#FF0000"
 LIST_INBOX_COLOR = DEFAULT_COLOR
 LIST_INBOX_TITLE = "inbox"
 LIST_INBOX_DESCR = None
