@@ -14,9 +14,11 @@ module.exports = {
                 },
                 a: {
                     color: theme("colors.blue.400"),
-                    "text-decoration": "dotted",
+                    "text-decoration": "none",
                     "&:hover": {
                         color: theme("colors.blue.700"),
+                        "text-decoration": "underline",
+                        "text-decoration-style": "dotted",
                     },
                 },
                 "img.emojione": {
