@@ -94,6 +94,25 @@ def linkify_mentions(text: str) -> str:
     return Markup(text)
 
 
+def linkify(text: str) -> str:
+    return linkify_mentions(linkify_urls(text))
+
+
+mdown = markdown.Markdown(
+    safe_mode=True,
+    extensions=['pymdownx.magiclink', 'pymdownx.emoji', 'meta'],
+    extension_configs={
+        "pymdownx.magiclink": {
+            "hide_protocol": True,
+        },
+    },
+)
+
+
+def md(text: str) -> Markup:
+    return Markup(mdown.convert(text))
+
+
 @pass_context
 def url_for(ctx: dict, name: str, **path_params) -> str:
     req = ctx["req"]
@@ -120,19 +139,9 @@ hot_reload = arel.HotReload(
     ]
 )
 jinja2 = Jinja2Templates(directory="htm")
-
-md = markdown.Markdown(
-    safe_mode=True,
-    extensions=['pymdownx.magiclink', 'pymdownx.emoji', 'meta'],
-    extension_configs={
-        "pymdownx.magiclink": {
-            "hide_protocol": True,
-        },
-    },
-)
-jinja2.env.filters['markdown'] = lambda text: Markup(md.convert(text))
+jinja2.env.filters['markdown'] = md
 jinja2.env.filters['strip_markdown'] = strip_markdown.strip_markdown
-jinja2.env.filters['linkify'] = lambda text: linkify_mentions(linkify_urls(text))
+jinja2.env.filters['linkify'] = linkify
 jinja2.env.filters['linkify_urls'] = linkify_urls
 jinja2.env.filters['linkify_mentions'] = linkify_mentions
 jinja2.env.filters["age"] = filter_age
