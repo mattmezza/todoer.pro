@@ -125,7 +125,7 @@ async def update_descr(
         .update_descr_by_sid(descr.strip() if descr else None, sid)
     )
     res.headers["HX-Trigger"] = f"task-update, task-{sid}-update"
-    return descr
+    return tpl.linkify_mentions(tpl.md(descr))
 
 
 @router.put("/task/{sid}/section", response_class=PlainTextResponse)
