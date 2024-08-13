@@ -1,10 +1,14 @@
 import os
+import re
 from functools import wraps
 from datetime import datetime
 import time
 from typing import Type
 
 import arel
+import markdown
+import strip_markdown
+from markupsafe import Markup
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from jinja2 import pass_context
@@ -47,6 +51,49 @@ def filter_age(dateiso: str) -> str:
     return age(datetime.fromisoformat(dateiso))
 
 
+def linkify_urls(text: str) -> str:
+    # Linkify URLs
+    text = re.sub(
+        r'((https?:\/\/)(?:www\.)?([-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b)*(\/[\/\d\w\.-]*)*(?:[\?])*([^\s]+)*)',
+        "<a href='\\1'>\\3\\4\\5</a>",
+        text,
+        flags=re.MULTILINE,
+    )
+    return Markup(text)
+
+
+def linkify_mentions(text: str) -> str:
+    # Linkify email addresses
+    text = re.sub(
+        r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
+        "<a href='mailto:\\1'>\\1</a>",
+        text,
+        flags=re.MULTILINE,
+    )
+    # Linkify @spaces
+    text = re.sub(
+        r'(\s)@([a-z][a-z0-9-]*[a-z0-9])(\s)',
+        "\\1<a href='/space/\\2'>@\\2</a>\\3",
+        text,
+        flags=re.MULTILINE,
+    )
+    # Linkify #lists
+    text = re.sub(
+        r'(\s)#([a-z][a-z0-9-]*[a-z0-9])(\s)',
+        "\\1<a href='/list/\\2'>#\\2</a>\\3",
+        text,
+        flags=re.MULTILINE,
+    )
+    # Linkify %tasks
+    text = re.sub(
+        r'(\s)%([a-zA-Z0-9]{7,})(\s)',
+        "\\1<a href='/task/\\2'>%\\2</a>\\3",
+        text,
+        flags=re.MULTILINE,
+    )
+    return Markup(text)
+
+
 @pass_context
 def url_for(ctx: dict, name: str, **path_params) -> str:
     req = ctx["req"]
@@ -74,6 +121,20 @@ hot_reload = arel.HotReload(
 )
 jinja2 = Jinja2Templates(directory="htm")
 
+md = markdown.Markdown(
+    safe_mode=True,
+    extensions=['pymdownx.magiclink', 'pymdownx.emoji', 'meta'],
+    extension_configs={
+        "pymdownx.magiclink": {
+            "hide_protocol": True,
+        },
+    },
+)
+jinja2.env.filters['markdown'] = lambda text: Markup(md.convert(text))
+jinja2.env.filters['strip_markdown'] = strip_markdown.strip_markdown
+jinja2.env.filters['linkify'] = lambda text: linkify_mentions(linkify_urls(text))
+jinja2.env.filters['linkify_urls'] = linkify_urls
+jinja2.env.filters['linkify_mentions'] = linkify_mentions
 jinja2.env.filters["age"] = filter_age
 jinja2.env.globals["epoch"] = lambda: str(int(time.time()))
 

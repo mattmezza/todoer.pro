@@ -48,8 +48,12 @@
             <Tasks.ActionMove task={task} section={section} sections={sections} />
         </div>
         <!-- descr -->
-        <div class="hover:text-white cursor-pointer rounded text-sm min-h-[3lh] whitespace-pre-wrap px-2" _="on click hide me then show the next <form /> then select() on the next <textarea />">
-{%- if task.descr %}{{ task.descr }}{% else %}<span class="dark:text-slate-700">(no description)</span>{% endif %}
+        <div class="cursor-pointer rounded text-sm min-h-[3lh] px-2 w-full prose dark:prose-white prose-xs" _="on click hide me then show the next <form /> then select() on the next <textarea />">
+        {%- if task.descr -%}
+            {{ task.descr|markdown|linkify_mentions }}
+        {%- else -%}
+            <span class="dark:text-slate-700">(no description)</span>
+        {%- endif -%}
         </div>
         <form hx-put="/task/{{ task.sid }}/descr" hx-target="previous div" style="display: none" _="on submit or reset hide me then show the previous <div /> from me" class="rounded border border-slate-600 p-1">
             <textarea

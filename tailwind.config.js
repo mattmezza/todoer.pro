@@ -5,6 +5,56 @@ module.exports = {
   content: ["./components/**/*.jinja", "./styles/**/*.css"],
   theme: {
     extend: {
+      typography: (theme) => ({
+        "white": {
+            css: {
+                color: theme("colors.slate.300"),
+                "h1, h2, h3, h4, h5, h6": {
+                    color: theme("colors.slate.300"),
+                },
+                a: {
+                    color: theme("colors.blue.400"),
+                    "text-decoration": "dotted",
+                    "&:hover": {
+                        color: theme("colors.blue.700"),
+                    },
+                },
+                "img.emojione": {
+                    height: "1em",
+                    display: "inline",
+                },
+                strong: {
+                    color: theme("colors.slate.400"),
+                },
+                "ol > li::before": {
+                    color: theme("colors.slate.400"),
+                },
+                "ul > li::before": {
+                    backgroundColor: theme("colors.slate.400"),
+                },
+                blockquote: {
+                    color: theme("colors.white"),
+                    borderLeftColor: theme("colors.gray.300"),
+                },
+                hr: {
+                    borderColor: theme("colors.slate.400"),
+                },
+                "figure figcaption": {
+                    color: theme("colors.gray.500"),
+                },
+                code: {
+                    color: theme("colors.white"),
+                },
+                "a code": {
+                    color: theme("colors.blue.400"),
+                },
+                pre: {
+                    color: theme("colors.gray.200"),
+                    backgroundColor: theme("colors.gray.800"),
+                },
+            },
+        },
+      }),
       boxShadow: {
         DEFAULT: '0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px 0 rgba(0, 0, 0, 0.02)',
         md: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.02)',
@@ -55,6 +105,7 @@ module.exports = {
   plugins: [
     // eslint-disable-next-line global-require
     require('@tailwindcss/forms'),
+    require('@tailwindcss/typography'),
     // add custom variant for expanding sidebar
     plugin(({ addVariant, e }) => {
       addVariant('sidebar-expanded', ({ modifySelectors, separator }) => {
