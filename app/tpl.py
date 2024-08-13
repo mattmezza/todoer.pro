@@ -100,7 +100,12 @@ def linkify(text: str) -> str:
 
 mdown = markdown.Markdown(
     safe_mode=True,
-    extensions=['pymdownx.magiclink', 'pymdownx.emoji', 'meta'],
+    extensions=[
+        'pymdownx.magiclink',
+        'pymdownx.emoji',
+        'pymdownx.tilde',
+        'meta',
+    ],
     extension_configs={
         "pymdownx.magiclink": {
             "hide_protocol": True,
