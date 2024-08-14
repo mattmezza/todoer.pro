@@ -1,13 +1,14 @@
+import io
 import os
 import re
 from functools import wraps
 from datetime import datetime
+from html.parser import HTMLParser
 import time
 from typing import Type
 
 import arel
 import markdown
-import strip_markdown
 from markupsafe import Markup
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -51,13 +52,50 @@ def filter_age(dateiso: str) -> str:
     return age(datetime.fromisoformat(dateiso))
 
 
+class HTMLStripper(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.reset()
+        self.strict = False
+        self.convert_charrefs = True
+        self.text = io.StringIO()
+
+    def handle_data(self, d):
+        self.text.write(d)
+
+    def get_data(self):
+        return self.text.getvalue()
+
+
+def strip_html(html):
+    s = HTMLStripper()
+    s.feed(html)
+    return s.get_data()
+
+"""
+The following regular expression finds URLs in text. It extracts the following:
+- href: the full URL
+- origin: the full URL without the query string or hash
+- protocol: the URL protocol (http, https, etc.)
+- username: the URL username
+- password: the URL password
+- hostname: the URL hostname
+- domain: the URL domain
+- tld: the URL top-level domain
+- port: the URL port
+- pathname: the URL pathname
+- search: the URL search string
+- hash: the URL hash string
+"""
+RE_URL = re.compile(r'(?P<href>(?P<origin>(?:(?P<protocol>[a-zA-Z][a-zA-Z0-9\+]{1,31}):\/\/)?(?:(?P<username>[^\:\s]+)\:(?P<password>[^@\s]+)@)?(?P<hostname>(?:[-a-zA-Z0-9:%._\+~#=]{2,256}\.)*(?P<domain>[-a-zA-Z0-9:%._\+~#=]{2,256}\.(?P<tld>[a-z]{2,6}))|localhost)(?:\:(?P<port>[1-9][0-9]{,4}))?)(?P<pathname>\/[^\?\s#]*)*(?P<search>\?(?:[^=\s]+=[^&#\s]*)(?:(?:[^=\s]+=[^&#\s]*)*))?(?P<hash>#[^\b\s\#]*)?)')
+
 def linkify_urls(text: str) -> str:
     # Linkify URLs
+    # uncomment the following two lines to debug the regex
+    # matches = [m.groupdict() for m in RE_URL.finditer(text)]
+    # print(matches)
     text = re.sub(
-        r'((https?:\/\/)(?:www\.)?([-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b)*(\/[\/\d\w\.-]*)*(?:[\?])*([^\s]+)*)',
-        "<a href='\\1'>\\3\\4\\5</a>",
-        text,
-        flags=re.MULTILINE,
+        RE_URL, "<a href='\\1'>\\g<origin></a>", text
     )
     return Markup(text)
 
@@ -118,6 +156,10 @@ def md(text: str) -> Markup:
     return Markup(mdown.convert(text))
 
 
+def strip_md(text: str) -> str:
+    return strip_html(md(text))
+
+
 @pass_context
 def url_for(ctx: dict, name: str, **path_params) -> str:
     req = ctx["req"]
@@ -145,7 +187,7 @@ hot_reload = arel.HotReload(
 )
 jinja2 = Jinja2Templates(directory="htm")
 jinja2.env.filters['markdown'] = md
-jinja2.env.filters['strip_markdown'] = strip_markdown.strip_markdown
+jinja2.env.filters['strip_markdown'] = strip_md
 jinja2.env.filters['linkify'] = linkify
 jinja2.env.filters['linkify_urls'] = linkify_urls
 jinja2.env.filters['linkify_mentions'] = linkify_mentions

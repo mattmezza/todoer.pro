@@ -102,27 +102,6 @@ tests = ["pytest (>=3.2.1,!=3.3.0)"]
 typecheck = ["mypy"]
 
 [[package]]
-name = "beautifulsoup4"
-version = "4.12.3"
-description = "Screen-scraping library"
-optional = false
-python-versions = ">=3.6.0"
-files = [
-    {file = "beautifulsoup4-4.12.3-py3-none-any.whl", hash = "sha256:b80878c9f40111313e55da8ba20bdba06d8fa3969fc68304167741bbf9e082ed"},
-    {file = "beautifulsoup4-4.12.3.tar.gz", hash = "sha256:74e3d1928edc070d21748185c46e3fb33490f22f52a3addee9aee0f4f7781051"},
-]
-
-[package.dependencies]
-soupsieve = ">1.2"
-
-[package.extras]
-cchardet = ["cchardet"]
-chardet = ["chardet"]
-charset-normalizer = ["charset-normalizer"]
-html5lib = ["html5lib"]
-lxml = ["lxml"]
-
-[[package]]
 name = "black"
 version = "23.12.0"
 description = "The uncompromising code formatter."
@@ -1186,17 +1165,6 @@ files = [
 ]
 
 [[package]]
-name = "soupsieve"
-version = "2.6"
-description = "A modern CSS selector implementation for Beautiful Soup."
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "soupsieve-2.6-py3-none-any.whl", hash = "sha256:e72c4ff06e4fb6e4b5a9f0f55fe6e81514581fca1515028625d0f299c602ccc9"},
-    {file = "soupsieve-2.6.tar.gz", hash = "sha256:e2e68417777af359ec65daac1057404a3c8a5455bb8abc36f1a9866ab1a51abb"},
-]
-
-[[package]]
 name = "sqlalchemy"
 version = "1.4.50"
 description = "Database Abstraction Library"
@@ -1291,21 +1259,6 @@ anyio = ">=3.4.0,<5"
 
 [package.extras]
 full = ["httpx (>=0.22.0)", "itsdangerous", "jinja2", "python-multipart", "pyyaml"]
-
-[[package]]
-name = "strip-markdown"
-version = "1.3"
-description = "Converts markdown to plain text"
-optional = false
-python-versions = ">=3.10"
-files = [
-    {file = "strip_markdown-1.3-py3-none-any.whl", hash = "sha256:bfe3217310db3d2bb19e456d5d896d3d9798d70f08da9f56e75bde812d0e5507"},
-    {file = "strip_markdown-1.3.tar.gz", hash = "sha256:ead579d7ed53935512e23187565a71b57b90b540096984f2b567829a53a3b852"},
-]
-
-[package.dependencies]
-beautifulsoup4 = "*"
-markdown = "*"
 
 [[package]]
 name = "typing-extensions"
@@ -1600,4 +1553,4 @@ brotli = ["Brotli"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "e045162911cee4e08585f5b020bf89bfa6f5fbbd1dd9cb543423db50b5f34064"
+content-hash = "49c436e4cd6c9548e0305490248079775b848efd4fecf3ed0fdae22674c4a1ef"
