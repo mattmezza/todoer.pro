@@ -126,6 +126,7 @@ async def update_title(
 
 
 @router.put("/space/{sid}/descr", response_class=HTMLResponse)
+@tpl.htmx("Spaces/Descr")
 async def update_descr(
     req: Request,
     res: HTMLResponse,
@@ -134,12 +135,13 @@ async def update_descr(
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
 ):
-    res.headers["HX-Trigger"] = "space-update"
-    return (
+    space = http.Opt(
         await db.for_user(user)
         .spaces()
         .update_descr(sid, descr.strip() if descr else None)
-    )
+    ).or_404(f"Space '{sid}' not found.")
+    res.headers["HX-Trigger"] = f"space-update, space-{sid}-update"
+    return {"space": space}
 
 
 @router.get("/inbox")

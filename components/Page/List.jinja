@@ -58,7 +58,9 @@
         </Dialog.Closable>
 
     </div>
-    <Lists.Descr list={list} />
+    <div>
+        <Lists.Descr list={list} />
+    </div>
     <!-- default section (inbox) -->
     <ul class="py-8 sections">
         {% set section_def = sections|selectattr("default")|first %}

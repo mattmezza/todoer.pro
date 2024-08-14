@@ -165,18 +165,18 @@ class SpaceForUser(LoggedInUserRepo):
         )
         return None if sp is None else sp.title
 
-    async def update_descr(self, sid: str, descr: str | None) -> str | None:
+    async def update_descr(self, sid: str, descr: str | None) -> Mapping | None:
         se = await self.db.fetch_one(
             """
             UPDATE spaces
                 SET descr = :descr, updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                 AND creator = :creator
-            RETURNING descr
+            RETURNING *
             """,
             {"sid": sid, "descr": descr, "creator": self.user["uuid"]},
         )
-        return None if se is None else se.descr
+        return None if se is None else se._mapping
 
     async def default(self) -> Mapping | None:
         space = await self.db.fetch_one(

@@ -106,7 +106,8 @@ async def update_title(
     return res
 
 
-@router.put("/list/{sid}/descr")
+@router.put("/list/{sid}/descr", response_class=HTMLResponse)
+@tpl.htmx("Lists.Descr")
 async def update_descr(
     req: Request,
     res: HTMLResponse,
@@ -115,14 +116,13 @@ async def update_descr(
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
-    d = http.Opt(
+    li = http.Opt(
         await db.for_user(user)
         .lists()
         .update_descr_by_sid(descr.strip() if descr else None, sid)
     ).or_404(f"List #{sid} not found.")
-    res = PlainTextResponse(d)
     res.headers["HX-Trigger"] = f"list-update, list-{sid}-update"
-    return res
+    return {"list": li}
 
 
 @router.put("/list/{sid}/space")
