@@ -110,10 +110,10 @@ async def update(
     return {"task": task}, 200, {"HX-Trigger": hx_trigger}
 
 
-@router.put("/task/{sid}/descr", response_class=PlainTextResponse)
+@router.put("/task/{sid}/descr", response_class=HTMLResponse)
 async def update_descr(
     req: Request,
-    res: PlainTextResponse,
+    res: HTMLResponse,
     sid: str,
     descr: Annotated[str | None, Form()] = None,
     user: Mapping = Depends(get_current_active_user),

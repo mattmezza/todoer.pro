@@ -130,18 +130,18 @@ class ListForUser(LoggedInUserRepo):
         )
         return li.title if li is not None else None
 
-    async def update_descr_by_sid(self, descr: str, sid: str) -> str | None:
+    async def update_descr_by_sid(self, descr: str, sid: str) -> Mapping | None:
         li = await self.db.fetch_one(
             """
             UPDATE lists
                 SET descr = :descr, updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                 AND creator = :creator
-            RETURNING descr
+            RETURNING *
             """,
             {"sid": sid, "descr": descr, "creator": self.user["uuid"]},
         )
-        return li.descr if li is not None else None
+        return li._mapping if li is not None else None
 
     async def update_color_by_sid(self, color: str, sid: str) -> str | None:
         li = await self.db.fetch_one(

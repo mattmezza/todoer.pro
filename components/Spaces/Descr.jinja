@@ -1,11 +1,16 @@
 {#def space #}
-<div
-    class="dark:hover:text-white cursor-pointer rounded text-sm dark:text-zinc-100 px-2 md:px-6 mt-4 whitespace-pre-wrap"
-    _="on click hide me then show the next <form /> then select() on the next <textarea />"
->
-    {%- if space.descr %}{{ space.descr }}{%- else -%}<span class="dark:text-slate-700 dark:hover:text-slate-400 text-sm italic">(no description)</span>{% endif %}
+<div class="cursor-pointer rounded text-sm min-h-[3lh] px-2 w-full prose dark:prose-white prose-xs" _="on click hide me then show the next <form /> then select() on the next <textarea />">
+{%- if space.descr -%}
+    {{ space.descr|markdown|linkify_mentions }}
+{%- else -%}
+    <span class="dark:text-slate-700">(no description)</span>
+{%- endif -%}
 </div>
-<form hx-put="/space/{{ space.sid }}/descr" hx-target="previous div" style="display: none" _="on submit or reset hide me then show the previous <div /> from me" class="rounded border border-slate-600 p-1">
+<form
+    hx-put="/space/{{ space.sid }}/descr"
+    hx-target="closest div"
+    style="display: none" _="on submit or reset hide me then show the previous <div /> from me"
+    class="rounded border border-slate-600 p-1">
     <textarea
         autofocus
         name="descr"
@@ -18,6 +23,7 @@
         }"
         x-init="resize()"
         @input="resize()"
+        @focus="resize()"
         @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
         @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
         _="on keyup[key is 'Escape'] reset() the closest <form />"

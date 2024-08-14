@@ -110,22 +110,22 @@ def linkify_mentions(text: str) -> str:
     )
     # Linkify @spaces
     text = re.sub(
-        r'(\s)@([a-z][a-z0-9-]*[a-z0-9])(\s)',
-        "\\1<a href='/space/\\2'>@\\2</a>\\3",
+        r'@(?P<name>[a-z][a-z0-9-]{,62}[a-z0-9])\b',
+        "<a href='/space/\\g<name>'>@\\g<name></a>",
         text,
         flags=re.MULTILINE,
     )
     # Linkify #lists
     text = re.sub(
-        r'(\s)#([a-z][a-z0-9-]*[a-z0-9])(\s)',
-        "\\1<a href='/list/\\2'>#\\2</a>\\3",
+        r'#(?P<name>[a-z][a-z0-9-]{,62}[a-z0-9])\b',
+        "<a href='/list/\\g<name>'>#\\g<name></a>",
         text,
         flags=re.MULTILINE,
     )
     # Linkify %tasks
     text = re.sub(
-        r'(\s)%([a-zA-Z0-9]{7,})(\s)',
-        "\\1<a href='/task/\\2'>%\\2</a>\\3",
+        r'%(?P<id>[a-zA-Z0-9]{7})',
+        "<a href='/task/\\g<id>'>%\\g<id></a>",
         text,
         flags=re.MULTILINE,
     )

@@ -17,7 +17,9 @@
         <Spaces.Actions space={space} view_complete={view_complete} />
     </div>
     {% if not space.default %}
-    <Spaces.Descr space={space} />
+    <div>
+        <Spaces.Descr space={space} />
+    </div>
     {% endif %}
 
     <!-- default section (inbox) -->
