@@ -111,6 +111,7 @@ async def update(
 
 
 @router.put("/task/{sid}/descr", response_class=HTMLResponse)
+@tpl.htmx("Tasks.Descr")
 async def update_descr(
     req: Request,
     res: HTMLResponse,
@@ -119,13 +120,13 @@ async def update_descr(
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
-    descr = (
+    task = (
         await db.for_user(user)
         .tasks()
         .update_descr_by_sid(descr.strip() if descr else None, sid)
     )
     res.headers["HX-Trigger"] = f"task-update, task-{sid}-update"
-    return tpl.linkify_mentions(tpl.md(descr))
+    return {"task": task}
 
 
 @router.put("/task/{sid}/section", response_class=PlainTextResponse)

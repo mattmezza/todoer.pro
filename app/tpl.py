@@ -1,14 +1,14 @@
 import io
 import os
 import re
-from functools import wraps
+from functools import partial, wraps
 from datetime import datetime
 from html.parser import HTMLParser
 import time
 from typing import Type
 
 import arel
-import markdown
+import markdown as md
 from markupsafe import Markup
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -72,6 +72,12 @@ def strip_html(html):
     s.feed(html)
     return s.get_data()
 
+
+RE_EMAIL = re.compile(
+    r'(^|(?<=\s))(?P<email>[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+(\.[a-zA-Z]{2,6})?)',
+    re.MULTILINE,
+)
+
 """
 The following regular expression finds URLs in text. It extracts the following:
 - href: the full URL
@@ -87,56 +93,69 @@ The following regular expression finds URLs in text. It extracts the following:
 - search: the URL search string
 - hash: the URL hash string
 """
-RE_URL = re.compile(r'(?P<href>(?P<origin>(?:(?P<protocol>[a-zA-Z][a-zA-Z0-9\+]{1,31}):\/\/)?(?:(?P<username>[^\:\s]+)\:(?P<password>[^@\s]+)@)?(?P<hostname>(?:[-a-zA-Z0-9:%._\+~#=]{2,256}\.)*(?P<domain>[-a-zA-Z0-9:%._\+~#=]{2,256}\.(?P<tld>[a-z]{2,6}))|localhost)(?:\:(?P<port>[1-9][0-9]{,4}))?)(?P<pathname>\/[^\?\s#]*)*(?P<search>\?(?:[^=\s]+=[^&#\s]*)(?:(?:[^=\s]+=[^&#\s]*)*))?(?P<hash>#[^\b\s\#]*)?)')
+RE_URL = re.compile(
+    r'(^|(?<=\s))(?P<href>(?P<origin>(?:(?P<protocol>[a-zA-Z][a-zA-Z0-9\+]{1,31}):\/\/)?(?:(?P<username>[\w\-]+)\:(?P<password>[^@\s]+)@)?(?P<hostname>(?:[-a-zA-Z0-9:%._\+~#=]{2,256}\.)*(?P<domain>[-a-zA-Z0-9:%._\+~#=]{2,256}\.(?P<tld>[a-z]{2,6}))|localhost)(?:\:(?P<port>[1-9][0-9]{,4}))?)(?P<pathname>\/[^\?\s#]*)*(?P<search>\?(?:[^=\s]+=[^&#\s]*)(?:(?:[^=\s]+=[^&#\s]*)*))?(?P<hash>#[^\b\s\#]*)?)',
+    flags=re.MULTILINE,
+)
+RE_SPACE = re.compile(
+    r'(^|(?<=\s))@(?P<name>[a-z][a-z0-9-]{,62}[a-z0-9])', flags=re.MULTILINE
+)
+RE_LIST = re.compile(
+    r'(^|(?<=\s))#(?P<name>[a-z][a-z0-9-]{,62}[a-z0-9])', flags=re.MULTILINE
+)
+RE_TASK = re.compile(r'(^|(?<=\s))%(?P<id>[a-zA-Z0-9]{7})', flags=re.MULTILINE)
+linkify_emails = partial(
+    re.sub, RE_EMAIL, "<a href='mailto:\\g<email>'>\\g<email></a>"
+)
+
 
 def linkify_urls(text: str) -> str:
-    # Linkify URLs
-    # uncomment the following two lines to debug the regex
-    # matches = [m.groupdict() for m in RE_URL.finditer(text)]
-    # print(matches)
+    text = re.sub(RE_URL, "<a href='\\g<href>'>\\g<origin></a>", text)
     text = re.sub(
-        RE_URL, "<a href='\\1'>\\g<origin></a>", text
-    )
-    return Markup(text)
-
-
-def linkify_mentions(text: str) -> str:
-    # Linkify email addresses
-    text = re.sub(
-        r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})',
-        "<a href='mailto:\\1'>\\1</a>",
+        r'href=[\"\'](?P<url>[^\/\?][^\"\':@]*)[\"\']',
+        'href="//\\g<url>"',
         text,
         flags=re.MULTILINE,
     )
-    # Linkify @spaces
-    text = re.sub(
-        r'@(?P<name>[a-z][a-z0-9-]{,62}[a-z0-9])\b',
-        "<a href='/space/\\g<name>'>@\\g<name></a>",
-        text,
-        flags=re.MULTILINE,
-    )
-    # Linkify #lists
-    text = re.sub(
-        r'#(?P<name>[a-z][a-z0-9-]{,62}[a-z0-9])\b',
-        "<a href='/list/\\g<name>'>#\\g<name></a>",
-        text,
-        flags=re.MULTILINE,
-    )
-    # Linkify %tasks
-    text = re.sub(
-        r'%(?P<id>[a-zA-Z0-9]{7})',
-        "<a href='/task/\\g<id>'>%\\g<id></a>",
-        text,
-        flags=re.MULTILINE,
-    )
-    return Markup(text)
+    return text
 
 
-def linkify(text: str) -> str:
-    return linkify_mentions(linkify_urls(text))
+linkify_spaces = partial(
+    re.sub, RE_SPACE, "<a href='/space/\\g<name>'>@\\g<name></a>"
+)
+linkify_lists = partial(
+    re.sub, RE_LIST, "<a href='/list/\\g<name>'>#\\g<name></a>"
+)
+linkify_tasks = partial(
+    re.sub, RE_TASK, "<a href='/task/\\g<id>'>%\\g<id></a>"
+)
 
 
-mdown = markdown.Markdown(
+def linkify(text: str, **kwargs) -> str:
+    full = kwargs.get("all", False)
+
+    def unset_true(k):
+        if full or k not in kwargs:
+            return True
+        return kwargs.get(k, True)
+
+    if unset_true("emails"):
+        text = linkify_emails(text)
+    if unset_true("urls"):
+        text = linkify_urls(text)
+    if unset_true("spaces"):
+        text = linkify_spaces(text)
+    if unset_true("lists"):
+        text = linkify_lists(text)
+    if unset_true("tasks"):
+        text = linkify_tasks(text)
+    return Markup(text) if kwargs.get("safe", True) else text
+
+
+linkify_mentions = partial(linkify, emails=False, urls=False, safe=False)
+
+
+mdown = md.Markdown(
     safe_mode=True,
     extensions=[
         'pymdownx.magiclink',
@@ -152,12 +171,16 @@ mdown = markdown.Markdown(
 )
 
 
-def md(text: str) -> Markup:
-    return Markup(mdown.convert(text))
+def markdown(text: str, **kwargs) -> Markup:
+    text = linkify(text, **kwargs, emails=False, urls=False)
+    text = mdown.convert(text)
+    return Markup(text) if kwargs.get("safe", True) else text
 
 
-def strip_md(text: str) -> str:
-    return strip_html(md(text))
+def strip_markdown(text: str) -> str:
+    text = markdown(text, safe=False)
+    text = strip_html(text)
+    return text
 
 
 @pass_context
@@ -186,8 +209,8 @@ hot_reload = arel.HotReload(
     ]
 )
 jinja2 = Jinja2Templates(directory="htm")
-jinja2.env.filters['markdown'] = md
-jinja2.env.filters['strip_markdown'] = strip_md
+jinja2.env.filters['markdown'] = markdown
+jinja2.env.filters['strip_markdown'] = strip_markdown
 jinja2.env.filters['linkify'] = linkify
 jinja2.env.filters['linkify_urls'] = linkify_urls
 jinja2.env.filters['linkify_mentions'] = linkify_mentions
