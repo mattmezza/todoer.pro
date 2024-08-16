@@ -1,0 +1,9 @@
+{# def id, prefix, title #}
+<div class="hidden md:flex gap-0 justify-center items-center">
+    <button
+        title="{{ title }}"
+        onclick="navigator.clipboard.writeText('{{ prefix }}{{ id }}')"
+        class="rounded text-sm bg-black/5 dark:bg-white/5 hover:text-indigo-500 text-slate-700 dark:text-slate-300 px-2 py-1 z-10 transition-all active:scale-95 active:dark:bg-black active:dark:text-slate-800 cursor-pointer">
+        <span class="font-mono">{{ prefix }}{{ id }}</span>
+    </button>
+</div>

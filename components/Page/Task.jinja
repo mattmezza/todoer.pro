@@ -36,14 +36,7 @@
         </div>
         <div class="flex justify-between items-center gap-2 p-4">
             <Tasks.Title task={task} section={section} list={list} space={space} />
-            <div class="hidden md:flex gap-0 justify-center items-center">
-                <button
-                    title="Copy task id (%ID)."
-                    onclick="navigator.clipboard.writeText('%{{ task.sid }}')"
-                    class="rounded text-sm bg-black/5 dark:bg-white/5 hover:text-indigo-500 text-slate-700 dark:text-slate-300 px-2 py-1 z-10 transition-all active:scale-95 active:dark:bg-black active:dark:text-slate-800 cursor-pointer">
-                    <span class="font-mono">%{{ task.sid }}</span>
-                </button>
-            </div>
+            <Btn.CopyId id={task.sid} prefix="%" title={"Copy task id (%" + task.sid + ")"} />
             <Tasks.Actions task={task} list={list} view_complete={False} />
             <Tasks.ActionMove task={task} section={section} sections={sections} />
         </div>

@@ -14,6 +14,7 @@
 <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
     <div class="flex justify-between items-center gap-4 md:p-4">
         <Spaces.Title space={space} />
+        <Btn.CopyId id={space.sid} prefix="@" title={"Copy space id (@" + space.sid + ")"} />
         <Spaces.Actions space={space} view_complete={view_complete} />
     </div>
     {% if not space.default %}
