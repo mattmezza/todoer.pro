@@ -96,7 +96,7 @@ class TaskForUser(LoggedInUserRepo):
 
     async def update_descr_by_sid(
         self, descr: str | None, sid: str
-    ) -> str | None:
+    ) -> Mapping | None:
         ta = await self.db.fetch_one(
             """
             UPDATE tasks
@@ -109,11 +109,11 @@ class TaskForUser(LoggedInUserRepo):
                         JOIN spaces sp ON sp.uuid = l.space
                         WHERE sp.creator = :creator
                     )
-            RETURNING descr
+            RETURNING *
             """,
             {"sid": sid, "descr": descr, "creator": self.user["uuid"]},
         )
-        return ta.descr if ta is not None else None
+        return ta._mapping if ta is not None else None
 
     async def update_section(
         self, section: UUID, sid: str

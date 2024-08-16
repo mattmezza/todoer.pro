@@ -1,7 +1,7 @@
 {#def list #}
 <div class="cursor-pointer rounded text-sm min-h-[3lh] px-2 w-full prose dark:prose-white prose-xs" _="on click hide me then show the next <form /> then select() on the next <textarea />">
 {%- if list.descr -%}
-    {{ list.descr|markdown|linkify_mentions }}
+    {{ list.descr|markdown }}
 {%- else -%}
     <span class="dark:text-slate-700">(no description)</span>
 {%- endif -%}
