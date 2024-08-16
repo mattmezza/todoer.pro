@@ -77,6 +77,29 @@ RE_EMAIL = re.compile(
     r'(^|(?<=\s))(?P<email>[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+(\.[a-zA-Z]{2,6})?)',
     re.MULTILINE,
 )
+SUB_EMAIL = "<a href='mailto:\\g<email>'>\\g<email></a>"
+linkify_emails = partial(re.sub, RE_EMAIL, SUB_EMAIL)
+
+#RE_SPACE = re.compile(
+#    r'(^|(?<=\s))@(?P<name>[a-z][a-z0-9-]{,62}[a-z0-9])', flags=re.MULTILINE
+#)
+RE_SPACE = re.compile(r'(^|(?<=\s))#(?P<id>[a-zA-Z0-9]{7})', flags=re.MULTILINE)
+#SUB_SPACE = "<a href='/space/\\g<name>'>@\\g<name></a>"
+SUB_SPACE = "<a href='/space/\\g<id>'>@\\g<id></a>"
+linkify_spaces = partial(re.sub, RE_SPACE, SUB_SPACE)
+
+#RE_LIST = re.compile(
+#    r'(^|(?<=\s))#(?P<name>[a-z][a-z0-9-]{,62}[a-z0-9])', flags=re.MULTILINE
+#)
+RE_LIST = re.compile(r'(^|(?<=\s))#(?P<id>[a-zA-Z0-9]{7})', flags=re.MULTILINE)
+#SUB_LIST = "<a href='/list/\\g<name>'>#\\g<name></a>"
+SUB_LIST = "<a href='/list/\\g<id>'>#\\g<id></a>"
+linkify_lists = partial(re.sub, RE_LIST, SUB_LIST)
+
+RE_TASK = re.compile(r'(^|(?<=\s))%(?P<id>[a-zA-Z0-9]{7})', flags=re.MULTILINE)
+SUB_TASK = "<a href='/task/\\g<id>'>%\\g<id></a>"
+linkify_tasks = partial(re.sub, RE_TASK, SUB_TASK)
+
 
 """
 The following regular expression finds URLs in text. It extracts the following:
@@ -97,17 +120,6 @@ RE_URL = re.compile(
     r'(^|(?<=\s))(?P<href>(?P<origin>(?:(?P<protocol>[a-zA-Z][a-zA-Z0-9\+]{1,31}):\/\/)?(?:(?P<username>[\w\-]+)\:(?P<password>[^@\s]+)@)?(?P<hostname>(?:[-a-zA-Z0-9:%._\+~#=]{2,256}\.)*(?P<domain>[-a-zA-Z0-9:%._\+~#=]{2,256}\.(?P<tld>[a-z]{2,6}))|localhost)(?:\:(?P<port>[1-9][0-9]{,4}))?)(?P<pathname>\/[^\?\s#]*)*(?P<search>\?(?:[^=\s]+=[^&#\s]*)(?:(?:[^=\s]+=[^&#\s]*)*))?(?P<hash>#[^\b\s\#]*)?)',
     flags=re.MULTILINE,
 )
-RE_SPACE = re.compile(
-    r'(^|(?<=\s))@(?P<name>[a-z][a-z0-9-]{,62}[a-z0-9])', flags=re.MULTILINE
-)
-RE_LIST = re.compile(
-    r'(^|(?<=\s))#(?P<name>[a-z][a-z0-9-]{,62}[a-z0-9])', flags=re.MULTILINE
-)
-RE_TASK = re.compile(r'(^|(?<=\s))%(?P<id>[a-zA-Z0-9]{7})', flags=re.MULTILINE)
-linkify_emails = partial(
-    re.sub, RE_EMAIL, "<a href='mailto:\\g<email>'>\\g<email></a>"
-)
-
 
 def linkify_urls(text: str) -> str:
     text = re.sub(RE_URL, "<a href='\\g<href>'>\\g<origin></a>", text)
@@ -118,17 +130,6 @@ def linkify_urls(text: str) -> str:
         flags=re.MULTILINE,
     )
     return text
-
-
-linkify_spaces = partial(
-    re.sub, RE_SPACE, "<a href='/space/\\g<name>'>@\\g<name></a>"
-)
-linkify_lists = partial(
-    re.sub, RE_LIST, "<a href='/list/\\g<name>'>#\\g<name></a>"
-)
-linkify_tasks = partial(
-    re.sub, RE_TASK, "<a href='/task/\\g<id>'>%\\g<id></a>"
-)
 
 
 def linkify(text: str, **kwargs) -> str:
