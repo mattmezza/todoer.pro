@@ -6,6 +6,11 @@ module.exports = {
   theme: {
     extend: {
       typography: (theme) => ({
+        DEFAULT: {
+            css: {
+                maxWidth: "100%", // default is "65ch"
+            },
+        },
         "white": {
             css: {
                 color: theme("colors.slate.300"),
