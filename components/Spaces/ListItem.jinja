@@ -1,11 +1,18 @@
 {# def space, tasks_by_space #}
 <li
     class="flex flex-row justify-center items-stretch gap-1 hover:bg-slate-800/50 cursor-pointer rounded">
-    <a
-        href="/space/{{ space.sid }}"
+    <div
+        onclick="window.location.href = '/space/{{ space.sid }}'"
         class="py-4 md:py-6 md:pl-6 flex-grow transition-all active:scale-95">
         <h2 class="text-lg font-semibold mb-2 font-mono">@{{ space.title }}</h2>
-        <p class="text-sm mb-4 prose dark:prose-white">{%if space.descr %}{{ space.descr|strip_markdown|truncate(200)|linkify }}{% else %}{% endif %}</p>
+        <div class="text-sm mb-4">
+            <div class="prose dark:prose-white">
+                {%- if space.descr -%}
+                    {{ space.descr|strip_markdown|truncate(200)|linkify }}
+                {%- else -%}
+                {%- endif -%}
+            </div>
+        </div>
         <div class="flex flex-row gap-4 text-xs dark:text-slate-500">
             <div>
                 <span class="font-mono">{{ space.lists or 0 }}</span> lists
@@ -15,7 +22,7 @@
             </div>
             <div>Created {{ space.created|age }}</div>
         </div>
-    </a>
+    </div>
     <button
         hx-confirm="Are you sure you want to delete this space? All of its content (i.e. lists, sections, tasks) will be lost."
         hx-delete="/space/{{ space.sid }}"
