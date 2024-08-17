@@ -45,7 +45,7 @@ async def add_process_time_header(req: Request, call_next):
 @app.middleware("http")
 async def add_cache_control_header(req: Request, call_next):
     res = await call_next(req)
-    res.headers["Cache-Control"] = "no-store"
+    res.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     return res
 
 
