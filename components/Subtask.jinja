@@ -21,9 +21,9 @@
             </div>
             {% if subtask.descr %}
             <div class="ml-8">
-                <p class="font-medium text-slate-500 dark:text-slate-400 peer-checked:line-through">
-                    {{ subtask.descr }}
-                </p>
+                <div class="cursor-pointer rounded text-sm w-full prose dark:prose-white prose-xs">
+                    {{ subtask.descr|markdown }}
+                </div>
             </div>
             {% endif %}
         </div>
