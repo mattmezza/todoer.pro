@@ -12,6 +12,11 @@ module.exports = {
                 "h1, h2, h3, h4, h5, h6": {
                     "margin-bottom": 0,
                 },
+                "img.emojione": {
+                    height: "1em",
+                    display: "inline",
+                    margin: "0 !important",
+                },
             },
         },
         "white": {
@@ -28,10 +33,6 @@ module.exports = {
                         "text-decoration": "underline",
                         "text-decoration-style": "dotted",
                     },
-                },
-                "img.emojione": {
-                    height: "1em",
-                    display: "inline",
                 },
                 strong: {
                     color: theme("colors.slate.400"),
