@@ -1,3 +1,5 @@
+import time
+
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -29,6 +31,22 @@ app.mount("/public", StaticFiles(directory="public"), name="public")
 @app.exception_handler(404)
 async def handle_404(req: Request, _):
     return HTMLResponse(tpl.jinx.render("Page.404", req=req), 404)
+
+
+@app.middleware("http")
+async def add_process_time_header(req: Request, call_next):
+    start_time = time.time()
+    res = await call_next(req)
+    elapsed = time.time() - start_time
+    res.headers["X-Process-Time"] = str(elapsed)
+    return res
+
+
+@app.middleware("http")
+async def add_cache_control_header(req: Request, call_next):
+    res = await call_next(req)
+    res.headers["Cache-Control"] = "no-store"
+    return res
 
 
 app.include_router(auth.router)
