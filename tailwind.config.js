@@ -9,6 +9,9 @@ module.exports = {
         DEFAULT: {
             css: {
                 maxWidth: "100%", // default is "65ch"
+                "h1, h2, h3, h4, h5, h6": {
+                    "margin-bottom": 0,
+                },
             },
         },
         "white": {
