@@ -48,9 +48,15 @@
     {% block scripts %}
     {% endblock %}
     <script>
-    function dismissAllDialogs() {
-        Array.from(document.getElementsByTagName("dialog")).forEach(el => el.close())
-    }
+        function dismissAllDialogs() {
+            Array.from(document.getElementsByTagName("dialog")).forEach(el => el.close())
+        }
+        function halt(e) {
+            e.stopPropagation()
+            return false
+        }
+        const allProse = Array.from(document.querySelectorAll(".prose a"))
+        allProse.forEach(el => el.addEventListener("click", halt))
     </script>
     {{ catalog.render_assets() }}
 </body>
