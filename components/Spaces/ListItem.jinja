@@ -8,7 +8,7 @@
         <div class="text-sm mb-4">
             <div class="prose dark:prose-white">
                 {%- if space.descr -%}
-                    {{ space.descr|strip_markdown|truncate(200)|linkify }}
+                    {{ space.descr|strip_markdown|truncate(200)|linkify|safe }}
                 {%- else -%}
                 {%- endif -%}
             </div>
