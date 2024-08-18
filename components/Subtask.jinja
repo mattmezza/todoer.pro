@@ -22,7 +22,7 @@
             {% if subtask.descr %}
             <div class="ml-8">
                 <div class="cursor-pointer rounded text-sm w-full prose dark:prose-white prose-xs md:prose-base lg:prose-lg">
-                    {{ subtask.descr|markdown }}
+                    {{ subtask.descr|markdown|safe }}
                 </div>
             </div>
             {% endif %}
