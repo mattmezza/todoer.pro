@@ -29,12 +29,12 @@
                             class="form-checkbox w-5 h-5 rounded-full peer cursor-pointer">
                         <input name="title" type="hidden" value="{{ task.title }}" />
                         {% if task.descr %}<input name="descr" type="hidden" value="{{ task.descr }}" />{% endif %}
-                        <span class="font-semibold text-slate-800 dark:text-slate-100 peer-checked:line-through ml-3">{{ task.title }}</span>
+                        <span class="font-semibold text-slate-800 dark:text-slate-100 peer-checked:line-through ml-3 lg:text-xl">{{ task.title }}</span>
                     </div>
                 </div>
                 {% if task.descr %}
                 <div class="ml-8 text-sm prose dark:prose-white prose-xs md:prose-base lg:prose-lg peer-checked:line-through">
-                    {{ task.descr|strip_markdown|truncate(200)|linkify }}
+                    {{ task.descr|strip_markdown|truncate(200)|linkify|safe }}
                 </div>
                 {% endif %}
             </div>
