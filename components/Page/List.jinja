@@ -10,7 +10,7 @@
     </a>
 -->
     <div class="ml-2 md:ml-0 mb-2 md:mb-4">
-        <Breadcrumbs.Items>
+        <Breadcrumbs.Items with_back_arrow={"/space/" + space.sid}>
             <Breadcrumbs.Item title="Go to space." href={"/space/" + space.sid}>
                 @{{ space.title }}
             </Breadcrumbs.Item>

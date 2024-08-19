@@ -1,12 +1,12 @@
-{# def show_arrow=True #}
+{# def with_back_arrow=False #}
 <div class="flex gap-2 items-center justify-start">
     <div class="flex items-center gap-1 font-mono text-sm">
-        {% if show_arrow %}
-        <div class="mr-2">
+        {% if with_back_arrow %}
+        <a href="{{ with_back_arrow }}" class="mr-2 rounded-full bg-black/30">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 15.75 3 12m0 0 3.75-3.75M3 12h18" />
             </svg>
-        </div>
+        </a>
         {% endif %}
         {{ content }}
     </div>
