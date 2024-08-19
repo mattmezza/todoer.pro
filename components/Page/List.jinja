@@ -1,6 +1,6 @@
 {# def user, spaces, space, lists, list, sections, view_complete, tasks_by_section #}
 <Layout.App spaces={spaces} space={space} user={user} title={list.title} lists={lists}>
-<div class="py-4 md:py-8 px-2 md:px-8 max-w-screen-xl mx-auto space-y-2">
+<div class="py-4 md:py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
 <!--
     <a href="/space/{{ space.sid }}" class="flex items-center gap-1 cursor-pointer mb-2 hover:text-white ml-2 md:ml-0">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
@@ -9,12 +9,12 @@
         <span class="font-mono">@{{ space.title }}</span>
     </a>
 -->
-    <div class="ml-2 md:ml-0">
-        <Breadcrumbs>
-            <Breadcrumb title="Go to space." href={"/space/" + space.sid}>
+    <div class="ml-2 md:ml-0 mb-2 md:mb-4">
+        <Breadcrumbs.Items>
+            <Breadcrumbs.Item title="Go to space." href={"/space/" + space.sid}>
                 @{{ space.title }}
-            </Breadcrumb>
-        </Breadcrumbs>
+            </Breadcrumbs.Item>
+        </Breadcrumbs.Items>
     </div>
     <div class="ml-2 md:ml-0 flex justify-between items-center gap-4 md:py-4">
         <Lists.Title list={list} />

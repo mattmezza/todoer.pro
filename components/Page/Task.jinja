@@ -21,18 +21,20 @@
             <span>back</span>
         </a>
 -->
-        <div class="ml-2 md:ml-0">
-            <Breadcrumbs>
-                <Breadcrumb title="Go to space." href={"/space/" + space.sid}>
+        <div class="ml-2 md:ml-0 mb-2 md:mb-4">
+            <Breadcrumbs.Items>
+                <Breadcrumbs.Item title="Go to space." href={"/space/" + space.sid}>
                     @{{ space.title }}
-                </Breadcrumb>
-                <Breadcrumb title="Go to list." href={"/list/" + list.sid}>
+                </Breadcrumbs.Item>
+                <Breadcrumbs.Separator />
+                <Breadcrumbs.Item title="Go to list." href={"/list/" + list.sid}>
                     #{{ list.title }}
-                </Breadcrumb>
-                <Breadcrumb title="Go to section." href={"/list/" + list.sid + "#section-" + section.sid}>
+                </Breadcrumbs.Item>
+                <Breadcrumbs.Separator />
+                <Breadcrumbs.Item title="Go to section." href={"/list/" + list.sid + "#section-" + section.sid}>
                     ${{ section.title }}
-                </Breadcrumb>
-            </Breadcrumbs>
+                </Breadcrumbs.Item>
+            </Breadcrumbs.Items>
         </div>
         <div class="flex justify-between items-center gap-2">
             <Tasks.Title task={task} section={section} list={list} space={space} />

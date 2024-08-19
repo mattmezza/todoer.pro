@@ -2,7 +2,7 @@
 <{% if href %}a{% else %}span{% endif %}
     {% if href %}href="{{ href }}"{% endif %}
     {% if title %}title="{{title}}"{% endif %}
-    class="rounded bg-slate-50 dark:bg-slate-800 p-1 cursor-pointer hover:text-slate-900 hover:dark:text-slate-50 active:scale-95 transition-all">
+    class="rounded hover:bg-slate-50 dark:hover:bg-slate-800/70 p-1 cursor-pointer hover:text-slate-900 hover:dark:text-slate-50 active:scale-95 transition-all">
     {{ content }}
 </{% if href %}a{% else %}span{% endif %}>
 
