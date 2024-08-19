@@ -226,6 +226,110 @@ async def delete(
     return ""
 
 
+@router.patch("/task/{sid}/move-up")
+@tpl.htmx("Tasks.TaskItem")
+async def move_up(
+    req: Request,
+    res: HTMLResponse,
+    sid: str,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    repo = db.for_user(user)
+    tarepo = repo.tasks()
+    task = http.Opt(await tarepo.move_up(sid)).or_404(
+        f"Task #{sid} not found."
+    )
+    serepo = repo.sections()
+    section = await serepo.by_uuid(task["section"])
+    task = dict(task)
+    tasks = await tarepo.by_section(task["section"])
+    task = _add_first_last(task, tasks)
+    return (
+        {"task": task},
+        200,
+        {"HX-Trigger": f"section-{section.sid}-update"},
+    )
+
+
+@router.patch("/task/{sid}/move-down")
+@tpl.htmx("Tasks.TaskItem")
+async def move_down(
+    req: Request,
+    res: HTMLResponse,
+    sid: str,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    repo = db.for_user(user)
+    tarepo = repo.tasks()
+    task = http.Opt(await tarepo.move_down(sid)).or_404(
+        f"Task #{sid} not found."
+    )
+    serepo = repo.sections()
+    section = await serepo.by_uuid(task["section"])
+    task = dict(task)
+    tasks = await tarepo.by_section(task["section"])
+    task = _add_first_last(task, tasks)
+    return (
+        {"task": task},
+        200,
+        {"HX-Trigger": f"section-{section.sid}-update"},
+    )
+
+
+@router.patch("/task/{sid}/move-top")
+@tpl.htmx("Tasks.TaskItem")
+async def move_top(
+    req: Request,
+    res: HTMLResponse,
+    sid: str,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    repo = db.for_user(user)
+    tarepo = repo.tasks()
+    task = http.Opt(await tarepo.move_top(sid)).or_404(
+        f"Task #{sid} not found."
+    )
+    serepo = repo.sections()
+    section = await serepo.by_uuid(task["section"])
+    task = dict(task)
+    tasks = await tarepo.by_section(task["section"])
+    task = _add_first_last(task, tasks)
+    return (
+        {"task": task},
+        200,
+        {"HX-Trigger": f"section-{section.sid}-update"},
+    )
+
+
+@router.patch("/task/{sid}/move-bottom")
+@tpl.htmx("Tasks.TaskItem")
+async def move_bottom(
+    req: Request,
+    res: HTMLResponse,
+    sid: str,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    repo = db.for_user(user)
+    tarepo = repo.tasks()
+    task = http.Opt(await tarepo.move_bottom(sid)).or_404(
+        f"Task #{sid} not found."
+    )
+    serepo = repo.sections()
+    section = await serepo.by_uuid(task["section"])
+    task = dict(task)
+    tasks = await tarepo.by_section(task["section"])
+    task = _add_first_last(task, tasks)
+    return (
+        {"task": task},
+        200,
+        {"HX-Trigger": f"section-{section.sid}-update"},
+    )
+
+
 def _add_first_last(task: dict, tasks: list[dict]):
     if len(tasks) <= 1:
         task["is_first"] = True

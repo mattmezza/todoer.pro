@@ -196,7 +196,7 @@ class SectionForUser(LoggedInUserRepo):
             )
             return section._mapping if section is not None else None
 
-    async def move_up(self, sid: str) -> None:
+    async def move_up(self, sid: str) -> None | Mapping:
         section = await self.db.fetch_one(
             """
             SELECT * FROM sections

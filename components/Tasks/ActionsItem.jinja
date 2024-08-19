@@ -14,8 +14,7 @@
 
     <hr class="border-slate-900">
 
-    <!--
-    {#% if task.is_first == False %#}
+    {% if task.is_first == False %}
     <button
         tabindex="0"
         type="button"
@@ -44,8 +43,8 @@
         </svg>
         <span>Move up</span>
     </button>
-    {#% endif %#}
-    {#% if task.is_last == False %#}
+    {% endif %}
+    {% if task.is_last == False %}
     <button
         tabindex="0"
         type="button"
@@ -74,7 +73,7 @@
         </svg>
         <span>Move to bottom</span>
     </button>
-    {#% endif %#}
+    {% endif %}
     <hr class="border-slate-900">
 
     <Menu.CtxItem
@@ -89,7 +88,7 @@
     </Menu.CtxItem>
 
     <hr class="border-slate-900">
-        -->
+
     <button
         tabindex="0"
         type="button"
