@@ -220,20 +220,33 @@ class TaskForUser(LoggedInUserRepo):
         return ta._mapping if ta is not None else None
 
     async def del_by_sid(self, sid: str) -> None:
-        await self.db.execute(
-            """
-            DELETE FROM tasks
-            WHERE sid = :sid
-                AND EXISTS (
-                    SELECT ta.uuid FROM tasks ta
-                    JOIN sections se ON se.uuid = ta.section
-                    JOIN lists l ON l.uuid = se.list
-                    JOIN spaces sp ON sp.uuid = l.space
-                    WHERE sp.creator = :creator
-                )
-            """,
-            {"sid": sid, "creator": self.user["uuid"]},
-        )
+        async with self.db.transaction():
+            task = await self.db.fetch_one(
+                """
+                DELETE FROM tasks
+                WHERE sid = :sid
+                    AND EXISTS (
+                        SELECT ta.uuid FROM tasks ta
+                        JOIN sections se ON se.uuid = ta.section
+                        JOIN lists l ON l.uuid = se.list
+                        JOIN spaces sp ON sp.uuid = l.space
+                        WHERE sp.creator = :creator
+                    )
+                RETURNING *
+                """,
+                {"sid": sid, "creator": self.user["uuid"]},
+            )
+            if task is None:
+                return
+            await self.db.execute(
+                """
+                UPDATE tasks
+                SET `order` = `order` - 1
+                WHERE section = :section
+                AND `order` > :order
+                """,
+                {"section": task.section, "order": task.order},
+            )
 
     async def create(
         self, title: str, descr: str | None, section: str
@@ -264,3 +277,187 @@ class TaskForUser(LoggedInUserRepo):
             },
         )
         return task._mapping if task else None
+
+    async def move_up(self, sid: str) -> None | Mapping:
+        task = await self.db.fetch_one(
+            """
+            SELECT ta.* FROM tasks ta
+            JOIN sections se ON se.uuid = ta.section
+            JOIN lists li ON li.uuid = se.list
+            JOIN spaces sp ON sp.uuid = li.space
+            WHERE ta.sid = :sid
+                AND sp.creator = :creator
+            """,
+            {"sid": sid, "creator": self.user["uuid"]},
+        )
+        task_before = await self.db.fetch_one(
+            """
+            SELECT ta.* FROM tasks ta
+            JOIN sections se ON se.uuid = ta.section
+            JOIN lists li ON li.uuid = se.list
+            JOIN spaces sp ON sp.uuid = li.space
+            WHERE ta.section = :section
+                AND ta.`order` < :order
+                AND sp.creator = :creator
+            ORDER BY ta.`order` DESC
+            LIMIT 1
+            """,
+            {
+                "section": task.section,
+                "order": task.order,
+                "creator": self.user["uuid"],
+            },
+        )
+        if task_before is None:
+            return task._mapping if task is not None else None
+        order_before = task_before.order
+        task_before = await self.db.fetch_one(
+            """
+            UPDATE tasks
+                SET `order` = :order,
+                updated = CURRENT_TIMESTAMP
+                WHERE uuid = :uuid
+            RETURNING *
+            """,
+            {"order": task.order, "uuid": task_before.uuid},
+        )
+        task = await self.db.fetch_one(
+            """
+            UPDATE tasks
+                SET `order` = :order,
+                updated = CURRENT_TIMESTAMP
+                WHERE uuid = :uuid
+            RETURNING *
+            """,
+            {"order": order_before, "uuid": task.uuid},
+        )
+        return task._mapping if task is not None else None
+
+    async def move_down(self, sid: str) -> None | Mapping:
+        task = await self.db.fetch_one(
+            """
+            SELECT ta.* FROM tasks ta
+            JOIN sections se ON se.uuid = ta.section
+            JOIN lists li ON li.uuid = se.list
+            JOIN spaces sp ON sp.uuid = li.space
+            WHERE ta.sid = :sid
+                AND sp.creator = :creator
+            """,
+            {"sid": sid, "creator": self.user["uuid"]},
+        )
+        task_after = await self.db.fetch_one(
+            """
+            SELECT ta.* FROM tasks ta
+            JOIN sections se ON se.uuid = ta.section
+            JOIN lists li ON li.uuid = se.list
+            JOIN spaces sp ON sp.uuid = li.space
+            WHERE ta.section = :section
+                AND ta.`order` > :order
+                AND sp.creator = :creator
+            ORDER BY ta.`order` ASC
+            LIMIT 1
+            """,
+            {
+                "section": task.section,
+                "order": task.order,
+                "creator": self.user["uuid"],
+            },
+        )
+        if task_after is None:
+            return task._mapping if task is not None else None
+        order_after = task_after.order
+        task_after = await self.db.fetch_one(
+            """
+            UPDATE tasks
+                SET `order` = :order,
+                updated = CURRENT_TIMESTAMP
+                WHERE uuid = :uuid
+            RETURNING *
+            """,
+            {"order": task.order, "uuid": task_after.uuid},
+        )
+        task = await self.db.fetch_one(
+            """
+            UPDATE tasks
+                SET `order` = :order,
+                updated = CURRENT_TIMESTAMP
+                WHERE uuid = :uuid
+            RETURNING *
+            """,
+            {"order": order_after, "uuid": task.uuid},
+        )
+        return task._mapping if task is not None else None
+
+    async def move_top(self, sid: str) -> None | Mapping:
+        async with self.db.transaction():
+            task = await self.db.fetch_one(
+                """
+                SELECT ta.* FROM tasks ta
+                JOIN sections se ON se.uuid = ta.section
+                JOIN lists li ON li.uuid = se.list
+                JOIN spaces sp ON sp.uuid = li.space
+                WHERE ta.sid = :sid
+                    AND sp.creator = :creator
+                """,
+                {"sid": sid, "creator": self.user["uuid"]},
+            )
+            task = await self.db.fetch_one(
+                """
+                UPDATE tasks
+                    SET `order` = 0,
+                    updated = CURRENT_TIMESTAMP
+                    WHERE uuid = :uuid
+                RETURNING *
+                """,
+                {"uuid": task.uuid},
+            )
+            await self.db.execute(
+                """
+                UPDATE tasks
+                    SET `order` = `order` + 1
+                    WHERE sid != :sid
+                        AND section = :section
+                        AND `order` > 0
+                """,
+                {"section": task.section, "sid": sid},
+            )
+            return task._mapping if task is not None else None
+
+    async def move_bottom(self, sid: str) -> None | Mapping:
+        async with self.db.transaction():
+            task = await self.db.fetch_one(
+                """
+                SELECT ta.* FROM tasks ta
+                JOIN sections se ON se.uuid = ta.section
+                JOIN lists li ON li.uuid = se.list
+                JOIN spaces sp ON sp.uuid = li.space
+                WHERE ta.sid = :sid
+                    AND sp.creator = :creator
+                """,
+                {"sid": sid, "creator": self.user["uuid"]},
+            )
+            order_old = task.order
+            task = await self.db.fetch_one(
+                """
+                UPDATE tasks
+                    SET `order` = (
+                        SELECT MAX(`order`) FROM tasks
+                            WHERE section = :section
+                    )
+                    WHERE sid = :sid
+                    AND section = :section
+                RETURNING *
+                """,
+                {"sid": sid, "section": task.section},
+            )
+            await self.db.execute(
+                """
+                UPDATE tasks
+                    SET `order` = `order` - 1
+                    WHERE sid != :sid
+                        AND section = :section
+                        AND `order` > :order
+                """,
+                {"section": task.section, "sid": sid, "order": order_old},
+            )
+            return task._mapping if task is not None else None
