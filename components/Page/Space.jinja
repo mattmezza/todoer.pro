@@ -24,7 +24,7 @@
     {% endif %}
 
     <!-- default section (inbox) -->
-    <ul class="py-8 sections">
+    <ul class="sections">
         {% set section_def = sections_inbox|selectattr("default")|first %}
         <Section
             section={section_def}
