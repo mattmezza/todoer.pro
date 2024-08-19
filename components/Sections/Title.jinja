@@ -20,7 +20,7 @@
             <div class="w-full flex items-end gap-4">
                 <h2
                     _="on click hide me then show the next <form /> then select() the next <input />"
-                    class="font-semibold font-mono flex-grow cursor-pointer md:text-lg">
+                    class="font-semibold font-mono flex-grow cursor-pointer md:text-base">
                     ${{ section.title }}
                 </h2>
                 <form
@@ -31,7 +31,7 @@
                     hx-swap="outerHTML"
                     hx-target=".section-{{section.sid}}-head">
                     <input
-                        class="form-input block py-1 px-23 border w-full font-semibold placeholder:font-semibold rounded flex-grow"
+                        class="form-input block py-1 px-23 border w-full font-semibold placeholder:font-semibold rounded flex-grow md:text-base"
                         name="title"
                         value="{{ section.title }}"
                         _="on keyup[key is 'Escape'] reset() the closest <form />"

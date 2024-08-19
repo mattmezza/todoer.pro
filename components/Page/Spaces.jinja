@@ -32,7 +32,7 @@
                     placeholder="Space name"
                     autofocus
                     required
-                    class="form-input block py-1 px-23 border-0 w-full font-bold placeholder:font-bold"
+                    class="form-input block py-1 px-23 border-0 w-full font-semibold placeholder:font-semibold xs:text-xs sm:text-sm md:text-base font-mono"
                 >
                 <textarea
                     autofocus
@@ -49,7 +49,7 @@
                     @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                     @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                     _="on keyup[key is 'Escape'] reset() the closest <form />"
-                    class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
+                    class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none md:text-base"
                     ></textarea>
             </div>
             <div class="flex flex-row justify-between items-center border-t border-slate-600 px-3 py-2">
