@@ -54,8 +54,12 @@ async def view(
     space = await space_r.by_uuid(li["space"])
     sections = await section_r.by_list(li["uuid"])
     tarepo = user_repo.tasks()
-    tasks_by_section = defaultdict(list)
     tasks_by_section = await tarepo.by_section_for_list(li["uuid"])
+    for tt in tasks_by_section.values():
+        for idx, ta in enumerate(tt):
+            tt[idx] = dict(ta)
+            tt[idx]["is_first"] = idx == 0
+            tt[idx]["is_last"] = idx == len(tt) - 1
     return {
         "spaces": await space_r.all(),
         "space": space,

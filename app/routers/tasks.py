@@ -29,6 +29,9 @@ async def add_task(
     task = await urepo.tasks().create(
         title.strip(), descr.strip() if descr else None, section
     )
+    task = dict(task)
+    task["is_first"] = task["order"] == 0
+    task["is_last"] = True
     section = await urepo.sections().by_uuid(section)
     return (
         {"task": task},
@@ -47,9 +50,9 @@ async def view(
     abase=Depends(get_db),
 ):
     urepo = db.for_user(user)
-    task = http.Opt(await urepo.tasks().by_sid(sid)).or_404(
+    task = dict(http.Opt(await urepo.tasks().by_sid(sid)).or_404(
         f"Task #{sid} not found."
-    )
+    ))
     secrepo = urepo.sections()
     section = await secrepo.by_uuid(task["section"])
     lrepo = urepo.lists()
@@ -68,6 +71,8 @@ async def view(
             a['uuid'],
             blob.URL_SIGNED_VALIDITY_DURATION_DEFAULT,
         )
+    tasks = await urepo.tasks().by_section(section["uuid"])
+    task = _add_first_last(task, tasks)
     return {
         "task": task,
         "section": section,
@@ -94,16 +99,19 @@ async def update(
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
+    urepo = db.for_user(user)
+    tarepo = urepo.tasks()
     task = http.Opt(
-        await db.for_user(user)
-        .tasks()
-        .update_task_by_sid(
+        await tarepo.update_task_by_sid(
             complete, title.strip(), descr.strip() if descr else None, sid
         )
     ).or_404(f"Task #{sid} not found.")
+    task = dict(task)
+    tasks = await tarepo.by_section(task["section"])
+    task = _add_first_last(task, tasks)
     hx_trigger = f"task-update, task-{sid}-update"
     hx_trigger += f", section-{task['section']}-update"
-    if task.complete == 1:
+    if task["complete"] == 1:
         hx_trigger += f", task-complete task-{sid}-complete"
     else:
         hx_trigger += f", task-incomplete, task-{sid}-incomplete"
@@ -120,11 +128,13 @@ async def update_descr(
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
+    tarepo = db.for_user(user).tasks()
     task = (
-        await db.for_user(user)
-        .tasks()
-        .update_descr_by_sid(descr.strip() if descr else None, sid)
+        await tarepo.update_descr_by_sid(descr.strip() if descr else None, sid)
     )
+    task = dict(task)
+    tasks = await tarepo.by_section(task["section"])
+    task = _add_first_last(task, tasks)
     res.headers["HX-Trigger"] = f"task-update, task-{sid}-update"
     return {"task": task}
 
@@ -159,6 +169,8 @@ async def update_complete(
     section = await urepo.sections().by_uuid(task["section"])
     list_ = await urepo.lists().by_uuid(section["list"])
     space = await urepo.spaces().by_uuid(list_["space"])
+    tasks = await urepo.tasks().by_section(task["section"])
+    task = _add_first_last(task, tasks)
     return (
         {
             "task": task,
@@ -187,6 +199,8 @@ async def update_title(
     section = await urepo.sections().by_uuid(task["section"])
     list_ = await urepo.lists().by_uuid(section["list"])
     space = await urepo.spaces().by_uuid(list_["space"])
+    tasks = await urepo.tasks().by_section(task["section"])
+    task = _add_first_last(task, tasks)
     return (
         {
             "task": task,
@@ -210,3 +224,13 @@ async def delete(
     await db.for_user(user).tasks().del_by_sid(sid)
     res.headers["HX-Trigger"] = f"task-delete, task-{sid}-delete"
     return ""
+
+
+def _add_first_last(task: dict, tasks: list[dict]):
+    if len(tasks) <= 1:
+        task["is_first"] = True
+        task["is_last"] = True
+    else:
+        task["is_first"] = task["sid"] == tasks[0]["sid"]
+        task["is_last"] = task["sid"] == tasks[-1]["sid"]
+    return task
