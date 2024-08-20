@@ -211,6 +211,7 @@ async def move_up(
         section["is_last"] = sections[-1]["sid"] == sid
     tarepo = repo.tasks()
     tasks = await tarepo.by_section(section["uuid"])
+    tasks = _add_first_last_tasks(tasks)
     list_ = await repo.lists().by_uuid(section["list"])
     space = await repo.spaces().by_uuid(list_["space"])
     lists = await repo.lists().all_by_space(space["uuid"])
@@ -254,6 +255,7 @@ async def move_down(
         section["is_last"] = sections[-1]["sid"] == sid
     tarepo = repo.tasks()
     tasks = await tarepo.by_section(section["uuid"])
+    tasks = _add_first_last_tasks(tasks)
     list_ = await repo.lists().by_uuid(section["list"])
     space = await repo.spaces().by_uuid(list_["space"])
     lists = await repo.lists().all_by_space(space["uuid"])
@@ -295,6 +297,7 @@ async def move_top(
         section["is_last"] = True
     tarepo = repo.tasks()
     tasks = await tarepo.by_section(section["uuid"])
+    tasks = _add_first_last_tasks(tasks)
     list_ = await repo.lists().by_uuid(section["list"])
     space = await repo.spaces().by_uuid(list_["space"])
     lists = await repo.lists().all_by_space(space["uuid"])
@@ -336,6 +339,7 @@ async def move_bottom(
         section["is_first"] = True
     tarepo = repo.tasks()
     tasks = await tarepo.by_section(section["uuid"])
+    tasks = _add_first_last_tasks(tasks)
     list_ = await repo.lists().by_uuid(section["list"])
     space = await repo.spaces().by_uuid(list_["space"])
     lists = await repo.lists().all_by_space(space["uuid"])
@@ -351,3 +355,11 @@ async def move_bottom(
         200,
         {"HX-Trigger": f"list-update, list-{list_['sid']}-update"},
     )
+
+
+def _add_first_last_tasks(tasks: list[Mapping]) -> list[dict]:
+    for idx, ta in enumerate(tasks):
+        tasks[idx] = dict(ta)
+        tasks[idx]["is_first"] = idx == 0
+        tasks[idx]["is_last"] = idx == len(tasks) - 1
+    return tasks

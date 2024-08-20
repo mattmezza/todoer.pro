@@ -257,7 +257,11 @@ def htmx(tpl: str, resp: Type[Response] = HTMLResponse):
                 headers = ret[2] if len(ret) > 2 else {}
             else:
                 data = ret
-            return resp(jinx.render(tpl, **data), code, headers)
+            return resp(
+                jinx.render(tpl, **data) if code != 204 else data,
+                code,
+                headers,
+            )
 
         return wrapper
 
