@@ -299,6 +299,7 @@ class TaskForUser(LoggedInUserRepo):
             WHERE ta.section = :section
                 AND ta.`order` < :order
                 AND sp.creator = :creator
+                AND ta.complete = 0
             ORDER BY ta.`order` DESC
             LIMIT 1
             """,
@@ -347,20 +348,14 @@ class TaskForUser(LoggedInUserRepo):
         )
         task_after = await self.db.fetch_one(
             """
-            SELECT ta.* FROM tasks ta
-            JOIN sections se ON se.uuid = ta.section
-            JOIN lists li ON li.uuid = se.list
-            JOIN spaces sp ON sp.uuid = li.space
-            WHERE ta.section = :section
-                AND ta.`order` > :order
-                AND sp.creator = :creator
-            ORDER BY ta.`order` ASC
+            SELECT * FROM tasks
+            WHERE section = :section AND `order` > :order AND complete = 0
+            ORDER BY `order` ASC
             LIMIT 1
             """,
             {
-                "section": task.section,
                 "order": task.order,
-                "creator": self.user["uuid"],
+                "section": task.section,
             },
         )
         if task_after is None:
@@ -371,7 +366,7 @@ class TaskForUser(LoggedInUserRepo):
             UPDATE tasks
                 SET `order` = :order,
                 updated = CURRENT_TIMESTAMP
-                WHERE uuid = :uuid
+            WHERE uuid = :uuid
             RETURNING *
             """,
             {"order": task.order, "uuid": task_after.uuid},
@@ -381,7 +376,7 @@ class TaskForUser(LoggedInUserRepo):
             UPDATE tasks
                 SET `order` = :order,
                 updated = CURRENT_TIMESTAMP
-                WHERE uuid = :uuid
+            WHERE uuid = :uuid
             RETURNING *
             """,
             {"order": order_after, "uuid": task.uuid},
@@ -401,12 +396,16 @@ class TaskForUser(LoggedInUserRepo):
                 """,
                 {"sid": sid, "creator": self.user["uuid"]},
             )
+            if not task:
+                return None
+            if task.order == 0:
+                return task._mapping
             task = await self.db.fetch_one(
                 """
                 UPDATE tasks
                     SET `order` = 0,
                     updated = CURRENT_TIMESTAMP
-                    WHERE uuid = :uuid
+                WHERE uuid = :uuid
                 RETURNING *
                 """,
                 {"uuid": task.uuid},
@@ -415,9 +414,9 @@ class TaskForUser(LoggedInUserRepo):
                 """
                 UPDATE tasks
                     SET `order` = `order` + 1
-                    WHERE sid != :sid
-                        AND section = :section
-                        AND `order` > 0
+                WHERE sid != :sid
+                    AND section = :section
+                    AND `order` >= 0
                 """,
                 {"section": task.section, "sid": sid},
             )
@@ -436,6 +435,8 @@ class TaskForUser(LoggedInUserRepo):
                 """,
                 {"sid": sid, "creator": self.user["uuid"]},
             )
+            if not task:
+                return None
             order_old = task.order
             task = await self.db.fetch_one(
                 """
@@ -444,8 +445,7 @@ class TaskForUser(LoggedInUserRepo):
                         SELECT MAX(`order`) FROM tasks
                             WHERE section = :section
                     )
-                    WHERE sid = :sid
-                    AND section = :section
+                WHERE sid = :sid AND section = :section
                 RETURNING *
                 """,
                 {"sid": sid, "section": task.section},
@@ -454,9 +454,9 @@ class TaskForUser(LoggedInUserRepo):
                 """
                 UPDATE tasks
                     SET `order` = `order` - 1
-                    WHERE sid != :sid
-                        AND section = :section
-                        AND `order` > :order
+                WHERE sid != :sid
+                    AND section = :section
+                    AND `order` > :order
                 """,
                 {"section": task.section, "sid": sid, "order": order_old},
             )

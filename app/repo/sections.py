@@ -320,7 +320,8 @@ class SectionForUser(LoggedInUserRepo):
             section = await self.db.fetch_one(
                 """
                 UPDATE sections
-                    SET `order` = 1
+                    SET `order` = 1,
+                    updated = CURRENT_TIMESTAMP
                     WHERE sid = :sid
                     AND list = :list
                     AND creator = :creator
