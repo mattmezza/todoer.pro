@@ -1,6 +1,6 @@
 {#def space #}
 <div
-    class="cursor-pointer rounded text-sm min-h-[3lh] px-2 w-full prose dark:prose-white prose-base lg:prose-lg"
+    class="cursor-pointer rounded min-h-[3lh] px-2 w-full prose dark:prose-white prose-base lg:prose-lg mt-4 sm:mt-0"
     _="on click hide me then show the next <form /> then select() on the next <textarea />">
 {%- if space.descr -%}
     {{ space.descr|markdown|safe }}
