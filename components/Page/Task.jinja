@@ -1,5 +1,5 @@
 {# def user, space, spaces, lists, list, section, sections, task, subtasks, attachments, comments #}
-<Layout.App spaces={spaces} space={space} user={user} title={list.title} lists={lists}>
+<Layout.App spaces={spaces} space={space} user={user} title={"%" + task.sid + " \"" + task.title + "\""} lists={lists}>
 <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
     <div class="mb-8 space-y-4">
         <!--
