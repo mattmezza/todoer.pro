@@ -78,7 +78,7 @@
                         @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                         @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                         _="on keyup[key is 'Escape'] reset() the closest <form />"
-                        class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
+                        class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none md:text-base"
                         ></textarea>
                         <input type="hidden" name="task" value="{{ task.uuid }}">
                 </div>
