@@ -1,7 +1,7 @@
 from typing import Annotated, Mapping
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from app import blob, http, tpl
@@ -33,8 +33,9 @@ async def add_task(
     task["is_first"] = task["order"] == 0
     task["is_last"] = True
     section = await urepo.sections().by_uuid(section)
+    sections = await urepo.sections().all_by_list(section["list"])
     return (
-        {"task": task, "section": section},
+        {"task": task, "section": section, "sections": sections},
         201,
         {"HX-Trigger": f"task-create, section-{section.sid}-update"},
     )
@@ -50,10 +51,8 @@ async def view(
     abase=Depends(get_db),
 ):
     urepo = db.for_user(user)
-    task = dict(
-        http.Opt(await urepo.tasks().by_sid(sid)).or_404(
-            f"Task #{sid} not found."
-        )
+    task = http.Opt(await urepo.tasks().by_sid(sid)).or_404(
+        f"Task #{sid} not found."
     )
     secrepo = urepo.sections()
     section = await secrepo.by_uuid(task["section"])
@@ -73,8 +72,6 @@ async def view(
             a['uuid'],
             blob.URL_SIGNED_VALIDITY_DURATION_DEFAULT,
         )
-    tasks = await urepo.tasks().by_section(section["uuid"])
-    task = _add_first_last(task, tasks)
     return {
         "task": task,
         "section": section,
@@ -106,8 +103,11 @@ async def view_item(
     )
     tasks = await urepo.tasks().by_section(task["section"])
     task = _add_first_last(task, tasks)
+    section = await urepo.sections().by_uuid(task["section"])
+    sections = await urepo.sections().all_by_list(section["list"])
     return {
         "task": task,
+        "sections": sections,
         "section": await urepo.sections().by_uuid(task["section"]),
     }
 
@@ -133,6 +133,8 @@ async def update(
     task = dict(task)
     tasks = await tarepo.by_section(task["section"])
     task = _add_first_last(task, tasks)
+    section = await urepo.sections().by_uuid(task["section"])
+    sections = await urepo.sections().all_by_list(section["list"])
     hx_trigger = f"task-update, task-{sid}-update"
     hx_trigger += f", section-{task['section']}-update"
     if task["complete"] == 1:
@@ -142,6 +144,7 @@ async def update(
     return (
         {
             "task": task,
+            "sections": sections,
             "section": (await urepo.sections().by_uuid(task["section"])),
         },
         200,
@@ -170,18 +173,26 @@ async def update_descr(
     return {"task": task}
 
 
-@router.put("/task/{sid}/section", response_class=PlainTextResponse)
+@router.put("/task/{sid}/section", response_class=HTMLResponse)
 async def update_section(
     req: Request,
-    res: PlainTextResponse,
     sid: str,
     section: Annotated[UUID, Form()],
+    reload: Annotated[bool, Query()] = False,
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
-    _ = await db.for_user(user).tasks().update_section(section, sid)
-    res.headers["HX-Redirect"] = f"/task/{sid}"
-    return ""
+    urepo = db.for_user(user)
+    async with db.transaction():
+        task = http.Opt(
+            await urepo.tasks().update_section(section, sid)
+        ).or_404(f"Task #{sid} not found.")
+        section = await urepo.sections().by_uuid(task["section"])
+        headers = dict()
+        headers["HX-Trigger"] = f"section-update, section-{section.sid}-update"
+        if reload:
+            headers["HX-Redirect"] = f"/task/{sid}"
+        return HTMLResponse("", status_code=200, headers=headers)
 
 
 @router.put("/task/{sid}/complete")
@@ -275,11 +286,12 @@ async def move_up(
     )
     serepo = repo.sections()
     section = await serepo.by_uuid(task["section"])
+    sections = await serepo.all_by_list(section["list"])
     task = dict(task)
     tasks = await tarepo.by_section(task["section"])
     task = _add_first_last(task, tasks)
     return (
-        {"task": task, "section": section},
+        {"task": task, "section": section, "sections": sections},
         200,
         {"HX-Trigger": f"section-{section.sid}-update"},
     )
@@ -301,11 +313,12 @@ async def move_down(
     )
     serepo = repo.sections()
     section = await serepo.by_uuid(task["section"])
+    sections = await serepo.all_by_list(section["list"])
     task = dict(task)
     tasks = await tarepo.by_section(task["section"])
     task = _add_first_last(task, tasks)
     return (
-        {"task": task, "section": section},
+        {"task": task, "section": section, "sections": sections},
         200,
         {"HX-Trigger": f"section-{section.sid}-update"},
     )
@@ -330,11 +343,12 @@ async def move_top(
     task = await tarepo.move_top(sid)
     serepo = repo.sections()
     section = await serepo.by_uuid(task["section"])
+    sections = await serepo.all_by_list(section["list"])
     task = dict(task)
     tasks = await tarepo.by_section(task["section"])
     task = _add_first_last(task, tasks)
     return (
-        {"task": task, "section": section},
+        {"task": task, "section": section, "sections": sections},
         200,
         {"HX-Trigger": f"section-{section.sid}-update"},
     )
@@ -354,17 +368,15 @@ async def move_bottom(
     task = http.Opt(await tarepo.by_sid(sid)).or_404(
         f"Task #{sid} not found."
     )
-    # check if task is last and return 204
-    # if task.order == 0:
-    #     return "", 204
     task = await tarepo.move_bottom(sid)
     serepo = repo.sections()
     section = await serepo.by_uuid(task["section"])
+    sections = await serepo.all_by_list(section["list"])
     task = dict(task)
     tasks = await tarepo.by_section(task["section"])
     task = _add_first_last(task, tasks)
     return (
-        {"task": task, "section": section},
+        {"task": task, "section": section, "sections": sections},
         200,
         {"HX-Trigger": f"section-{section.sid}-update"},
     )

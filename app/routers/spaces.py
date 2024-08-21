@@ -48,6 +48,11 @@ async def read(
     tasks_by_section_inbox = await repo_tasks.by_section_for_list(
         list_inbox["uuid"]
     )
+    for tt in tasks_by_section_inbox.values():
+        for idx, ta in enumerate(tt):
+            tt[idx] = dict(ta)
+            tt[idx]["is_first"] = idx == 0
+            tt[idx]["is_last"] = idx == len(tt) - 1
     sections_by_list = await repo_lists.num_sections_by_list_for_space(sid)
     tasks_by_list = await repo_lists.num_tasks_by_list_for_space(sid)
     return (
@@ -169,6 +174,11 @@ async def inbox(
     tasks_by_section_inbox = await repo_tasks.by_section_for_list(
         list_inbox["uuid"]
     )
+    for tt in tasks_by_section_inbox.values():
+        for idx, ta in enumerate(tt):
+            tt[idx] = dict(ta)
+            tt[idx]["is_first"] = idx == 0
+            tt[idx]["is_last"] = idx == len(tt) - 1
     return (
         dict(
             spaces=await repo_spaces.all(),

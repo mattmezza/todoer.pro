@@ -28,6 +28,7 @@
         {% set section_def = sections_inbox|selectattr("default")|first %}
         <Section
             section={section_def}
+            sections={sections_inbox}
             view_complete={view_complete}
             tasks={tasks_by_section_inbox[section_def.uuid]}
             lists={lists}
@@ -39,6 +40,7 @@
     {% for section in sections_inbox|rejectattr("default") %}
         <Section
             section={section}
+            sections={sections_inbox}
             view_complete={view_complete}
             tasks={tasks_by_section_inbox[section.uuid]}
             lists={lists}

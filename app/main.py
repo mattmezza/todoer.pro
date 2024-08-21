@@ -1,6 +1,8 @@
+import os
 import time
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -26,6 +28,7 @@ app.add_websocket_route("/hot-reload", route=hot_reload, name="hot-reload")
 app.add_event_handler("startup", hot_reload.startup)
 app.add_event_handler("shutdown", hot_reload.shutdown)
 app.mount("/public", StaticFiles(directory="public"), name="public")
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 
 
 @app.exception_handler(404)
@@ -45,8 +48,48 @@ async def add_process_time_header(req: Request, call_next):
 @app.middleware("http")
 async def add_cache_control_header(req: Request, call_next):
     res = await call_next(req)
-    res.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    if req.url.path.startswith("/manifest.json"):
+        res.headers["Cache-Control"] = "public, max-age=31536000"
+    else:
+        res.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     return res
+
+
+@app.get("/manifest.json")
+async def manifest(v: str = ""):
+    env = os.environ["TODOER_ENV"]
+    return {
+        "theme_color": "#000000",
+        "background_color": "#000000",
+        "icons": [
+            {
+                "purpose": "maskable",
+                "sizes": "512x512",
+                "src": "/public/icon512_maskable.png",
+                "type": "image/png",
+            },
+            {
+                "purpose": "any",
+                "sizes": "512x512",
+                "src": "/public/icon512_rounded.png",
+                "type": "image/png",
+            },
+        ],
+        "orientation": "any",
+        "display": "standalone",
+        "dir": "auto",
+        "lang": "en-US",
+        "name": "Todoer.pro",
+        "short_name": "Todoer",
+        "start_url": "dashboard",
+        "scope": "http://localhost:8000/"
+        if env == "local"
+        else "https://dev.todoer.pro/"
+        if env == "dev"
+        else "https://todoer.pro/",
+        "id": "todoer.pro",
+        "description": "Get things done, like a pro!",
+    }
 
 
 app.include_router(auth.router)

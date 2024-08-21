@@ -40,7 +40,7 @@
             <Tasks.Title task={task} section={section} list={list} space={space} />
             <Btn.CopyId id={task.sid} prefix="%" title={"Copy task id (%" + task.sid + ")"} />
             <Tasks.Actions task={task} list={list} view_complete={False} />
-            <Tasks.ActionMove task={task} section={section} sections={sections} />
+            <Tasks.ActionMove task={task} section={section} sections={sections} should-reload={True} />
         </div>
         <Tasks.Descr task={task} />
 

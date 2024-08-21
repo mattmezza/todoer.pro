@@ -51,6 +51,7 @@ async def view(
     lists = await repo.lists().all_by_space(space["uuid"])
     return {
         "section": section,
+        "sections": sections,
         "tasks": tasks,
         "lists": lists,
         "list": list_,
@@ -151,9 +152,11 @@ async def add(
     list_ = await urepo.lists().by_uuid(section["list"])
     space = await urepo.spaces().by_uuid(list_["space"])
     lists = await urepo.lists().all_by_space(space["uuid"])
+    sections = await serepo.all_by_list(section["list"])
     return (
         {
             "section": section,
+            "sections": sections,
             "user": user,
             "lists": lists,
             "list": list_,
@@ -218,6 +221,7 @@ async def move_up(
     return (
         {
             "section": section,
+            "sections": sections,
             "tasks": tasks,
             "lists": lists,
             "list": list_,
@@ -262,6 +266,7 @@ async def move_down(
     return (
         {
             "section": section,
+            "sections": sections,
             "tasks": tasks,
             "lists": lists,
             "list": list_,
@@ -304,6 +309,7 @@ async def move_top(
     return (
         {
             "section": section,
+            "sections": sections,
             "tasks": tasks,
             "lists": lists,
             "list": list_,
@@ -346,6 +352,7 @@ async def move_bottom(
     return (
         {
             "section": section,
+            "sections": sections,
             "tasks": tasks,
             "lists": lists,
             "list": list_,
