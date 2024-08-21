@@ -113,3 +113,11 @@ async def get_current_active_user(
     if current_user["disabled"]:
         return RedirectResponse("/signin?err=auth-disabled")
     return current_user
+
+
+def with_cache_control_header(header: str):
+    async def add_cache_control_header(req: Request, call_next):
+        res = await call_next(req)
+        res.headers["Cache-Control"] = header
+        return res
+    return add_cache_control_header

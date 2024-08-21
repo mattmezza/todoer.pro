@@ -67,6 +67,7 @@
         {% set section_def = sections|selectattr("default")|first %}
         <Section
             section={section_def}
+            sections={sections}
             view_complete={view_complete}
             tasks={tasks_by_section[section_def.uuid]}
             lists={lists}
@@ -78,6 +79,7 @@
     {% for section in sections|rejectattr("default") %}
         <Section
             section={section}
+            sections={sections}
             view_complete={view_complete}
             tasks={tasks_by_section[section.uuid]}
             lists={lists}

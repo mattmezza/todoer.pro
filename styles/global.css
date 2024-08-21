@@ -42,3 +42,7 @@
 [data-loading] {
     display: none;
 }
+
+::backdrop {
+    @apply bg-black/50 backdrop-blur grid place-items-center fixed inset-0 z-50 w-full h-full;
+}

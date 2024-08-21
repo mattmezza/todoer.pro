@@ -10,10 +10,29 @@ class TaskForUser(LoggedInUserRepo):
     async def by_sid(self, sid: str) -> Mapping | None:
         task = await self.db.fetch_one(
             """
-            SELECT ta.* FROM tasks ta
-            JOIN sections se ON se.uuid = ta.section
-            JOIN lists li ON li.uuid = se.list
-            JOIN spaces sp ON sp.uuid = li.space
+            SELECT
+                ta.*,
+                ta.`order`,
+                CASE WHEN
+                    ta.`order` = 0
+                    THEN 1
+                    ELSE 0
+                END AS is_first,
+                CASE WHEN ta.`order` = (
+                        SELECT MAX(`order`) AS max_order
+                        FROM tasks
+                        WHERE section = (
+                            SELECT section
+                            FROM tasks
+                            WHERE sid = :sid
+                        )
+                    ) THEN 1
+                    ELSE 0
+                END AS is_last
+            FROM tasks ta
+            JOIN sections se on ta.section = se.uuid
+            JOIN lists l on se.list = l.uuid
+            JOIN spaces sp on l.space = sp.uuid
             WHERE ta.sid = :sid
                 AND sp.creator = :creator
             """,
@@ -24,11 +43,30 @@ class TaskForUser(LoggedInUserRepo):
     async def by_uuid(self, uuid: str) -> Mapping | None:
         task = await self.db.fetch_one(
             """
-            SELECT ta.* FROM tasks ta
-            JOIN sections se ON se.uuid = ta.section
-            JOIN lists li ON li.uuid = se.list
-            JOIN spaces sp ON sp.uuid = li.space
-            WHERE se.uuid = :uuid
+            SELECT
+                ta.*,
+                ta.`order`,
+                CASE WHEN
+                    ta.`order` = 0
+                    THEN 1
+                    ELSE 0
+                END AS is_first,
+                CASE WHEN ta.`order` = (
+                        SELECT MAX(`order`) AS max_order
+                        FROM tasks
+                        WHERE section = (
+                            SELECT section
+                            FROM tasks
+                            WHERE sid = :sid
+                        )
+                    ) THEN 1
+                    ELSE 0
+                END AS is_last
+            FROM tasks ta
+            JOIN sections se on ta.section = se.uuid
+            JOIN lists l on se.list = l.uuid
+            JOIN spaces sp on l.space = sp.uuid
+            WHERE ta.uuid = :uuid
                 AND sp.creator = :creator
             """,
             {"uuid": uuid, "creator": self.user["uuid"]},
@@ -77,11 +115,26 @@ class TaskForUser(LoggedInUserRepo):
     ) -> list[Mapping]:
         tasks = await self.db.fetch_all(
             """
-            SELECT ta.* FROM tasks ta
-            JOIN sections se ON se.uuid = ta.section
-            JOIN lists l ON l.uuid = se.list
-            JOIN spaces s ON s.uuid = l.space
-            WHERE s.creator = :creator
+            SELECT
+                ta.*,
+                ta.`order`,
+                CASE WHEN
+                    ta.`order` = 0
+                    THEN 1
+                    ELSE 0
+                END AS is_first,
+                CASE WHEN ta.`order` = (
+                        SELECT MAX(`order`) AS max_order
+                        FROM tasks
+                        WHERE section = :section_uuid
+                    ) THEN 1
+                    ELSE 0
+                END AS is_last
+            FROM tasks ta
+            JOIN sections se on ta.section = se.uuid
+            JOIN lists l on se.list = l.uuid
+            JOIN spaces sp on l.space = sp.uuid
+            WHERE sp.creator = :creator
                 AND ta.section = :section_uuid
             ORDER BY ta.`order` ASC, ta.created ASC
             LIMIT :limit
@@ -134,7 +187,7 @@ class TaskForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "section": str(section), "creator": self.user["uuid"]}
         )
-        return ta.descr if ta is not None else None
+        return ta._mapping if ta is not None else None
 
     async def update_title_by_sid(
         self, title: str, sid: str
@@ -400,6 +453,7 @@ class TaskForUser(LoggedInUserRepo):
                 return None
             if task.order == 0:
                 return task._mapping
+            order_old = task.order
             task = await self.db.fetch_one(
                 """
                 UPDATE tasks
@@ -416,9 +470,9 @@ class TaskForUser(LoggedInUserRepo):
                     SET `order` = `order` + 1
                 WHERE sid != :sid
                     AND section = :section
-                    AND `order` >= 0
+                    AND `order` >= 0 AND `order` < :order_old
                 """,
-                {"section": task.section, "sid": sid},
+                {"section": task.section, "sid": sid, "order_old": order_old},
             )
             return task._mapping if task is not None else None
 

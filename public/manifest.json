@@ -22,7 +22,7 @@
   "name": "Todoer.pro",
   "short_name": "Todoer",
   "start_url": "/dashboard",
-  "scope": "https://todoer.pro",
+  "scope": "https://todoer.pro/",
   "id": "todoer.pro",
   "description": "Get things done, like a pro!"
 }
