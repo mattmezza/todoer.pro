@@ -10,7 +10,7 @@
 <!doctype html>
 <html>
 <head>
-    <title>{% if ENV != "prod" %}[{{ ENV[:3] }}] {% endif %}{% if title %}{{ title }} &middot; {% endif %}todoer</title>
+    <title>{% if ENV != "prod" %}[{{ ENV[:3] }}] {% endif %}{% if title %}{{ title|truncate(75) }} &middot; {% endif %}todoer</title>
     <meta charset="UTF-8">
     <meta name="theme-color" content="#000000">
     <link rel="manifest" href="/manifest.json?v={{ RELEASE or '' }}">
