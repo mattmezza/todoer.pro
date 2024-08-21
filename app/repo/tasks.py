@@ -173,8 +173,15 @@ class TaskForUser(LoggedInUserRepo):
     ) -> str | None:
         ta = await self.db.fetch_one(
             """
-            UPDATE tasks
-                SET section = :section, updated = CURRENT_TIMESTAMP
+            UPDATE tasks SET
+                section = :section,
+                `order` = COALESCE(
+                    (
+                        SELECT MAX(`order`) + 1
+                        FROM tasks
+                        WHERE section = :section
+                    ), 0),
+                updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                     AND EXISTS (
                         SELECT ta.uuid FROM tasks ta
