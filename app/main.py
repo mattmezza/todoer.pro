@@ -50,6 +50,8 @@ async def add_cache_control_header(req: Request, call_next):
     res = await call_next(req)
     if req.url.path.startswith("/manifest.json"):
         res.headers["Cache-Control"] = "public, max-age=31536000"
+    elif req.url.path.startswith("/public/"):
+        res.headers["Cache-Control"] = "public, max-age=31536000"
     else:
         res.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     return res
