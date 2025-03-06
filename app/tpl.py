@@ -207,15 +207,6 @@ constants = {
     "RELEASE": os.environ["TODOER_RELEASE"],
     "ENV": os.environ["TODOER_ENV"],
 }
-hot_reload = arel.HotReload(
-    paths=[
-        arel.Path("app"),
-        arel.Path("components"),
-        arel.Path("public"),
-        arel.Path("styles"),
-        arel.Path("tailwind.config.js"),
-    ]
-)
 jinja2 = Jinja2Templates(directory="htm")
 jinja2.env.filters['markdown'] = markdown
 jinja2.env.filters['strip_markdown'] = strip_markdown
@@ -227,6 +218,15 @@ jinja2.env.globals["epoch"] = lambda: str(int(time.time()))
 
 jinja2.env.globals["DEBUG"] = os.environ["TODOER_ENV"] == "local"
 if os.environ["TODOER_ENV"] == "local":
+    hot_reload = arel.HotReload(
+        paths=[
+            arel.Path("app"),
+            arel.Path("components"),
+            arel.Path("public"),
+            arel.Path("styles"),
+            arel.Path("tailwind.config.js"),
+        ]
+    )
     jinja2.env.globals["hot_reload"] = hot_reload
 
 jinx = Catalog(jinja_env=jinja2.env)
