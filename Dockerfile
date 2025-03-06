@@ -9,7 +9,7 @@ RUN npx tailwindcss -i styles/global.css -o style.css --minify
 
 FROM python:3.11-slim as builder
 WORKDIR /tmp
-RUN pip install poetry
+RUN pip install poetry==1.8.5
 COPY ./pyproject.toml ./poetry.lock* /tmp/
 RUN poetry export -f requirements.txt --output requirements.txt --without-hashes
 
