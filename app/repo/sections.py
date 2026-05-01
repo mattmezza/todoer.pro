@@ -127,7 +127,7 @@ class SectionForUser(LoggedInUserRepo):
         res = [dict(ss._mapping) for ss in sections]
         for i, ss in enumerate(res):
             ss["is_first"] = i == 1 or ss["default"] is True
-            ss["is_last"] = i == len(res) - 1 and ss["default"] is True
+            ss["is_last"] = i == len(res) - 1 or ss["default"] is True
         return res
 
     async def insert(
