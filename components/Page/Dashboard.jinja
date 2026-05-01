@@ -1,9 +1,25 @@
-{# def user, spaces #}
+{# def user, spaces, stats, recent_completions #}
 <Layout.App spaces={spaces} user={user}>
     <div class="py-2 min-h-[100vh]" id="content-bg">
         <div class="px-2 md:px-8">
             <h1 class="mt-16 md:mt-24 text-2xl md:text-5xl font-bold">👋 Hi, {{ user.name|d("there", True) }}!</h1>
-            <div class="h-[300px]">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+                <div class="bg-white/5 backdrop-blur rounded-lg p-4">
+                    <div class="text-3xl font-bold">{{ stats.active or 0 }}</div>
+                    <div class="text-sm text-slate-400">Active tasks</div>
+                </div>
+                <div class="bg-white/5 backdrop-blur rounded-lg p-4">
+                    <div class="text-3xl font-bold text-green-400">{{ stats.completed or 0 }}</div>
+                    <div class="text-sm text-slate-400">Completed</div>
+                </div>
+                <div class="bg-white/5 backdrop-blur rounded-lg p-4">
+                    <div class="text-3xl font-bold {% if stats.overdue %}text-red-400{% endif %}">{{ stats.overdue or 0 }}</div>
+                    <div class="text-sm text-slate-400">Overdue</div>
+                </div>
+                <div class="bg-white/5 backdrop-blur rounded-lg p-4">
+                    <div class="text-3xl font-bold text-indigo-400">{{ recent_completions|sum(attribute='count') }}</div>
+                    <div class="text-sm text-slate-400">Done last 30 days</div>
+                </div>
             </div>
         </div>
         <div class="px-2 absolute bottom-16 w-full text-center mx-auto invisible md:visible font-semibold text-sm md:text-base text-center text-zinc-200">
