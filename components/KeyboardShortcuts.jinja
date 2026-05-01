@@ -1,0 +1,78 @@
+<dialog id="keyboard-shortcuts-dialog"
+    class="bg-transparent backdrop:bg-black/50 w-full max-w-lg mx-auto mt-[10vh]"
+    _="on keydown[key is 'Escape'] close me">
+    <div class="bg-slate-800 rounded-lg border border-slate-700 shadow-2xl overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+            <h3 class="text-sm font-semibold text-slate-200">Keyboard shortcuts</h3>
+            <button class="text-slate-400 hover:text-slate-200 cursor-pointer"
+                onclick="document.getElementById('keyboard-shortcuts-dialog').close()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+                  <path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+                </svg>
+            </button>
+        </div>
+        <div class="px-4 py-3 max-h-[60vh] overflow-y-auto">
+            <div class="mb-4">
+                <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Global</h4>
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Quick add task</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">n</kbd>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Search</span>
+                        <div class="flex gap-0.5">
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">Cmd</kbd>
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">k</kbd>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Show shortcuts</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">?</kbd>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-4">
+                <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Task navigation</h4>
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Move focus down</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">j</kbd>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Move focus up</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">k</kbd>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Clear focus</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">Esc</kbd>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Focused task actions</h4>
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Toggle complete</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">x</kbd>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Open task</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">Enter</kbd>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Edit title</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">e</kbd>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Set due date</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">d</kbd>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="px-4 py-2 border-t border-slate-700 text-xs text-slate-500 text-center">
+            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">Esc</kbd> to close
+        </div>
+    </div>
+</dialog>

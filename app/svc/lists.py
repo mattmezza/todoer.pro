@@ -35,6 +35,14 @@ def sort_tasks(tasks: list, sort_by: str) -> None:
                 (t.get("title") or "").lower(),
             )
         )
+    elif sort_by == "priority":
+        tasks.sort(
+            key=lambda t: (
+                t.get("complete", 0),
+                t.get("priority") or 99,
+                t.get("order", 0),
+            )
+        )
     # 'manual' is the default DB ordering, no re-sort needed
 
 
