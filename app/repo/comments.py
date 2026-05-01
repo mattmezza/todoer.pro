@@ -83,6 +83,23 @@ class CommentForUser(LoggedInUserRepo):
             {"sid": sid, "creator": self.user["uuid"]},
         )
 
+    async def update_by_sid(self, content: str, sid: str) -> Mapping | None:
+        comment = await self.db.fetch_one(
+            """
+            UPDATE comments
+                SET content = :content, updated = CURRENT_TIMESTAMP
+                WHERE sid = :sid
+                    AND author = :creator
+            RETURNING *
+            """,
+            {
+                "sid": sid,
+                "content": content,
+                "creator": self.user["uuid"],
+            },
+        )
+        return comment._mapping if comment else None
+
     async def create(self, content: str, task_uuid: str) -> Mapping:
         uuid_new, sid_new = new_ids()
         comment = await self.db.fetch_one(
