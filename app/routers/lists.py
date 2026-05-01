@@ -1,8 +1,10 @@
+import csv
+import io
 from typing import Annotated, Mapping
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from app import http, svc, tpl
 from app.deps import Renderer, get_current_active_user, renderer, repo_db
@@ -89,6 +91,99 @@ async def view(
         "user": user,
         "tasks_by_section": tasks_by_section,
     }
+
+
+@router.get("/list/{sid}/export.txt")
+async def export_txt(
+    req: Request,
+    sid: str,
+    db: RepoDB = Depends(repo_db),
+    user: Mapping = Depends(get_current_active_user),
+):
+    urepo = db.for_user(user)
+    li = http.Opt(await urepo.lists().by_sid(sid)).or_404()
+    sections = await urepo.sections().by_list(li["uuid"])
+    tasks_by_section = await urepo.tasks().by_section_for_list(
+        li["uuid"]
+    )
+
+    lines = [f"# {li['title']}", ""]
+    if li.get("descr"):
+        lines.append(li["descr"])
+        lines.append("")
+
+    for section in sections:
+        tasks = tasks_by_section.get(section["uuid"], [])
+        if not section["default"]:
+            lines.append(f"## {section['title']}")
+        for task in tasks:
+            status = "[x]" if task["complete"] else "[ ]"
+            line = f"  {status} {task['title']}"
+            if task.get("due_date"):
+                line += f" (due: {task['due_date']})"
+            lines.append(line)
+        lines.append("")
+
+    content = "\n".join(lines)
+    return PlainTextResponse(
+        content,
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{li["title"]}.txt"'
+            )
+        },
+    )
+
+
+@router.get("/list/{sid}/export.csv")
+async def export_csv(
+    req: Request,
+    sid: str,
+    db: RepoDB = Depends(repo_db),
+    user: Mapping = Depends(get_current_active_user),
+):
+    urepo = db.for_user(user)
+    li = http.Opt(await urepo.lists().by_sid(sid)).or_404()
+    sections = await urepo.sections().by_list(li["uuid"])
+    tasks_by_section = await urepo.tasks().by_section_for_list(
+        li["uuid"]
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        ["Section", "Task", "Status", "Due Date", "Created"]
+    )
+
+    for section in sections:
+        tasks = tasks_by_section.get(section["uuid"], [])
+        section_title = (
+            section["title"]
+            if not section["default"]
+            else "(default)"
+        )
+        for task in tasks:
+            writer.writerow(
+                [
+                    section_title,
+                    task["title"],
+                    "Complete"
+                    if task["complete"]
+                    else "Incomplete",
+                    task.get("due_date", ""),
+                    task.get("created", ""),
+                ]
+            )
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{li["title"]}.csv"'
+            )
+        },
+    )
 
 
 @router.put("/list/{sid}/color")
