@@ -2,7 +2,7 @@ import logging
 from typing import Annotated, Mapping
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from app import tpl
 from app.deps import RepoDB, get_current_active_user, repo_db
@@ -24,14 +24,18 @@ async def read(
     }
 
 
-@router.put("/account/fullname", response_class=PlainTextResponse)
+@router.put("/account/fullname")
 async def change_name(
     req: Request,
-    res: PlainTextResponse,
     name: Annotated[str, Form()],
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
 ):
-    user = await db.for_user(user).users().update_fname_by_uuid(name.strip())
-    res.headers["HX-Trigger"] = "account-update"
-    return user["name"]
+    await db.for_user(user).users().update_fname_by_uuid(name.strip())
+    return HTMLResponse(
+        "",
+        headers={
+            "HX-Redirect": "/account",
+            "HX-Trigger": "account-update",
+        },
+    )

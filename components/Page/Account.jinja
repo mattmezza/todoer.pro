@@ -1,25 +1,67 @@
 {# def user, spaces #}
-<Layout.App spaces={spaces} user={user}>
-    <div class="py-8 px-4 md:px-8 max-w-screen-lg mx-auto mt-12">
-        <img src="https://www.gravatar.com/avatar/{{ user.email_hash }}?s=150" class="rounded-full ring-6 ring-gray-900 mx-auto" />
-        <div class="text-lg font-semibold">
-            <div class="flex flex-row items-center justify-between">
-                <span class="text-sm">Name</span>
+<Layout.App spaces={spaces} user={user} title="Account">
+    <div class="py-8 px-4 md:px-8 max-w-screen-md mx-auto space-y-8">
+        <!-- Profile header -->
+        <div class="flex flex-col items-center gap-4">
+            <img src="https://www.gravatar.com/avatar/{{ user.email_hash }}?s=150" class="w-24 h-24 rounded-full ring-4 ring-slate-700" />
+            <div class="text-center">
+                <h1 class="text-2xl font-bold">{{ user.name or user.email }}</h1>
+                <p class="text-sm text-slate-500">{{ user.email }}</p>
             </div>
-            <div class="bg-slate-50/5 rounded px-3 py-2 w-full cursor-pointer hover:bg-slate-50/10" _="on click hide me then show the next <form /> then select() on the next <input /> on keyup[key is 'Escape'] from the next <input /> hide the next <form /> then show me">
-                {{ user.name }}
-            </div>
-            <form style="display: none" hx-put="/account/fullname" hx-target="previous div" _="on submit hide me then show the previous <div />">
-                <input class="bg-slate-50/10 rounded px-3 py-2 w-full" type="text" name="name" value="{{ user.name }}">
-            </form>
         </div>
-        <div class="">
-            <div class="flex flex-row items-center justify-between">
-                <span class="text-sm">Email</span>
+
+        <!-- Profile fields -->
+        <div class="space-y-6">
+            <div>
+                <label class="text-sm text-slate-400 block mb-1">Full name</label>
+                <!-- Display -->
+                <div class="profile-name-display flex items-center gap-2">
+                    <div class="bg-slate-50/5 rounded px-3 py-2 w-full">
+                        {{ user.name or '(not set)' }}
+                    </div>
+                    <button type="button" class="btn text-sm text-slate-400 hover:text-white"
+                        _="on click hide closest .profile-name-display then show next .profile-name-edit then next .profile-name-edit.querySelector('input[name=name]').select()">
+                        Edit
+                    </button>
+                </div>
+                <!-- Edit form -->
+                <form class="profile-name-edit" style="display: none"
+                    hx-put="/account/fullname"
+                    hx-target="closest div"
+                    hx-swap="outerHTML"
+                    _="on reset hide me then show previous .profile-name-display">
+                    <div class="flex items-center gap-2">
+                        <input class="form-input rounded px-3 py-2 w-full" type="text" name="name" value="{{ user.name }}"
+                            _="on keyup[key is 'Escape'] reset() the closest <form />">
+                        <button type="reset" class="btn text-sm py-1">Cancel</button>
+                        <button type="submit" class="btn text-sm py-1 bg-indigo-600 text-white">Save</button>
+                    </div>
+                </form>
             </div>
-            <div class="bg-slate-50/5 rounded px-3 py-2 w-full cursor-not-allowed">
-                {{ user.email }}
+            <div>
+                <label class="text-sm text-slate-400 block mb-1">Email</label>
+                <div class="bg-slate-50/5 rounded px-3 py-2 w-full text-slate-500">
+                    {{ user.email }}
+                </div>
             </div>
+            <div>
+                <label class="text-sm text-slate-400 block mb-1">Member since</label>
+                <div class="bg-slate-50/5 rounded px-3 py-2 w-full text-slate-500">
+                    {{ user.created|age }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Danger zone -->
+        <div class="border border-red-900/50 rounded-lg p-6 space-y-4">
+            <h2 class="text-lg font-bold text-red-500">Danger zone</h2>
+            <p class="text-sm text-slate-400">
+                Once you delete your account, all your data will be permanently removed. This action cannot be undone.
+            </p>
+            <a href="mailto:mattmezza@gmail.com?subject=Account%20Deletion%20Request%20-%20Todoer.pro&body=Hi%2C%0A%0AI%20would%20like%20to%20delete%20my%20Todoer.pro%20account.%0A%0AEmail%3A%20{{ user.email }}%0A%0APlease%20remove%20all%20my%20data.%0A%0AThanks"
+               class="inline-block px-4 py-2 rounded border border-red-600 text-red-500 text-sm font-semibold hover:bg-red-600 hover:text-white transition-colors">
+                Request account deletion
+            </a>
         </div>
     </div>
 </Layout.App>
