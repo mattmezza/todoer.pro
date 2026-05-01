@@ -32,9 +32,7 @@ class TaskForUser(LoggedInUserRepo):
         )
         return row._mapping if row else {}
 
-    async def completed_per_period(
-        self, days: int = 30
-    ) -> list[Mapping]:
+    async def completed_per_period(self, days: int = 30) -> list[Mapping]:
         rows = await self.db.fetch_all(
             """
             SELECT
@@ -240,9 +238,7 @@ class TaskForUser(LoggedInUserRepo):
         )
         return ta._mapping if ta is not None else None
 
-    async def update_tags_by_sid(
-        self, tags: str, sid: str
-    ) -> Mapping | None:
+    async def update_tags_by_sid(self, tags: str, sid: str) -> Mapping | None:
         ta = await self.db.fetch_one(
             """
             UPDATE tasks
@@ -771,6 +767,41 @@ class TaskForUser(LoggedInUserRepo):
                 {"section": task.section, "sid": sid, "order_old": order_old},
             )
             return task._mapping if task is not None else None
+
+    async def log_action(
+        self,
+        task_uuid: str,
+        action: str,
+        detail: str | None = None,
+    ) -> None:
+        await self.db.execute(
+            """
+            INSERT INTO task_audit_log (task, action, detail, actor)
+            VALUES (:task, :action, :detail, :actor)
+            """,
+            {
+                "task": task_uuid,
+                "action": action,
+                "detail": detail,
+                "actor": self.user["uuid"],
+            },
+        )
+
+    async def audit_log(
+        self, task_uuid: str, limit: int = 50
+    ) -> list[Mapping]:
+        rows = await self.db.fetch_all(
+            """
+            SELECT al.*, u.name as actor_name, u.email as actor_email
+            FROM task_audit_log al
+            JOIN users u ON u.uuid = al.actor
+            WHERE al.task = :task
+            ORDER BY al.created DESC
+            LIMIT :limit
+            """,
+            {"task": task_uuid, "limit": limit},
+        )
+        return [r._mapping for r in rows]
 
     async def move_bottom(self, sid: str) -> None | Mapping:
         async with self.db.transaction():

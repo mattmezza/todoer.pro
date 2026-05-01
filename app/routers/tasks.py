@@ -21,9 +21,11 @@ async def add_task(
     db: RepoDB = Depends(repo_db),
 ):
     urepo = db.for_user(user)
-    task = await urepo.tasks().create(
+    tarepo = urepo.tasks()
+    task = await tarepo.create(
         title.strip(), descr.strip() if descr else None, section
     )
+    await tarepo.log_action(task["uuid"], "created")
     task = dict(task)
     task["is_first"] = task["order"] == 0
     task["is_last"] = True
@@ -268,9 +270,12 @@ async def update_complete(
     db: RepoDB = Depends(repo_db),
 ):
     urepo = db.for_user(user)
+    tarepo = urepo.tasks()
     task = http.Opt(
-        await urepo.tasks().update_completed_by_sid(complete, sid)
+        await tarepo.update_completed_by_sid(complete, sid)
     ).or_404(f"Task #{sid} not found.")
+    action = "completed" if task["complete"] else "uncompleted"
+    await tarepo.log_action(task["uuid"], action)
     section = await urepo.sections().by_uuid(task["section"])
     list_ = await urepo.lists().by_uuid(section["list"])
     space = await urepo.spaces().by_uuid(list_["space"])
@@ -327,7 +332,11 @@ async def archive(
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
-    await db.for_user(user).tasks().archive(sid)
+    urepo = db.for_user(user)
+    tarepo = urepo.tasks()
+    task = await tarepo.archive(sid)
+    if task:
+        await tarepo.log_action(task["uuid"], "archived")
     return HTMLResponse(
         "",
         headers={"HX-Trigger": f"task-delete, task-{sid}-delete"},
