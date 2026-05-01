@@ -199,66 +199,192 @@ class TaskForUser(LoggedInUserRepo):
         )
         return ta._mapping if ta is not None else None
 
+    async def _reorder_on_complete_toggle(
+        self, task_before, task_after
+    ) -> None:
+        """Reorder tasks after a complete/incomplete toggle.
+
+        When marking complete: move task to max order + 1 and
+        decrement orders of tasks that were below it.
+        When marking incomplete: move task to max order + 1
+        among incomplete tasks (append at bottom of visible list).
+        """
+        old_complete = task_before["complete"]
+        new_complete = task_after["complete"]
+        if old_complete == new_complete:
+            return
+        section = task_after["section"]
+        old_order = task_before["order"]
+        if new_complete:
+            # Marking complete: push to bottom, close gap
+            max_order = await self.db.fetch_one(
+                """
+                SELECT COALESCE(MAX(`order`), -1) AS m
+                FROM tasks
+                WHERE section = :section
+                """,
+                {"section": section},
+            )
+            new_order = max_order["m"] + 1
+            await self.db.execute(
+                """
+                UPDATE tasks
+                SET `order` = :new_order,
+                    updated = CURRENT_TIMESTAMP
+                WHERE uuid = :uuid
+                """,
+                {
+                    "new_order": new_order,
+                    "uuid": task_after["uuid"],
+                },
+            )
+            await self.db.execute(
+                """
+                UPDATE tasks
+                SET `order` = `order` - 1
+                WHERE section = :section
+                    AND `order` > :old_order
+                    AND uuid != :uuid
+                """,
+                {
+                    "section": section,
+                    "old_order": old_order,
+                    "uuid": task_after["uuid"],
+                },
+            )
+        else:
+            # Marking incomplete: append at bottom of
+            # incomplete list
+            max_incomplete = await self.db.fetch_one(
+                """
+                SELECT COALESCE(MAX(`order`), -1) AS m
+                FROM tasks
+                WHERE section = :section AND complete = 0
+                    AND uuid != :uuid
+                """,
+                {
+                    "section": section,
+                    "uuid": task_after["uuid"],
+                },
+            )
+            new_order = max_incomplete["m"] + 1
+            await self.db.execute(
+                """
+                UPDATE tasks
+                SET `order` = :new_order,
+                    updated = CURRENT_TIMESTAMP
+                WHERE uuid = :uuid
+                """,
+                {
+                    "new_order": new_order,
+                    "uuid": task_after["uuid"],
+                },
+            )
+
     async def update_completed_by_sid(
         self, complete: str | None, sid: str
     ) -> Mapping | None:
-        ta = await self.db.fetch_one(
-            """
-            UPDATE tasks
-                SET
-                    complete = :complete,
-                    completed = :completed,
-                    updated = CURRENT_TIMESTAMP
-                WHERE sid = :sid
-                    AND EXISTS (
-                        SELECT ta.uuid FROM tasks ta
-                        JOIN sections se ON se.uuid = ta.section
-                        JOIN lists l ON l.uuid = se.list
-                        JOIN spaces sp ON sp.uuid = l.space
-                        WHERE sp.creator = :creator
-                    )
-            RETURNING *
-            """,
-            {
-                "sid": sid,
-                "complete": 1 if complete else 0,
-                "completed": datetime.utcnow() if complete else "NULL",
-                "creator": self.user["uuid"],
-            },
-        )
+        async with self.db.transaction():
+            task_before = await self.db.fetch_one(
+                """
+                SELECT * FROM tasks WHERE sid = :sid
+                """,
+                {"sid": sid},
+            )
+            if task_before is None:
+                return None
+            ta = await self.db.fetch_one(
+                """
+                UPDATE tasks
+                    SET
+                        complete = :complete,
+                        completed = :completed,
+                        updated = CURRENT_TIMESTAMP
+                    WHERE sid = :sid
+                        AND EXISTS (
+                            SELECT ta.uuid FROM tasks ta
+                            JOIN sections se ON se.uuid = ta.section
+                            JOIN lists l ON l.uuid = se.list
+                            JOIN spaces sp ON sp.uuid = l.space
+                            WHERE sp.creator = :creator
+                        )
+                RETURNING *
+                """,
+                {
+                    "sid": sid,
+                    "complete": 1 if complete else 0,
+                    "completed": (datetime.utcnow() if complete else "NULL"),
+                    "creator": self.user["uuid"],
+                },
+            )
+            if ta is None:
+                return None
+            await self._reorder_on_complete_toggle(
+                task_before._mapping, ta._mapping
+            )
+            ta = await self.db.fetch_one(
+                """
+                SELECT * FROM tasks WHERE sid = :sid
+                """,
+                {"sid": sid},
+            )
         return ta._mapping if ta is not None else None
 
     async def update_task_by_sid(
-        self, complete: str | None, title: str, descr: str | None, sid: str
+        self,
+        complete: str | None,
+        title: str,
+        descr: str | None,
+        sid: str,
     ) -> Mapping | None:
-        ta = await self.db.fetch_one(
-            """
-            UPDATE tasks
-                SET
-                    title = :title,
-                    descr = :descr,
-                    complete = :complete,
-                    completed = :completed,
-                    updated = CURRENT_TIMESTAMP
-                WHERE sid = :sid
-                    AND EXISTS (
-                        SELECT ta.uuid FROM tasks ta
-                        JOIN sections se ON se.uuid = ta.section
-                        JOIN lists l ON l.uuid = se.list
-                        JOIN spaces sp ON sp.uuid = l.space
-                        WHERE sp.creator = :creator
-                    )
-            RETURNING *
-            """,
-            {
-                "sid": sid,
-                "title": title,
-                "descr": descr,
-                "complete": 1 if complete else 0,
-                "completed": datetime.utcnow() if complete else "NULL",
-                "creator": self.user["uuid"],
-            },
-        )
+        async with self.db.transaction():
+            task_before = await self.db.fetch_one(
+                """
+                SELECT * FROM tasks WHERE sid = :sid
+                """,
+                {"sid": sid},
+            )
+            if task_before is None:
+                return None
+            ta = await self.db.fetch_one(
+                """
+                UPDATE tasks
+                    SET
+                        title = :title,
+                        descr = :descr,
+                        complete = :complete,
+                        completed = :completed,
+                        updated = CURRENT_TIMESTAMP
+                    WHERE sid = :sid
+                        AND EXISTS (
+                            SELECT ta.uuid FROM tasks ta
+                            JOIN sections se ON se.uuid = ta.section
+                            JOIN lists l ON l.uuid = se.list
+                            JOIN spaces sp ON sp.uuid = l.space
+                            WHERE sp.creator = :creator
+                        )
+                RETURNING *
+                """,
+                {
+                    "sid": sid,
+                    "title": title,
+                    "descr": descr,
+                    "complete": 1 if complete else 0,
+                    "completed": (datetime.utcnow() if complete else "NULL"),
+                    "creator": self.user["uuid"],
+                },
+            )
+            if ta is None:
+                return None
+            await self._reorder_on_complete_toggle(
+                task_before._mapping, ta._mapping
+            )
+            ta = await self.db.fetch_one(
+                """
+                SELECT * FROM tasks WHERE sid = :sid
+                """,
+                {"sid": sid},
+            )
         return ta._mapping if ta is not None else None
 
     async def del_by_sid(self, sid: str) -> None:
