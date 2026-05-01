@@ -1,8 +1,12 @@
 {# def comment #}
-<div class="flex gap-2 justify-start items-start">
-    <img class="w-6 h-6 rounded-full" src="https://www.gravatar.com/avatar/{{ comment.author_email_hash }}.jpg?s=100" width="32" height="32" alt="User">
-    <div class="border-l-4 dark:border-slate-400 px-2 flex-grow prose md:prose-lg dark:prose-white">{{ comment.content|markdown|safe }}</div>
-</div>
-<div class="text-sm italic dark:text-slate-600 text-right" title="{{ comment.created }}">
-    {{ comment.created|age }}
+<div id="comment-{{ comment.sid }}">
+    <div class="flex gap-2 justify-start items-start">
+        <img class="w-6 h-6 rounded-full flex-shrink-0" src="https://www.gravatar.com/avatar/{{ comment.author_email_hash }}.jpg?s=100" width="32" height="32" alt="User">
+        <div class="flex-grow min-w-0">
+            <div class="border-l-4 dark:border-slate-400 px-2 prose md:prose-lg dark:prose-white break-words">{{ comment.content|markdown|safe }}</div>
+            <div class="text-sm italic dark:text-slate-600 text-right" title="{{ comment.created }}">
+                {{ comment.created|age }}
+            </div>
+        </div>
+    </div>
 </div>
