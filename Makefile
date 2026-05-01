@@ -3,8 +3,8 @@ help: ## show help message
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m\033[0m\n"} /^[$$()% a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 .PHONY: serve-reload tailwind-watch tailwind
-serve-reload:  ## serves the app with debug and auto reload on
-	uvicorn app.main:app --reload
+serve-reload:  ## serves the app with debug and auto reload on (e.g. make serve-reload port=3000)
+	uv run uvicorn app.main:app --reload --port $(or $(port),8000)
 tailwind-watch:  ## starts tailwindcss compilation and watches files for change
 	npx tailwindcss -i styles/global.css -o public/style.css --watch
 tailwind:  ## compiles css with tailwindcss

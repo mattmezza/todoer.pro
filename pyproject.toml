@@ -1,35 +1,36 @@
-[tool.poetry]
+[project]
 name = "todoer"
 version = "0.1.0"
 description = "Todoer Pro"
-authors = ["Matteo Merola <mattmezza@gmail.com>"]
-license = "MIT"
+authors = [{name = "Matteo Merola", email = "mattmezza@gmail.com"}]
+license = {text = "MIT"}
 readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.103.1",
+    "jinja2>=3.1.2",
+    "uvicorn[standard]>=0.23.2",
+    "arel>=0.2.0",
+    "python-multipart>=0.0.6",
+    "databases[aiosqlite]>=0.8.0",
+    "greenlet>=2.0.2",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "pydantic[email]>=2.3.0",
+    "shortuuid>=1.0.11",
+    "boto3>=1.33.4",
+    "humanize>=4.9.0",
+    "jinjax>=0.35",
+    "markdown>=3.6",
+    "pymdown-extensions>=10.9",
+    "pygments>=2.18.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-fastapi = "^0.103.1"
-jinja2 = "^3.1.2"
-uvicorn = {extras = ["standard"], version = "^0.23.2"}
-arel = "^0.2.0"
-python-multipart = "^0.0.6"
-databases = {extras = ["aiosqlite"], version = "^0.8.0"}
-greenlet = "^2.0.2"
-python-jose = {extras = ["cryptography"], version = "^3.3.0"}
-passlib = {extras = ["bcrypt"], version = "^1.7.4"}
-pydantic = {extras = ["email"], version = "^2.3.0"}
-shortuuid = "^1.0.11"
-boto3 = "^1.33.4"
-humanize = "^4.9.0"
-jinjax = "^0.35"
-markdown = "^3.6"
-pymdown-extensions = "^10.9"
-pygments = "^2.18.0"
-
-
-[tool.poetry.group.dev.dependencies]
-black = "^23.9.1"
-isort = "^5.12.0"
+[dependency-groups]
+dev = [
+    "black>=23.9.1",
+    "isort>=5.12.0",
+]
 
 [tool.black]
 line-length = 79
@@ -56,7 +57,3 @@ include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 line_length = 79
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
