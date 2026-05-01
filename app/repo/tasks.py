@@ -7,6 +7,31 @@ from .utils import LoggedInUserRepo, new_ids
 
 
 class TaskForUser(LoggedInUserRepo):
+    async def search(self, query: str, limit: int = 20) -> list[Mapping]:
+        tasks = await self.db.fetch_all(
+            """
+            SELECT ta.sid, ta.title, ta.descr, 'task' as type,
+                   se.sid as section_sid, l.sid as list_sid,
+                   sp.sid as space_sid,
+                   sp.title as space_title, l.title as list_title
+            FROM tasks ta
+            JOIN sections se ON se.uuid = ta.section
+            JOIN lists l ON l.uuid = se.list
+            JOIN spaces sp ON sp.uuid = l.space
+            WHERE sp.creator = :creator
+              AND ta.archived = 0
+              AND (ta.title LIKE :query OR ta.descr LIKE :query)
+            ORDER BY ta.updated DESC, ta.created DESC
+            LIMIT :limit
+            """,
+            {
+                "creator": self.user["uuid"],
+                "query": f"%{query}%",
+                "limit": limit,
+            },
+        )
+        return [t._mapping for t in tasks]
+
     async def by_sid(self, sid: str) -> Mapping | None:
         task = await self.db.fetch_one(
             """

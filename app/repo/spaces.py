@@ -5,6 +5,25 @@ from .utils import LoggedInUserRepo, new_ids
 
 
 class SpaceForUser(LoggedInUserRepo):
+    async def search(self, query: str, limit: int = 10) -> list[Mapping]:
+        spaces = await self.db.fetch_all(
+            """
+            SELECT s.sid, s.title, 'space' as type
+            FROM spaces s
+            WHERE s.creator = :creator
+              AND s.archived = 0
+              AND (s.title LIKE :query OR s.descr LIKE :query)
+            ORDER BY s.updated DESC, s.created DESC
+            LIMIT :limit
+            """,
+            {
+                "creator": self.user["uuid"],
+                "query": f"%{query}%",
+                "limit": limit,
+            },
+        )
+        return [s._mapping for s in spaces]
+
     async def by_sid(self, sid: str) -> Mapping | None:
         space = await self.db.fetch_one(
             """
@@ -178,7 +197,9 @@ class SpaceForUser(LoggedInUserRepo):
         )
         return None if sp is None else sp.title
 
-    async def update_descr(self, sid: str, descr: str | None) -> Mapping | None:
+    async def update_descr(
+        self, sid: str, descr: str | None
+    ) -> Mapping | None:
         se = await self.db.fetch_one(
             """
             UPDATE spaces
