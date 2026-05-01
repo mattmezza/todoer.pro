@@ -10,6 +10,22 @@ from app.deps import RepoDB, get_current_active_user, repo_db
 router = APIRouter()
 
 
+@router.patch("/section/{sid}/archive", response_class=HTMLResponse)
+async def archive(
+    req: Request,
+    sid: str,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    await db.for_user(user).sections().archive(sid)
+    return HTMLResponse(
+        "",
+        headers={
+            "HX-Trigger": f"section-delete, section-{sid}-delete"
+        },
+    )
+
+
 @router.delete("/section/{sid}", response_class=HTMLResponse)
 async def delete(
     req: Request,

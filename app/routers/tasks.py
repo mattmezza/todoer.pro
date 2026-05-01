@@ -251,6 +251,22 @@ async def update_title(
     )
 
 
+@router.patch("/task/{sid}/archive", response_class=HTMLResponse)
+async def archive(
+    req: Request,
+    sid: str,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    await db.for_user(user).tasks().archive(sid)
+    return HTMLResponse(
+        "",
+        headers={
+            "HX-Trigger": f"task-delete, task-{sid}-delete"
+        },
+    )
+
+
 @router.delete("/task/{sid}", response_class=HTMLResponse)
 async def delete(
     req: Request,
