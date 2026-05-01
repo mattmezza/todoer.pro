@@ -17,11 +17,9 @@
         <Btn.CopyId id={space.sid} prefix="@" title={"Copy space id (@" + space.sid + ")"} />
         <Spaces.Actions space={space} view_complete={view_complete} />
     </div>
-    {% if not space.default or space.default %}
     <div>
         <Spaces.Descr space={space} />
     </div>
-    {% endif %}
 
     <!-- default section (inbox) -->
     <ul class="sections">
