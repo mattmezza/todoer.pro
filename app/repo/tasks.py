@@ -803,6 +803,37 @@ class TaskForUser(LoggedInUserRepo):
         )
         return [r._mapping for r in rows]
 
+    async def reorder(self, sids: list[str]) -> None:
+        """Bulk-update task order based on the provided list of SIDs.
+
+        Each task's `order` column is set to its index in the list.
+        All tasks must belong to the same section and be owned by
+        the current user.
+        """
+        async with self.db.transaction():
+            for order, sid in enumerate(sids):
+                await self.db.execute(
+                    """
+                    UPDATE tasks
+                    SET `order` = :order,
+                        updated = CURRENT_TIMESTAMP
+                    WHERE sid = :sid
+                        AND EXISTS (
+                            SELECT 1 FROM tasks ta
+                            JOIN sections se ON se.uuid = ta.section
+                            JOIN lists l ON l.uuid = se.list
+                            JOIN spaces sp ON sp.uuid = l.space
+                            WHERE ta.uuid = tasks.uuid
+                                AND sp.creator = :creator
+                        )
+                    """,
+                    {
+                        "order": order,
+                        "sid": sid,
+                        "creator": self.user["uuid"],
+                    },
+                )
+
     async def move_bottom(self, sid: str) -> None | Mapping:
         async with self.db.transaction():
             task = await self.db.fetch_one(
