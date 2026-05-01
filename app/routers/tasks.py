@@ -193,6 +193,28 @@ async def update_due_date(
     )
 
 
+@router.put("/task/{sid}/tags")
+@tpl.htmx("Tasks.Tags")
+async def update_tags(
+    req: Request,
+    sid: str,
+    tags: Annotated[str | None, Form()] = None,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    urepo = db.for_user(user)
+    task = http.Opt(
+        await urepo.tasks().update_tags_by_sid(
+            tags.strip() if tags else "", sid
+        )
+    ).or_404(f"Task #{sid} not found.")
+    return (
+        {"task": task},
+        200,
+        {"HX-Trigger": f"task-update, task-{sid}-update"},
+    )
+
+
 @router.put("/task/{sid}/descr", response_class=HTMLResponse)
 @tpl.htmx("Tasks.Descr")
 async def update_descr(
