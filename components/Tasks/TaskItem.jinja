@@ -64,6 +64,15 @@
                 <span class="text-xs text-slate-500">{{ task.subtasks_done }}/{{ task.subtasks_total }}</span>
             </div>
             {% endif %}
+            {% if task.tags %}
+            <div class="ml-8 flex flex-wrap gap-1 mt-1">
+                {% for tag in task.tags.split(',') %}
+                    {% if tag.strip() %}
+                    <span class="text-xs px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400">#{{ tag.strip() }}</span>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
         <!-- Right side -->
         <div class="items-center justify-end space-x-2 flex">
