@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 @router.get("/spaces")
-@tpl.htmx("Page/Spaces")
+@tpl.htmx("Page.Spaces")
 async def index(
     req: Request,
     db: RepoDB = Depends(repo_db),
@@ -25,7 +25,7 @@ async def index(
 
 
 @router.get("/space/{sid}")
-@tpl.htmx("Page/Space")
+@tpl.htmx("Page.Space")
 async def read(
     req: Request,
     sid: str,
@@ -75,7 +75,7 @@ async def read(
 
 
 @router.post("/spaces", response_class=HTMLResponse)
-@tpl.htmx("Spaces/ListItem")
+@tpl.htmx("Spaces.ListItem")
 async def add(
     req: Request,
     title: Annotated[str, Form()],
@@ -131,7 +131,7 @@ async def update_title(
 
 
 @router.put("/space/{sid}/descr", response_class=HTMLResponse)
-@tpl.htmx("Spaces/Descr")
+@tpl.htmx("Spaces.Descr")
 async def update_descr(
     req: Request,
     res: HTMLResponse,
@@ -150,7 +150,7 @@ async def update_descr(
 
 
 @router.get("/inbox")
-@tpl.htmx("Page/Space")
+@tpl.htmx("Page.Space")
 async def inbox(
     req: Request,
     view_complete: bool = False,
