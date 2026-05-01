@@ -83,3 +83,12 @@ async def confirm(
 @tpl.htmx("Page.ForgotPwd")
 async def forgot_pwd_view(req: Request):
     return {}
+
+
+@router.post("/forgot-password")
+@tpl.htmx("Page.ForgotPwd")
+async def forgot_pwd(
+    req: Request,
+    email: Annotated[str, Form()],
+):
+    return {"sent": True}
