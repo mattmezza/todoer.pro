@@ -63,9 +63,7 @@ class UserForAnon(AnonymousRepo):
 
 
 class UserForUser(LoggedInUserRepo):
-    async def update_fname_by_uuid(
-        self, fname: str, uuid: str
-    ) -> Mapping | None:
+    async def update_fname_by_uuid(self, fname: str) -> Mapping | None:
         user = await self.db.fetch_one(
             "UPDATE users SET name = :fname WHERE uuid = :uuid RETURNING *",
             {"fname": fname, "uuid": self.user["uuid"]},

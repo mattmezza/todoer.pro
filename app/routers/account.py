@@ -32,10 +32,6 @@ async def change_name(
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
 ):
-    user = (
-        await db.for_user(user)
-        .users()
-        .update_fname_by_uuid(name.strip(), user["uuid"])
-    )
+    user = await db.for_user(user).users().update_fname_by_uuid(name.strip())
     res.headers["HX-Trigger"] = "account-update"
     return user["name"]
