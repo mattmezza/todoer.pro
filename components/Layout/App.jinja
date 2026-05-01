@@ -68,6 +68,7 @@
     <script src="//unpkg.com/alpinejs"></script>
     <script src="//unpkg.com/htmx.org@1.9.5/dist/htmx.min.js"></script>
     <script src="//unpkg.com/hyperscript.org@0.9.11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     {% if ENV == "local" %}
         <script src="//unpkg.com/htmx.org/dist/ext/debug.js"></script>
         {{ hot_reload.script("ws://localhost:8000/hot-reload") | safe }}
@@ -108,6 +109,33 @@
                 if (btn) btn.click();
             }
         });
+    </script>
+    <script>
+        function initSortableTasks() {
+            document.querySelectorAll('.sortable-tasks').forEach(function(el) {
+                if (el._sortable) return;
+                el._sortable = new Sortable(el, {
+                    handle: '.drag-handle',
+                    animation: 150,
+                    ghostClass: 'opacity-30',
+                    chosenClass: 'ring-2 ring-indigo-500 rounded',
+                    dragClass: 'shadow-2xl',
+                    onEnd: function(evt) {
+                        var sectionSid = el.dataset.sectionSid;
+                        var sids = Array.from(el.children).map(function(li) {
+                            return li.dataset.sid;
+                        }).filter(Boolean);
+                        fetch('/tasks/reorder', {
+                            method: 'PUT',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({sids: sids, section_sid: sectionSid})
+                        });
+                    }
+                });
+            });
+        }
+        document.addEventListener('DOMContentLoaded', initSortableTasks);
+        document.body.addEventListener('htmx:afterSettle', initSortableTasks);
     </script>
     {{ catalog.render_assets() }}
 </body>

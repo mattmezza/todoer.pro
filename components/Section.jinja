@@ -9,7 +9,7 @@
     {% if not section.default %}
     <Sections.Title section={section} tasks={tasks} view_complete={view_complete} lists={lists} list={list}/>
     {% endif %}
-    <ul class="list-none space-y-3 tasks">
+    <ul class="list-none space-y-3 tasks sortable-tasks" data-section-sid="{{ section.sid }}">
         {% for task in tasks|rejectattr("complete") %}
             <Tasks.TaskItem task={task} section={section} sections={sections} sections_by_list={sections_by_list} />
         {% endfor %}
