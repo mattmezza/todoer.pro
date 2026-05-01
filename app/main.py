@@ -12,6 +12,7 @@ from .routers import (
     account,
     attachments,
     auth,
+    bookmarks,
     comments,
     dashboard,
     lists,
@@ -129,6 +130,10 @@ app.include_router(
 )
 app.include_router(
     attachments.router,
+    dependencies=[Depends(get_current_active_user)],
+)
+app.include_router(
+    bookmarks.router,
     dependencies=[Depends(get_current_active_user)],
 )
 app.include_router(

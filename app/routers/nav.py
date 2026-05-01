@@ -30,3 +30,15 @@ async def nav_spaces(
     user: Mapping = Depends(get_current_active_user),
 ):
     return {"spaces": await db.for_user(user).spaces().all()}
+
+
+@router.get("/bookmarks")
+@tpl.htmx("Nav.Bookmarks")
+async def nav_bookmarks(
+    req: Request,
+    db: RepoDB = Depends(repo_db),
+    user: Mapping = Depends(get_current_active_user),
+):
+    return {
+        "bookmarks": await db.for_user(user).bookmarks().all(),
+    }

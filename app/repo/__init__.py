@@ -3,6 +3,7 @@ from typing import Mapping
 from databases import Database
 
 from .attachments import AttachmentForUser
+from .bookmarks import BookmarkForUser
 from .comments import CommentForUser
 from .lists import ListForUser
 from .sections import SectionForUser
@@ -37,6 +38,9 @@ class ForUser:
 
     def attachments(self) -> AttachmentForUser:
         return AttachmentForUser(self.user, self.db)
+
+    def bookmarks(self) -> BookmarkForUser:
+        return BookmarkForUser(self.user, self.db)
 
     def users(self) -> UserForUser:
         return UserForUser(self.user, self.db)
