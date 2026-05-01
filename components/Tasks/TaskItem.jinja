@@ -1,4 +1,4 @@
-{# def task, section, sections #}
+{# def task, section, sections, sections_by_list = [] #}
 <li
     id="task-{{ task.sid }}"
     class="task {% if task.is_first %}first{% endif %} {% if task.is_last %}last{% endif %}"
@@ -53,7 +53,7 @@
         <div class="items-center justify-end space-x-2 flex">
             {% if not task.complete %}
             <Tasks.ActionsItem task={task} />
-            <Tasks.ActionMove task={task} section={section} sections={sections} />
+            <Tasks.ActionMove task={task} section={section} sections={sections} sections_by_list={sections_by_list} />
             {% endif %}
         </div>
     </div>

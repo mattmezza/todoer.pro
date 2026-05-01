@@ -1,4 +1,4 @@
-{# def section, view_complete, tasks, lists, list, sections #}
+{# def section, view_complete, tasks, lists, list, sections, sections_by_list = [] #}
 <li
     id="section-{{ section.sid }}"
     class="py-4 section {% if section.is_first %}first{% endif %} {% if section.is_last %}last{% endif %}"
@@ -11,7 +11,7 @@
     {% endif %}
     <ul class="list-none space-y-3 tasks">
         {% for task in tasks|rejectattr("complete") %}
-            <Tasks.TaskItem task={task} section={section} sections={sections} />
+            <Tasks.TaskItem task={task} section={section} sections={sections} sections_by_list={sections_by_list} />
         {% endfor %}
     </ul>
     <Btn.Create id={"btn-task-create-" + section.sid} class="!justify-start ml-2" with_text_reveal={False} tabindex="0">Add task</Btn.Create>
@@ -64,7 +64,7 @@
         <span class="font-bold uppercase text-sm ml-2">Complete</span>
         <ul class="list-none space-y-3 mb-8">
             {% for task in tasks|selectattr("complete") if tasks|selectattr("complete")|list|length %}
-                    <Tasks.TaskItem task={task} section={section} sections={sections} />
+                    <Tasks.TaskItem task={task} section={section} sections={sections} sections_by_list={sections_by_list} />
             {% else %}
                 <span class="text-sm text-slate-700 dark:text-slate-600 ml-2">(no completed tasks)</span>
             {% endfor %}
