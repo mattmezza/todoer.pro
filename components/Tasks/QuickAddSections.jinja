@@ -1,0 +1,14 @@
+{# def sections, default_section #}
+{% if sections|length > 1 %}
+<label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Section</label>
+<select
+    name="section"
+    class="form-select block w-full rounded border-slate-300 dark:border-slate-600 bg-transparent text-slate-800 dark:text-slate-200 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+>
+    {% for se in sections %}
+    <option value="{{ se.uuid }}" {% if se.uuid == default_section.uuid %}selected{% endif %}>{% if se.default %}(default){% else %}{{ se.title }}{% endif %}</option>
+    {% endfor %}
+</select>
+{% else %}
+<input type="hidden" name="section" value="{{ default_section.uuid }}">
+{% endif %}
