@@ -9,7 +9,7 @@ from typing import Type
 
 import arel
 import markdown as md
-from markupsafe import Markup
+from markupsafe import Markup, escape
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from jinja2 import pass_context
@@ -157,14 +157,13 @@ def linkify(text: str, **kwargs) -> str:
         text = linkify_lists(text)
     if unset_true("tasks"):
         text = linkify_tasks(text)
-    return Markup(text) if kwargs.get("safe", True) else text
+    return Markup(text) if kwargs.get("safe", False) else text
 
 
 linkify_mentions = partial(linkify, emails=False, urls=False, safe=False)
 
 
 mdown = md.Markdown(
-    safe_mode=True,
     extensions=[
         'pymdownx.magiclink',
         'pymdownx.emoji',
@@ -180,8 +179,10 @@ mdown = md.Markdown(
 
 
 def markdown(text: str, **kwargs) -> Markup:
+    text = str(escape(text))
     text = linkify(text, **kwargs, emails=False, urls=False)
     text = mdown.convert(text)
+    mdown.reset()
     return Markup(text) if kwargs.get("safe", True) else text
 
 
