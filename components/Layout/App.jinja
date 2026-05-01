@@ -70,6 +70,7 @@
         </div>
     </dialog>
     <Dialog.About />
+    <KeyboardShortcuts />
     <script src="//unpkg.com/alpinejs"></script>
     <script src="//unpkg.com/htmx.org@1.9.5/dist/htmx.min.js"></script>
     <script src="//unpkg.com/hyperscript.org@0.9.11"></script>
@@ -119,6 +120,158 @@
                 });
             }
         });
+    </script>
+    <script>
+        // Keyboard navigation for tasks
+        (function() {
+            function isInputFocused() {
+                var active = document.activeElement;
+                if (!active) return false;
+                var tag = active.tagName.toLowerCase();
+                return tag === 'input' || tag === 'textarea' || tag === 'select' || active.isContentEditable;
+            }
+
+            function isAnyDialogOpen() {
+                var dialogs = document.getElementsByTagName('dialog');
+                for (var i = 0; i < dialogs.length; i++) {
+                    if (dialogs[i].open) return true;
+                }
+                return false;
+            }
+
+            function getVisibleTasks() {
+                return Array.from(document.querySelectorAll('.task')).filter(function(el) {
+                    return el.offsetParent !== null;
+                });
+            }
+
+            function getFocusedTask() {
+                return document.querySelector('.task.task-focused');
+            }
+
+            function setFocusedTask(taskEl) {
+                var current = getFocusedTask();
+                if (current) current.classList.remove('task-focused');
+                if (taskEl) {
+                    taskEl.classList.add('task-focused');
+                    taskEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                }
+            }
+
+            function clearFocus() {
+                var current = getFocusedTask();
+                if (current) current.classList.remove('task-focused');
+            }
+
+            document.addEventListener('keydown', function(e) {
+                if (e.metaKey || e.ctrlKey || e.altKey) return;
+                if (isInputFocused()) return;
+                if (isAnyDialogOpen()) return;
+
+                var key = e.key;
+                var tasks, focused, idx;
+
+                switch (key) {
+                    case 'j':
+                        e.preventDefault();
+                        tasks = getVisibleTasks();
+                        if (tasks.length === 0) return;
+                        focused = getFocusedTask();
+                        if (!focused) {
+                            setFocusedTask(tasks[0]);
+                        } else {
+                            idx = tasks.indexOf(focused);
+                            if (idx < tasks.length - 1) {
+                                setFocusedTask(tasks[idx + 1]);
+                            }
+                        }
+                        break;
+
+                    case 'k':
+                        e.preventDefault();
+                        tasks = getVisibleTasks();
+                        if (tasks.length === 0) return;
+                        focused = getFocusedTask();
+                        if (!focused) {
+                            setFocusedTask(tasks[tasks.length - 1]);
+                        } else {
+                            idx = tasks.indexOf(focused);
+                            if (idx > 0) {
+                                setFocusedTask(tasks[idx - 1]);
+                            }
+                        }
+                        break;
+
+                    case 'x':
+                        focused = getFocusedTask();
+                        if (!focused) return;
+                        e.preventDefault();
+                        var checkbox = focused.querySelector('input[type="checkbox"]');
+                        if (checkbox) checkbox.click();
+                        break;
+
+                    case 'Enter':
+                        focused = getFocusedTask();
+                        if (!focused) return;
+                        e.preventDefault();
+                        var sid = focused.dataset.sid;
+                        if (sid) window.location.href = '/task/' + sid;
+                        break;
+
+                    case 'e':
+                        focused = getFocusedTask();
+                        if (!focused) return;
+                        e.preventDefault();
+                        var displayForm = focused.querySelector('form:not(.task-title-edit)');
+                        var editForm = focused.querySelector('.task-title-edit');
+                        if (displayForm && editForm) {
+                            displayForm.style.display = 'none';
+                            editForm.style.display = '';
+                            var titleInput = editForm.querySelector('input[name=title]');
+                            if (titleInput) titleInput.select();
+                        }
+                        break;
+
+                    case 'd':
+                        focused = getFocusedTask();
+                        if (!focused) return;
+                        e.preventDefault();
+                        var dueDateDisplay = focused.querySelector('.due-date-display');
+                        if (dueDateDisplay) dueDateDisplay.click();
+                        break;
+
+                    case '?':
+                        e.preventDefault();
+                        var dialog = document.getElementById('keyboard-shortcuts-dialog');
+                        if (dialog) dialog.showModal();
+                        break;
+
+                    case 'Escape':
+                        if (getFocusedTask()) {
+                            e.preventDefault();
+                            clearFocus();
+                        }
+                        break;
+                }
+            });
+
+            // Clear focus when clicking outside tasks
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.task')) {
+                    clearFocus();
+                }
+            });
+
+            // Clear focus when HTMX swaps content (tasks may be re-rendered)
+            document.body.addEventListener('htmx:afterSettle', function() {
+                // After HTMX swaps, the focused element may have been replaced
+                // Re-apply focus if the task still exists
+                var focused = getFocusedTask();
+                if (focused && !document.body.contains(focused)) {
+                    clearFocus();
+                }
+            });
+        })();
     </script>
     <script>
         function initSortableTasks() {
