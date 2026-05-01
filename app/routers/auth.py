@@ -38,9 +38,11 @@ async def signin(
     if not user:
         return RedirectResponse("/signin?err=auth-credentials", 303)
     await urepo.update_last_login_by_uuid(user["uuid"])
-    return set_auth_cookie(
-        RedirectResponse(goto or URL_AFTER_SIGNIN, 303), user
-    )
+    if goto and goto.startswith("/") and not goto.startswith("//"):
+        redirect_url = goto
+    else:
+        redirect_url = URL_AFTER_SIGNIN
+    return set_auth_cookie(RedirectResponse(redirect_url, 303), user)
 
 
 @router.get("/signout")
