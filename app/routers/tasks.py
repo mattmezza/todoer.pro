@@ -5,12 +5,7 @@ from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from app import blob, http, tpl
-from app.deps import (
-    RepoDB,
-    get_current_active_user,
-    get_db,
-    repo_db,
-)
+from app.deps import RepoDB, get_current_active_user, get_db, repo_db
 
 router = APIRouter()
 
@@ -335,9 +330,7 @@ async def move_top(
 ):
     repo = db.for_user(user)
     tarepo = repo.tasks()
-    task = http.Opt(await tarepo.by_sid(sid)).or_404(
-        f"Task #{sid} not found."
-    )
+    task = http.Opt(await tarepo.by_sid(sid)).or_404(f"Task #{sid} not found.")
     if task.order == 0:
         return "", 204
     task = await tarepo.move_top(sid)
@@ -365,9 +358,7 @@ async def move_bottom(
 ):
     repo = db.for_user(user)
     tarepo = repo.tasks()
-    task = http.Opt(await tarepo.by_sid(sid)).or_404(
-        f"Task #{sid} not found."
-    )
+    task = http.Opt(await tarepo.by_sid(sid)).or_404(f"Task #{sid} not found.")
     task = await tarepo.move_bottom(sid)
     serepo = repo.sections()
     section = await serepo.by_uuid(task["section"])
@@ -383,10 +374,11 @@ async def move_bottom(
 
 
 def _add_first_last(task: dict, tasks: list[dict]):
-    if len(tasks) <= 1:
+    incomplete = [t for t in tasks if not t.get("complete")]
+    if not incomplete or task.get("complete"):
         task["is_first"] = True
         task["is_last"] = True
     else:
-        task["is_first"] = task["sid"] == tasks[0]["sid"]
-        task["is_last"] = task["sid"] == tasks[-1]["sid"]
+        task["is_first"] = task["sid"] == incomplete[0]["sid"]
+        task["is_last"] = task["sid"] == incomplete[-1]["sid"]
     return task

@@ -13,22 +13,14 @@ class TaskForUser(LoggedInUserRepo):
             SELECT
                 ta.*,
                 ta.`order`,
-                CASE WHEN
-                    ta.`order` = 0
-                    THEN 1
-                    ELSE 0
-                END AS is_first,
                 CASE WHEN ta.`order` = (
-                        SELECT MAX(`order`) AS max_order
-                        FROM tasks
-                        WHERE section = (
-                            SELECT section
-                            FROM tasks
-                            WHERE sid = :sid
-                        )
-                    ) THEN 1
-                    ELSE 0
-                END AS is_last
+                    SELECT MIN(`order`) FROM tasks
+                    WHERE section = ta.section AND complete = 0
+                ) THEN 1 ELSE 0 END AS is_first,
+                CASE WHEN ta.`order` = (
+                    SELECT MAX(`order`) FROM tasks
+                    WHERE section = ta.section AND complete = 0
+                ) THEN 1 ELSE 0 END AS is_last
             FROM tasks ta
             JOIN sections se on ta.section = se.uuid
             JOIN lists l on se.list = l.uuid
@@ -46,22 +38,14 @@ class TaskForUser(LoggedInUserRepo):
             SELECT
                 ta.*,
                 ta.`order`,
-                CASE WHEN
-                    ta.`order` = 0
-                    THEN 1
-                    ELSE 0
-                END AS is_first,
                 CASE WHEN ta.`order` = (
-                        SELECT MAX(`order`) AS max_order
-                        FROM tasks
-                        WHERE section = (
-                            SELECT section
-                            FROM tasks
-                            WHERE sid = :sid
-                        )
-                    ) THEN 1
-                    ELSE 0
-                END AS is_last
+                    SELECT MIN(`order`) FROM tasks
+                    WHERE section = ta.section AND complete = 0
+                ) THEN 1 ELSE 0 END AS is_first,
+                CASE WHEN ta.`order` = (
+                    SELECT MAX(`order`) FROM tasks
+                    WHERE section = ta.section AND complete = 0
+                ) THEN 1 ELSE 0 END AS is_last
             FROM tasks ta
             JOIN sections se on ta.section = se.uuid
             JOIN lists l on se.list = l.uuid
@@ -118,18 +102,14 @@ class TaskForUser(LoggedInUserRepo):
             SELECT
                 ta.*,
                 ta.`order`,
-                CASE WHEN
-                    ta.`order` = 0
-                    THEN 1
-                    ELSE 0
-                END AS is_first,
                 CASE WHEN ta.`order` = (
-                        SELECT MAX(`order`) AS max_order
-                        FROM tasks
-                        WHERE section = :section_uuid
-                    ) THEN 1
-                    ELSE 0
-                END AS is_last
+                    SELECT MIN(`order`) FROM tasks
+                    WHERE section = ta.section AND complete = 0
+                ) THEN 1 ELSE 0 END AS is_first,
+                CASE WHEN ta.`order` = (
+                    SELECT MAX(`order`) FROM tasks
+                    WHERE section = ta.section AND complete = 0
+                ) THEN 1 ELSE 0 END AS is_last
             FROM tasks ta
             JOIN sections se on ta.section = se.uuid
             JOIN lists l on se.list = l.uuid
@@ -168,9 +148,7 @@ class TaskForUser(LoggedInUserRepo):
         )
         return ta._mapping if ta is not None else None
 
-    async def update_section(
-        self, section: UUID, sid: str
-    ) -> str | None:
+    async def update_section(self, section: UUID, sid: str) -> str | None:
         ta = await self.db.fetch_one(
             """
             UPDATE tasks SET
@@ -192,7 +170,11 @@ class TaskForUser(LoggedInUserRepo):
                     )
             RETURNING *
             """,
-            {"sid": sid, "section": str(section), "creator": self.user["uuid"]}
+            {
+                "sid": sid,
+                "section": str(section),
+                "creator": self.user["uuid"],
+            },
         )
         return ta._mapping if ta is not None else None
 
