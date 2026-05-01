@@ -99,7 +99,7 @@ async def get_current_user(
     user = await db.for_anon().users().by_email(email)
     if user is None:
         raise exc
-    mm = {k: v for (k, v) in user._mapping.items()}
+    mm = dict(user)
     del mm['password']
     mm['email_hash'] = hashlib.md5(
         str(mm['email']).encode("utf-8")
