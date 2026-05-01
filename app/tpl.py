@@ -80,23 +80,15 @@ RE_EMAIL = re.compile(
 SUB_EMAIL = "<a href='mailto:\\g<email>'>\\g<email></a>"
 linkify_emails = partial(re.sub, RE_EMAIL, SUB_EMAIL)
 
-# RE_SPACE = re.compile(
-#     r'(^|(?<=\s))@(?P<name>[a-z][a-z0-9-]{,62}[a-z0-9])', flags=re.MULTILINE
-# )
 RE_SPACE = re.compile(
     r'(^|(?<=\s))@(?P<id>[a-zA-Z0-9]{7})(?![a-zA-Z0-9])', flags=re.MULTILINE
 )
-# SUB_SPACE = "<a href='/space/\\g<name>'>@\\g<name></a>"
 SUB_SPACE = "<a href='/space/\\g<id>'>@\\g<id></a>"
 linkify_spaces = partial(re.sub, RE_SPACE, SUB_SPACE)
 
-# RE_LIST = re.compile(
-#     r'(^|(?<=\s))#(?P<name>[a-z][a-z0-9-]{,62}[a-z0-9])', flags=re.MULTILINE
-# )
 RE_LIST = re.compile(
     r'(^|(?<=\s))#(?P<id>[a-zA-Z0-9]{7})(?![a-zA-Z0-9])', flags=re.MULTILINE
 )
-# SUB_LIST = "<a href='/list/\\g<name>'>#\\g<name></a>"
 SUB_LIST = "<a href='/list/\\g<id>'>#\\g<id></a>"
 linkify_lists = partial(re.sub, RE_LIST, SUB_LIST)
 
