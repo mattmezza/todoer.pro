@@ -2,7 +2,7 @@ import io
 import os
 import re
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from functools import partial, wraps
 from html.parser import HTMLParser
 from typing import Type
@@ -228,6 +228,7 @@ jinx.jinja_env.globals["ENV"] = os.environ["TODOER_ENV"]
 jinx.jinja_env.globals["RELEASE"] = os.environ["TODOER_RELEASE"]
 jinx.jinja_env.globals["url_for"] = url_for
 jinx.jinja_env.globals["cur_path_starts_with"] = cur_path_starts_with
+jinx.jinja_env.globals["now_date"] = lambda: date.today().isoformat()
 
 
 def htmx(tpl: str, resp: Type[Response] = HTMLResponse):
