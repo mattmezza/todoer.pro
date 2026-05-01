@@ -1,8 +1,8 @@
-{# def user, spaces, stats, recent_completions #}
+{# def user, spaces, stats, recent_completions, overdue, due_today, upcoming #}
 <Layout.App spaces={spaces} user={user}>
     <div class="py-2 min-h-[100vh]" id="content-bg">
         <div class="px-2 md:px-8">
-            <h1 class="mt-16 md:mt-24 text-2xl md:text-5xl font-bold">👋 Hi, {{ user.name|d("there", True) }}!</h1>
+            <h1 class="mt-16 md:mt-24 text-2xl md:text-5xl font-bold">Hi, {{ user.name|d("there", True) }}!</h1>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
                 <div class="bg-white/5 backdrop-blur rounded-lg p-4">
                     <div class="text-3xl font-bold">{{ stats.active or 0 }}</div>
@@ -21,9 +21,68 @@
                     <div class="text-sm text-slate-400">Done last 30 days</div>
                 </div>
             </div>
+
+            {% if overdue or due_today or upcoming %}
+            <div class="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {% if overdue %}
+                <div class="bg-white/5 backdrop-blur rounded-lg p-4">
+                    <h2 class="text-sm font-semibold text-red-400 uppercase mb-3">Overdue</h2>
+                    <ul class="space-y-2">
+                        {% for task in overdue %}
+                        <li>
+                            <a href="/task/{{ task.sid }}" class="block hover:bg-white/5 rounded p-2 -mx-2 transition-colors">
+                                <div class="text-sm font-medium text-slate-100 truncate">{{ task.title }}</div>
+                                <div class="flex items-center justify-between mt-1">
+                                    <span class="text-xs text-slate-500 truncate">@{{ task.space_title }} / #{{ task.list_title }}</span>
+                                    <span class="text-xs text-red-400 whitespace-nowrap ml-2">{{ task.due_date }}</span>
+                                </div>
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                {% if due_today %}
+                <div class="bg-white/5 backdrop-blur rounded-lg p-4">
+                    <h2 class="text-sm font-semibold text-amber-400 uppercase mb-3">Due Today</h2>
+                    <ul class="space-y-2">
+                        {% for task in due_today %}
+                        <li>
+                            <a href="/task/{{ task.sid }}" class="block hover:bg-white/5 rounded p-2 -mx-2 transition-colors">
+                                <div class="text-sm font-medium text-slate-100 truncate">{{ task.title }}</div>
+                                <div class="flex items-center justify-between mt-1">
+                                    <span class="text-xs text-slate-500 truncate">@{{ task.space_title }} / #{{ task.list_title }}</span>
+                                    <span class="text-xs text-amber-400 whitespace-nowrap ml-2">today</span>
+                                </div>
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                {% if upcoming %}
+                <div class="bg-white/5 backdrop-blur rounded-lg p-4">
+                    <h2 class="text-sm font-semibold text-slate-400 uppercase mb-3">Upcoming This Week</h2>
+                    <ul class="space-y-2">
+                        {% for task in upcoming %}
+                        <li>
+                            <a href="/task/{{ task.sid }}" class="block hover:bg-white/5 rounded p-2 -mx-2 transition-colors">
+                                <div class="text-sm font-medium text-slate-100 truncate">{{ task.title }}</div>
+                                <div class="flex items-center justify-between mt-1">
+                                    <span class="text-xs text-slate-500 truncate">@{{ task.space_title }} / #{{ task.list_title }}</span>
+                                    <span class="text-xs text-slate-400 whitespace-nowrap ml-2">{{ task.due_date }}</span>
+                                </div>
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
         </div>
         <div class="px-2 absolute bottom-16 w-full text-center mx-auto invisible md:visible font-semibold text-sm md:text-base text-center text-zinc-200">
-            Have a swell <span id="datetime" class="lowercase">day</span> ❤️
+            Have a swell <span id="datetime" class="lowercase">day</span>
         </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.1.9/p5.min.js"></script>
