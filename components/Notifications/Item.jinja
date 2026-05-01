@@ -1,0 +1,25 @@
+{# def task, kind="upcoming" #}
+<li class="border-b border-slate-200 dark:border-slate-700 last:border-0">
+    <a class="block py-2 px-4 hover:bg-slate-50 dark:hover:bg-slate-700/20"
+       href="/task/{{ task.sid }}">
+        <div class="flex items-center gap-2">
+            {% if kind == "overdue" %}
+            <span class="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+            {% elif kind == "today" %}
+            <span class="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+            {% else %}
+            <span class="w-2 h-2 rounded-full bg-slate-500 shrink-0"></span>
+            {% endif %}
+            <span class="text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{{ task.title }}</span>
+        </div>
+        <div class="flex items-center justify-between mt-1 ml-4">
+            <span class="text-xs text-slate-500 dark:text-slate-400 truncate">@{{ task.space_title }} / #{{ task.list_title }}</span>
+            <span class="text-xs whitespace-nowrap
+                {% if kind == 'overdue' %}text-red-400
+                {% elif kind == 'today' %}text-amber-400
+                {% else %}text-slate-400{% endif %}">
+                {{ task.due_date }}
+            </span>
+        </div>
+    </a>
+</li>

@@ -17,6 +17,7 @@ from .routers import (
     dashboard,
     lists,
     nav,
+    notifications,
     search,
     sections,
     spaces,
@@ -145,5 +146,9 @@ app.include_router(
 )
 app.include_router(
     search.router,
+    dependencies=[Depends(get_current_active_user)],
+)
+app.include_router(
+    notifications.router,
     dependencies=[Depends(get_current_active_user)],
 )
