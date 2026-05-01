@@ -329,5 +329,3 @@ async def add(
         201,
         {"HX-Trigger": "list-create", "HX-Redirect": f"/list/{li.sid}"},
     )
-
-
