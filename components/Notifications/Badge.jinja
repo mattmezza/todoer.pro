@@ -1,0 +1,6 @@
+{# def count #}
+{% if count > 0 %}
+<div class="absolute top-0 right-0 w-4 h-4 bg-rose-500 border-2 border-white dark:border-[#182235] rounded-full flex items-center justify-center">
+    <span class="text-[9px] font-bold text-white">{{ count if count < 100 else '99' }}</span>
+</div>
+{% endif %}
