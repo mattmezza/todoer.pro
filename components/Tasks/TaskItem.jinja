@@ -33,6 +33,14 @@
                         class="form-checkbox w-5 h-5 rounded-full peer cursor-pointer">
                     <input name="title" type="hidden" value="{{ task.title }}" />
                     {% if task.descr %}<input name="descr" type="hidden" value="{{ task.descr }}" />{% endif %}
+                    {% if task.priority %}
+                    <span class="ml-2 w-2 h-2 rounded-full inline-block flex-shrink-0
+                        {% if task.priority == 1 %}bg-red-500
+                        {% elif task.priority == 2 %}bg-orange-500
+                        {% elif task.priority == 3 %}bg-yellow-500
+                        {% elif task.priority == 4 %}bg-blue-500
+                        {% endif %}" title="P{{ task.priority }}"></span>
+                    {% endif %}
                     <span class="font-semibold text-slate-800 dark:text-slate-100 peer-checked:line-through ml-3 xs:text-xs sm:text-sm md:text-base lg:text-lg">{{ task.title }}</span>
                     {% if task.due_date %}
                         {% set is_overdue = task.due_date < now_date() and not task.complete %}
