@@ -84,13 +84,23 @@ class SubtaskForUser(LoggedInUserRepo):
         subtask = await self.db.fetch_one(
             """
             INSERT INTO subtasks (uuid, sid, `order`, title, descr, task)
-            VALUES (
+            SELECT
                 :uuid,
                 :sid,
-                (SELECT COALESCE(MAX(`order`), 0) FROM subtasks WHERE task = :task),
+                COALESCE(
+                    (SELECT MAX(`order`) FROM subtasks WHERE task = :task),
+                    0
+                ),
                 :title,
                 :descr,
                 :task
+            WHERE EXISTS (
+                SELECT 1 FROM tasks ta
+                JOIN sections se ON se.uuid = ta.section
+                JOIN lists l ON l.uuid = se.list
+                JOIN spaces sp ON sp.uuid = l.space
+                WHERE ta.uuid = :task
+                    AND sp.creator = :creator
             )
             RETURNING *
             """,
@@ -100,6 +110,7 @@ class SubtaskForUser(LoggedInUserRepo):
                 "title": title.strip(),
                 "descr": descr.strip() if descr else None,
                 "task": task_uuid,
+                "creator": self.user["uuid"],
             },
         )
         return subtask._mapping if subtask else None

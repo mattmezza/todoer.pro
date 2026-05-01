@@ -429,16 +429,22 @@ class TaskForUser(LoggedInUserRepo):
         task = await self.db.fetch_one(
             """
             INSERT INTO tasks (uuid, sid, `order`, title, descr, section)
-            VALUES (
+            SELECT
                 :uuid,
                 :sid,
                 COALESCE(
-                    (select MAX(`order`) + 1 FROM tasks WHERE section = :section),
+                    (SELECT MAX(`order`) + 1 FROM tasks WHERE section = :section),
                     0
                 ),
                 :title,
                 :descr,
                 :section
+            WHERE EXISTS (
+                SELECT 1 FROM sections se
+                JOIN lists l ON l.uuid = se.list
+                JOIN spaces sp ON sp.uuid = l.space
+                WHERE se.uuid = :section
+                    AND sp.creator = :creator
             )
             RETURNING *
             """,
@@ -448,6 +454,7 @@ class TaskForUser(LoggedInUserRepo):
                 "title": title.strip(),
                 "descr": descr.strip() if descr else None,
                 "section": section,
+                "creator": self.user["uuid"],
             },
         )
         return task._mapping if task else None

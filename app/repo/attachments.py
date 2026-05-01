@@ -96,13 +96,20 @@ class AttachmentForUser(LoggedInUserRepo):
                 size,
                 task
             )
-            VALUES (
+            SELECT
                 :uuid,
                 :sid,
                 :mime,
                 :fname,
                 :size,
                 :task
+            WHERE EXISTS (
+                SELECT 1 FROM tasks ta
+                JOIN sections se ON se.uuid = ta.section
+                JOIN lists l ON l.uuid = se.list
+                JOIN spaces sp ON sp.uuid = l.space
+                WHERE ta.uuid = :task
+                    AND sp.creator = :creator
             )
             RETURNING *
             """,
@@ -113,6 +120,7 @@ class AttachmentForUser(LoggedInUserRepo):
                 "fname": fname,
                 "size": size,
                 "task": task_uuid,
+                "creator": self.user["uuid"],
             },
         )
         return attachment._mapping if attachment else None
