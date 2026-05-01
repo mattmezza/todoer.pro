@@ -2,7 +2,7 @@
 <li
     id="section-{{ section.sid }}"
     class="py-4 section {% if section.is_first %}first{% endif %} {% if section.is_last %}last{% endif %}"
-    hx-trigger="section-update-{{ section.sid}} from:body, section-{{ section.sid }}-update from:body, section-{{ section.sid }}-task-complete from:body, section-{{ section.sid }}-task-incomplete from:body"
+    hx-trigger="section-{{ section.sid }}-update from:body"
     hx-get="/section/{{ section.sid }}"
     hx-vals='{"view_complete": {% if view_complete %}true{% else %}false{% endif %} }'>
 
