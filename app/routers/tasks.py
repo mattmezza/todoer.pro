@@ -32,7 +32,7 @@ async def add_task(
     return (
         {"task": task, "section": section, "sections": sections},
         201,
-        {"HX-Trigger": f"task-create, section-{section.sid}-update"},
+        {"HX-Trigger": "task-create"},
     )
 
 
