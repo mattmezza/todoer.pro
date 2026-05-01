@@ -1,5 +1,5 @@
 {# def space, spaces, lists #}
-<div x-data="{ open: false }" class="lg:hidden fixed bottom-0 w-full dark:bg-gray-950/80 backdrop-blur-sm py-4 flex flex-col gap-8 items-center rounded-t" @click.outside="open = false">
+<div x-data="{ open: false }" class="lg:hidden fixed bottom-0 z-50 w-full dark:bg-gray-950/80 backdrop-blur-sm border-t border-slate-800 py-4 flex flex-col gap-8 items-center rounded-t" @click.outside="open = false">
     <button @click="open = true" x-show="!open" class="hover:text-indigo-500 w-full cursor-pointer font-bold flex justify-center p-4">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
           <path fill-rule="evenodd" d="M3 6.75A.75.75 0 0 1 3.75 6h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 6.75ZM3 12a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 12Zm0 5.25a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Z" clip-rule="evenodd" />
@@ -53,6 +53,13 @@
                   <path d="M2.813 15c-.725 0-1.313.588-1.313 1.313V18a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3v-1.688c0-.724-.588-1.312-1.313-1.312h-4.233a3 3 0 0 0-2.496 1.336l-.164.246a1.5 1.5 0 0 1-1.248.668h-2.092a1.5 1.5 0 0 1-1.248-.668l-.164-.246A3 3 0 0 0 7.046 15H2.812Z" />
                 </svg>
             </a>
+            <button
+                _="on click showModal() on #search-dialog then set #search-input.value to '' then call #search-input.focus()"
+                class="hover:text-indigo-500 cursor-pointer block p-4 rounded">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                  <path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd" />
+                </svg>
+            </button>
             {%- if space %}
             <button
                 _="on click showModal() on the next <dialog />"
