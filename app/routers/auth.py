@@ -52,8 +52,11 @@ async def logout():
 
 @router.get("/signup")
 @tpl.htmx("Page.Signup")
-async def signup_view(req: Request):
-    return {}
+async def signup_view(
+    req: Request,
+    err: str | None = None,
+):
+    return {"error": err}
 
 
 @router.post("/signup")
@@ -61,9 +64,17 @@ async def signup(
     name: Annotated[str, Form()],
     email: Annotated[str, Form()],
     password: Annotated[str, Form()],
-    consent: Annotated[str, Form()],
+    consent: Annotated[str | None, Form()] = None,
     db: RepoDB = Depends(repo_db),
 ):
+    if not consent:
+        return RedirectResponse("/signup?err=consent-required", 303)
+    if len(password) < 8:
+        return RedirectResponse("/signup?err=password-too-short", 303)
+    urepo = db.for_anon().users()
+    existing = await urepo.by_email(email)
+    if existing:
+        return RedirectResponse("/signup?err=email-already-exists", 303)
     pwd = pwd_context.hash(password)
     user, *_ = await svc.users.signup(db, email, name, pwd)
     return set_auth_cookie(RedirectResponse(URL_AFTER_SIGNIN, 303), user)
