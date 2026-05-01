@@ -1,0 +1,72 @@
+{# def task #}
+<div class="priority-wrapper inline-flex items-center gap-1">
+    {% set p = task.priority %}
+    {% if p == 1 %}
+        <span class="priority-display inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400 cursor-pointer"
+            _="on click hide me then show next .priority-edit">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
+                <path d="M3.5 2.75a.75.75 0 0 0-1.5 0v14.5a.75.75 0 0 0 1.5 0v-4.392l1.657-.348a6.449 6.449 0 0 1 4.271.572 7.948 7.948 0 0 0 5.965.524l2.078-.64A.75.75 0 0 0 18 12.25v-8.5a.75.75 0 0 0-.904-.734l-2.38.501a7.25 7.25 0 0 1-4.186-.363l-.502-.2a8.75 8.75 0 0 0-5.053-.439l-1.475.31V2.75Z" />
+            </svg>
+            P1
+        </span>
+    {% elif p == 2 %}
+        <span class="priority-display inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-orange-500/20 text-orange-400 cursor-pointer"
+            _="on click hide me then show next .priority-edit">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
+                <path d="M3.5 2.75a.75.75 0 0 0-1.5 0v14.5a.75.75 0 0 0 1.5 0v-4.392l1.657-.348a6.449 6.449 0 0 1 4.271.572 7.948 7.948 0 0 0 5.965.524l2.078-.64A.75.75 0 0 0 18 12.25v-8.5a.75.75 0 0 0-.904-.734l-2.38.501a7.25 7.25 0 0 1-4.186-.363l-.502-.2a8.75 8.75 0 0 0-5.053-.439l-1.475.31V2.75Z" />
+            </svg>
+            P2
+        </span>
+    {% elif p == 3 %}
+        <span class="priority-display inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 cursor-pointer"
+            _="on click hide me then show next .priority-edit">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
+                <path d="M3.5 2.75a.75.75 0 0 0-1.5 0v14.5a.75.75 0 0 0 1.5 0v-4.392l1.657-.348a6.449 6.449 0 0 1 4.271.572 7.948 7.948 0 0 0 5.965.524l2.078-.64A.75.75 0 0 0 18 12.25v-8.5a.75.75 0 0 0-.904-.734l-2.38.501a7.25 7.25 0 0 1-4.186-.363l-.502-.2a8.75 8.75 0 0 0-5.053-.439l-1.475.31V2.75Z" />
+            </svg>
+            P3
+        </span>
+    {% elif p == 4 %}
+        <span class="priority-display inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 cursor-pointer"
+            _="on click hide me then show next .priority-edit">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-3 h-3">
+                <path d="M3.5 2.75a.75.75 0 0 0-1.5 0v14.5a.75.75 0 0 0 1.5 0v-4.392l1.657-.348a6.449 6.449 0 0 1 4.271.572 7.948 7.948 0 0 0 5.965.524l2.078-.64A.75.75 0 0 0 18 12.25v-8.5a.75.75 0 0 0-.904-.734l-2.38.501a7.25 7.25 0 0 1-4.186-.363l-.502-.2a8.75 8.75 0 0 0-5.053-.439l-1.475.31V2.75Z" />
+            </svg>
+            P4
+        </span>
+    {% else %}
+        <button type="button" class="priority-display text-xs text-slate-600 hover:text-slate-400 cursor-pointer"
+            _="on click hide me then show next .priority-edit">
+            + priority
+        </button>
+    {% endif %}
+    <div class="priority-edit inline-flex items-center gap-1" style="display: none"
+        _="on clickOutside hide me then show previous .priority-display">
+        <button type="button" class="text-xs px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 cursor-pointer"
+            hx-put="/task/{{ task.sid }}/priority"
+            hx-target="closest .priority-wrapper"
+            hx-swap="outerHTML"
+            hx-vals='{"priority": "1"}'>P1</button>
+        <button type="button" class="text-xs px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 cursor-pointer"
+            hx-put="/task/{{ task.sid }}/priority"
+            hx-target="closest .priority-wrapper"
+            hx-swap="outerHTML"
+            hx-vals='{"priority": "2"}'>P2</button>
+        <button type="button" class="text-xs px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 cursor-pointer"
+            hx-put="/task/{{ task.sid }}/priority"
+            hx-target="closest .priority-wrapper"
+            hx-swap="outerHTML"
+            hx-vals='{"priority": "3"}'>P3</button>
+        <button type="button" class="text-xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 cursor-pointer"
+            hx-put="/task/{{ task.sid }}/priority"
+            hx-target="closest .priority-wrapper"
+            hx-swap="outerHTML"
+            hx-vals='{"priority": "4"}'>P4</button>
+        {% if p %}
+        <button type="button" class="text-xs px-1.5 py-0.5 rounded text-slate-500 hover:text-slate-400 cursor-pointer"
+            hx-put="/task/{{ task.sid }}/priority"
+            hx-target="closest .priority-wrapper"
+            hx-swap="outerHTML"
+            hx-vals='{"priority": ""}'>Clear</button>
+        {% endif %}
+    </div>
+</div>

@@ -268,6 +268,29 @@ async def update(
     )
 
 
+@router.put("/task/{sid}/priority")
+@tpl.htmx("Tasks.Priority")
+async def update_priority(
+    req: Request,
+    sid: str,
+    priority: Annotated[str | None, Form()] = None,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    urepo = db.for_user(user)
+    priority_val = int(priority) if priority else None
+    if priority_val is not None and priority_val not in (1, 2, 3, 4):
+        priority_val = None
+    task = http.Opt(
+        await urepo.tasks().update_priority_by_sid(priority_val, sid)
+    ).or_404(f"Task #{sid} not found.")
+    return (
+        {"task": task},
+        200,
+        {"HX-Trigger": f"task-update, task-{sid}-update"},
+    )
+
+
 @router.put("/task/{sid}/due-date")
 @tpl.htmx("Tasks.DueDate")
 async def update_due_date(
