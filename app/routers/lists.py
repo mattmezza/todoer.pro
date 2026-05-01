@@ -11,6 +11,26 @@ from app.repo import RepoDB
 router = APIRouter()
 
 
+@router.patch("/list/{sid}/archive", response_class=HTMLResponse)
+async def archive(
+    req: Request,
+    sid: str,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    urepo = db.for_user(user)
+    lrepo = urepo.lists()
+    list_ = http.Opt(await lrepo.by_sid(sid)).or_404(
+        f"List #{sid} not found."
+    )
+    space = await urepo.spaces().by_uuid(list_["space"])
+    await lrepo.archive(sid)
+    return HTMLResponse(
+        "",
+        headers={"HX-Redirect": f"/space/{space['sid']}"},
+    )
+
+
 @router.delete("/list/{sid}", response_class=HTMLResponse)
 async def delete(
     req: Request,

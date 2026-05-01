@@ -101,6 +101,17 @@ async def add(
     )
 
 
+@router.patch("/space/{sid}/archive", response_class=HTMLResponse)
+async def archive(
+    req: Request,
+    sid: str,
+    db: RepoDB = Depends(repo_db),
+    user: Mapping = Depends(get_current_active_user),
+):
+    await db.for_user(user).spaces().archive(sid)
+    return HTMLResponse("", headers={"HX-Redirect": "/spaces"})
+
+
 @router.delete("/space/{sid}", response_class=HTMLResponse)
 async def delete(
     req: Request,
