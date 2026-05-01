@@ -6,12 +6,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from app import http, svc, tpl
-from app.deps import (
-    Renderer,
-    get_current_active_user,
-    renderer,
-    repo_db,
-)
+from app.deps import Renderer, get_current_active_user, renderer, repo_db
 from app.repo import RepoDB
 
 router = APIRouter()
@@ -56,10 +51,15 @@ async def view(
     tarepo = user_repo.tasks()
     tasks_by_section = await tarepo.by_section_for_list(li["uuid"])
     for tt in tasks_by_section.values():
+        incomplete = [i for i, t in enumerate(tt) if not t["complete"]]
         for idx, ta in enumerate(tt):
             tt[idx] = dict(ta)
-            tt[idx]["is_first"] = idx == 0
-            tt[idx]["is_last"] = idx == len(tt) - 1
+            if not tt[idx]["complete"] and incomplete:
+                tt[idx]["is_first"] = idx == incomplete[0]
+                tt[idx]["is_last"] = idx == incomplete[-1]
+            else:
+                tt[idx]["is_first"] = True
+                tt[idx]["is_last"] = True
     return {
         "spaces": await space_r.all(),
         "space": space,

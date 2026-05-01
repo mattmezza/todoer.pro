@@ -365,8 +365,13 @@ async def move_bottom(
 
 
 def _add_first_last_tasks(tasks: list[Mapping]) -> list[dict]:
+    incomplete = [i for i, t in enumerate(tasks) if not t["complete"]]
     for idx, ta in enumerate(tasks):
         tasks[idx] = dict(ta)
-        tasks[idx]["is_first"] = idx == 0
-        tasks[idx]["is_last"] = idx == len(tasks) - 1
+        if not tasks[idx]["complete"] and incomplete:
+            tasks[idx]["is_first"] = idx == incomplete[0]
+            tasks[idx]["is_last"] = idx == incomplete[-1]
+        else:
+            tasks[idx]["is_first"] = True
+            tasks[idx]["is_last"] = True
     return tasks
