@@ -65,12 +65,13 @@ class AttachmentForUser(LoggedInUserRepo):
             DELETE FROM attachments
             WHERE sid = :sid
                 AND EXISTS (
-                    SELECT at.uuid FROM attachments at
+                    SELECT 1 FROM attachments at
                     JOIN tasks ta ON ta.uuid = at.task
                     JOIN sections se ON se.uuid = ta.section
                     JOIN lists l ON l.uuid = se.list
                     JOIN spaces sp ON sp.uuid = l.space
-                    WHERE sp.creator = :creator
+                    WHERE at.uuid = attachments.uuid
+                        AND sp.creator = :creator
                 )
             """,
             {"sid": sid, "creator": self.user["uuid"]},

@@ -72,12 +72,13 @@ class CommentForUser(LoggedInUserRepo):
             DELETE FROM comments
             WHERE sid = :sid
                 AND EXISTS (
-                    SELECT cc.uuid FROM comments cc
+                    SELECT 1 FROM comments cc
                     JOIN tasks ta ON ta.uuid = cc.task
                     JOIN sections se ON se.uuid = ta.section
                     JOIN lists l ON l.uuid = se.list
                     JOIN spaces sp ON sp.uuid = l.space
-                    WHERE sp.creator = :creator
+                    WHERE cc.uuid = comments.uuid
+                        AND sp.creator = :creator
                 )
             """,
             {"sid": sid, "creator": self.user["uuid"]},

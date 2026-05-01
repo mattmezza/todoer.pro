@@ -136,11 +136,12 @@ class TaskForUser(LoggedInUserRepo):
                 SET descr = :descr, updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                     AND EXISTS (
-                        SELECT ta.uuid FROM tasks ta
+                        SELECT 1 FROM tasks ta
                         JOIN sections se ON se.uuid = ta.section
                         JOIN lists l ON l.uuid = se.list
                         JOIN spaces sp ON sp.uuid = l.space
-                        WHERE sp.creator = :creator
+                        WHERE ta.uuid = tasks.uuid
+                            AND sp.creator = :creator
                     )
             RETURNING *
             """,
@@ -162,11 +163,12 @@ class TaskForUser(LoggedInUserRepo):
                 updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                     AND EXISTS (
-                        SELECT ta.uuid FROM tasks ta
+                        SELECT 1 FROM tasks ta
                         JOIN sections se ON se.uuid = ta.section
                         JOIN lists l ON l.uuid = se.list
                         JOIN spaces sp ON sp.uuid = l.space
-                        WHERE sp.creator = :creator
+                        WHERE ta.uuid = tasks.uuid
+                            AND sp.creator = :creator
                     )
             RETURNING *
             """,
@@ -187,11 +189,12 @@ class TaskForUser(LoggedInUserRepo):
                 SET title = :title, updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                     AND EXISTS (
-                        SELECT ta.uuid FROM tasks ta
+                        SELECT 1 FROM tasks ta
                         JOIN sections se ON se.uuid = ta.section
                         JOIN lists l ON l.uuid = se.list
                         JOIN spaces sp ON sp.uuid = l.space
-                        WHERE sp.creator = :creator
+                        WHERE ta.uuid = tasks.uuid
+                            AND sp.creator = :creator
                     )
             RETURNING *
             """,
@@ -302,11 +305,12 @@ class TaskForUser(LoggedInUserRepo):
                         updated = CURRENT_TIMESTAMP
                     WHERE sid = :sid
                         AND EXISTS (
-                            SELECT ta.uuid FROM tasks ta
+                            SELECT 1 FROM tasks ta
                             JOIN sections se ON se.uuid = ta.section
                             JOIN lists l ON l.uuid = se.list
                             JOIN spaces sp ON sp.uuid = l.space
-                            WHERE sp.creator = :creator
+                            WHERE ta.uuid = tasks.uuid
+                                AND sp.creator = :creator
                         )
                 RETURNING *
                 """,
@@ -357,11 +361,12 @@ class TaskForUser(LoggedInUserRepo):
                         updated = CURRENT_TIMESTAMP
                     WHERE sid = :sid
                         AND EXISTS (
-                            SELECT ta.uuid FROM tasks ta
+                            SELECT 1 FROM tasks ta
                             JOIN sections se ON se.uuid = ta.section
                             JOIN lists l ON l.uuid = se.list
                             JOIN spaces sp ON sp.uuid = l.space
-                            WHERE sp.creator = :creator
+                            WHERE ta.uuid = tasks.uuid
+                                AND sp.creator = :creator
                         )
                 RETURNING *
                 """,
@@ -394,11 +399,12 @@ class TaskForUser(LoggedInUserRepo):
                 DELETE FROM tasks
                 WHERE sid = :sid
                     AND EXISTS (
-                        SELECT ta.uuid FROM tasks ta
+                        SELECT 1 FROM tasks ta
                         JOIN sections se ON se.uuid = ta.section
                         JOIN lists l ON l.uuid = se.list
                         JOIN spaces sp ON sp.uuid = l.space
-                        WHERE sp.creator = :creator
+                        WHERE ta.uuid = tasks.uuid
+                            AND sp.creator = :creator
                     )
                 RETURNING *
                 """,

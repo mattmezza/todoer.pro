@@ -63,10 +63,11 @@ class SectionForUser(LoggedInUserRepo):
                 SET title = :title, updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                     AND EXISTS (
-                        SELECT s.sid FROM sections s
+                        SELECT 1 FROM sections s
                         JOIN lists l ON l.uuid = s.list
                         JOIN spaces sp ON sp.uuid = l.space
-                        WHERE sp.creator = :creator
+                        WHERE s.uuid = sections.uuid
+                            AND sp.creator = :creator
                     )
             RETURNING *
             """,
@@ -81,10 +82,11 @@ class SectionForUser(LoggedInUserRepo):
                 DELETE FROM sections
                 WHERE sid = :sid
                     AND EXISTS (
-                        SELECT s.sid FROM sections s
+                        SELECT 1 FROM sections s
                         JOIN lists l ON l.uuid = s.list
                         JOIN spaces sp ON sp.uuid = l.space
-                        WHERE sp.creator = :creator
+                        WHERE s.uuid = sections.uuid
+                            AND sp.creator = :creator
                     )
                 RETURNING *
                 """,
@@ -192,7 +194,11 @@ class SectionForUser(LoggedInUserRepo):
                 AND `order` > :order
                 AND creator = :creator
                 """,
-                {"list": list_old, "order": order_old, "creator": self.user["uuid"]},
+                {
+                    "list": list_old,
+                    "order": order_old,
+                    "creator": self.user["uuid"],
+                },
             )
             return section._mapping if section is not None else None
 
