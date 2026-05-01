@@ -1,12 +1,74 @@
 {# def comment #}
-<div id="comment-{{ comment.sid }}">
-    <div class="flex gap-2 justify-start items-start">
-        <img class="w-6 h-6 rounded-full flex-shrink-0" src="https://www.gravatar.com/avatar/{{ comment.author_email_hash }}.jpg?s=100" width="32" height="32" alt="User">
+<div id="comment-{{ comment.sid }}" class="group">
+    <div class="flex gap-3 items-start">
+        <img class="w-8 h-8 rounded-full mt-1 flex-shrink-0" src="https://www.gravatar.com/avatar/{{ comment.author_email_hash }}.jpg?s=100" width="32" height="32" alt="User">
         <div class="flex-grow min-w-0">
-            <div class="border-l-4 dark:border-slate-400 px-2 prose md:prose-lg dark:prose-white break-words">{{ comment.content|markdown|safe }}</div>
-            <div class="text-sm italic dark:text-slate-600 text-right" title="{{ comment.created }}">
-                {{ comment.created|age }}
+            <div class="flex items-baseline gap-2">
+                <span class="text-sm font-semibold dark:text-slate-300 text-slate-700">{{ comment.author_email or "You" }}</span>
+                <span class="text-xs dark:text-slate-600 text-slate-400" title="{{ comment.created }}">{{ comment.created|age }}</span>
             </div>
+            <div id="comment-{{ comment.sid }}-content" class="prose prose-sm dark:prose-invert mt-1 break-words">
+                {{ comment.content|markdown|safe }}
+            </div>
+            <form
+                id="comment-{{ comment.sid }}-edit"
+                style="display: none"
+                class="mt-1 rounded-sm border border-slate-600"
+                hx-put="/comment/{{ comment.sid }}"
+                hx-target="#comment-{{ comment.sid }}"
+                hx-swap="outerHTML"
+                _="on submit or reset hide me then show #comment-{{ comment.sid }}-content">
+                <div class="py-2">
+                    <textarea
+                        name="content"
+                        placeholder="Type here..."
+                        x-data="{
+                            resize () {
+                                $el.style.height = '0px';
+                                $el.style.height = $el.scrollHeight + 'px'
+                            }
+                        }"
+                        x-init="$nextTick(() => resize())"
+                        @input="resize()"
+                        @focus="resize()"
+                        @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
+                        @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
+                        _="on keyup[key is 'Escape'] reset() the closest <form />"
+                        class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none md:text-base"
+                        autofocus>{{ comment.content }}</textarea>
+                </div>
+                <div class="flex flex-row justify-between items-center border-t border-slate-600 px-3 py-2">
+                    <div></div>
+                    <div class="space-x-2">
+                        <button type="reset" class="btn py-1">Cancel</button>
+                        <button type="submit" class="btn py-1 bg-indigo-600 text-white">Save</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <!-- action buttons shown on hover -->
+        <div class="hidden group-hover:flex items-center gap-1 mt-1">
+            <!-- Edit button -->
+            <button
+                type="button"
+                class="text-slate-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-500"
+                _="on click hide #comment-{{ comment.sid }}-content then show #comment-{{ comment.sid }}-edit then focus() on the first <textarea /> in #comment-{{ comment.sid }}-edit">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z" />
+                </svg>
+            </button>
+            <!-- Delete button -->
+            <button
+                type="button"
+                class="text-slate-400 dark:text-slate-500 hover:text-red-500 dark:hover:text-red-500"
+                hx-delete="/comment/{{ comment.sid }}"
+                hx-target="#comment-{{ comment.sid }}"
+                hx-swap="outerHTML"
+                hx-confirm="Delete this comment?">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                </svg>
+            </button>
         </div>
     </div>
 </div>
