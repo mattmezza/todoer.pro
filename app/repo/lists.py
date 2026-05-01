@@ -6,6 +6,27 @@ from .utils import LoggedInUserRepo, new_ids
 
 
 class ListForUser(LoggedInUserRepo):
+    async def search(self, query: str, limit: int = 10) -> list[Mapping]:
+        lists = await self.db.fetch_all(
+            """
+            SELECT l.sid, l.title, l.color, 'list' as type,
+                   s.sid as space_sid, s.title as space_title
+            FROM lists l
+            JOIN spaces s ON s.uuid = l.space
+            WHERE s.creator = :creator
+              AND l.archived = 0
+              AND (l.title LIKE :query OR l.descr LIKE :query)
+            ORDER BY l.updated DESC, l.created DESC
+            LIMIT :limit
+            """,
+            {
+                "creator": self.user["uuid"],
+                "query": f"%{query}%",
+                "limit": limit,
+            },
+        )
+        return [ll._mapping for ll in lists]
+
     async def by_sid(self, sid: str) -> Mapping | None:
         list_ = await self.db.fetch_one(
             """
@@ -143,7 +164,9 @@ class ListForUser(LoggedInUserRepo):
         )
         return li.title if li is not None else None
 
-    async def update_descr_by_sid(self, descr: str, sid: str) -> Mapping | None:
+    async def update_descr_by_sid(
+        self, descr: str, sid: str
+    ) -> Mapping | None:
         li = await self.db.fetch_one(
             """
             UPDATE lists
