@@ -44,5 +44,5 @@ def url_signed_for(key: str, duration: timedelta) -> str:
             'Bucket': STORAGE_BUCKET,
             'Key': key,
         },
-        ExpiresIn=duration.seconds,
+        ExpiresIn=int(duration.total_seconds()),
     )
