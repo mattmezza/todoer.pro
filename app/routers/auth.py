@@ -7,7 +7,7 @@ from app import svc, tpl
 from app.deps import RepoDB, repo_db
 from app.security import (
     authenticate_user,
-    pwd_context,
+    get_password_hash,
     set_auth_cookie,
     unset_auth_cookie,
 )
@@ -75,7 +75,7 @@ async def signup(
     existing = await urepo.by_email(email)
     if existing:
         return RedirectResponse("/signup?err=email-already-exists", 303)
-    pwd = pwd_context.hash(password)
+    pwd = get_password_hash(password)
     user, *_ = await svc.users.signup(db, email, name, pwd)
     return set_auth_cookie(RedirectResponse(URL_AFTER_SIGNIN, 303), user)
 
