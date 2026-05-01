@@ -19,7 +19,7 @@ async def delete(
 ):
     await db.for_user(user).comments().del_by_sid(sid)
     res.headers["HX-Trigger"] = f"comment-delete, comment-{sid}-delete"
-    return res
+    return ""
 
 
 @router.post("/comments")
