@@ -7,6 +7,56 @@ from .utils import LoggedInUserRepo, new_ids
 
 
 class TaskForUser(LoggedInUserRepo):
+    async def stats(self) -> Mapping:
+        row = await self.db.fetch_one(
+            """
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN ta.complete = 1
+                    THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN ta.complete = 0
+                    AND ta.archived = 0
+                    THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN ta.due_date IS NOT NULL
+                    AND ta.due_date < date('now')
+                    AND ta.complete = 0
+                    AND ta.archived = 0
+                    THEN 1 ELSE 0 END) as overdue
+            FROM tasks ta
+            JOIN sections se ON se.uuid = ta.section
+            JOIN lists l ON l.uuid = se.list
+            JOIN spaces sp ON sp.uuid = l.space
+            WHERE sp.creator = :creator AND ta.archived = 0
+            """,
+            {"creator": self.user["uuid"]},
+        )
+        return row._mapping if row else {}
+
+    async def completed_per_period(
+        self, days: int = 30
+    ) -> list[Mapping]:
+        rows = await self.db.fetch_all(
+            """
+            SELECT
+                date(ta.completed) as day,
+                COUNT(*) as count
+            FROM tasks ta
+            JOIN sections se ON se.uuid = ta.section
+            JOIN lists l ON l.uuid = se.list
+            JOIN spaces sp ON sp.uuid = l.space
+            WHERE sp.creator = :creator
+                AND ta.complete = 1
+                AND ta.completed >= date('now', :days_ago)
+            GROUP BY date(ta.completed)
+            ORDER BY day ASC
+            """,
+            {
+                "creator": self.user["uuid"],
+                "days_ago": f"-{days} days",
+            },
+        )
+        return [r._mapping for r in rows]
+
     async def search(self, query: str, limit: int = 20) -> list[Mapping]:
         tasks = await self.db.fetch_all(
             """
