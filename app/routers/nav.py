@@ -29,4 +29,4 @@ async def nav_spaces(
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
 ):
-    return {"spaces": await db.for_user(user).spaces().all()},
+    return {"spaces": await db.for_user(user).spaces().all()}
