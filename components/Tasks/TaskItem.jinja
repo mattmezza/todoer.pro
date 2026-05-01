@@ -25,6 +25,13 @@
                     <input name="title" type="hidden" value="{{ task.title }}" />
                     {% if task.descr %}<input name="descr" type="hidden" value="{{ task.descr }}" />{% endif %}
                     <span class="font-semibold text-slate-800 dark:text-slate-100 peer-checked:line-through ml-3 xs:text-xs sm:text-sm md:text-base lg:text-lg">{{ task.title }}</span>
+                    {% if task.due_date %}
+                        {% set is_overdue = task.due_date < now_date() and not task.complete %}
+                        <span class="text-xs px-1.5 py-0.5 rounded ml-2 whitespace-nowrap
+                            {% if is_overdue %}bg-red-500/20 text-red-400{% else %}text-slate-500{% endif %}">
+                            {{ task.due_date }}
+                        </span>
+                    {% endif %}
                 </form>
             </div>
             {% if task.descr %}

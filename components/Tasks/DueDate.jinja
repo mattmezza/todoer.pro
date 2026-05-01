@@ -1,0 +1,34 @@
+{# def task #}
+<div class="due-date-wrapper inline-flex items-center gap-1">
+    {% if task.due_date %}
+        {% set is_overdue = task.due_date < now_date() and not task.complete %}
+        <span class="due-date-display text-xs px-2 py-0.5 rounded cursor-pointer
+            {% if is_overdue %}bg-red-500/20 text-red-400{% else %}bg-slate-700 text-slate-400{% endif %}"
+            _="on click hide me then show next .due-date-edit then next .due-date-edit.querySelector('input').focus()">
+            {{ task.due_date }}
+        </span>
+    {% else %}
+        <button type="button" class="due-date-display text-xs text-slate-600 hover:text-slate-400 cursor-pointer"
+            _="on click hide me then show next .due-date-edit then next .due-date-edit.querySelector('input').focus()">
+            + due date
+        </button>
+    {% endif %}
+    <form class="due-date-edit inline-flex items-center gap-1" style="display: none"
+        hx-put="/task/{{ task.sid }}/due-date"
+        hx-target="closest .due-date-wrapper"
+        hx-swap="outerHTML"
+        _="on reset hide me then show previous .due-date-display">
+        <input type="date" name="due_date" value="{{ task.due_date or '' }}"
+            class="form-input text-xs bg-slate-800 border-slate-600 rounded px-2 py-0.5"
+            _="on keyup[key is 'Escape'] reset() the closest <form />">
+        <button type="submit" class="text-xs text-indigo-400 hover:text-indigo-300">Set</button>
+        <button type="reset" class="text-xs text-slate-500 hover:text-slate-400">Cancel</button>
+        {% if task.due_date %}
+        <button type="button" class="text-xs text-red-500 hover:text-red-400"
+            hx-put="/task/{{ task.sid }}/due-date"
+            hx-target="closest .due-date-wrapper"
+            hx-swap="outerHTML"
+            hx-vals='{"due_date": ""}'>Clear</button>
+        {% endif %}
+    </form>
+</div>
