@@ -2,25 +2,6 @@
 <Layout.App spaces={spaces} space={space} user={user} title={"%" + task.sid + " \"" + task.title + "\""} lists={lists}>
 <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
     <div class="mb-8 space-y-4">
-        <!--
-        <a href="
-                {%- if list.default -%}
-                    {%- if space.default -%}
-                        /inbox
-                    {%- else -%}
-                        /space/{{ space.sid }}
-                    {%- endif -%}
-                {%- else -%}
-                    /list/{{ list.sid }}
-                {%- endif -%}
-            " class="flex items-center gap-1 cursor-pointer mb-2 hover:text-white">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 15.75L3 12m0 0l3.75-3.75M3 12h18" />
-            </svg>
-            {#<span class="font-mono">{{ '@' + space.title if list.default else '#' + list.title }}</span>#}
-            <span>back</span>
-        </a>
--->
         <div class="ml-2 md:ml-0 mb-2 md:mb-4">
             <Breadcrumbs.Items with_back_arrow={"/list/" + list.sid + "#section-" + section.sid}>
                 <Breadcrumbs.Item title="Go to space." href={"/space/" + space.sid}>
@@ -101,13 +82,6 @@
                         <Attachment attachment={a} />
                     {% endfor %}
                 </ul>
-                <!-- <div _="on dragover or dragenter halt the event
-        then add .bg-slate-700 to the target
-      on dragleave or drop remove .bg-slate-700 from the target
-      on drop halt the event
-      then call processDrop(event)" class="w-full rounded p-6 bg-slate-50/5 flex items-center justify-center text-slate-400 text-xs font-semibold cursor-pointer">
-                    <p><span class="text-zinc-200">Click</span> or <span class="text-zinc-200">Drop your file here</span></p>
-                </div>-->
                 <form
                     hx-encoding='multipart/form-data'
                     hx-post='/attachments'
