@@ -112,12 +112,19 @@ class CommentForUser(LoggedInUserRepo):
                 author,
                 task
             )
-            VALUES (
+            SELECT
                 :uuid,
                 :sid,
                 :content,
                 :author,
                 :task
+            WHERE EXISTS (
+                SELECT 1 FROM tasks ta
+                JOIN sections se ON se.uuid = ta.section
+                JOIN lists l ON l.uuid = se.list
+                JOIN spaces sp ON sp.uuid = l.space
+                WHERE ta.uuid = :task
+                    AND sp.creator = :author
             )
             RETURNING *""",
             {
