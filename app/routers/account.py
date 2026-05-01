@@ -1,13 +1,11 @@
-import logging
 from typing import Annotated, Mapping
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse
 
 from app import tpl
 from app.deps import RepoDB, get_current_active_user, repo_db
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
