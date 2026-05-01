@@ -214,7 +214,7 @@ hot_reload_paths = [
     arel.Path("public"),
 ]
 if os.environ["TODOER_ENV"] == "local":
-    hot_reload_paths + [arel.Path("styles"), arel.Path("tailwind.config.js")]
+    hot_reload_paths += [arel.Path("styles"), arel.Path("tailwind.config.js")]
 hot_reload = arel.HotReload(paths=hot_reload_paths)
 jinja2 = Jinja2Templates(directory="htm")
 jinja2.env.filters['markdown'] = markdown
