@@ -65,6 +65,7 @@ class SpaceForUser(LoggedInUserRepo):
             """
             SELECT * FROM spaces
             WHERE creator = :creator
+                AND archived = 0
             ORDER BY created ASC
             LIMIT :limit
             """,
@@ -81,6 +82,7 @@ class SpaceForUser(LoggedInUserRepo):
             FROM spaces s
             LEFT JOIN lists l ON l.space = s.uuid
             WHERE s.creator = :creator
+                AND s.archived = 0
             GROUP BY s.uuid
             ORDER BY s.created ASC
             LIMIT :limit
@@ -109,6 +111,17 @@ class SpaceForUser(LoggedInUserRepo):
         for num_task in num_tasks:
             tasks_by_space[num_task.space] = num_task.tasks_tot
         return tasks_by_space
+
+    async def archive(self, sid: str) -> Mapping | None:
+        sp = await self.db.fetch_one(
+            """
+            UPDATE spaces SET archived = 1, updated = CURRENT_TIMESTAMP
+            WHERE sid = :sid AND creator = :creator
+            RETURNING *
+            """,
+            {"sid": sid, "creator": self.user["uuid"]},
+        )
+        return sp._mapping if sp else None
 
     async def insert(
         self, title: str, descr: str | None, default: bool = False

@@ -70,6 +70,7 @@ class TaskForUser(LoggedInUserRepo):
             JOIN spaces s ON s.uuid = l.space
             WHERE s.creator = :creator
                 AND se.list = :list_uuid
+                AND ta.archived = 0
             ORDER BY ta.`order` ASC, ta.created ASC
             LIMIT :limit
             """,
@@ -116,6 +117,7 @@ class TaskForUser(LoggedInUserRepo):
             JOIN spaces sp on l.space = sp.uuid
             WHERE sp.creator = :creator
                 AND ta.section = :section_uuid
+                AND ta.archived = 0
             ORDER BY ta.`order` ASC, ta.created ASC
             LIMIT :limit
             """,
@@ -395,6 +397,25 @@ class TaskForUser(LoggedInUserRepo):
                 {"sid": sid},
             )
         return ta._mapping if ta is not None else None
+
+    async def archive(self, sid: str) -> Mapping | None:
+        ta = await self.db.fetch_one(
+            """
+            UPDATE tasks SET archived = 1, updated = CURRENT_TIMESTAMP
+            WHERE sid = :sid
+                AND EXISTS (
+                    SELECT 1 FROM tasks ta
+                    JOIN sections se ON se.uuid = ta.section
+                    JOIN lists l ON l.uuid = se.list
+                    JOIN spaces sp ON sp.uuid = l.space
+                    WHERE ta.uuid = tasks.uuid
+                        AND sp.creator = :creator
+                )
+            RETURNING *
+            """,
+            {"sid": sid, "creator": self.user["uuid"]},
+        )
+        return ta._mapping if ta else None
 
     async def del_by_sid(self, sid: str) -> None:
         async with self.db.transaction():
