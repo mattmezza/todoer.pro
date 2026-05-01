@@ -32,6 +32,15 @@
                 {{ task.descr|strip_markdown|truncate(200)|linkify|safe }}
             </div>
             {% endif %}
+            {% if task.subtasks_total and task.subtasks_total > 0 %}
+            {% set progress_color = 'bg-green-500' if task.subtasks_done == task.subtasks_total else 'bg-indigo-500' %}
+            <div class="ml-8 flex items-center gap-2 mt-1">
+                <div class="w-24 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                    <div class="h-full {{ progress_color }} rounded-full transition-all" style="width: {{ (task.subtasks_done / task.subtasks_total * 100)|int }}%"></div>
+                </div>
+                <span class="text-xs text-slate-500">{{ task.subtasks_done }}/{{ task.subtasks_total }}</span>
+            </div>
+            {% endif %}
         </div>
         <!-- Right side -->
         <div class="items-center justify-end space-x-2 flex">
