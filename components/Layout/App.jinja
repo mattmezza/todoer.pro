@@ -64,6 +64,11 @@
             </div>
         </div>
     </dialog>
+    <dialog id="quick-add-dialog" class="bg-transparent backdrop:bg-black/50 w-full max-w-lg mx-auto mt-[15vh]"
+        _="on keydown[key is 'Escape'] close me">
+        <div id="quick-add-content">
+        </div>
+    </dialog>
     <Dialog.About />
     <script src="//unpkg.com/alpinejs"></script>
     <script src="//unpkg.com/htmx.org@1.9.5/dist/htmx.min.js"></script>
@@ -104,9 +109,14 @@
                 var active = document.activeElement;
                 var tag = active ? active.tagName.toLowerCase() : '';
                 if (tag === 'input' || tag === 'textarea' || tag === 'select' || active.isContentEditable) return;
+                var dialog = document.getElementById('quick-add-dialog');
+                if (dialog.open) return;
                 e.preventDefault();
-                var btn = document.querySelector('[id^="btn-task-create-"]');
-                if (btn) btn.click();
+                htmx.ajax('GET', '/tasks/quick-add', {target: '#quick-add-content', swap: 'innerHTML'}).then(function() {
+                    dialog.showModal();
+                    var titleInput = document.getElementById('quick-add-title');
+                    if (titleInput) titleInput.focus();
+                });
             }
         });
     </script>

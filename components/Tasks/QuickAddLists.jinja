@@ -1,0 +1,18 @@
+{# def lists, default_list, sections, default_section #}
+<div>
+    <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">List</label>
+    <select
+        name="list"
+        hx-get="/tasks/quick-add/sections"
+        hx-target="#quick-add-sections-wrap"
+        hx-trigger="change"
+        class="form-select block w-full rounded border-slate-300 dark:border-slate-600 bg-transparent text-slate-800 dark:text-slate-200 text-sm focus:ring-indigo-500 focus:border-indigo-500"
+    >
+        {% for li in lists %}
+        <option value="{{ li.uuid }}" {% if li.uuid == default_list.uuid %}selected{% endif %}>#{{ li.title }}</option>
+        {% endfor %}
+    </select>
+</div>
+<div id="quick-add-sections-wrap">
+    <Tasks.QuickAddSections sections={sections} default_section={default_section} />
+</div>

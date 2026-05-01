@@ -66,6 +66,82 @@ async def reorder(
     )
 
 
+@router.get("/tasks/quick-add")
+@tpl.htmx("Tasks.QuickAdd")
+async def quick_add_form(
+    req: Request,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    urepo = db.for_user(user)
+    spaces = await urepo.spaces().all()
+    default_space = await urepo.spaces().default()
+    lists = await urepo.lists().all_by_space(default_space["sid"])
+    default_list = await urepo.lists().default_for_space(
+        default_space["sid"]
+    )
+    sections = await urepo.sections().by_list(default_list["uuid"])
+    default_section = next(
+        (s for s in sections if s.get("default")), sections[0]
+    )
+    return {
+        "spaces": spaces,
+        "lists": lists,
+        "sections": sections,
+        "default_space": default_space,
+        "default_list": default_list,
+        "default_section": default_section,
+    }
+
+
+@router.get("/tasks/quick-add/lists")
+@tpl.htmx("Tasks.QuickAddLists")
+async def quick_add_lists(
+    req: Request,
+    space: Annotated[str, Query()],
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    urepo = db.for_user(user)
+    sp = http.Opt(await urepo.spaces().by_sid(space)).or_404(
+        f"Space #{space} not found."
+    )
+    lists = await urepo.lists().all_by_space(sp["sid"])
+    default_list = await urepo.lists().default_for_space(sp["sid"])
+    sections = await urepo.sections().by_list(default_list["uuid"])
+    default_section = next(
+        (s for s in sections if s.get("default")), sections[0]
+    )
+    return {
+        "lists": lists,
+        "default_list": default_list,
+        "sections": sections,
+        "default_section": default_section,
+    }
+
+
+@router.get("/tasks/quick-add/sections")
+@tpl.htmx("Tasks.QuickAddSections")
+async def quick_add_sections(
+    req: Request,
+    list: Annotated[str, Query()],
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    urepo = db.for_user(user)
+    li = http.Opt(await urepo.lists().by_uuid(list)).or_404(
+        f"List #{list} not found."
+    )
+    sections = await urepo.sections().by_list(li["uuid"])
+    default_section = next(
+        (s for s in sections if s.get("default")), sections[0]
+    )
+    return {
+        "sections": sections,
+        "default_section": default_section,
+    }
+
+
 @router.get("/task/{sid}")
 @tpl.htmx("Page.Task")
 async def view(
