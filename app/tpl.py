@@ -228,7 +228,6 @@ jinx.jinja_env.globals["ENV"] = os.environ["TODOER_ENV"]
 jinx.jinja_env.globals["RELEASE"] = os.environ["TODOER_RELEASE"]
 jinx.jinja_env.globals["url_for"] = url_for
 jinx.jinja_env.globals["cur_path_starts_with"] = cur_path_starts_with
-jinx.jinja_env.globals["request"] = None
 
 
 def htmx(tpl: str, resp: Type[Response] = HTMLResponse):
@@ -239,7 +238,6 @@ def htmx(tpl: str, resp: Type[Response] = HTMLResponse):
             assert (
                 req
             ), "Don't forget to export 'req: Request' from your FastAPI route."
-            jinx.jinja_env.globals["req"] = req
             data = {}
             code = 200
             headers = {}
@@ -251,7 +249,7 @@ def htmx(tpl: str, resp: Type[Response] = HTMLResponse):
             else:
                 data = ret
             return resp(
-                jinx.render(tpl, **data) if code != 204 else data,
+                jinx.render(tpl, req=req, **data) if code != 204 else data,
                 code,
                 headers,
             )
