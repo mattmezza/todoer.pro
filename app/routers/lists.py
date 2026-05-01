@@ -81,6 +81,9 @@ async def view(
                 tt[idx]["is_last"] = True
     all_sections = await section_r.all_by_space(space["uuid"])
     sections_by_list = section_r.group_by_list(all_sections)
+    is_bookmarked = await user_repo.bookmarks().is_bookmarked(
+        "list", li["uuid"]
+    )
     return {
         "spaces": await space_r.all(),
         "space": space,
@@ -89,6 +92,7 @@ async def view(
         "sections": sections,
         "sections_by_list": sections_by_list,
         "view_complete": view_complete,
+        "is_bookmarked": is_bookmarked,
         "user": user,
         "tasks_by_section": tasks_by_section,
     }

@@ -8,14 +8,18 @@
     tasks_by_section_inbox,
     tasks_by_list,
     sections_by_list,
-    view_complete
+    view_complete,
+    is_bookmarked=False
 #}
 <Layout.App spaces={spaces} space={space} user={user} title={"@" + space.title} lists={lists}>
 <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
     <div class="flex justify-between items-center gap-4 md:px-2 md:py-4">
         <Spaces.Title space={space} />
+        {% if not space.default %}
+        <Bookmarks.Toggle entity_type="space" entity_uuid={space.uuid} bookmarked={is_bookmarked} />
+        {% endif %}
         <Btn.CopyId id={space.sid} prefix="@" title={"Copy space id (@" + space.sid + ")"} />
-        <Spaces.Actions space={space} view_complete={view_complete} />
+        <Spaces.Actions space={space} view_complete={view_complete} is_bookmarked={is_bookmarked} />
     </div>
     <div>
         <Spaces.Descr space={space} />
