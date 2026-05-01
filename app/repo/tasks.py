@@ -20,7 +20,9 @@ class TaskForUser(LoggedInUserRepo):
                 CASE WHEN ta.`order` = (
                     SELECT MAX(`order`) FROM tasks
                     WHERE section = ta.section AND complete = 0
-                ) THEN 1 ELSE 0 END AS is_last
+                ) THEN 1 ELSE 0 END AS is_last,
+                COALESCE((SELECT COUNT(*) FROM subtasks WHERE task = ta.uuid), 0) AS subtasks_total,
+                COALESCE((SELECT COUNT(*) FROM subtasks WHERE task = ta.uuid AND complete = 1), 0) AS subtasks_done
             FROM tasks ta
             JOIN sections se on ta.section = se.uuid
             JOIN lists l on se.list = l.uuid
@@ -45,7 +47,9 @@ class TaskForUser(LoggedInUserRepo):
                 CASE WHEN ta.`order` = (
                     SELECT MAX(`order`) FROM tasks
                     WHERE section = ta.section AND complete = 0
-                ) THEN 1 ELSE 0 END AS is_last
+                ) THEN 1 ELSE 0 END AS is_last,
+                COALESCE((SELECT COUNT(*) FROM subtasks WHERE task = ta.uuid), 0) AS subtasks_total,
+                COALESCE((SELECT COUNT(*) FROM subtasks WHERE task = ta.uuid AND complete = 1), 0) AS subtasks_done
             FROM tasks ta
             JOIN sections se on ta.section = se.uuid
             JOIN lists l on se.list = l.uuid
@@ -64,7 +68,11 @@ class TaskForUser(LoggedInUserRepo):
     ) -> list[Mapping]:
         tasks = await self.db.fetch_all(
             """
-            SELECT ta.* FROM tasks ta
+            SELECT
+                ta.*,
+                COALESCE((SELECT COUNT(*) FROM subtasks WHERE task = ta.uuid), 0) AS subtasks_total,
+                COALESCE((SELECT COUNT(*) FROM subtasks WHERE task = ta.uuid AND complete = 1), 0) AS subtasks_done
+            FROM tasks ta
             JOIN sections se ON se.uuid = ta.section
             JOIN lists l ON l.uuid = se.list
             JOIN spaces s ON s.uuid = l.space
@@ -110,7 +118,9 @@ class TaskForUser(LoggedInUserRepo):
                 CASE WHEN ta.`order` = (
                     SELECT MAX(`order`) FROM tasks
                     WHERE section = ta.section AND complete = 0
-                ) THEN 1 ELSE 0 END AS is_last
+                ) THEN 1 ELSE 0 END AS is_last,
+                COALESCE((SELECT COUNT(*) FROM subtasks WHERE task = ta.uuid), 0) AS subtasks_total,
+                COALESCE((SELECT COUNT(*) FROM subtasks WHERE task = ta.uuid AND complete = 1), 0) AS subtasks_done
             FROM tasks ta
             JOIN sections se on ta.section = se.uuid
             JOIN lists l on se.list = l.uuid
