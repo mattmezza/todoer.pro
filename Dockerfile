@@ -7,19 +7,15 @@ ADD styles ./styles
 RUN npm install
 RUN npx tailwindcss -i styles/global.css -o style.css --minify
 
-FROM python:3.11-slim as builder
-WORKDIR /tmp
-RUN pip install poetry==1.8.5
-COPY ./pyproject.toml ./poetry.lock* /tmp/
-RUN poetry export -f requirements.txt --output requirements.txt --without-hashes
-
 FROM python:3.11-slim
-COPY --from=builder /tmp/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir --upgrade -r /tmp/requirements.txt
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
+COPY ./pyproject.toml ./uv.lock ./
+RUN uv sync --frozen --no-dev --no-editable
 COPY app ./app
 ADD components ./components
 COPY public ./public
 COPY --from=tailwindcss /tmp/style.css ./public/style.css
 EXPOSE 80
+ENV PATH="/app/.venv/bin:$PATH"
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "80", "--proxy-headers", "--forwarded-allow-ips", "'*'"]
