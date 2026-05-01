@@ -164,6 +164,32 @@ class TaskForUser(LoggedInUserRepo):
         )
         return [tt._mapping for tt in tasks]
 
+    async def update_due_date_by_sid(
+        self, due_date: str | None, sid: str
+    ) -> Mapping | None:
+        ta = await self.db.fetch_one(
+            """
+            UPDATE tasks
+                SET due_date = :due_date, updated = CURRENT_TIMESTAMP
+                WHERE sid = :sid
+                    AND EXISTS (
+                        SELECT 1 FROM tasks ta
+                        JOIN sections se ON se.uuid = ta.section
+                        JOIN lists l ON l.uuid = se.list
+                        JOIN spaces sp ON sp.uuid = l.space
+                        WHERE ta.uuid = tasks.uuid
+                            AND sp.creator = :creator
+                    )
+            RETURNING *
+            """,
+            {
+                "sid": sid,
+                "due_date": due_date,
+                "creator": self.user["uuid"],
+            },
+        )
+        return ta._mapping if ta is not None else None
+
     async def update_descr_by_sid(
         self, descr: str | None, sid: str
     ) -> Mapping | None:
@@ -483,12 +509,16 @@ class TaskForUser(LoggedInUserRepo):
             )
 
     async def create(
-        self, title: str, descr: str | None, section: str
+        self,
+        title: str,
+        descr: str | None,
+        section: str,
+        due_date: str | None = None,
     ) -> Mapping:
         uuid_new, sid_new = new_ids()
         task = await self.db.fetch_one(
             """
-            INSERT INTO tasks (uuid, sid, `order`, title, descr, section)
+            INSERT INTO tasks (uuid, sid, `order`, title, descr, section, due_date)
             SELECT
                 :uuid,
                 :sid,
@@ -498,7 +528,8 @@ class TaskForUser(LoggedInUserRepo):
                 ),
                 :title,
                 :descr,
-                :section
+                :section,
+                :due_date
             WHERE EXISTS (
                 SELECT 1 FROM sections se
                 JOIN lists l ON l.uuid = se.list
@@ -514,6 +545,7 @@ class TaskForUser(LoggedInUserRepo):
                 "title": title.strip(),
                 "descr": descr.strip() if descr else None,
                 "section": section,
+                "due_date": due_date,
                 "creator": self.user["uuid"],
             },
         )
