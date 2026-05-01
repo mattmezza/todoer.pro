@@ -28,7 +28,7 @@ async def delete(
     uuid = attachment["uuid"]
     try:
         blob.delete(uuid)
-    except:  # TODO - catch specific exception
+    except Exception:
         logger.error("blob %s couldn't be deleted from remote storage", uuid)
     res.headers["HX-Trigger"] = f"attachment-delete, attachment-{sid}-delete"
     return ""
