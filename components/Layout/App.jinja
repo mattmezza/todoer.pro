@@ -240,6 +240,17 @@
                         if (dueDateDisplay) dueDateDisplay.click();
                         break;
 
+                    case 's':
+                        e.preventDefault();
+                        // Toggle select mode via Alpine.js
+                        var bulkScope = document.querySelector('[x-data*="selectMode"]');
+                        if (bulkScope && bulkScope._x_dataStack) {
+                            var data = bulkScope._x_dataStack[0];
+                            data.selectMode = !data.selectMode;
+                            if (!data.selectMode) data.selected = [];
+                        }
+                        break;
+
                     case '?':
                         e.preventDefault();
                         var dialog = document.getElementById('keyboard-shortcuts-dialog');

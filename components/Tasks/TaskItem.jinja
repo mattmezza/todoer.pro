@@ -3,12 +3,25 @@
     id="task-{{ task.sid }}"
     data-sid="{{ task.sid }}"
     class="task {% if task.is_first %}first{% endif %} {% if task.is_last %}last{% endif %}"
+    :class="typeof selectMode !== 'undefined' && isSelected('{{ task.sid }}') ? 'ring-2 ring-indigo-500 rounded' : ''"
 >
     <div
         class="shadow-lg rounded-sm border-b border-slate-200 dark:border-slate-800 py-2 group cursor-pointer{% if task.complete %} opacity-40{% endif %} flex items-start justify-between px-2">
+        <!-- Bulk select checkbox -->
+        <template x-if="typeof selectMode !== 'undefined' && selectMode">
+            <div class="flex items-center mr-2 mt-1" @click.stop="toggleSelect('{{ task.sid }}')">
+                <input
+                    type="checkbox"
+                    :checked="isSelected('{{ task.sid }}')"
+                    class="form-checkbox w-5 h-5 rounded cursor-pointer text-indigo-600"
+                    @click.stop="toggleSelect('{{ task.sid }}')"
+                >
+            </div>
+        </template>
         <!-- Drag handle -->
         {% if not task.complete %}
-        <div class="drag-handle hidden group-hover:flex items-center mr-1 mt-1 cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-300" title="Drag to reorder">
+        <div class="drag-handle items-center mr-1 mt-1 cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-300" title="Drag to reorder"
+            :class="typeof selectMode !== 'undefined' && selectMode ? '!hidden' : 'hidden group-hover:flex'">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
             </svg>
@@ -16,7 +29,7 @@
         {% endif %}
         <!-- Left side -->
         <div
-            onclick="window.location.href = '/task/{{ task.sid }}'"
+            @click="if (typeof selectMode !== 'undefined' && selectMode) { $event.preventDefault(); toggleSelect('{{ task.sid }}'); } else { window.location.href = '/task/{{ task.sid }}'; }"
             class="grow mt-0.5 mb-0.5 sm:mb-0">
             <div class="flex items-center">
                 <!-- Checkbox button -->
