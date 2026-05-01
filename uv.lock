@@ -672,20 +672,6 @@ wheels = [
 ]
 
 [[package]]
-name = "passlib"
-version = "1.7.4"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b6/06/9da9ee59a67fae7761aab3ccc84fa4f3f33f125b370f1ccdb915bf967c11/passlib-1.7.4.tar.gz", hash = "sha256:defd50f72b65c5402ab2c573830a6978e5f202ad0d984793c8dde2c4152ebe04", size = 689844, upload-time = "2020-10-08T19:00:52.121Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3b/a4/ab6b7589382ca3df236e03faa71deac88cae040af60c071a78d254a62172/passlib-1.7.4-py2.py3-none-any.whl", hash = "sha256:aa6bca462b8d8bda89c70b382f0c298a20b5560af6cbfa2dce410c0a2fb669f1", size = 525554, upload-time = "2020-10-08T19:00:49.856Z" },
-]
-
-[package.optional-dependencies]
-bcrypt = [
-    { name = "bcrypt" },
-]
-
-[[package]]
 name = "pathspec"
 version = "1.1.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1117,6 +1103,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "arel" },
+    { name = "bcrypt" },
     { name = "boto3" },
     { name = "databases", extra = ["aiosqlite"] },
     { name = "fastapi" },
@@ -1125,7 +1112,6 @@ dependencies = [
     { name = "jinja2" },
     { name = "jinjax" },
     { name = "markdown" },
-    { name = "passlib", extra = ["bcrypt"] },
     { name = "pydantic", extra = ["email"] },
     { name = "pygments" },
     { name = "pymdown-extensions" },
@@ -1144,6 +1130,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "arel", specifier = ">=0.2.0" },
+    { name = "bcrypt", specifier = ">=4.0.0" },
     { name = "boto3", specifier = ">=1.33.4" },
     { name = "databases", extras = ["aiosqlite"], specifier = ">=0.8.0" },
     { name = "fastapi", specifier = ">=0.103.1" },
@@ -1152,7 +1139,6 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.2" },
     { name = "jinjax", specifier = ">=0.35" },
     { name = "markdown", specifier = ">=3.6" },
-    { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.3.0" },
     { name = "pygments", specifier = ">=2.18.0" },
     { name = "pymdown-extensions", specifier = ">=10.9" },

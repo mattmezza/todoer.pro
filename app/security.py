@@ -4,13 +4,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Mapping
 
 from fastapi.responses import Response
+import bcrypt
 from jose import jwt
-from passlib.context import CryptContext
 
 from app.repo import UserForAnon
 
-# to get a string like this run:
-# openssl rand -hex 32
 SECRET_KEY = os.environ["TODOER_SECRET_KEY"]
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(
@@ -20,7 +18,6 @@ AUTH_COOKIE_EXPIRE_MINUTES = int(
     os.environ["TODOER_AUTH_COOKIE_EXPIRE_MINUTES"]
 )
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 is_dev = os.environ['TODOER_ENV'] == "local"
 
 
@@ -30,12 +27,16 @@ class Token:
     token_type: str
 
 
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(
+        plain_password.encode(), hashed_password.encode()
+    )
 
 
-def get_password_hash(password):
-    return pwd_context.hash(password)
+def get_password_hash(password: str) -> str:
+    return bcrypt.hashpw(
+        password.encode(), bcrypt.gensalt()
+    ).decode()
 
 
 async def authenticate_user(urepo: UserForAnon, email: str, password: str):
