@@ -1,23 +1,23 @@
 import io
 import os
 import re
-from functools import partial, wraps
-from datetime import datetime
-from html.parser import HTMLParser
 import time
+from datetime import datetime, timezone
+from functools import partial, wraps
+from html.parser import HTMLParser
 from typing import Type
 
 import arel
 import markdown as md
-from markupsafe import Markup, escape
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from jinja2 import pass_context
 from jinjax import Catalog
+from markupsafe import Markup, escape
 
 
 def age(since: datetime) -> str:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     delta = abs(now - since)
     pa = {}
     pa["day"], pa["second"] = delta.days, delta.seconds
