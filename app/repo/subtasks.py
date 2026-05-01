@@ -65,12 +65,13 @@ class SubtaskForUser(LoggedInUserRepo):
             DELETE FROM subtasks
             WHERE sid = :sid
                 AND EXISTS (
-                    SELECT st.uuid FROM subtasks st
+                    SELECT 1 FROM subtasks st
                     JOIN tasks ta ON ta.uuid = st.task
                     JOIN sections se ON se.uuid = ta.section
                     JOIN lists l ON l.uuid = se.list
                     JOIN spaces sp ON sp.uuid = l.space
-                    WHERE sp.creator = :creator
+                    WHERE st.uuid = subtasks.uuid
+                        AND sp.creator = :creator
                 )
             """,
             {"sid": sid, "creator": self.user["uuid"]},
