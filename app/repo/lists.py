@@ -49,6 +49,7 @@ class ListForUser(LoggedInUserRepo):
             SELECT l.* FROM lists l
             JOIN spaces s ON s.uuid = l.space
             WHERE s.creator = :creator
+                AND l.archived = 0
             ORDER BY l.created ASC
             LIMIT :limit
             """,
@@ -63,6 +64,7 @@ class ListForUser(LoggedInUserRepo):
             JOIN spaces s ON s.uuid = l.space
             WHERE s.creator = :creator
                 AND s.sid = :sid
+                AND l.archived = 0
             ORDER BY l.created ASC
             LIMIT :limit
             """,
@@ -110,6 +112,17 @@ class ListForUser(LoggedInUserRepo):
         for num_task in num_tasks_in_list:
             tasks_by_list[num_task.list] = num_task.tasks_tot
         return tasks_by_list
+
+    async def archive(self, sid: str) -> Mapping | None:
+        li = await self.db.fetch_one(
+            """
+            UPDATE lists SET archived = 1, updated = CURRENT_TIMESTAMP
+            WHERE sid = :sid AND creator = :creator
+            RETURNING *
+            """,
+            {"sid": sid, "creator": self.user["uuid"]},
+        )
+        return li._mapping if li else None
 
     async def del_by_sid(self, sid: str) -> None:
         await self.db.execute(

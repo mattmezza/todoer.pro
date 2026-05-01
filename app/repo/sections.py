@@ -39,6 +39,7 @@ class SectionForUser(LoggedInUserRepo):
             JOIN spaces s ON s.uuid = l.space
             WHERE s.creator = :creator
                 AND se.list = :list_uuid
+                AND se.archived = 0
             ORDER BY se.`order` ASC, se.created ASC
             LIMIT :limit
             """,
@@ -74,6 +75,24 @@ class SectionForUser(LoggedInUserRepo):
             {"sid": sid, "title": title, "creator": self.user["uuid"]},
         )
         return None if section is None else section._mapping
+
+    async def archive(self, sid: str) -> Mapping | None:
+        se = await self.db.fetch_one(
+            """
+            UPDATE sections SET archived = 1, updated = CURRENT_TIMESTAMP
+            WHERE sid = :sid
+                AND EXISTS (
+                    SELECT 1 FROM sections s
+                    JOIN lists l ON l.uuid = s.list
+                    JOIN spaces sp ON sp.uuid = l.space
+                    WHERE s.uuid = sections.uuid
+                        AND sp.creator = :creator
+                )
+            RETURNING *
+            """,
+            {"sid": sid, "creator": self.user["uuid"]},
+        )
+        return se._mapping if se else None
 
     async def del_by_sid(self, sid: str) -> None:
         async with self.db.transaction():
@@ -119,6 +138,7 @@ class SectionForUser(LoggedInUserRepo):
             JOIN spaces s ON s.uuid = l.space
             WHERE s.creator = :creator
                 AND l.uuid = :list
+                AND se.archived = 0
             ORDER BY se.`order` ASC, se.created ASC
             LIMIT :limit
             """,
