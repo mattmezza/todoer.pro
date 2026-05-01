@@ -20,9 +20,7 @@ async def archive(
     await db.for_user(user).sections().archive(sid)
     return HTMLResponse(
         "",
-        headers={
-            "HX-Trigger": f"section-delete, section-{sid}-delete"
-        },
+        headers={"HX-Trigger": f"section-delete, section-{sid}-delete"},
     )
 
 
@@ -65,9 +63,12 @@ async def view(
     list_ = await repo.lists().by_uuid(section["list"])
     space = await repo.spaces().by_uuid(list_["space"])
     lists = await repo.lists().all_by_space(space["sid"])
+    all_sections = await serepo.all_by_space(space["uuid"])
+    sections_by_list = serepo.group_by_list(all_sections)
     return {
         "section": section,
         "sections": sections,
+        "sections_by_list": sections_by_list,
         "tasks": tasks,
         "lists": lists,
         "list": list_,
@@ -169,10 +170,13 @@ async def add(
     space = await urepo.spaces().by_uuid(list_["space"])
     lists = await urepo.lists().all_by_space(space["sid"])
     sections = await serepo.all_by_list(section["list"])
+    all_sections = await serepo.all_by_space(space["uuid"])
+    sections_by_list = serepo.group_by_list(all_sections)
     return (
         {
             "section": section,
             "sections": sections,
+            "sections_by_list": sections_by_list,
             "user": user,
             "lists": lists,
             "list": list_,
@@ -234,10 +238,13 @@ async def move_up(
     list_ = await repo.lists().by_uuid(section["list"])
     space = await repo.spaces().by_uuid(list_["space"])
     lists = await repo.lists().all_by_space(space["sid"])
+    all_sections = await serepo.all_by_space(space["uuid"])
+    sections_by_list = serepo.group_by_list(all_sections)
     return (
         {
             "section": section,
             "sections": sections,
+            "sections_by_list": sections_by_list,
             "tasks": tasks,
             "lists": lists,
             "list": list_,
@@ -279,10 +286,13 @@ async def move_down(
     list_ = await repo.lists().by_uuid(section["list"])
     space = await repo.spaces().by_uuid(list_["space"])
     lists = await repo.lists().all_by_space(space["sid"])
+    all_sections = await serepo.all_by_space(space["uuid"])
+    sections_by_list = serepo.group_by_list(all_sections)
     return (
         {
             "section": section,
             "sections": sections,
+            "sections_by_list": sections_by_list,
             "tasks": tasks,
             "lists": lists,
             "list": list_,
@@ -322,10 +332,13 @@ async def move_top(
     list_ = await repo.lists().by_uuid(section["list"])
     space = await repo.spaces().by_uuid(list_["space"])
     lists = await repo.lists().all_by_space(space["sid"])
+    all_sections = await serepo.all_by_space(space["uuid"])
+    sections_by_list = serepo.group_by_list(all_sections)
     return (
         {
             "section": section,
             "sections": sections,
+            "sections_by_list": sections_by_list,
             "tasks": tasks,
             "lists": lists,
             "list": list_,
@@ -365,10 +378,13 @@ async def move_bottom(
     list_ = await repo.lists().by_uuid(section["list"])
     space = await repo.spaces().by_uuid(list_["space"])
     lists = await repo.lists().all_by_space(space["sid"])
+    all_sections = await serepo.all_by_space(space["uuid"])
+    sections_by_list = serepo.group_by_list(all_sections)
     return (
         {
             "section": section,
             "sections": sections,
+            "sections_by_list": sections_by_list,
             "tasks": tasks,
             "lists": lists,
             "list": list_,

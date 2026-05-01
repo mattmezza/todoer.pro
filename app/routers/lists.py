@@ -22,9 +22,7 @@ async def archive(
 ):
     urepo = db.for_user(user)
     lrepo = urepo.lists()
-    list_ = http.Opt(await lrepo.by_sid(sid)).or_404(
-        f"List #{sid} not found."
-    )
+    list_ = http.Opt(await lrepo.by_sid(sid)).or_404(f"List #{sid} not found.")
     space = await urepo.spaces().by_uuid(list_["space"])
     await lrepo.archive(sid)
     return HTMLResponse(
@@ -81,12 +79,15 @@ async def view(
             else:
                 tt[idx]["is_first"] = True
                 tt[idx]["is_last"] = True
+    all_sections = await section_r.all_by_space(space["uuid"])
+    sections_by_list = section_r.group_by_list(all_sections)
     return {
         "spaces": await space_r.all(),
         "space": space,
         "lists": await list_r.all_by_space(space["sid"]),
         "list": li,
         "sections": sections,
+        "sections_by_list": sections_by_list,
         "view_complete": view_complete,
         "user": user,
         "tasks_by_section": tasks_by_section,
@@ -103,9 +104,7 @@ async def export_txt(
     urepo = db.for_user(user)
     li = http.Opt(await urepo.lists().by_sid(sid)).or_404()
     sections = await urepo.sections().by_list(li["uuid"])
-    tasks_by_section = await urepo.tasks().by_section_for_list(
-        li["uuid"]
-    )
+    tasks_by_section = await urepo.tasks().by_section_for_list(li["uuid"])
 
     lines = [f"# {li['title']}", ""]
     if li.get("descr"):
@@ -145,31 +144,23 @@ async def export_csv(
     urepo = db.for_user(user)
     li = http.Opt(await urepo.lists().by_sid(sid)).or_404()
     sections = await urepo.sections().by_list(li["uuid"])
-    tasks_by_section = await urepo.tasks().by_section_for_list(
-        li["uuid"]
-    )
+    tasks_by_section = await urepo.tasks().by_section_for_list(li["uuid"])
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(
-        ["Section", "Task", "Status", "Due Date", "Created"]
-    )
+    writer.writerow(["Section", "Task", "Status", "Due Date", "Created"])
 
     for section in sections:
         tasks = tasks_by_section.get(section["uuid"], [])
         section_title = (
-            section["title"]
-            if not section["default"]
-            else "(default)"
+            section["title"] if not section["default"] else "(default)"
         )
         for task in tasks:
             writer.writerow(
                 [
                     section_title,
                     task["title"],
-                    "Complete"
-                    if task["complete"]
-                    else "Incomplete",
+                    "Complete" if task["complete"] else "Incomplete",
                     task.get("due_date", ""),
                     task.get("created", ""),
                 ]

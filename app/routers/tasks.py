@@ -27,10 +27,20 @@ async def add_task(
     task = dict(task)
     task["is_first"] = task["order"] == 0
     task["is_last"] = True
-    section = await urepo.sections().by_uuid(section)
-    sections = await urepo.sections().all_by_list(section["list"])
+    secrepo = urepo.sections()
+    section = await secrepo.by_uuid(section)
+    sections = await secrepo.all_by_list(section["list"])
+    list_ = await urepo.lists().by_uuid(section["list"])
+    space = await urepo.spaces().by_uuid(list_["space"])
+    all_sections = await secrepo.all_by_space(space["uuid"])
+    sections_by_list = secrepo.group_by_list(all_sections)
     return (
-        {"task": task, "section": section, "sections": sections},
+        {
+            "task": task,
+            "section": section,
+            "sections": sections,
+            "sections_by_list": sections_by_list,
+        },
         201,
         {"HX-Trigger": "task-create"},
     )
@@ -56,6 +66,8 @@ async def view(
     srepo = urepo.spaces()
     space = await srepo.by_uuid(list_["space"])
     lists = await lrepo.all_by_space(space["sid"])
+    all_sections = await secrepo.all_by_space(space["uuid"])
+    sections_by_list = secrepo.group_by_list(all_sections)
     task_id = task["uuid"]
     comments = await urepo.comments().by_task(task_id)
     subtasks = await urepo.subtasks().by_task(task_id)
@@ -70,6 +82,7 @@ async def view(
         "task": task,
         "section": section,
         "sections": sections,
+        "sections_by_list": sections_by_list,
         "list": list_,
         "lists": lists,
         "space": space,
@@ -97,12 +110,18 @@ async def view_item(
     )
     tasks = await urepo.tasks().by_section(task["section"])
     task = _add_first_last(task, tasks)
-    section = await urepo.sections().by_uuid(task["section"])
-    sections = await urepo.sections().all_by_list(section["list"])
+    secrepo = urepo.sections()
+    section = await secrepo.by_uuid(task["section"])
+    sections = await secrepo.all_by_list(section["list"])
+    list_ = await urepo.lists().by_uuid(section["list"])
+    space = await urepo.spaces().by_uuid(list_["space"])
+    all_sections = await secrepo.all_by_space(space["uuid"])
+    sections_by_list = secrepo.group_by_list(all_sections)
     return {
         "task": task,
         "sections": sections,
-        "section": await urepo.sections().by_uuid(task["section"]),
+        "sections_by_list": sections_by_list,
+        "section": section,
     }
 
 
@@ -127,8 +146,13 @@ async def update(
     task = dict(task)
     tasks = await tarepo.by_section(task["section"])
     task = _add_first_last(task, tasks)
-    section = await urepo.sections().by_uuid(task["section"])
-    sections = await urepo.sections().all_by_list(section["list"])
+    secrepo = urepo.sections()
+    section = await secrepo.by_uuid(task["section"])
+    sections = await secrepo.all_by_list(section["list"])
+    list_ = await urepo.lists().by_uuid(section["list"])
+    space = await urepo.spaces().by_uuid(list_["space"])
+    all_sections = await secrepo.all_by_space(space["uuid"])
+    sections_by_list = secrepo.group_by_list(all_sections)
     hx_trigger = f"task-update, task-{sid}-update"
     hx_trigger += f", section-{task['section']}-update"
     if task["complete"] == 1:
@@ -139,7 +163,8 @@ async def update(
         {
             "task": task,
             "sections": sections,
-            "section": (await urepo.sections().by_uuid(task["section"])),
+            "sections_by_list": sections_by_list,
+            "section": section,
         },
         200,
         {"HX-Trigger": hx_trigger},
@@ -283,9 +308,7 @@ async def archive(
     await db.for_user(user).tasks().archive(sid)
     return HTMLResponse(
         "",
-        headers={
-            "HX-Trigger": f"task-delete, task-{sid}-delete"
-        },
+        headers={"HX-Trigger": f"task-delete, task-{sid}-delete"},
     )
 
 
@@ -319,11 +342,17 @@ async def move_up(
     serepo = repo.sections()
     section = await serepo.by_uuid(task["section"])
     sections = await serepo.all_by_list(section["list"])
+    sections_by_list = await _sections_by_list(repo, section)
     task = dict(task)
     tasks = await tarepo.by_section(task["section"])
     task = _add_first_last(task, tasks)
     return (
-        {"task": task, "section": section, "sections": sections},
+        {
+            "task": task,
+            "section": section,
+            "sections": sections,
+            "sections_by_list": sections_by_list,
+        },
         200,
         {"HX-Trigger": f"section-{section.sid}-update"},
     )
@@ -346,11 +375,17 @@ async def move_down(
     serepo = repo.sections()
     section = await serepo.by_uuid(task["section"])
     sections = await serepo.all_by_list(section["list"])
+    sections_by_list = await _sections_by_list(repo, section)
     task = dict(task)
     tasks = await tarepo.by_section(task["section"])
     task = _add_first_last(task, tasks)
     return (
-        {"task": task, "section": section, "sections": sections},
+        {
+            "task": task,
+            "section": section,
+            "sections": sections,
+            "sections_by_list": sections_by_list,
+        },
         200,
         {"HX-Trigger": f"section-{section.sid}-update"},
     )
@@ -374,11 +409,17 @@ async def move_top(
     serepo = repo.sections()
     section = await serepo.by_uuid(task["section"])
     sections = await serepo.all_by_list(section["list"])
+    sections_by_list = await _sections_by_list(repo, section)
     task = dict(task)
     tasks = await tarepo.by_section(task["section"])
     task = _add_first_last(task, tasks)
     return (
-        {"task": task, "section": section, "sections": sections},
+        {
+            "task": task,
+            "section": section,
+            "sections": sections,
+            "sections_by_list": sections_by_list,
+        },
         200,
         {"HX-Trigger": f"section-{section.sid}-update"},
     )
@@ -400,14 +441,30 @@ async def move_bottom(
     serepo = repo.sections()
     section = await serepo.by_uuid(task["section"])
     sections = await serepo.all_by_list(section["list"])
+    sections_by_list = await _sections_by_list(repo, section)
     task = dict(task)
     tasks = await tarepo.by_section(task["section"])
     task = _add_first_last(task, tasks)
     return (
-        {"task": task, "section": section, "sections": sections},
+        {
+            "task": task,
+            "section": section,
+            "sections": sections,
+            "sections_by_list": sections_by_list,
+        },
         200,
         {"HX-Trigger": f"section-{section.sid}-update"},
     )
+
+
+async def _sections_by_list(urepo, section):
+    """Fetch all sections across all lists in the same space,
+    grouped by list, for the cross-list move dialog."""
+    secrepo = urepo.sections()
+    list_ = await urepo.lists().by_uuid(section["list"])
+    space = await urepo.spaces().by_uuid(list_["space"])
+    all_sections = await secrepo.all_by_space(space["uuid"])
+    return secrepo.group_by_list(all_sections)
 
 
 def _add_first_last(task: dict, tasks: list[dict]):

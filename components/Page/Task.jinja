@@ -1,4 +1,4 @@
-{# def user, space, spaces, lists, list, section, sections, task, subtasks, attachments, comments #}
+{# def user, space, spaces, lists, list, section, sections, sections_by_list, task, subtasks, attachments, comments #}
 <Layout.App spaces={spaces} space={space} user={user} title={"%" + task.sid + " \"" + task.title + "\""} lists={lists}>
 <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
     <div class="mb-8 space-y-4">
@@ -21,7 +21,7 @@
             <Tasks.Title task={task} section={section} list={list} space={space} />
             <Btn.CopyId id={task.sid} prefix="%" title={"Copy task id (%" + task.sid + ")"} />
             <Tasks.Actions task={task} list={list} view_complete={False} />
-            <Tasks.ActionMove task={task} section={section} sections={sections} should-reload={True} />
+            <Tasks.ActionMove task={task} section={section} sections={sections} sections_by_list={sections_by_list} should-reload={True} />
         </div>
         <Tasks.Descr task={task} />
         <Tasks.DueDate task={task} />

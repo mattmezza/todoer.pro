@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Mapping
 from uuid import UUID
 
@@ -149,6 +150,49 @@ class SectionForUser(LoggedInUserRepo):
             ss["is_first"] = i == 1 or ss["default"] is True
             ss["is_last"] = i == len(res) - 1 or ss["default"] is True
         return res
+
+    async def all_by_space(
+        self, space_uuid: str, limit: int = 500
+    ) -> list[dict]:
+        """Return all sections across all lists in a space,
+        with list title attached to each section row."""
+        sections = await self.db.fetch_all(
+            """
+            SELECT se.*, l.title AS list_title, l.uuid AS list_uuid
+            FROM sections se
+            JOIN lists l ON l.uuid = se.list
+            JOIN spaces s ON s.uuid = l.space
+            WHERE s.creator = :creator
+                AND s.uuid = :space
+                AND se.archived = 0
+                AND l.archived = 0
+            ORDER BY l.created ASC, se.`order` ASC, se.created ASC
+            LIMIT :limit
+            """,
+            {
+                "limit": limit,
+                "creator": self.user["uuid"],
+                "space": space_uuid,
+            },
+        )
+        return [dict(ss._mapping) for ss in sections]
+
+    def group_by_list(self, sections: list[dict]) -> list[dict]:
+        """Group flat section rows into
+        [{list_title, list_uuid, sections: [...]}]."""
+        grouped = defaultdict(
+            lambda: {"list_title": "", "list_uuid": "", "sections": []}
+        )
+        order = []
+        for se in sections:
+            key = se["list_uuid"]
+            if key not in grouped:
+                order.append(key)
+            entry = grouped[key]
+            entry["list_title"] = se["list_title"]
+            entry["list_uuid"] = se["list_uuid"]
+            entry["sections"].append(se)
+        return [grouped[k] for k in order]
 
     async def insert(
         self, title: str, list_id: str, default: bool = False
