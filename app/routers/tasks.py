@@ -57,9 +57,8 @@ async def view(
     db: RepoDB = Depends(repo_db),
 ):
     urepo = db.for_user(user)
-    task = http.Opt(await urepo.tasks().by_sid(sid)).or_404(
-        f"Task #{sid} not found."
-    )
+    tarepo = urepo.tasks()
+    task = http.Opt(await tarepo.by_sid(sid)).or_404(f"Task #{sid} not found.")
     secrepo = urepo.sections()
     section = await secrepo.by_uuid(task["section"])
     lrepo = urepo.lists()
@@ -80,6 +79,7 @@ async def view(
             a['uuid'],
             blob.URL_SIGNED_VALIDITY_DURATION_DEFAULT,
         )
+    audit_log = await tarepo.audit_log(task_id)
     return {
         "task": task,
         "section": section,
@@ -92,6 +92,7 @@ async def view(
         "comments": comments,
         "subtasks": subtasks,
         "attachments": attachments,
+        "audit_log": audit_log,
         "user": user,
     }
 
