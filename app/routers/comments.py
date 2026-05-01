@@ -22,6 +22,31 @@ async def delete(
     return ""
 
 
+@router.put("/comment/{sid}")
+@tpl.htmx("Comment")
+async def update(
+    req: Request,
+    sid: str,
+    content: Annotated[str, Form()],
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    comment = http.Opt(
+        await db.for_user(user).comments().update_by_sid(content.strip(), sid)
+    ).or_404(f"Comment #{sid} not found.")
+    return (
+        {
+            "comment": dict(comment)
+            | {
+                "author_email_hash": user["email_hash"],
+                "author_email": user["email"],
+            },
+        },
+        200,
+        {"HX-Trigger": f"comment-update, comment-{sid}-update"},
+    )
+
+
 @router.post("/comments")
 @tpl.htmx("Comment")
 async def add(
@@ -37,7 +62,10 @@ async def add(
     return (
         {
             "comment": dict(comment)
-            | {"author_email_hash": user["email_hash"]},
+            | {
+                "author_email_hash": user["email_hash"],
+                "author_email": user["email"],
+            },
         },
         201,
         {"HX-Trigger": "comment-create"},
