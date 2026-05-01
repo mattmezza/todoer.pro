@@ -37,6 +37,29 @@
         </div>
             <Nav.Mobile space={space} spaces={spaces} lists={lists} />
     </div>
+    <dialog id="search-dialog" class="bg-transparent backdrop:bg-black/50 w-full max-w-xl mx-auto mt-[15vh]"
+        _="on keydown[key is 'Escape'] close me">
+        <div class="bg-slate-800 rounded-lg border border-slate-700 shadow-2xl overflow-hidden">
+            <div class="flex items-center gap-2 px-4 border-b border-slate-700">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-slate-400 shrink-0">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                </svg>
+                <input
+                    id="search-input"
+                    type="search"
+                    name="q"
+                    placeholder="Search tasks, lists, spaces..."
+                    class="w-full bg-transparent border-0 text-slate-200 placeholder:text-slate-500 py-3 focus:ring-0"
+                    hx-get="/search"
+                    hx-trigger="keyup changed delay:300ms"
+                    hx-target="#search-results"
+                    autocomplete="off">
+            </div>
+            <div id="search-results" class="max-h-[60vh] overflow-y-auto">
+                <div class="py-8 text-center text-sm text-slate-500">Type to search...</div>
+            </div>
+        </div>
+    </dialog>
     <Dialog.About />
     <script src="//unpkg.com/alpinejs"></script>
     <script src="//unpkg.com/htmx.org@1.9.5/dist/htmx.min.js"></script>
@@ -57,6 +80,20 @@
         }
         const allProse = Array.from(document.querySelectorAll(".prose a"))
         allProse.forEach(el => el.addEventListener("click", halt))
+        document.addEventListener('keydown', function(e) {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                var dialog = document.getElementById('search-dialog');
+                if (dialog.open) {
+                    dialog.close();
+                } else {
+                    dialog.showModal();
+                    document.getElementById('search-input').focus();
+                    document.getElementById('search-input').value = '';
+                    document.getElementById('search-results').innerHTML = '<div class="py-8 text-center text-sm text-slate-500">Type to search...</div>';
+                }
+            }
+        });
     </script>
     {{ catalog.render_assets() }}
 </body>
