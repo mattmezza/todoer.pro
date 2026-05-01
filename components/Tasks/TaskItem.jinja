@@ -33,6 +33,22 @@
                         </span>
                     {% endif %}
                 </form>
+                <!-- Inline title edit form (hidden by default) -->
+                <form class="task-title-edit ml-3 flex-grow flex items-center gap-1" style="display:none"
+                    onclick="event.stopPropagation()"
+                    hx-put="/task/{{ task.sid }}"
+                    hx-target="closest li"
+                    hx-swap="outerHTML"
+                    hx-push-url="false"
+                    _="on reset hide me then show previous <form/>"
+                >
+                    <input class="form-input text-sm w-full px-2 py-0.5" name="title" value="{{ task.title }}"
+                        _="on keyup[key is 'Escape'] reset() the closest <form/>">
+                    {% if task.descr %}<input name="descr" type="hidden" value="{{ task.descr }}" />{% endif %}
+                    {% if task.complete %}<input name="complete" type="hidden" value="on" />{% endif %}
+                    <button type="submit" class="btn text-xs py-0.5 px-2 bg-indigo-600 hover:bg-indigo-700 text-white">Save</button>
+                    <button type="reset" class="btn text-xs py-0.5 px-2">Cancel</button>
+                </form>
             </div>
             {% if task.descr %}
             <div class="ml-8 text-sm prose dark:prose-white xs:prose-xs sm:prose-sm md:prose-base peer-checked:line-through">
