@@ -98,6 +98,16 @@
                 }
             }
         });
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+                var active = document.activeElement;
+                var tag = active ? active.tagName.toLowerCase() : '';
+                if (tag === 'input' || tag === 'textarea' || tag === 'select' || active.isContentEditable) return;
+                e.preventDefault();
+                var btn = document.querySelector('[id^="btn-task-create-"]');
+                if (btn) btn.click();
+            }
+        });
     </script>
     {{ catalog.render_assets() }}
 </body>
