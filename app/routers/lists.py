@@ -76,7 +76,7 @@ async def view(
     tarepo = user_repo.tasks()
     tasks_by_section = await tarepo.by_section_for_list(li["uuid"])
     for tt in tasks_by_section.values():
-        _sort_tasks(tt, sort_by)
+        svc.lists.sort_tasks(tt, sort_by)
         incomplete = [i for i, t in enumerate(tt) if not t["complete"]]
         for idx, ta in enumerate(tt):
             tt[idx] = dict(ta)
@@ -331,29 +331,3 @@ async def add(
     )
 
 
-def _sort_tasks(tasks: list, sort_by: str) -> None:
-    """Sort tasks in-place based on the sort_by setting."""
-    if sort_by == "due-date":
-        tasks.sort(
-            key=lambda t: (
-                t.get("complete", 0),
-                t.get("due_date") or "9999-12-31",
-                t.get("order", 0),
-            )
-        )
-    elif sort_by == "created":
-        tasks.sort(
-            key=lambda t: (
-                t.get("complete", 0),
-                t.get("created") or "",
-                t.get("order", 0),
-            )
-        )
-    elif sort_by == "alphabetical":
-        tasks.sort(
-            key=lambda t: (
-                t.get("complete", 0),
-                (t.get("title") or "").lower(),
-            )
-        )
-    # 'manual' is the default DB ordering, no re-sort needed
