@@ -1,3 +1,4 @@
+{# def error #}
 <Layout.Auth title="Sign Up" img="/public/images/signup.jpg">
     <div class="max-w-sm mx-auto w-full px-4 py-8">
         <h1 class="text-3xl text-slate-800 dark:text-slate-100 font-bold mb-6">Create your Account ✨</h1>
@@ -39,6 +40,23 @@
             <div class="text-sm">
                 Have an account? <a class="font-medium text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400" href="/signin">Sign In</a>
             </div>
+            {%- if error %}
+                <div class="mt-5">
+                    <div class="bg-red-100 dark:bg-red-400/30 text-red-600 dark:text-red-400 px-3 py-2 rounded">
+                        <span class="text-sm">
+                            {%- if error == "password-too-short" %}
+                            Password must be at least 8 characters.
+                            {%- elif error == "email-already-exists" %}
+                            An account with this email already exists.
+                            {%- elif error == "consent-required" %}
+                            You must accept the consent checkbox.
+                            {%- else %}
+                            Something went wrong. Please try again.
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            {% endif %}
         </div>
     </div>
 </Layout.Auth>
