@@ -1,4 +1,4 @@
-{# def user, spaces, space, lists, list, sections, sections_by_list, view_complete, tasks_by_section #}
+{# def user, spaces, space, lists, list, sections, sections_by_list, view_complete, tasks_by_section, is_bookmarked=False #}
 <Layout.App spaces={spaces} space={space} user={user} title={"#" + list.title} lists={lists}>
 <div class="py-4 md:py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
 <!--
@@ -18,8 +18,9 @@
     </div>
     <div class="ml-2 md:ml-0 flex justify-between items-center gap-4 md:py-4">
         <Lists.Title list={list} />
+        <Bookmarks.Toggle entity_type="list" entity_uuid={list.uuid} bookmarked={is_bookmarked} />
         <Btn.CopyId id={list.sid} prefix="#" title={"Copy list id (#" + list.sid + ")"} />
-        <Lists.Actions list={list} view_complete={view_complete} />
+        <Lists.Actions list={list} view_complete={view_complete} is_bookmarked={is_bookmarked} />
 
         <Dialog.Closable id="dialog-list-move" class="md:w-1/3">
             <form class="space-y-8 mx-auto" hx-put="/list/{{ list.sid }}/space">
