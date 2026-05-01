@@ -317,7 +317,7 @@ class TaskForUser(LoggedInUserRepo):
                 {
                     "sid": sid,
                     "complete": 1 if complete else 0,
-                    "completed": (datetime.utcnow() if complete else "NULL"),
+                    "completed": (datetime.utcnow() if complete else None),
                     "creator": self.user["uuid"],
                 },
             )
@@ -375,7 +375,7 @@ class TaskForUser(LoggedInUserRepo):
                     "title": title,
                     "descr": descr,
                     "complete": 1 if complete else 0,
-                    "completed": (datetime.utcnow() if complete else "NULL"),
+                    "completed": (datetime.utcnow() if complete else None),
                     "creator": self.user["uuid"],
                 },
             )
