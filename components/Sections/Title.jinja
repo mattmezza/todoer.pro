@@ -18,10 +18,15 @@
                 </svg>
             </button>
             <div class="w-full flex items-end gap-4">
+                {% set total = tasks|length %}
+                {% set done = tasks|selectattr("complete")|list|length %}
                 <h2
                     _="on click hide me then show the next <form /> then select() the next <input />"
                     class="font-semibold font-mono flex-grow cursor-pointer md:text-base">
                     ${{ section.title }}
+                    {% if total > 0 %}
+                    <span class="text-xs text-slate-500 font-normal ml-2">{{ done }}/{{ total }}</span>
+                    {% endif %}
                 </h2>
                 <form
                     style="display: none"
