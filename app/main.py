@@ -16,6 +16,7 @@ from .routers import (
     dashboard,
     lists,
     nav,
+    search,
     sections,
     spaces,
     subtasks,
@@ -84,11 +85,15 @@ async def manifest(v: str = ""):
         "name": "Todoer.pro",
         "short_name": "Todoer",
         "start_url": "dashboard",
-        "scope": "http://localhost:8000/"
-        if env == "local"
-        else "https://dev.todoer.pro/"
-        if env == "dev"
-        else "https://todoer.pro/",
+        "scope": (
+            "http://localhost:8000/"
+            if env == "local"
+            else (
+                "https://dev.todoer.pro/"
+                if env == "dev"
+                else "https://todoer.pro/"
+            )
+        ),
         "id": "todoer.pro",
         "description": "Get things done, like a pro!",
     }
@@ -131,5 +136,9 @@ app.include_router(
 )
 app.include_router(
     spaces.router,
+    dependencies=[Depends(get_current_active_user)],
+)
+app.include_router(
+    search.router,
     dependencies=[Depends(get_current_active_user)],
 )
