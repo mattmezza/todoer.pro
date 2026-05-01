@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
-from app import http, tpl
+from app import http, svc, tpl
 from app.deps import RepoDB, get_current_active_user, repo_db
 
 router = APIRouter()
@@ -61,6 +61,8 @@ async def view(
     tarepo = repo.tasks()
     tasks = await tarepo.by_section(section["uuid"])
     list_ = await repo.lists().by_uuid(section["list"])
+    sort_by = list_.get("sort_by", "manual") if list_ else "manual"
+    svc.lists.sort_tasks(tasks, sort_by)
     space = await repo.spaces().by_uuid(list_["space"])
     lists = await repo.lists().all_by_space(space["sid"])
     all_sections = await serepo.all_by_space(space["uuid"])
