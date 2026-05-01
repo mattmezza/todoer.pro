@@ -25,7 +25,7 @@
         _="on keyup[key is 'Escape'] hide me then show #btn-task-create-{{ section.sid }}">
         <div class="py-2">
             <input
-                class="form-input block py-1 px-23 border-0 w-full font-semibold placeholder:font-semibold xs:text-xs sm:text-sm md:text-base lg:text-lg"
+                class="form-input block py-1 px-3 border-0 w-full font-semibold placeholder:font-semibold xs:text-xs sm:text-sm md:text-base lg:text-lg"
                 name="title"
                 placeholder="Task name"
                 required
@@ -45,7 +45,7 @@
                 @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                 @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                 _="on keyup[key is 'Escape'] reset() the closest <form />"
-                class="form-input h-auto min-h-[40px] block py-1 px-23 border-0 w-full resize-none"
+                class="form-input h-auto min-h-[40px] block py-1 px-3 border-0 w-full resize-none"
                 ></textarea>
 
         </div>
