@@ -282,6 +282,32 @@ class TaskForUser(LoggedInUserRepo):
         )
         return [tt._mapping for tt in tasks]
 
+    async def update_priority_by_sid(
+        self, priority: int | None, sid: str
+    ) -> Mapping | None:
+        ta = await self.db.fetch_one(
+            """
+            UPDATE tasks
+                SET priority = :priority, updated = CURRENT_TIMESTAMP
+                WHERE sid = :sid
+                    AND EXISTS (
+                        SELECT 1 FROM tasks ta
+                        JOIN sections se ON se.uuid = ta.section
+                        JOIN lists l ON l.uuid = se.list
+                        JOIN spaces sp ON sp.uuid = l.space
+                        WHERE ta.uuid = tasks.uuid
+                            AND sp.creator = :creator
+                    )
+            RETURNING *
+            """,
+            {
+                "sid": sid,
+                "priority": priority,
+                "creator": self.user["uuid"],
+            },
+        )
+        return ta._mapping if ta is not None else None
+
     async def update_due_date_by_sid(
         self, due_date: str | None, sid: str
     ) -> Mapping | None:
