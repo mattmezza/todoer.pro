@@ -133,7 +133,7 @@ async def update(
     hx_trigger = f"task-update, task-{sid}-update"
     hx_trigger += f", section-{task['section']}-update"
     if task["complete"] == 1:
-        hx_trigger += f", task-complete task-{sid}-complete"
+        hx_trigger += f", task-complete, task-{sid}-complete"
     else:
         hx_trigger += f", task-incomplete, task-{sid}-incomplete"
     return (
