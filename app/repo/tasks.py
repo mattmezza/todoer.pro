@@ -70,7 +70,7 @@ class TaskForUser(LoggedInUserRepo):
             JOIN spaces sp ON sp.uuid = l.space
             WHERE sp.creator = :creator
               AND ta.archived = 0
-              AND (ta.title LIKE :query OR ta.descr LIKE :query)
+              AND (ta.title LIKE :query OR ta.descr LIKE :query OR ta.tags LIKE :query)
             ORDER BY ta.updated DESC, ta.created DESC
             LIMIT :limit
             """,
@@ -235,6 +235,32 @@ class TaskForUser(LoggedInUserRepo):
             {
                 "sid": sid,
                 "due_date": due_date,
+                "creator": self.user["uuid"],
+            },
+        )
+        return ta._mapping if ta is not None else None
+
+    async def update_tags_by_sid(
+        self, tags: str, sid: str
+    ) -> Mapping | None:
+        ta = await self.db.fetch_one(
+            """
+            UPDATE tasks
+                SET tags = :tags, updated = CURRENT_TIMESTAMP
+                WHERE sid = :sid
+                    AND EXISTS (
+                        SELECT 1 FROM tasks ta
+                        JOIN sections se ON se.uuid = ta.section
+                        JOIN lists l ON l.uuid = se.list
+                        JOIN spaces sp ON sp.uuid = l.space
+                        WHERE ta.uuid = tasks.uuid
+                            AND sp.creator = :creator
+                    )
+            RETURNING *
+            """,
+            {
+                "sid": sid,
+                "tags": tags,
                 "creator": self.user["uuid"],
             },
         )
