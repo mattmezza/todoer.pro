@@ -48,7 +48,7 @@ async def view(
     tasks = await tarepo.by_section(section["uuid"])
     list_ = await repo.lists().by_uuid(section["list"])
     space = await repo.spaces().by_uuid(list_["space"])
-    lists = await repo.lists().all_by_space(space["uuid"])
+    lists = await repo.lists().all_by_space(space["sid"])
     return {
         "section": section,
         "sections": sections,
@@ -84,7 +84,7 @@ async def read_title(
     tasks = await urepo.tasks().by_section(section["uuid"])
     list_ = await urepo.lists().by_uuid(section["list"])
     space = await urepo.spaces().by_uuid(list_["space"])
-    lists = await urepo.lists().all_by_space(space["uuid"])
+    lists = await urepo.lists().all_by_space(space["sid"])
     return {
         "section": section,
         "tasks": tasks,
@@ -121,7 +121,7 @@ async def update_title(
     tasks = await urepo.tasks().by_section(section["uuid"])
     list_ = await urepo.lists().by_uuid(section["list"])
     space = await urepo.spaces().by_uuid(list_["space"])
-    lists = await urepo.lists().all_by_space(space["uuid"])
+    lists = await urepo.lists().all_by_space(space["sid"])
     return (
         {
             "section": section,
@@ -151,7 +151,7 @@ async def add(
     section["is_last"] = True
     list_ = await urepo.lists().by_uuid(section["list"])
     space = await urepo.spaces().by_uuid(list_["space"])
-    lists = await urepo.lists().all_by_space(space["uuid"])
+    lists = await urepo.lists().all_by_space(space["sid"])
     sections = await serepo.all_by_list(section["list"])
     return (
         {
@@ -217,7 +217,7 @@ async def move_up(
     tasks = _add_first_last_tasks(tasks)
     list_ = await repo.lists().by_uuid(section["list"])
     space = await repo.spaces().by_uuid(list_["space"])
-    lists = await repo.lists().all_by_space(space["uuid"])
+    lists = await repo.lists().all_by_space(space["sid"])
     return (
         {
             "section": section,
@@ -262,7 +262,7 @@ async def move_down(
     tasks = _add_first_last_tasks(tasks)
     list_ = await repo.lists().by_uuid(section["list"])
     space = await repo.spaces().by_uuid(list_["space"])
-    lists = await repo.lists().all_by_space(space["uuid"])
+    lists = await repo.lists().all_by_space(space["sid"])
     return (
         {
             "section": section,
@@ -305,7 +305,7 @@ async def move_top(
     tasks = _add_first_last_tasks(tasks)
     list_ = await repo.lists().by_uuid(section["list"])
     space = await repo.spaces().by_uuid(list_["space"])
-    lists = await repo.lists().all_by_space(space["uuid"])
+    lists = await repo.lists().all_by_space(space["sid"])
     return (
         {
             "section": section,
@@ -348,7 +348,7 @@ async def move_bottom(
     tasks = _add_first_last_tasks(tasks)
     list_ = await repo.lists().by_uuid(section["list"])
     space = await repo.spaces().by_uuid(list_["space"])
-    lists = await repo.lists().all_by_space(space["uuid"])
+    lists = await repo.lists().all_by_space(space["sid"])
     return (
         {
             "section": section,
