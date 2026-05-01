@@ -2,7 +2,7 @@ from typing import Annotated, Mapping
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, Form, Query, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
 from app import blob, http, tpl
 from app.deps import RepoDB, get_current_active_user, repo_db
@@ -62,6 +62,54 @@ async def reorder(
         status_code=200,
         headers={
             "HX-Trigger": f"section-{section_sid}-update"
+        },
+    )
+
+
+@router.post("/tasks/bulk/complete", response_class=HTMLResponse)
+async def bulk_complete(
+    req: Request,
+    sids: Annotated[list[str], Body()],
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    count = await db.for_user(user).tasks().bulk_complete(sids)
+    return HTMLResponse(
+        "",
+        status_code=200,
+        headers={"HX-Trigger": "task-update, bulk-action-done"},
+    )
+
+
+@router.post("/tasks/bulk/delete", response_class=HTMLResponse)
+async def bulk_delete(
+    req: Request,
+    sids: Annotated[list[str], Body()],
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    count = await db.for_user(user).tasks().bulk_delete(sids)
+    return HTMLResponse(
+        "",
+        status_code=200,
+        headers={"HX-Trigger": "task-delete, bulk-action-done"},
+    )
+
+
+@router.post("/tasks/bulk/move", response_class=HTMLResponse)
+async def bulk_move(
+    req: Request,
+    sids: Annotated[list[str], Body()],
+    section: Annotated[str, Body()],
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    count = await db.for_user(user).tasks().bulk_move(sids, section)
+    return HTMLResponse(
+        "",
+        status_code=200,
+        headers={
+            "HX-Trigger": "section-update, bulk-action-done"
         },
     )
 

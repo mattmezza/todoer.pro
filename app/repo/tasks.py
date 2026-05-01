@@ -969,3 +969,113 @@ class TaskForUser(LoggedInUserRepo):
                 {"section": task.section, "sid": sid, "order": order_old},
             )
             return task._mapping if task is not None else None
+
+    async def bulk_complete(self, sids: list[str]) -> int:
+        """Mark multiple tasks as complete by their SIDs."""
+        if not sids:
+            return 0
+        now = datetime.now(timezone.utc)
+        count = 0
+        async with self.db.transaction():
+            for sid in sids:
+                ta = await self.db.fetch_one(
+                    """
+                    UPDATE tasks
+                        SET complete = 1,
+                            completed = :completed,
+                            updated = CURRENT_TIMESTAMP
+                        WHERE sid = :sid
+                            AND complete = 0
+                            AND EXISTS (
+                                SELECT 1 FROM tasks ta
+                                JOIN sections se ON se.uuid = ta.section
+                                JOIN lists l ON l.uuid = se.list
+                                JOIN spaces sp ON sp.uuid = l.space
+                                WHERE ta.uuid = tasks.uuid
+                                    AND sp.creator = :creator
+                            )
+                    RETURNING *
+                    """,
+                    {
+                        "sid": sid,
+                        "completed": now,
+                        "creator": self.user["uuid"],
+                    },
+                )
+                if ta is not None:
+                    count += 1
+                    await self.log_action(
+                        ta._mapping["uuid"], "completed"
+                    )
+        return count
+
+    async def bulk_delete(self, sids: list[str]) -> int:
+        """Delete multiple tasks by their SIDs."""
+        if not sids:
+            return 0
+        count = 0
+        async with self.db.transaction():
+            for sid in sids:
+                ta = await self.db.fetch_one(
+                    """
+                    DELETE FROM tasks
+                    WHERE sid = :sid
+                        AND EXISTS (
+                            SELECT 1 FROM tasks ta
+                            JOIN sections se ON se.uuid = ta.section
+                            JOIN lists l ON l.uuid = se.list
+                            JOIN spaces sp ON sp.uuid = l.space
+                            WHERE ta.uuid = tasks.uuid
+                                AND sp.creator = :creator
+                        )
+                    RETURNING *
+                    """,
+                    {
+                        "sid": sid,
+                        "creator": self.user["uuid"],
+                    },
+                )
+                if ta is not None:
+                    count += 1
+        return count
+
+    async def bulk_move(
+        self, sids: list[str], section_uuid: str
+    ) -> int:
+        """Move multiple tasks to a different section."""
+        if not sids:
+            return 0
+        count = 0
+        async with self.db.transaction():
+            for sid in sids:
+                ta = await self.db.fetch_one(
+                    """
+                    UPDATE tasks SET
+                        section = :section,
+                        `order` = COALESCE(
+                            (
+                                SELECT MAX(`order`) + 1
+                                FROM tasks
+                                WHERE section = :section
+                            ), 0),
+                        updated = CURRENT_TIMESTAMP
+                        WHERE sid = :sid
+                            AND EXISTS (
+                                SELECT 1 FROM tasks ta
+                                JOIN sections se ON se.uuid = ta.section
+                                JOIN lists l ON l.uuid = se.list
+                                JOIN spaces sp ON sp.uuid = l.space
+                                WHERE ta.uuid = tasks.uuid
+                                    AND sp.creator = :creator
+                            )
+                    RETURNING *
+                    """,
+                    {
+                        "sid": sid,
+                        "section": section_uuid,
+                        "creator": self.user["uuid"],
+                    },
+                )
+                if ta is not None:
+                    count += 1
+        return count
