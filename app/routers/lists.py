@@ -54,7 +54,7 @@ async def delete(
 async def view(
     req: Request,
     sid: str,
-    view_complete: bool = False,
+    view_complete: bool | None = None,
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
     render: Renderer = Depends(renderer),
@@ -63,6 +63,12 @@ async def view(
     list_r = user_repo.lists()
     li = http.Opt(await list_r.by_sid(sid)).or_404(f"List #{sid} not found.")
 
+    # Use list setting as default, allow query param override
+    if view_complete is None:
+        view_complete = bool(li.get("show_completed", 0))
+
+    sort_by = li.get("sort_by", "manual")
+
     space_r = user_repo.spaces()
     section_r = user_repo.sections()
     space = await space_r.by_uuid(li["space"])
@@ -70,6 +76,7 @@ async def view(
     tarepo = user_repo.tasks()
     tasks_by_section = await tarepo.by_section_for_list(li["uuid"])
     for tt in tasks_by_section.values():
+        _sort_tasks(tt, sort_by)
         incomplete = [i for i, t in enumerate(tt) if not t["complete"]]
         for idx, ta in enumerate(tt):
             tt[idx] = dict(ta)
@@ -202,6 +209,48 @@ async def update_color(
     )
 
 
+@router.get("/list/{sid}/settings")
+@tpl.htmx("Lists.Settings")
+async def get_settings(
+    req: Request,
+    sid: str,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    li = http.Opt(
+        await db.for_user(user).lists().by_sid(sid)
+    ).or_404(f"List #{sid} not found.")
+    return {"list": li}
+
+
+@router.put("/list/{sid}/settings")
+@tpl.htmx("Lists.Settings")
+async def update_settings(
+    req: Request,
+    sid: str,
+    default_view: Annotated[str, Form()] = "board",
+    show_completed: Annotated[bool, Form()] = False,
+    sort_by: Annotated[str, Form()] = "manual",
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    li = http.Opt(
+        await db.for_user(user)
+        .lists()
+        .update_settings_by_sid(
+            sid,
+            default_view=default_view,
+            show_completed=show_completed,
+            sort_by=sort_by,
+        )
+    ).or_404(f"List #{sid} not found.")
+    return (
+        {"list": li},
+        200,
+        {"HX-Trigger": f"list-update, list-{sid}-update"},
+    )
+
+
 @router.put("/list/{sid}/title")
 async def update_title(
     req: Request,
@@ -280,3 +329,31 @@ async def add(
         201,
         {"HX-Trigger": "list-create", "HX-Redirect": f"/list/{li.sid}"},
     )
+
+
+def _sort_tasks(tasks: list, sort_by: str) -> None:
+    """Sort tasks in-place based on the sort_by setting."""
+    if sort_by == "due-date":
+        tasks.sort(
+            key=lambda t: (
+                t.get("complete", 0),
+                t.get("due_date") or "9999-12-31",
+                t.get("order", 0),
+            )
+        )
+    elif sort_by == "created":
+        tasks.sort(
+            key=lambda t: (
+                t.get("complete", 0),
+                t.get("created") or "",
+                t.get("order", 0),
+            )
+        )
+    elif sort_by == "alphabetical":
+        tasks.sort(
+            key=lambda t: (
+                t.get("complete", 0),
+                (t.get("title") or "").lower(),
+            )
+        )
+    # 'manual' is the default DB ordering, no re-sort needed
