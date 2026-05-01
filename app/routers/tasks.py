@@ -1,7 +1,7 @@
 from typing import Annotated, Mapping
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Form, Query, Request
+from fastapi import APIRouter, Body, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from app import blob, http, tpl
@@ -45,6 +45,24 @@ async def add_task(
         },
         201,
         {"HX-Trigger": "task-create"},
+    )
+
+
+@router.put("/tasks/reorder", response_class=HTMLResponse)
+async def reorder(
+    req: Request,
+    sids: Annotated[list[str], Body()],
+    section_sid: Annotated[str, Body()],
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    await db.for_user(user).tasks().reorder(sids)
+    return HTMLResponse(
+        "",
+        status_code=200,
+        headers={
+            "HX-Trigger": f"section-{section_sid}-update"
+        },
     )
 
 
