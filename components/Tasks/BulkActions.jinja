@@ -1,0 +1,113 @@
+{# def sections_by_list = [] #}
+<div
+    x-show="selected.length > 0"
+    x-cloak
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="translate-y-full opacity-0"
+    x-transition:enter-end="translate-y-0 opacity-100"
+    x-transition:leave="transition ease-in duration-150"
+    x-transition:leave-start="translate-y-0 opacity-100"
+    x-transition:leave-end="translate-y-full opacity-0"
+    class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl px-4 py-2.5"
+>
+    <!-- Count -->
+    <span class="text-sm font-semibold text-slate-200 whitespace-nowrap" x-text="selected.length + ' selected'"></span>
+
+    <div class="w-px h-5 bg-slate-600"></div>
+
+    <!-- Complete all -->
+    <button
+        type="button"
+        class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-200 hover:bg-slate-700 rounded transition-colors cursor-pointer"
+        title="Complete selected tasks"
+        @click="bulkComplete()"
+    >
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+        <span>Complete</span>
+    </button>
+
+    <!-- Move all -->
+    <button
+        type="button"
+        class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-200 hover:bg-slate-700 rounded transition-colors cursor-pointer"
+        title="Move selected tasks to a section"
+        @click="document.getElementById('dialog-bulk-move').showModal()"
+    >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+          <path fill-rule="evenodd" d="M14.47 2.47a.75.75 0 0 1 1.06 0l6 6a.75.75 0 0 1 0 1.06l-6 6a.75.75 0 1 1-1.06-1.06l4.72-4.72H9a5.25 5.25 0 1 0 0 10.5h3a.75.75 0 0 1 0 1.5H9a6.75 6.75 0 0 1 0-13.5h10.19l-4.72-4.72a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+        </svg>
+        <span>Move</span>
+    </button>
+
+    <!-- Delete all -->
+    <button
+        type="button"
+        class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-slate-700 rounded transition-colors cursor-pointer"
+        title="Delete selected tasks"
+        @click="bulkDelete()"
+    >
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+        </svg>
+        <span>Delete</span>
+    </button>
+
+    <div class="w-px h-5 bg-slate-600"></div>
+
+    <!-- Cancel / Deselect -->
+    <button
+        type="button"
+        class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-400 hover:bg-slate-700 rounded transition-colors cursor-pointer"
+        title="Cancel selection"
+        @click="exitSelectMode()"
+    >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+          <path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+        </svg>
+        <span>Cancel</span>
+    </button>
+</div>
+
+<!-- Bulk move dialog -->
+<dialog id="dialog-bulk-move" class="bg-transparent backdrop:bg-black/50 w-full max-w-md mx-auto mt-[15vh]"
+    _="on keydown[key is 'Escape'] close me">
+    <div class="bg-slate-800 rounded-lg border border-slate-700 shadow-2xl p-6 space-y-6">
+        <div>
+            <h1 class="font-bold text-xl text-slate-200">Move selected tasks</h1>
+            <p class="text-sm text-slate-400 mt-1">Choose the destination section</p>
+        </div>
+        <div>
+            <select id="bulk-move-section" class="rounded dark:bg-black dark:text-white cursor-pointer border-0 ring-0 w-full text-center font-mono px-4 py-2">
+                {% if sections_by_list %}
+                    {% for group in sections_by_list %}
+                        <optgroup label="#{{ group.list_title }}">
+                            {% for se in group.sections %}
+                            <option class="cursor-pointer" value="{{ se.uuid }}">
+                                ${{ se.title }}
+                            </option>
+                            {% endfor %}
+                        </optgroup>
+                    {% endfor %}
+                {% endif %}
+            </select>
+        </div>
+        <div class="flex justify-center items-center gap-4">
+            <button
+                type="button"
+                onclick="document.getElementById('dialog-bulk-move').close()"
+                class="px-12 py-2 rounded text-white font-bold uppercase hover:bg-slate-700 transition-all active:scale-95 cursor-pointer"
+            >
+                Cancel
+            </button>
+            <button
+                type="button"
+                @click="bulkMove(document.getElementById('bulk-move-section').value); document.getElementById('dialog-bulk-move').close()"
+                class="px-12 py-2 rounded bg-indigo-600 text-white font-bold uppercase hover:bg-indigo-700 transition-all active:scale-95 cursor-pointer"
+            >
+                Move
+            </button>
+        </div>
+    </div>
+</dialog>

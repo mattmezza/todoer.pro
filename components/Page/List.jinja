@@ -1,6 +1,67 @@
 {# def user, spaces, space, lists, list, sections, sections_by_list, view_complete, tasks_by_section, is_bookmarked=False #}
 <Layout.App spaces={spaces} space={space} user={user} title={"#" + list.title} lists={lists}>
-<div class="py-4 md:py-8 px-2 md:px-8 max-w-screen-xl mx-auto">
+<div
+    class="py-4 md:py-8 px-2 md:px-8 max-w-screen-xl mx-auto"
+    x-data="{
+        selectMode: false,
+        selected: [],
+        toggleSelect(sid) {
+            const idx = this.selected.indexOf(sid);
+            if (idx === -1) {
+                this.selected.push(sid);
+            } else {
+                this.selected.splice(idx, 1);
+            }
+        },
+        isSelected(sid) {
+            return this.selected.includes(sid);
+        },
+        selectAll() {
+            const tasks = Array.from(document.querySelectorAll('.task[data-sid]'));
+            const sids = tasks.map(el => el.dataset.sid).filter(Boolean);
+            this.selected = [...new Set(sids)];
+        },
+        exitSelectMode() {
+            this.selectMode = false;
+            this.selected = [];
+        },
+        async bulkComplete() {
+            if (!this.selected.length) return;
+            const sids = [...this.selected];
+            await fetch('/tasks/bulk/complete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(sids)
+            });
+            this.exitSelectMode();
+            location.reload();
+        },
+        async bulkDelete() {
+            if (!this.selected.length) return;
+            if (!confirm('Delete ' + this.selected.length + ' task(s)? This cannot be undone.')) return;
+            const sids = [...this.selected];
+            await fetch('/tasks/bulk/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(sids)
+            });
+            this.exitSelectMode();
+            location.reload();
+        },
+        async bulkMove(sectionUuid) {
+            if (!this.selected.length || !sectionUuid) return;
+            const sids = [...this.selected];
+            await fetch('/tasks/bulk/move', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({sids: sids, section: sectionUuid})
+            });
+            this.exitSelectMode();
+            location.reload();
+        }
+    }"
+    @keydown.escape.window="if (selectMode) { exitSelectMode(); $event.preventDefault(); }"
+>
 <!--
     <a href="/space/{{ space.sid }}" class="flex items-center gap-1 cursor-pointer mb-2 hover:text-white ml-2 md:ml-0">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
@@ -20,6 +81,19 @@
         <Lists.Title list={list} />
         <Bookmarks.Toggle entity_type="list" entity_uuid={list.uuid} bookmarked={is_bookmarked} />
         <Btn.CopyId id={list.sid} prefix="#" title={"Copy list id (#" + list.sid + ")"} />
+        <!-- Select mode toggle button -->
+        <button
+            type="button"
+            class="flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded transition-colors cursor-pointer"
+            :class="selectMode ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-700 hover:text-slate-200'"
+            @click="selectMode = !selectMode; if (!selectMode) selected = []"
+            title="Toggle select mode (s)"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            <span x-text="selectMode ? 'Selecting' : 'Select'"></span>
+        </button>
         <Lists.Actions list={list} view_complete={view_complete} is_bookmarked={is_bookmarked} />
 
         <Dialog.Closable id="dialog-list-move" class="md:w-1/3">
@@ -112,4 +186,14 @@
     </ul>
     <Btn.Create id="btn-section-create" class="mb-24" with-text-reveal={False}>Add section</Btn.Create>
     <Lists.SectionAddForm list={list} />
+    <!-- Select all link (visible in select mode) -->
+    <div x-show="selectMode" x-cloak class="flex justify-center mb-24">
+        <button
+            type="button"
+            class="text-sm text-indigo-400 hover:text-indigo-300 underline cursor-pointer"
+            @click="selectAll()"
+        >Select all tasks</button>
+    </div>
+    <Tasks.BulkActions sections_by_list={sections_by_list} />
+</div>
 </Layout.App>
