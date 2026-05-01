@@ -55,6 +55,76 @@ class TaskForUser(LoggedInUserRepo):
         )
         return [r._mapping for r in rows]
 
+    async def overdue(self) -> list[Mapping]:
+        rows = await self.db.fetch_all(
+            """
+            SELECT ta.sid, ta.title, ta.due_date,
+                   se.sid as section_sid, l.sid as list_sid,
+                   sp.sid as space_sid,
+                   sp.title as space_title, l.title as list_title
+            FROM tasks ta
+            JOIN sections se ON se.uuid = ta.section
+            JOIN lists l ON l.uuid = se.list
+            JOIN spaces sp ON sp.uuid = l.space
+            WHERE sp.creator = :creator
+              AND ta.archived = 0
+              AND ta.complete = 0
+              AND ta.due_date IS NOT NULL
+              AND ta.due_date < date('now')
+            ORDER BY ta.due_date ASC
+            """,
+            {"creator": self.user["uuid"]},
+        )
+        return [r._mapping for r in rows]
+
+    async def due_today(self) -> list[Mapping]:
+        rows = await self.db.fetch_all(
+            """
+            SELECT ta.sid, ta.title, ta.due_date,
+                   se.sid as section_sid, l.sid as list_sid,
+                   sp.sid as space_sid,
+                   sp.title as space_title, l.title as list_title
+            FROM tasks ta
+            JOIN sections se ON se.uuid = ta.section
+            JOIN lists l ON l.uuid = se.list
+            JOIN spaces sp ON sp.uuid = l.space
+            WHERE sp.creator = :creator
+              AND ta.archived = 0
+              AND ta.complete = 0
+              AND ta.due_date IS NOT NULL
+              AND ta.due_date = date('now')
+            ORDER BY ta.title ASC
+            """,
+            {"creator": self.user["uuid"]},
+        )
+        return [r._mapping for r in rows]
+
+    async def upcoming(self, days: int = 7) -> list[Mapping]:
+        rows = await self.db.fetch_all(
+            """
+            SELECT ta.sid, ta.title, ta.due_date,
+                   se.sid as section_sid, l.sid as list_sid,
+                   sp.sid as space_sid,
+                   sp.title as space_title, l.title as list_title
+            FROM tasks ta
+            JOIN sections se ON se.uuid = ta.section
+            JOIN lists l ON l.uuid = se.list
+            JOIN spaces sp ON sp.uuid = l.space
+            WHERE sp.creator = :creator
+              AND ta.archived = 0
+              AND ta.complete = 0
+              AND ta.due_date IS NOT NULL
+              AND ta.due_date > date('now')
+              AND ta.due_date <= date('now', :days_ahead)
+            ORDER BY ta.due_date ASC
+            """,
+            {
+                "creator": self.user["uuid"],
+                "days_ahead": f"+{days} days",
+            },
+        )
+        return [r._mapping for r in rows]
+
     async def search(self, query: str, limit: int = 20) -> list[Mapping]:
         tasks = await self.db.fetch_all(
             """
