@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from app import blob, http, tpl
-from app.deps import RepoDB, get_current_active_user, get_db, repo_db
+from app.deps import RepoDB, get_current_active_user, repo_db
 
 router = APIRouter()
 
@@ -43,7 +43,6 @@ async def view(
     sid: str,
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
-    abase=Depends(get_db),
 ):
     urepo = db.for_user(user)
     task = http.Opt(await urepo.tasks().by_sid(sid)).or_404(
