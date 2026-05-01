@@ -31,13 +31,13 @@
             @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
             @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
             _="on keyup[key is 'Escape'] reset() the closest <form />"
-            class="form-input h-auto min-h-[3lh] block py-1 px-23 border-0 w-full resize-none text-base lg:text-lg"
+            class="form-input h-auto min-h-[3lh] block py-1 px-3 border-0 w-full resize-none text-base lg:text-lg"
             >{% if task.descr %}{{ task.descr }}{% endif %}</textarea>
         <div class="flex justify-between items-center p-2">
             <div></div>
             <div class="">
-                <button type="reset" class="btn text py-0.5 text-white">Cancel</button>
-                <button type="submit" class="btn bg-indigo-500 text py-0.5 text-white">Save</button>
+                <button type="reset" class="btn text-xs py-0.5 text-white">Cancel</button>
+                <button type="submit" class="btn bg-indigo-500 text-xs py-0.5 text-white">Save</button>
             </div>
         </div>
     </form>
