@@ -30,6 +30,11 @@ async def view(
         "uuid": full["task_uuid"],
         "sid": full["task_sid"],
         "title": full["task_title"],
+        "due_date": full.get("task_due_date"),
+        "priority": full.get("task_priority"),
+        "tags": full.get("task_tags"),
+        "complete": full.get("task_complete", 0),
+        "completed": full.get("task_completed"),
     }
     section = {
         "uuid": full["section_uuid"],
