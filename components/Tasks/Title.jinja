@@ -12,7 +12,7 @@
                 style="accent-color: {{ list.color }}"
                 {% if task.complete %}checked{% endif %}>
             <h1
-                class="cursor-pointer hover:text-white rounded px-2 py-1 {% if task.complete %}line-through{% endif %}"
+                class="page-title-display cursor-pointer hover:text-white rounded px-2 py-1 {% if task.complete %}line-through{% endif %}"
                 _="on click hide me then show the next <form /> then select() the next <input />">
                 {{ task.title }}
             </h1>
