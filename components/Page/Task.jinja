@@ -317,6 +317,7 @@
                 }).then(function(r) { return r.text(); }).then(function(html) {
                     var w = document.querySelector('.priority-wrapper[data-task-sid="' + taskSid + '"]');
                     if (w) { var t = document.createElement('div'); t.innerHTML = html.trim(); var n = t.firstElementChild; w.replaceWith(n); htmx.process(n); }
+                    document.body.dispatchEvent(new Event('task-update'));
                 });
             }
             return;
