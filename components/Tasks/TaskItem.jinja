@@ -116,7 +116,7 @@
             {% set is_complete = task.subtasks_done == task.subtasks_total %}
             <div class="shrink-0 group/ring relative flex items-center justify-center" aria-label="{{ task.subtasks_done }}/{{ task.subtasks_total }} subtasks done">
                 <svg class="w-10 h-10" viewBox="0 0 36 36">
-                    <circle cx="18" cy="18" r="14" fill="none" class="stroke-slate-700" stroke-width="3" />
+                    <circle cx="18" cy="18" r="14" fill="none" class="stroke-slate-500" stroke-width="3" />
                     <circle cx="18" cy="18" r="14" fill="none"
                         stroke="{{ list.color if list and list.color else '#6366f1' }}"
                         stroke-width="3"
