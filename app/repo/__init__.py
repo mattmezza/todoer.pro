@@ -7,6 +7,7 @@ from .attachments import AttachmentForUser
 from .bookmarks import BookmarkForUser
 from .comments import CommentForUser
 from .lists import ListForUser
+from .notification_reads import NotificationReadForUser
 from .sections import SectionForUser
 from .spaces import SpaceForUser
 from .subtasks import SubtaskForUser
@@ -45,6 +46,9 @@ class ForUser:
 
     def ai_usage(self) -> AIUsageForUser:
         return AIUsageForUser(self.user, self.db)
+
+    def notification_reads(self) -> NotificationReadForUser:
+        return NotificationReadForUser(self.user, self.db)
 
     def users(self) -> UserForUser:
         return UserForUser(self.user, self.db)
