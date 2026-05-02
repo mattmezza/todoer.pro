@@ -423,6 +423,7 @@ async def update_descr(
     task = await tarepo.update_descr_by_sid(
         descr.strip() if descr else None, sid
     )
+    await tarepo.log_action(task["uuid"], "description_changed")
     task = dict(task)
     tasks = await tarepo.by_section(task["section"])
     task = _add_first_last(task, tasks)
@@ -496,13 +497,15 @@ async def update_title(
     db: RepoDB = Depends(repo_db),
 ):
     urepo = db.for_user(user)
+    tarepo = urepo.tasks()
     task = http.Opt(
-        await urepo.tasks().update_title_by_sid(title.strip(), sid)
+        await tarepo.update_title_by_sid(title.strip(), sid)
     ).or_404(f"Task #{sid} not found.")
+    await tarepo.log_action(task["uuid"], "title_changed")
     section = await urepo.sections().by_uuid(task["section"])
     list_ = await urepo.lists().by_uuid(section["list"])
     space = await urepo.spaces().by_uuid(list_["space"])
-    tasks = await urepo.tasks().by_section(task["section"])
+    tasks = await tarepo.by_section(task["section"])
     task = dict(task)
     task = _add_first_last(task, tasks)
     return (

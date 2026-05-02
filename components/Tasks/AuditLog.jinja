@@ -1,7 +1,6 @@
 {# def audit_log #}
 {% if audit_log %}
 <div class="space-y-2">
-    <h3 class="text-sm font-semibold text-slate-500 uppercase">Activity</h3>
     <ul class="space-y-1">
         {% for entry in audit_log %}
         <li class="flex items-center gap-2 text-xs text-slate-500">
@@ -13,6 +12,7 @@
                 {% elif entry.action == 'archived' %}Archived
                 {% elif entry.action == 'moved' %}Moved to another section
                 {% elif entry.action == 'title_changed' %}Title updated
+                {% elif entry.action == 'description_changed' %}Description updated
                 {% else %}{{ entry.action }}
                 {% endif %}
                 {% if entry.detail %}<span class="text-slate-600">&middot; {{ entry.detail }}</span>{% endif %}
@@ -22,4 +22,6 @@
         {% endfor %}
     </ul>
 </div>
+{% else %}
+<p class="text-xs text-slate-600">No activity yet.</p>
 {% endif %}
