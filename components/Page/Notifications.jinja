@@ -1,0 +1,41 @@
+{# def user, spaces, overdue, due_today, upcoming, read_tasks=[] #}
+<Layout.App spaces={{spaces}} user={{user}} title="Notifications">
+    <div class="py-8 px-4 md:px-8 max-w-screen-md mx-auto">
+
+        <!-- Page header -->
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 text-slate-400">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                </svg>
+                <h1 class="text-xl font-bold text-slate-800 dark:text-slate-100">Notifications</h1>
+            </div>
+            <div class="flex items-center gap-3">
+                <button
+                    class="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                    hx-post="/notifications/unread-all"
+                    hx-target="this"
+                    hx-swap="none">
+                    Mark all unread
+                </button>
+                <button
+                    class="text-xs text-indigo-500 hover:text-indigo-400 transition-colors cursor-pointer"
+                    hx-post="/notifications/read-all"
+                    hx-target="this"
+                    hx-swap="none">
+                    Mark all read
+                </button>
+            </div>
+        </div>
+
+        <!-- Notifications content (refreshes on notification-update) -->
+        <div id="notifications-page-content"
+            hx-get="/notifications/all/content"
+            hx-trigger="notification-update from:body"
+            hx-target="#notifications-page-content"
+            hx-swap="innerHTML">
+            <Notifications.PageContent overdue={{overdue}} due_today={{due_today}} upcoming={{upcoming}} read_tasks={{read_tasks}} />
+        </div>
+
+    </div>
+</Layout.App>
