@@ -28,7 +28,7 @@
     <div class="flex h-[100dvh] overflow-hidden">
         <Nav.Menu spaces={{spaces}} user={{user}} space={{space}} lists={{lists}} />
             <div class="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden lg:rounded-l-xl {{ content_class }}">
-            {# <Nav.TopBar user={{user}} /> #}
+            <Nav.TopBar user={{user}} />
             <div class="flex flex-row">
                 <div id="main" class="grow">
                     {{ content }}
@@ -59,7 +59,7 @@
                 <div class="py-8 text-center text-sm text-slate-500">Type to search...</div>
             </div>
             <div class="px-4 py-2 border-t border-slate-700 text-xs text-slate-500 flex justify-between">
-                <span>Navigate with arrow keys</span>
+                <span><kbd class="px-1 bg-slate-700 rounded font-mono">↑↓</kbd> or <kbd class="px-1 bg-slate-700 rounded font-mono">C-n/p</kbd> navigate · <kbd class="px-1 bg-slate-700 rounded font-mono">@#$%</kbd> scope</span>
                 <span><kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">Esc</kbd> to close</span>
             </div>
         </div>
@@ -69,6 +69,8 @@
         <div id="quick-add-content">
         </div>
     </dialog>
+    <DatePicker />
+    <TagsPicker />
     <Dialog.About />
     <KeyboardShortcuts />
     <script src="//unpkg.com/alpinejs"></script>
@@ -105,6 +107,31 @@
                 }
             }
         });
+        document.getElementById('search-input').addEventListener('keydown', function(e) {
+            if ((e.ctrlKey && e.key === 'n') || e.key === 'ArrowDown') {
+                e.preventDefault();
+            } else if ((e.ctrlKey && e.key === 'p') || e.key === 'ArrowUp') {
+                e.preventDefault();
+            }
+            var results = document.querySelectorAll('#search-results li a');
+            if (!results.length) return;
+            var current = document.querySelector('#search-results li a.search-focused');
+            var idx = current ? Array.from(results).indexOf(current) : -1;
+            if ((e.ctrlKey && e.key === 'n') || e.key === 'ArrowDown') {
+                if (current) current.classList.remove('search-focused');
+                idx = Math.min(idx + 1, results.length - 1);
+                results[idx].classList.add('search-focused');
+                results[idx].scrollIntoView({ block: 'nearest' });
+            } else if ((e.ctrlKey && e.key === 'p') || e.key === 'ArrowUp') {
+                if (current) current.classList.remove('search-focused');
+                idx = Math.max(idx - 1, 0);
+                results[idx].classList.add('search-focused');
+                results[idx].scrollIntoView({ block: 'nearest' });
+            } else if (e.key === 'Enter' && current) {
+                e.preventDefault();
+                current.click();
+            }
+        });
         document.addEventListener('keydown', function(e) {
             if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !e.altKey) {
                 var active = document.activeElement;
@@ -113,7 +140,14 @@
                 var dialog = document.getElementById('quick-add-dialog');
                 if (dialog.open) return;
                 e.preventDefault();
-                htmx.ajax('GET', '/tasks/quick-add', {target: '#quick-add-content', swap: 'innerHTML'}).then(function() {
+                var focusedTask = document.querySelector('.task.task-focused');
+                var sectionSid = '';
+                if (focusedTask) {
+                    var sortableContainer = focusedTask.closest('.sortable-tasks');
+                    if (sortableContainer) sectionSid = sortableContainer.dataset.sectionSid;
+                }
+                var qaUrl = '/tasks/quick-add' + (sectionSid ? '?section=' + sectionSid : '');
+                htmx.ajax('GET', qaUrl, {target: '#quick-add-content', swap: 'innerHTML'}).then(function() {
                     dialog.showModal();
                     var titleInput = document.getElementById('quick-add-title');
                     if (titleInput) titleInput.focus();
@@ -128,8 +162,16 @@
             var gTimeout = null;
             var pendingC = false;
             var cTimeout = null;
+            var pendingD = false;
+            var dTimeout = null;
+            var pendingY = false;
+            var yTimeout = null;
+            var pendingBang = false;
+            var bangTimeout = null;
             var numericPrefix = 0;
             var numericTimeout = null;
+            var visualMode = false;
+            var visualAnchor = -1;
 
             function isInputFocused() {
                 var active = document.activeElement;
@@ -178,13 +220,69 @@
                 if (current) current.classList.remove('task-focused');
             }
 
+            function getAlpineScope() {
+                var el = document.querySelector('[x-data*="selectMode"]');
+                return el && el._x_dataStack ? el._x_dataStack[0] : null;
+            }
+
+            function updateVisualSelection(newIdx) {
+                var scope = getAlpineScope();
+                if (!scope || !visualMode) return;
+                var tasks = getVisibleTasks();
+                var start = Math.min(visualAnchor, newIdx);
+                var end = Math.max(visualAnchor, newIdx);
+                scope.selected = tasks.slice(start, end + 1).map(function(t) { return t.dataset.sid; });
+            }
+
+            function exitVisual() {
+                visualMode = false;
+                visualAnchor = -1;
+                var scope = getAlpineScope();
+                if (scope) { scope.selectMode = false; scope.selected = []; }
+            }
+
+            function setPriority(sid, val) {
+                fetch('/task/' + sid + '/priority', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: 'priority=' + val
+                }).then(function(r) { return r.text(); }).then(function(html) {
+                    var w = document.querySelector('.priority-wrapper[data-task-sid="' + sid + '"]');
+                    if (w) { var t = document.createElement('div'); t.innerHTML = html.trim(); var n = t.firstElementChild; w.replaceWith(n); htmx.process(n); }
+                    htmx.trigger(document.body, 'task-update');
+                    htmx.trigger(document.body, 'task-' + sid + '-update');
+                });
+            }
+
+            function openScopedSearch(prefix) {
+                var dialog = document.getElementById('search-dialog');
+                dialog.showModal();
+                var input = document.getElementById('search-input');
+                input.value = prefix;
+                input.focus();
+                htmx.trigger(input, 'keyup');
+            }
+
             document.addEventListener('keydown', function(e) {
                 if (e.metaKey || e.ctrlKey || e.altKey) return;
                 if (isInputFocused()) return;
                 if (isAnyDialogOpen()) return;
+                if (document.body.classList.contains('sidebar-nav-active')) return;
 
                 var key = e.key;
                 var tasks, focused, idx;
+
+                // Priority: !N
+                if (pendingBang) {
+                    clearTimeout(bangTimeout);
+                    pendingBang = false;
+                    if (key >= '0' && key <= '4') {
+                        e.preventDefault();
+                        focused = getFocusedTask();
+                        if (focused) setPriority(focused.dataset.sid, key === '0' ? '' : key);
+                        return;
+                    }
+                }
 
                 if (key >= '0' && key <= '9') {
                     e.preventDefault();
@@ -197,6 +295,55 @@
                 numericPrefix = 0;
                 clearTimeout(numericTimeout);
 
+                if (pendingC) {
+                    clearTimeout(cTimeout);
+                    pendingC = false;
+                    e.preventDefault();
+                    focused = getFocusedTask();
+                    if (!focused) return;
+                    if (key === 'c') {
+                        var df2 = focused.querySelector('form:not(.task-title-edit)');
+                        var ef2 = focused.querySelector('.task-title-edit');
+                        if (df2 && ef2) {
+                            df2.style.display = 'none';
+                            ef2.style.display = '';
+                            var ti2 = ef2.querySelector('input[name=title]');
+                            if (ti2) { ti2.value = ''; ti2.focus(); }
+                        }
+                    } else if (key === 't') {
+                        var displayForm = focused.querySelector('form:not(.task-title-edit)');
+                        var editForm = focused.querySelector('.task-title-edit');
+                        if (displayForm && editForm) {
+                            displayForm.style.display = 'none';
+                            editForm.style.display = '';
+                            var titleInput = editForm.querySelector('input[name=title]');
+                            if (titleInput) titleInput.select();
+                        }
+                    } else if (key === 'd') {
+                        var descrForm = focused.querySelector('.task-descr-edit');
+                        if (descrForm) {
+                            descrForm.style.display = '';
+                            var ta = descrForm.querySelector('textarea[name=descr]');
+                            if (ta) ta.focus();
+                        }
+                    }
+                    return;
+                }
+
+                if (pendingY) {
+                    clearTimeout(yTimeout);
+                    pendingY = false;
+                    if (key === 'y') {
+                        e.preventDefault();
+                        focused = getFocusedTask();
+                        if (focused) {
+                            var titleEl = focused.querySelector('span.font-semibold');
+                            if (titleEl) navigator.clipboard.writeText(titleEl.textContent.trim());
+                        }
+                    }
+                    return;
+                }
+
                 switch (key) {
                     case 'j':
                         e.preventDefault();
@@ -205,9 +352,12 @@
                         focused = getFocusedTask();
                         if (!focused) {
                             setFocusedTask(tasks[0]);
+                            if (visualMode) updateVisualSelection(0);
                         } else {
                             idx = tasks.indexOf(focused);
-                            setFocusedTask(tasks[Math.min(idx + count, tasks.length - 1)]);
+                            var ni = Math.min(idx + count, tasks.length - 1);
+                            setFocusedTask(tasks[ni]);
+                            if (visualMode) updateVisualSelection(ni);
                         }
                         break;
 
@@ -218,16 +368,22 @@
                         focused = getFocusedTask();
                         if (!focused) {
                             setFocusedTask(tasks[tasks.length - 1]);
+                            if (visualMode) updateVisualSelection(tasks.length - 1);
                         } else {
                             idx = tasks.indexOf(focused);
-                            setFocusedTask(tasks[Math.max(idx - count, 0)]);
+                            var ni2 = Math.max(idx - count, 0);
+                            setFocusedTask(tasks[ni2]);
+                            if (visualMode) updateVisualSelection(ni2);
                         }
                         break;
 
                     case 'G':
                         e.preventDefault();
                         tasks = getVisibleTasks();
-                        if (tasks.length > 0) setFocusedTask(tasks[tasks.length - 1]);
+                        if (tasks.length > 0) {
+                            setFocusedTask(tasks[tasks.length - 1]);
+                            if (visualMode) updateVisualSelection(tasks.length - 1);
+                        }
                         break;
 
                     case 'g':
@@ -236,7 +392,10 @@
                             clearTimeout(gTimeout);
                             pendingG = false;
                             tasks = getVisibleTasks();
-                            if (tasks.length > 0) setFocusedTask(tasks[0]);
+                            if (tasks.length > 0) {
+                                setFocusedTask(tasks[0]);
+                                if (visualMode) updateVisualSelection(0);
+                            }
                         } else {
                             pendingG = true;
                             gTimeout = setTimeout(function() { pendingG = false; }, 500);
@@ -248,7 +407,13 @@
                         if (!focused) return;
                         e.preventDefault();
                         var secTasksEnd = getTasksInSection(focused);
-                        if (secTasksEnd.length > 0) setFocusedTask(secTasksEnd[secTasksEnd.length - 1]);
+                        if (secTasksEnd.length > 0) {
+                            setFocusedTask(secTasksEnd[secTasksEnd.length - 1]);
+                            if (visualMode) {
+                                tasks = getVisibleTasks();
+                                updateVisualSelection(tasks.indexOf(secTasksEnd[secTasksEnd.length - 1]));
+                            }
+                        }
                         break;
 
                     case '{':
@@ -256,7 +421,13 @@
                         if (!focused) return;
                         e.preventDefault();
                         var secTasksStart = getTasksInSection(focused);
-                        if (secTasksStart.length > 0) setFocusedTask(secTasksStart[0]);
+                        if (secTasksStart.length > 0) {
+                            setFocusedTask(secTasksStart[0]);
+                            if (visualMode) {
+                                tasks = getVisibleTasks();
+                                updateVisualSelection(tasks.indexOf(secTasksStart[0]));
+                            }
+                        }
                         break;
 
                     case 'A':
@@ -292,23 +463,20 @@
 
                     case 'c':
                         e.preventDefault();
-                        if (pendingC) {
-                            clearTimeout(cTimeout);
-                            pendingC = false;
-                            focused = getFocusedTask();
-                            if (!focused) return;
-                            var df2 = focused.querySelector('form:not(.task-title-edit)');
-                            var ef2 = focused.querySelector('.task-title-edit');
-                            if (df2 && ef2) {
-                                df2.style.display = 'none';
-                                ef2.style.display = '';
-                                var ti2 = ef2.querySelector('input[name=title]');
-                                if (ti2) { ti2.value = ''; ti2.focus(); }
-                            }
-                        } else {
-                            pendingC = true;
-                            cTimeout = setTimeout(function() { pendingC = false; }, 500);
-                        }
+                        pendingC = true;
+                        cTimeout = setTimeout(function() { pendingC = false; }, 500);
+                        break;
+
+                    case 'y':
+                        e.preventDefault();
+                        pendingY = true;
+                        yTimeout = setTimeout(function() { pendingY = false; }, 500);
+                        break;
+
+                    case 'b':
+                        e.preventDefault();
+                        var bookmarkBtn = document.querySelector('button[hx-post="/bookmarks"]');
+                        if (bookmarkBtn) bookmarkBtn.click();
                         break;
 
                     case 'x':
@@ -342,21 +510,83 @@
                         break;
 
                     case 'd':
+                        e.preventDefault();
+                        if (pendingD) {
+                            clearTimeout(dTimeout);
+                            pendingD = false;
+                            var scope = getAlpineScope();
+                            if (scope && scope.selected.length > 0) {
+                                scope.bulkDelete();
+                                exitVisual();
+                            }
+                        } else {
+                            pendingD = true;
+                            dTimeout = setTimeout(function() {
+                                pendingD = false;
+                                focused = getFocusedTask();
+                                if (!focused) return;
+                                var dw = focused.querySelector('.due-date-wrapper');
+                                window.openDatePicker(focused.dataset.sid, dw ? dw.dataset.dueDate : '');
+                            }, 300);
+                        }
+                        break;
+
+                    case 't':
                         focused = getFocusedTask();
                         if (!focused) return;
                         e.preventDefault();
-                        var dueDateDisplay = focused.querySelector('.due-date-display');
-                        if (dueDateDisplay) dueDateDisplay.click();
+                        var tw = focused.querySelector('.tags-wrapper');
+                        window.openTagsPicker(focused.dataset.sid, tw ? tw.dataset.tags : '');
                         break;
 
-                    case 's':
+                    case '!':
                         e.preventDefault();
-                        var bulkScope = document.querySelector('[x-data*="selectMode"]');
-                        if (bulkScope && bulkScope._x_dataStack) {
-                            var data = bulkScope._x_dataStack[0];
-                            data.selectMode = !data.selectMode;
-                            if (!data.selectMode) data.selected = [];
+                        pendingBang = true;
+                        bangTimeout = setTimeout(function() { pendingBang = false; }, 1000);
+                        break;
+
+                    case 'v':
+                        e.preventDefault();
+                        if (visualMode) {
+                            exitVisual();
+                        } else {
+                            focused = getFocusedTask();
+                            if (!focused) return;
+                            tasks = getVisibleTasks();
+                            visualMode = true;
+                            visualAnchor = tasks.indexOf(focused);
+                            var scope = getAlpineScope();
+                            if (scope) {
+                                scope.selectMode = true;
+                                scope.selected = [focused.dataset.sid];
+                            }
                         }
+                        break;
+
+                    case '@':
+                        e.preventDefault();
+                        openScopedSearch('@');
+                        break;
+
+                    case '#':
+                        e.preventDefault();
+                        var ctx = document.getElementById('page-context');
+                        openScopedSearch(ctx && ctx.dataset.spaceTitle ? '@' + ctx.dataset.spaceTitle + ' #' : '#');
+                        break;
+
+                    case '$':
+                        e.preventDefault();
+                        var ctx2 = document.getElementById('page-context');
+                        if (ctx2 && ctx2.dataset.listTitle) {
+                            openScopedSearch('@' + ctx2.dataset.spaceTitle + ' #' + ctx2.dataset.listTitle + ' $');
+                        } else {
+                            openScopedSearch('$');
+                        }
+                        break;
+
+                    case '%':
+                        e.preventDefault();
+                        openScopedSearch('%');
                         break;
 
                     case '?':
@@ -366,6 +596,11 @@
                         break;
 
                     case 'Escape':
+                        if (visualMode) {
+                            e.preventDefault();
+                            exitVisual();
+                            return;
+                        }
                         if (getFocusedTask()) {
                             e.preventDefault();
                             clearFocus();
@@ -374,17 +609,13 @@
                 }
             });
 
-            // Clear focus when clicking outside tasks
             document.addEventListener('click', function(e) {
                 if (!e.target.closest('.task')) {
                     clearFocus();
                 }
             });
 
-            // Clear focus when HTMX swaps content (tasks may be re-rendered)
             document.body.addEventListener('htmx:afterSettle', function() {
-                // After HTMX swaps, the focused element may have been replaced
-                // Re-apply focus if the task still exists
                 var focused = getFocusedTask();
                 if (focused && !document.body.contains(focused)) {
                     clearFocus();
@@ -393,11 +624,125 @@
         })();
     </script>
     <script>
+    (function() {
+        var style = document.createElement('style');
+        style.textContent = '.sidebar-item-focused { background: rgba(99, 102, 241, 0.2); border-radius: 0.25rem; }';
+        document.head.appendChild(style);
+
+        var sidebarFocused = false;
+        var sidebarIdx = -1;
+        var pendingCtrlW = false;
+        var ctrlWTimeout = null;
+
+        function getSidebarItems() {
+            return Array.from(document.querySelectorAll('.sidebar-nav-item')).filter(function(el) {
+                return el.offsetParent !== null;
+            });
+        }
+
+        function setSidebarFocus(idx) {
+            var items = getSidebarItems();
+            items.forEach(function(el) { el.classList.remove('sidebar-item-focused'); });
+            if (idx >= 0 && idx < items.length) {
+                sidebarIdx = idx;
+                items[idx].classList.add('sidebar-item-focused');
+                items[idx].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function enterSidebar() {
+            sidebarFocused = true;
+            document.body.classList.add('sidebar-nav-active');
+            var items = getSidebarItems();
+            if (items.length > 0) setSidebarFocus(0);
+        }
+
+        function exitSidebar() {
+            sidebarFocused = false;
+            sidebarIdx = -1;
+            document.body.classList.remove('sidebar-nav-active');
+            var items = getSidebarItems();
+            items.forEach(function(el) { el.classList.remove('sidebar-item-focused'); });
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'w') {
+                e.preventDefault();
+                pendingCtrlW = true;
+                clearTimeout(ctrlWTimeout);
+                ctrlWTimeout = setTimeout(function() { pendingCtrlW = false; }, 500);
+                return;
+            }
+
+            if (pendingCtrlW) {
+                clearTimeout(ctrlWTimeout);
+                pendingCtrlW = false;
+                if (e.key === 'h') {
+                    e.preventDefault();
+                    enterSidebar();
+                } else if (e.key === 'l') {
+                    e.preventDefault();
+                    exitSidebar();
+                }
+                return;
+            }
+
+            if (!sidebarFocused) return;
+
+            var active = document.activeElement;
+            var tag = active ? active.tagName.toLowerCase() : '';
+            if (tag === 'input' || tag === 'textarea' || tag === 'select' || active.isContentEditable) return;
+
+            var items = getSidebarItems();
+            if (!items.length) return;
+
+            switch (e.key) {
+                case 'j':
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSidebarFocus(Math.min(sidebarIdx + 1, items.length - 1));
+                    break;
+                case 'k':
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSidebarFocus(Math.max(sidebarIdx - 1, 0));
+                    break;
+                case 'Enter':
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (sidebarIdx >= 0 && items[sidebarIdx]) {
+                        var link = items[sidebarIdx].querySelector('a') || items[sidebarIdx].closest('a');
+                        if (link) link.click();
+                        else if (items[sidebarIdx].tagName === 'A') items[sidebarIdx].click();
+                    }
+                    exitSidebar();
+                    break;
+                case 'n':
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var navListBtns = document.querySelectorAll('#nav-lists button');
+                    for (var i = 0; i < navListBtns.length; i++) {
+                        if (navListBtns[i].getAttribute('_') && navListBtns[i].getAttribute('_').includes('showModal')) {
+                            navListBtns[i].click();
+                            break;
+                        }
+                    }
+                    exitSidebar();
+                    break;
+                case 'Escape':
+                    e.preventDefault();
+                    e.stopPropagation();
+                    exitSidebar();
+                    break;
+            }
+        }, true);
+    })();
+    </script>
+    <script>
         function initSortableTasks() {
             document.querySelectorAll('.sortable-tasks').forEach(function(el) {
                 if (el._sortable) return;
                 el._sortable = new Sortable(el, {
-                    handle: '.drag-handle',
                     forceFallback: true,
                     animation: 150,
                     ghostClass: 'opacity-30',
