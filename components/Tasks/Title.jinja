@@ -28,7 +28,7 @@
                 class="form-input px-2 py-1 text-2xl md:text-4xl text-white w-full grow"
                 name="title"
                 value="{{ task.title }}"
-                _="on keyup[key is 'Escape'] call the closest <form />.reset() then call the closest <form />.dispatchEvent(new Event('reset'))">
+                _="on keyup[key is 'Escape'] set form to me.closest('form') then call form.reset() then set form.style.display to 'none' then set h1 to form.parentElement.querySelector('h1') then set h1.style.display to ''">
             <div class="flex items-center">
                 <button type="reset" class="btn text-xs py-0.5 text-white cursor-pointer">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
