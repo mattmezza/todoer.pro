@@ -46,3 +46,11 @@
 ::backdrop {
     @apply bg-black/50 backdrop-blur grid place-items-center fixed inset-0 z-50 w-full h-full;
 }
+
+.sortable-chosen {
+    @apply ring-2 ring-indigo-500 rounded;
+}
+
+.sortable-drag {
+    @apply shadow-2xl;
+}

@@ -293,8 +293,8 @@
                     forceFallback: true,
                     animation: 150,
                     ghostClass: 'opacity-30',
-                    chosenClass: 'ring-2 ring-indigo-500 rounded',
-                    dragClass: 'shadow-2xl',
+                    chosenClass: 'sortable-chosen',
+                    dragClass: 'sortable-drag',
                     onEnd: function(evt) {
                         var sectionSid = el.dataset.sectionSid;
                         var sids = Array.from(el.children).map(function(li) {
