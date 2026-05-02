@@ -20,7 +20,7 @@
                         {{ user.name or '(not set)' }}
                     </div>
                     <button type="button" class="btn text-sm text-slate-400 hover:text-white"
-                        _="on click hide closest .profile-name-display then show next .profile-name-edit then next .profile-name-edit.querySelector('input[name=name]').select()">
+                        _="on click hide closest .profile-name-display then show next <.profile-name-edit/> then call next <.profile-name-edit/>.querySelector('input[name=name]').select()">
                         Edit
                     </button>
                 </div>

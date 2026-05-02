@@ -4,12 +4,12 @@
         {% set is_overdue = task.due_date < now_date() and not task.complete %}
         <span class="due-date-display text-xs px-2 py-0.5 rounded cursor-pointer
             {% if is_overdue %}bg-red-500/20 text-red-400{% else %}bg-slate-700 text-slate-400{% endif %}"
-            _="on click hide me then show next .due-date-edit then next .due-date-edit.querySelector('input').focus()">
+            _="on click hide me then show next <.due-date-edit/> then call next <.due-date-edit/>.querySelector('input').focus()">
             {{ task.due_date }}
         </span>
     {% else %}
         <button type="button" class="due-date-display text-xs text-slate-600 hover:text-slate-400 cursor-pointer"
-            _="on click hide me then show next .due-date-edit then next .due-date-edit.querySelector('input').focus()">
+            _="on click hide me then show next <.due-date-edit/> then call next <.due-date-edit/>.querySelector('input').focus()">
             + due date
         </button>
     {% endif %}
