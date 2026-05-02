@@ -1,6 +1,6 @@
 {# def subtask #}
 <div class="mt-4 md:mt-0">
-    <div class="cursor-pointer rounded text-sm min-h-[3lh] w-full prose dark:prose-white prose-xs md:prose-base lg:prose-lg" _="on click hide me then show the next <form /> then select() on the next <textarea />">
+    <div class="page-descr-display cursor-pointer rounded text-sm min-h-[3lh] w-full prose dark:prose-white prose-xs md:prose-base lg:prose-lg" _="on click hide me then show the next <form /> then select() on the next <textarea />">
     {% if subtask.descr %}
         {{ subtask.descr|markdown|safe }}
     {% else %}
@@ -30,7 +30,7 @@
             @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
             @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
             _="on keyup[key is 'Escape'] reset() the closest <form />"
-            class="form-input h-auto min-h-[3lh] block py-1 px-23 border-0 w-full resize-none text-base lg:text-lg"
+            class="form-input h-auto min-h-[3lh] block py-1 px-3 border-0 w-full resize-none text-base lg:text-lg"
             >{% if subtask.descr %}{{ subtask.descr }}{% endif %}</textarea>
         <div class="flex justify-between items-center p-2">
             <div></div>

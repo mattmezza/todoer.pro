@@ -11,7 +11,7 @@
                 class="rounded-full w-6 h-6 cursor-pointer"
                 {% if subtask.complete %}checked{% endif %}>
             <h1
-                class="cursor-pointer hover:text-white rounded px-2 py-1 {% if subtask.complete %}line-through{% endif %}"
+                class="page-title-display cursor-pointer hover:text-white rounded px-2 py-1 {% if subtask.complete %}line-through{% endif %}"
                 _="on click hide me then show the next <form /> then select() the next <input />">
                 {{ subtask.title }}
             </h1>
