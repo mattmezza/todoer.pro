@@ -57,7 +57,7 @@
     </div>
     <!-- Edit form (hidden by default) -->
     <form
-        class="subtask-edit rounded-sm border border-slate-600 mx-1"
+        class="subtask-edit rounded-sm mx-1"
         style="display: none"
         hx-put="/subtask/{{ subtask.sid }}"
         hx-target="closest li"
@@ -65,7 +65,7 @@
         _="on reset or keyup[key is 'Escape'] hide me then show previous .subtask-display">
         <div class="py-2">
             <input
-                class="form-input block py-1 px-3 border-0 w-full font-semibold placeholder:font-semibold xs:text-xs sm:text-sm md:text-base lg:text-lg"
+                class="form-input block py-1 px-3 border-0 focus:ring-0 w-full font-semibold placeholder:font-semibold xs:text-xs sm:text-sm md:text-base lg:text-lg"
                 name="title"
                 placeholder="Subtask name"
                 value="{{ subtask.title }}"
@@ -89,7 +89,7 @@
                 @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                 @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                 _="on keyup[key is 'Escape'] reset() the closest <form />"
-                class="form-input h-auto min-h-[40px] block py-1 px-3 border-0 w-full resize-none md:text-base"
+                class="form-input h-auto min-h-[40px] block py-1 px-3 border-0 focus:ring-0 w-full resize-none md:text-base"
                 >{{ subtask.descr or '' }}</textarea>
         </div>
         {% if subtask.complete %}<input type="hidden" name="complete" value="on" />{% endif %}

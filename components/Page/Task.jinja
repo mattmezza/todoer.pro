@@ -52,7 +52,7 @@
                     </div>
                     <form
                         style="display: none"
-                        class="rounded-sm border border-slate-600 mt-2"
+                        class="rounded-sm mt-2"
                         hx-target="previous ul"
                         hx-swap="beforeend"
                         hx-post="/subtasks"
@@ -61,7 +61,7 @@
                         @keydown.escape="$el.reset();$el.style.display='none';document.getElementById('btn-subtask-create').style.display=''"
                         @reset="$el.style.display='none';document.getElementById('btn-subtask-create').style.display=''">
                         <div class="py-2">
-                            <input autocapitalize="none" class="form-input block py-1 px-3 border-0 w-full placeholder:font-semibold font-semibold md:text-base" name="title" placeholder="Sub-task name" required autofocus>
+                            <input autocapitalize="none" class="form-input block py-1 px-3 border-0 focus:ring-0 w-full placeholder:font-semibold font-semibold md:text-base" name="title" placeholder="Sub-task name" required autofocus>
                             <textarea
                                 autofocus
                                 name="descr"
@@ -76,7 +76,7 @@
                                 @input="resize()"
                                 @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                                 @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
-                                class="form-input h-auto min-h-[40px] block py-1 px-3 border-0 w-full resize-none md:text-base"
+                                class="form-input h-auto min-h-[40px] block py-1 px-3 border-0 focus:ring-0 w-full resize-none md:text-base"
                                 ></textarea>
                                 <input type="hidden" name="task" value="{{ task.uuid }}">
                         </div>
@@ -104,7 +104,7 @@
                     </div>
                     <form
                         style="display: none"
-                        class="rounded-sm border border-slate-600 mt-3"
+                        class="rounded-sm mt-3"
                         hx-target="#comments" hx-swap="beforeend"
                         hx-post="/comments"
                         hx-on::after-request="this.reset()"
@@ -125,7 +125,7 @@
                                 @input="resize()"
                                 @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                                 @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
-                                class="form-input h-auto min-h-[40px] block py-1 px-3 border-0 w-full resize-none md:text-base"
+                                class="form-input h-auto min-h-[40px] block py-1 px-3 border-0 focus:ring-0 w-full resize-none md:text-base"
                                 autofocus></textarea>
                             <input type="hidden" name="task" value="{{ task.uuid }}">
                         </div>
