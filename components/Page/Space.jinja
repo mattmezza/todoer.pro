@@ -12,7 +12,66 @@
     is_bookmarked=False
 #}
 <Layout.App spaces={{spaces}} space={{space}} user={{user}} title={{"@" + space.title}} lists={{lists}}>
-<div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
+<div
+    class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto"
+    x-data="{
+        selectMode: false,
+        selected: [],
+        toggleSelect(sid) {
+            const idx = this.selected.indexOf(sid);
+            if (idx === -1) {
+                this.selected.push(sid);
+            } else {
+                this.selected.splice(idx, 1);
+            }
+        },
+        isSelected(sid) {
+            return this.selected.includes(sid);
+        },
+        selectAll() {
+            const tasks = Array.from(document.querySelectorAll('.task[data-sid]'));
+            const sids = tasks.map(el => el.dataset.sid).filter(Boolean);
+            this.selected = [...new Set(sids)];
+        },
+        exitSelectMode() {
+            this.selectMode = false;
+            this.selected = [];
+        },
+        async bulkComplete() {
+            if (!this.selected.length) return;
+            const sids = [...this.selected];
+            await fetch('/tasks/bulk/complete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(sids)
+            });
+            this.exitSelectMode();
+            location.reload();
+        },
+        async bulkDelete() {
+            if (!this.selected.length) return;
+            if (!confirm('Delete ' + this.selected.length + ' task(s)? This cannot be undone.')) return;
+            const sids = [...this.selected];
+            await fetch('/tasks/bulk/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(sids)
+            });
+            this.exitSelectMode();
+            location.reload();
+        },
+        async bulkMove(sectionUuid) {
+            if (!this.selected.length || !sectionUuid) return;
+            const sids = [...this.selected];
+            await fetch('/tasks/bulk/move', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({sids: sids, section: sectionUuid})
+            });
+            this.exitSelectMode();
+            location.reload();
+        }
+    }"
     <div class="flex justify-between items-center gap-4 md:px-2 md:py-4">
         <Spaces.Title space={{space}} />
         {% if not space.default %}
