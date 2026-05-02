@@ -36,6 +36,12 @@ app.mount("/public", StaticFiles(directory="public"), name="public")
 app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 
 
+@app.get("/")
+async def landing(req: Request):
+    tpl._current_request.set(req)
+    return HTMLResponse(tpl.jinx.render("Page.Landing"))
+
+
 @app.exception_handler(404)
 async def handle_404(req: Request, _):
     tpl._current_request.set(req)
