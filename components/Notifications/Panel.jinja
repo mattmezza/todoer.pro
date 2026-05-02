@@ -1,5 +1,4 @@
-{# def overdue, due_today, upcoming #}
-<div class="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase pt-1.5 pb-2 px-4">Notifications</div>
+{# def overdue, due_today, upcoming, read_tasks=set() #}
 {% if not overdue and not due_today and not upcoming %}
     <div class="py-6 px-4 text-center text-sm text-slate-500 dark:text-slate-400">
         No upcoming deadlines. You're all caught up!
@@ -11,7 +10,7 @@
     </div>
     <ul>
         {% for task in overdue %}
-            <Notifications.Item task={{task}} kind="overdue" />
+            <Notifications.Item task={{task}} kind="overdue" is_read={{ (task.uuid, "overdue") in read_tasks }} />
         {% endfor %}
     </ul>
     {% endif %}
@@ -21,7 +20,7 @@
     </div>
     <ul>
         {% for task in due_today %}
-            <Notifications.Item task={{task}} kind="today" />
+            <Notifications.Item task={{task}} kind="today" is_read={{ (task.uuid, "today") in read_tasks }} />
         {% endfor %}
     </ul>
     {% endif %}
@@ -31,7 +30,7 @@
     </div>
     <ul>
         {% for task in upcoming %}
-            <Notifications.Item task={{task}} kind="upcoming" />
+            <Notifications.Item task={{task}} kind="upcoming" is_read={{ (task.uuid, "upcoming") in read_tasks }} />
         {% endfor %}
     </ul>
     {% endif %}
