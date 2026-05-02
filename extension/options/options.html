@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Todoer.pro — Settings</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-900:   #0f172a;
+      --bg-800:   #1e293b;
+      --bg-700:   #334155;
+      --bg-600:   #475569;
+      --border:   #334155;
+      --text-100: #f1f5f9;
+      --text-200: #e2e8f0;
+      --text-400: #94a3b8;
+      --text-500: #64748b;
+      --indigo:   #6366f1;
+      --indigo-h: #4f46e5;
+      --green:    #22c55e;
+      --red:      #ef4444;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg-900:   #f8fafc;
+        --bg-800:   #ffffff;
+        --bg-700:   #f1f5f9;
+        --bg-600:   #e2e8f0;
+        --border:   #e2e8f0;
+        --text-100: #0f172a;
+        --text-200: #1e293b;
+        --text-400: #475569;
+        --text-500: #94a3b8;
+      }
+    }
+
+    [data-theme="dark"] {
+      --bg-900:   #0f172a; --bg-800: #1e293b; --bg-700: #334155;
+      --bg-600:   #475569; --border: #334155;
+      --text-100: #f1f5f9; --text-200: #e2e8f0; --text-400: #94a3b8; --text-500: #64748b;
+    }
+
+    [data-theme="light"] {
+      --bg-900:   #f8fafc; --bg-800: #ffffff; --bg-700: #f1f5f9;
+      --bg-600:   #e2e8f0; --border: #e2e8f0;
+      --text-100: #0f172a; --text-200: #1e293b; --text-400: #475569; --text-500: #94a3b8;
+    }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg-900);
+      color: var(--text-200);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .page {
+      max-width: 560px;
+      margin: 0 auto;
+      padding: 32px 20px 64px;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .page-header svg {
+      width: 32px;
+      height: 32px;
+    }
+
+    .page-header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-100);
+    }
+
+    .page-header p {
+      font-size: 13px;
+      color: var(--text-400);
+    }
+
+    .section {
+      background: var(--bg-800);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      padding: 14px 16px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-400);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .setting-row:last-child {
+      border-bottom: none;
+    }
+
+    .setting-label {
+      flex: 1;
+    }
+
+    .setting-label strong {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-100);
+      margin-bottom: 2px;
+    }
+
+    .setting-label span {
+      font-size: 12px;
+      color: var(--text-400);
+    }
+
+    .setting-control {
+      flex-shrink: 0;
+    }
+
+    .form-input,
+    .form-select {
+      padding: 7px 10px;
+      background: var(--bg-700);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-100);
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .form-input {
+      width: 240px;
+    }
+
+    .form-input:focus,
+    .form-select:focus {
+      border-color: var(--indigo);
+    }
+
+    .form-select {
+      width: 160px;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2394a3b8'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      background-size: 14px;
+      padding-right: 28px;
+      cursor: pointer;
+    }
+
+    /* Toggle switch */
+    .toggle {
+      position: relative;
+      display: inline-block;
+      width: 42px;
+      height: 24px;
+    }
+
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: var(--bg-600);
+      border-radius: 24px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+
+    .toggle input:checked + .toggle-slider {
+      background: var(--indigo);
+    }
+
+    .toggle input:checked + .toggle-slider::before {
+      transform: translateX(18px);
+    }
+
+    .btn-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 0 0;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-700);
+      color: var(--text-200);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn:hover {
+      background: var(--bg-600);
+    }
+
+    .btn-primary {
+      background: var(--indigo);
+      border-color: var(--indigo);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--indigo-h);
+      border-color: var(--indigo-h);
+    }
+
+    .save-status {
+      font-size: 12px;
+      color: var(--text-400);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .save-status.show {
+      opacity: 1;
+      color: var(--green);
+    }
+
+    .info-box {
+      background: var(--bg-700);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 12px;
+      color: var(--text-400);
+      margin-top: 12px;
+      line-height: 1.7;
+    }
+
+    .info-box code {
+      background: var(--bg-800);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 11px;
+      color: var(--indigo);
+    }
+
+    kbd {
+      display: inline-block;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: var(--bg-700);
+      border: 1px solid var(--border);
+      font-size: 11px;
+      font-family: monospace;
+      color: var(--text-400);
+    }
+
+    a { color: var(--indigo); }
+    a:hover { color: var(--indigo-h); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="page-header">
+      <svg viewBox="0 0 24 24" fill="none">
+        <rect x="1" y="1" width="22" height="22" rx="5" fill="#4f46e5"/>
+        <rect x="5" y="7.5" width="9" height="2" rx="1" fill="white" opacity="0.9"/>
+        <rect x="5" y="11" width="13" height="2" rx="1" fill="white" opacity="0.9"/>
+        <rect x="5" y="14.5" width="7" height="2" rx="1" fill="white" opacity="0.9"/>
+        <circle cx="18.5" cy="16" r="4" fill="#22c55e"/>
+        <path d="M16.5 16 l1.5 1.5 l2.5-2.5" stroke="white" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div>
+        <h1>Todoer.pro Settings</h1>
+        <p>Configure your browser extension</p>
+      </div>
+    </div>
+
+    <!-- Connection -->
+    <div class="section">
+      <div class="section-title">Connection</div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <strong>Base URL</strong>
+          <span>The URL of your Todoer instance</span>
+        </div>
+        <div class="setting-control">
+          <input
+            type="url"
+            id="base-url"
+            class="form-input"
+            placeholder="https://todoer.pro"
+            value="https://todoer.pro"
+          >
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Add -->
+    <div class="section">
+      <div class="section-title">Quick Add</div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <strong>Default list</strong>
+          <span>List name or ID to pre-select when adding tasks</span>
+        </div>
+        <div class="setting-control">
+          <input
+            type="text"
+            id="default-list"
+            class="form-input"
+            placeholder="Inbox (leave blank for default)"
+          >
+        </div>
+      </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div class="section">
+      <div class="section-title">Context Menu</div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <strong>Enable context menu</strong>
+          <span>Show "Add to Todoer" when right-clicking on any page</span>
+        </div>
+        <div class="setting-control">
+          <label class="toggle">
+            <input type="checkbox" id="context-menu-enabled" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Appearance -->
+    <div class="section">
+      <div class="section-title">Appearance</div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <strong>Theme</strong>
+          <span>Color scheme for the extension popup</span>
+        </div>
+        <div class="setting-control">
+          <select id="theme-select" class="form-select">
+            <option value="system">Match system</option>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Keyboard shortcuts -->
+    <div class="section">
+      <div class="section-title">Keyboard Shortcuts</div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <strong>Open popup</strong>
+          <span>Quick-add task and search</span>
+        </div>
+        <div class="setting-control" style="color: var(--text-400); font-size:13px">
+          <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <strong>Open side panel</strong>
+          <span>Full app in a side panel</span>
+        </div>
+        <div class="setting-control" style="color: var(--text-400); font-size:13px">
+          <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-save">Save settings</button>
+      <span class="save-status" id="save-status">Settings saved!</span>
+    </div>
+
+    <div class="info-box">
+      <strong>Tip:</strong> The extension uses your browser's existing login session for <code id="base-url-display">todoer.pro</code>. Make sure you are signed in to your Todoer account in a regular browser tab before using the popup or side panel.<br><br>
+      To customize keyboard shortcuts, visit <code>chrome://extensions/shortcuts</code>.
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
