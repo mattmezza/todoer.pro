@@ -9,7 +9,7 @@
         {% endif %}
     {% endfor %}
     <button type="button" class="tags-display text-xs text-slate-600 hover:text-slate-400 cursor-pointer"
-        _="on click hide me then show next <.tags-edit/> then call next <.tags-edit/>.querySelector('input').focus()">
+        _="on click hide me then show next <.tags-edit/> then set el to next <.tags-edit/> then call el.querySelector('input').focus()">
         + tag
     </button>
     <form class="tags-edit inline-flex items-center gap-1" style="display: none"
