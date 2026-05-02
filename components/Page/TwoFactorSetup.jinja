@@ -1,0 +1,32 @@
+{# def user, spaces, secret, qr_data #}
+<Layout.App spaces={spaces} user={user}>
+    <div class="py-8 px-4 md:px-8 max-w-screen-sm mx-auto mt-12">
+        <h1 class="text-2xl text-slate-100 font-bold mb-2">Set Up Two-Factor Authentication</h1>
+        <p class="text-sm text-slate-400 mb-6">Scan the QR code below with your authenticator app (Google Authenticator, Authy, 1Password, etc.), then enter the 6-digit code to confirm.</p>
+
+        <div class="bg-slate-800 rounded-lg p-6 mb-6">
+            <div class="flex flex-col items-center">
+                <div class="bg-white p-3 rounded-lg mb-4">
+                    <img src="data:image/png;base64,{{ qr_data }}" alt="QR Code" class="w-48 h-48">
+                </div>
+                <p class="text-xs text-slate-500 mb-2">Can't scan? Enter this key manually:</p>
+                <code class="bg-slate-900 text-indigo-400 px-3 py-2 rounded text-sm tracking-wider select-all">{{ secret }}</code>
+            </div>
+        </div>
+
+        <form action="/account/2fa/setup" method="POST">
+            <input type="hidden" name="secret" value="{{ secret }}">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1" for="code">Verification Code <span class="text-rose-500">*</span></label>
+                    <input id="code" name="code" class="form-input w-full text-center text-lg tracking-widest" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" maxlength="6" required autofocus>
+                    <p class="text-xs text-slate-500 mt-1">Enter the 6-digit code shown in your authenticator app</p>
+                </div>
+            </div>
+            <div class="flex items-center justify-between mt-6">
+                <a class="text-sm underline hover:no-underline text-slate-400" href="/account">Cancel</a>
+                <button type="submit" class="btn bg-indigo-500 hover:bg-indigo-600 text-white">Enable 2FA</button>
+            </div>
+        </form>
+    </div>
+</Layout.App>

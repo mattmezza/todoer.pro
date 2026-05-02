@@ -101,6 +101,8 @@ async def get_current_user(
         raise exc
     mm = dict(user)
     del mm['password']
+    mm.pop('totp_secret', None)
+    mm.pop('totp_backup_codes', None)
     mm['email_hash'] = hashlib.md5(
         str(mm['email']).encode("utf-8")
     ).hexdigest()

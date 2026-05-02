@@ -1,0 +1,30 @@
+{# def user, spaces, backup_codes=[] #}
+<Layout.App spaces={spaces} user={user}>
+    <div class="py-8 px-4 md:px-8 max-w-screen-sm mx-auto mt-12">
+        <h1 class="text-2xl text-slate-100 font-bold mb-2">Two-Factor Authentication Enabled</h1>
+        <p class="text-sm text-slate-400 mb-6">Save these backup codes in a safe place. Each code can only be used once. You will not be able to see them again.</p>
+
+        {% if backup_codes %}
+        <div class="bg-slate-800 rounded-lg p-6 mb-6">
+            <div class="grid grid-cols-2 gap-2">
+                {% for code in backup_codes %}
+                <code class="bg-slate-900 text-slate-200 px-3 py-2 rounded text-sm text-center tracking-wider font-mono">{{ code }}</code>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="bg-amber-900/30 border border-amber-700/50 text-amber-400 px-4 py-3 rounded-lg mb-6">
+            <p class="text-sm font-medium">Important</p>
+            <p class="text-sm mt-1">If you lose access to your authenticator app, you can use one of these codes to sign in. Store them securely.</p>
+        </div>
+        {% else %}
+        <div class="bg-slate-800 rounded-lg p-6 mb-6">
+            <p class="text-sm text-slate-400">Backup codes are no longer available for display. If you need new ones, disable and re-enable 2FA.</p>
+        </div>
+        {% endif %}
+
+        <div class="flex justify-end">
+            <a href="/account" class="btn bg-indigo-500 hover:bg-indigo-600 text-white">Done</a>
+        </div>
+    </div>
+</Layout.App>

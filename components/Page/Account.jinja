@@ -63,5 +63,40 @@
                 Request account deletion
             </a>
         </div>
+        <!-- Two-Factor Authentication -->
+        <div class="mt-8 pt-6 border-t border-slate-700">
+            <div class="flex flex-row items-center justify-between mb-2">
+                <span class="text-sm">Two-Factor Authentication</span>
+            </div>
+            {% if user.totp_enabled %}
+                <div class="bg-slate-50/5 rounded px-3 py-3 w-full">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                            <span class="text-sm text-slate-300">Enabled</span>
+                        </div>
+                        <div x-data="{ open: false }">
+                            <button @click="open = !open" class="text-sm text-rose-400 hover:text-rose-300 underline">Disable</button>
+                            <div x-show="open" x-cloak class="mt-3">
+                                <form action="/account/2fa/disable" method="POST" class="flex items-center gap-2">
+                                    <input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="Enter TOTP code" class="form-input text-sm w-40" required>
+                                    <button type="submit" class="btn bg-rose-600 hover:bg-rose-700 text-white text-sm">Confirm</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="bg-slate-50/5 rounded px-3 py-3 w-full">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="inline-block w-2 h-2 rounded-full bg-slate-500"></span>
+                            <span class="text-sm text-slate-400">Not enabled</span>
+                        </div>
+                        <a href="/account/2fa/setup" class="btn bg-indigo-500 hover:bg-indigo-600 text-white text-sm">Enable 2FA</a>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
     </div>
 </Layout.App>

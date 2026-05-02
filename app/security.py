@@ -89,3 +89,48 @@ def set_auth_cookie(res: Response, user: Mapping):
 def unset_auth_cookie(res):
     res.delete_cookie(key="auth")
     return res
+
+
+PENDING_2FA_EXPIRE_MINUTES = 5
+
+
+def create_pending_2fa_token(email: str) -> str:
+    """Create a short-lived JWT that proves password was verified."""
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=PENDING_2FA_EXPIRE_MINUTES
+    )
+    return jwt.encode(
+        {"sub": email, "purpose": "2fa_pending", "exp": expire},
+        SECRET_KEY,
+        algorithm=ALGORITHM,
+    )
+
+
+def verify_pending_2fa_token(token: str) -> str | None:
+    """Verify a pending 2FA token. Returns email or None."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("purpose") != "2fa_pending":
+            return None
+        return payload.get("sub")
+    except Exception:
+        return None
+
+
+def set_pending_2fa_cookie(res: Response, email: str):
+    token = create_pending_2fa_token(email)
+    res.set_cookie(
+        key="pending_2fa",
+        value=token,
+        expires=datetime.now(timezone.utc)
+        + timedelta(minutes=PENDING_2FA_EXPIRE_MINUTES),
+        secure=not is_dev,
+        httponly=True,
+        samesite="lax",
+    )
+    return res
+
+
+def unset_pending_2fa_cookie(res: Response):
+    res.delete_cookie(key="pending_2fa")
+    return res

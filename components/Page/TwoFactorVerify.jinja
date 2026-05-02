@@ -1,0 +1,33 @@
+{# def goto=False, error=False #}
+<Layout.Auth title="Two-Factor Authentication" img="/public/images/signin.jpg">
+    <div class="max-w-sm mx-auto w-full px-4 py-8">
+        <h1 class="text-3xl text-slate-800 dark:text-slate-100 font-bold mb-2">Two-Factor Authentication</h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mb-6">Enter the 6-digit code from your authenticator app, or a backup code.</p>
+        <form action="/auth/2fa/verify" method="POST">
+            {% if goto %}<input type="hidden" name="goto" value="{{ goto }}">{% endif %}
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1" for="code">Verification Code <span class="text-rose-500">*</span></label>
+                    <input id="code" name="code" class="form-input w-full text-center text-lg tracking-widest" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" maxlength="8" required autofocus>
+                </div>
+            </div>
+            <div class="flex items-center justify-between mt-6">
+                <a class="text-sm underline hover:no-underline" href="/signin">Back to Sign In</a>
+                <button type="submit" class="btn bg-indigo-500 hover:bg-indigo-600 text-white ml-3">Verify</button>
+            </div>
+        </form>
+        {%- if error %}
+            <div class="mt-5">
+                <div class="bg-red-100 dark:bg-red-400/30 text-red-600 dark:text-red-400 px-3 py-2 rounded">
+                    <span class="text-sm">
+                        {%- if error == "invalid-code" %}
+                        Invalid code. Please try again.
+                        {%- else %}
+                        Something went wrong. Please try again.
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</Layout.Auth>

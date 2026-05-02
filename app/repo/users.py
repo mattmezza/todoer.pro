@@ -69,3 +69,50 @@ class UserForUser(LoggedInUserRepo):
             {"fname": fname, "uuid": self.user["uuid"]},
         )
         return user
+
+    async def enable_totp(
+        self,
+        encrypted_secret: str,
+        hashed_backup_codes: str,
+    ) -> None:
+        await self.db.execute(
+            """
+            UPDATE users
+            SET totp_secret = :secret,
+                totp_enabled = 1,
+                totp_backup_codes = :backup_codes
+            WHERE uuid = :uuid
+            """,
+            {
+                "secret": encrypted_secret,
+                "backup_codes": hashed_backup_codes,
+                "uuid": self.user["uuid"],
+            },
+        )
+
+    async def disable_totp(self) -> None:
+        await self.db.execute(
+            """
+            UPDATE users
+            SET totp_secret = NULL,
+                totp_enabled = 0,
+                totp_backup_codes = NULL
+            WHERE uuid = :uuid
+            """,
+            {"uuid": self.user["uuid"]},
+        )
+
+    async def update_backup_codes(
+        self, hashed_backup_codes: str
+    ) -> None:
+        await self.db.execute(
+            """
+            UPDATE users
+            SET totp_backup_codes = :backup_codes
+            WHERE uuid = :uuid
+            """,
+            {
+                "backup_codes": hashed_backup_codes,
+                "uuid": self.user["uuid"],
+            },
+        )
