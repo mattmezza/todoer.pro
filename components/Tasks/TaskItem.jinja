@@ -59,7 +59,7 @@
                     @keydown.escape="$el.reset();$el.style.display='none';$el.previousElementSibling.style.display=''"
                     @reset="$el.style.display='none';$el.previousElementSibling.style.display=''"
                 >
-                    <input class="form-input text-sm w-full px-2 py-0.5" name="title" value="{{ task.title }}">
+                    <input class="form-input text-sm w-full px-2 py-0.5 border-0 focus:ring-0" name="title" value="{{ task.title }}">
                     {% if task.descr %}<input name="descr" type="hidden" value="{{ task.descr }}" />{% endif %}
                     {% if task.complete %}<input name="complete" type="hidden" value="on" />{% endif %}
                     <button type="submit" class="btn text-xs py-0.5 px-2 bg-indigo-600 hover:bg-indigo-700 text-white">Save</button>
@@ -72,11 +72,11 @@
             </div>
             {% endif %}
             {% if task.subtasks_total and task.subtasks_total > 0 %}
-            {% set progress_color = 'bg-green-500' if task.subtasks_done == task.subtasks_total else 'bg-indigo-500' %}
+            {% set pct = (task.subtasks_done / task.subtasks_total * 100)|int %}
+            {% set circumference = 87.96 %}
+            {% set offset = (circumference * (1 - task.subtasks_done / task.subtasks_total))|round(2) %}
+            {% set is_complete = task.subtasks_done == task.subtasks_total %}
             <div class="ml-8 flex items-center gap-2 mt-1">
-                <div class="w-24 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                    <div class="h-full {{ progress_color }} rounded-full transition-all" style="width: {{ (task.subtasks_done / task.subtasks_total * 100)|int }}%"></div>
-                </div>
                 <span class="text-xs text-slate-500">{{ task.subtasks_done }}/{{ task.subtasks_total }}</span>
             </div>
             {% endif %}
@@ -102,7 +102,7 @@
                 <input name="title" type="hidden" value="{{ task.title }}" />
                 {% if task.complete %}<input name="complete" type="hidden" value="on" />{% endif %}
                 <textarea name="descr" rows="3"
-                    class="form-input text-sm w-full px-2 py-1 resize-none"
+                    class="form-input text-sm w-full px-2 py-1 resize-none border-0 focus:ring-0"
                     x-data="{ resize() { $el.style.height = '0px'; $el.style.height = $el.scrollHeight + 'px' } }"
                     x-init="$nextTick(() => resize())"
                     @input="resize()"
@@ -117,6 +117,22 @@
         </div>
         <!-- Right side -->
         <div class="items-center justify-end space-x-2 flex">
+            {% if task.subtasks_total and task.subtasks_total > 0 %}
+            {% set circumference = 87.96 %}
+            {% set pct = (task.subtasks_done / task.subtasks_total * 100)|int %}
+            {% set offset = (circumference * (1 - task.subtasks_done / task.subtasks_total))|round(2) %}
+            {% set is_complete = task.subtasks_done == task.subtasks_total %}
+            <div class="shrink-0" title="{{ task.subtasks_done }}/{{ task.subtasks_total }} subtasks">
+                <svg class="w-5 h-5 -rotate-90" viewBox="0 0 36 36">
+                    <circle cx="18" cy="18" r="14" fill="none" class="stroke-slate-700" stroke-width="3" />
+                    <circle cx="18" cy="18" r="14" fill="none"
+                        class="{% if is_complete %}stroke-green-500{% else %}stroke-indigo-500{% endif %}"
+                        stroke-width="3" stroke-linecap="round"
+                        stroke-dasharray="{{ circumference }}"
+                        stroke-dashoffset="{{ offset }}" />
+                </svg>
+            </div>
+            {% endif %}
             {% if not task.complete %}
             <Tasks.ActionsItem task={{task}} />
             <Tasks.ActionMove task={{task}} section={{section}} sections={{sections}} sections_by_list={{sections_by_list}} />
