@@ -20,7 +20,7 @@
         </template>
         <!-- Drag handle -->
         {% if not task.complete %}
-        <div class="drag-handle items-center mr-1 mt-1 cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-300" title="Drag to reorder"
+        <div class="drag-handle items-center mr-1 mt-1 cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-300 select-none" title="Drag to reorder"
             :class="typeof selectMode !== 'undefined' && selectMode ? '!hidden' : 'hidden group-hover:flex'">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
