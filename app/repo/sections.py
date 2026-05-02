@@ -17,7 +17,7 @@ class SectionForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "creator": self.user["uuid"]},
         )
-        return section._mapping if section else None
+        return dict(section._mapping) if section else None
 
     async def by_uuid(self, uuid: str) -> Mapping | None:
         section = await self.db.fetch_one(
@@ -30,7 +30,7 @@ class SectionForUser(LoggedInUserRepo):
             """,
             {"uuid": uuid, "creator": self.user["uuid"]},
         )
-        return section._mapping if section else None
+        return dict(section._mapping) if section else None
 
     async def by_list(self, list_uuid: str, limit: int = 100) -> list[Mapping]:
         sections = await self.db.fetch_all(
@@ -75,7 +75,7 @@ class SectionForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "title": title, "creator": self.user["uuid"]},
         )
-        return None if section is None else section._mapping
+        return None if section is None else dict(section._mapping)
 
     async def archive(self, sid: str) -> Mapping | None:
         se = await self.db.fetch_one(
@@ -93,7 +93,7 @@ class SectionForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "creator": self.user["uuid"]},
         )
-        return se._mapping if se else None
+        return dict(se._mapping) if se else None
 
     async def del_by_sid(self, sid: str) -> None:
         async with self.db.transaction():
@@ -227,7 +227,7 @@ class SectionForUser(LoggedInUserRepo):
                 "list": list_id,
             },
         )
-        return section._mapping if section else None
+        return dict(section._mapping) if section else None
 
     async def update_list_by_sid(self, list: UUID, sid: str) -> Mapping | None:
         async with self.db.transaction():
@@ -264,7 +264,7 @@ class SectionForUser(LoggedInUserRepo):
                     "creator": self.user["uuid"],
                 },
             )
-            return section._mapping if section is not None else None
+            return dict(section._mapping) if section is not None else None
 
     async def move_up(self, sid: str) -> None | Mapping:
         section = await self.db.fetch_one(
@@ -292,7 +292,7 @@ class SectionForUser(LoggedInUserRepo):
             },
         )
         if section_before is None:
-            return section._mapping if section is not None else None
+            return dict(section._mapping) if section is not None else None
         order_before = section_before["order"]
         section_before = await self.db.fetch_one(
             """
@@ -320,7 +320,7 @@ class SectionForUser(LoggedInUserRepo):
                 "order": order_before,
             },
         )
-        return section._mapping if section is not None else None
+        return dict(section._mapping) if section is not None else None
 
     async def move_down(self, sid: str) -> None:
         section = await self.db.fetch_one(
@@ -347,7 +347,7 @@ class SectionForUser(LoggedInUserRepo):
             },
         )
         if section_after is None:
-            return section._mapping if section is not None else None
+            return dict(section._mapping) if section is not None else None
         order_after = section_after["order"]
         section_after = await self.db.fetch_one(
             """
@@ -375,7 +375,7 @@ class SectionForUser(LoggedInUserRepo):
                 "order": order_after,
             },
         )
-        return section._mapping if section is not None else None
+        return dict(section._mapping) if section is not None else None
 
     async def move_top(self, sid: str) -> None:
         async with self.db.transaction():
@@ -419,7 +419,7 @@ class SectionForUser(LoggedInUserRepo):
                     "creator": self.user["uuid"],
                 },
             )
-            return section._mapping if section is not None else None
+            return dict(section._mapping) if section is not None else None
 
     async def move_bottom(self, sid: str) -> None:
         async with self.db.transaction():
@@ -468,4 +468,4 @@ class SectionForUser(LoggedInUserRepo):
                     "order": order_old,
                 },
             )
-            return section._mapping if section is not None else None
+            return dict(section._mapping) if section is not None else None

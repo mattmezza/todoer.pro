@@ -12,7 +12,7 @@ class UserForAnon(AnonymousRepo):
             """,
             {"email": email},
         )
-        return user._mapping if user else None
+        return dict(user._mapping) if user else None
 
     async def update_last_login_by_uuid(self, uuid: str) -> Mapping | None:
         user = await self.db.fetch_one(
@@ -23,7 +23,7 @@ class UserForAnon(AnonymousRepo):
             """,
             {"uuid": uuid},
         )
-        return user._mapping if user else None
+        return dict(user._mapping) if user else None
 
     async def update_confirmed_by_sid(
         self, sid: str, code: str
@@ -36,7 +36,7 @@ class UserForAnon(AnonymousRepo):
             """,
             {"sid": sid, "code": code},
         )
-        return user._mapping if user else None
+        return dict(user._mapping) if user else None
 
     async def insert(
         self, name: str, email: str, pwd: str, confirm_code: str
@@ -59,7 +59,7 @@ class UserForAnon(AnonymousRepo):
                     "confirm_code": confirm_code,
                 },
             )
-            return user._mapping if user else None
+            return dict(user._mapping) if user else None
 
 
 class UserForUser(LoggedInUserRepo):

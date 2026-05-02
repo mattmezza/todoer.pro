@@ -327,5 +327,5 @@ async def add(
     return (
         {"list": li, "user": user},
         201,
-        {"HX-Trigger": "list-create", "HX-Redirect": f"/list/{li.sid}"},
+        {"HX-Trigger": "list-create", "HX-Redirect": f"/list/{li['sid']}"},
     )

@@ -2,6 +2,7 @@ import io
 import os
 import re
 import time
+from contextvars import ContextVar
 from datetime import date, datetime, timezone
 from functools import partial, wraps
 from html.parser import HTMLParser
@@ -11,7 +12,7 @@ import arel
 import markdown as md
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
-from jinja2 import pass_context
+
 from jinjax import Catalog
 from markupsafe import Markup, escape
 
@@ -184,15 +185,16 @@ def strip_markdown(text: str) -> str:
     return text
 
 
-@pass_context
-def url_for(ctx: dict, name: str, **path_params) -> str:
-    req = ctx["req"]
+_current_request: ContextVar = ContextVar("_current_request")
+
+
+def url_for(name: str, **path_params) -> str:
+    req = _current_request.get()
     return req.url_for(name, **path_params)
 
 
-@pass_context
-def cur_path_starts_with(ctx: dict, path: str) -> bool:
-    req = ctx["req"]
+def cur_path_starts_with(path: str) -> bool:
+    req = _current_request.get()
     return req.url.path.startswith(path)
 
 
@@ -249,8 +251,9 @@ def htmx(tpl: str, resp: Type[Response] = HTMLResponse):
                 headers = ret[2] if len(ret) > 2 else {}
             else:
                 data = ret
+            _current_request.set(req)
             return resp(
-                jinx.render(tpl, req=req, **data) if code != 204 else data,
+                jinx.render(tpl, **data) if code != 204 else data,
                 code,
                 headers,
             )

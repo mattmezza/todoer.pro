@@ -1,5 +1,5 @@
 {# def task, section, sections, sections_by_list = [], should_reload = False #}
-<Dialog.Closable style="margin: auto" id={"dialog-task-" + task.sid + "-move"} class="md:w-1/3 mx-auto">
+<Dialog.Closable style="margin: auto" id={{"dialog-task-" + task.sid + "-move"}} class="md:w-1/3 mx-auto">
     <form
         class="space-y-8 mx-auto"
         hx-put="/task/{{ task.sid }}/section{% if should_reload %}?reload=true{% endif %}"

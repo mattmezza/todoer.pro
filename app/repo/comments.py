@@ -18,7 +18,7 @@ class CommentForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "creator": self.user["uuid"]},
         )
-        return comment._mapping if comment else None
+        return dict(comment._mapping) if comment else None
 
     async def by_uuid(self, uuid: str) -> Mapping | None:
         comment = await self.db.fetch_one(
@@ -33,7 +33,7 @@ class CommentForUser(LoggedInUserRepo):
             """,
             {"uuid": uuid, "creator": self.user["uuid"]},
         )
-        return comment._mapping if comment else None
+        return dict(comment._mapping) if comment else None
 
     async def by_task(
         self,
@@ -99,7 +99,7 @@ class CommentForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        return comment._mapping if comment else None
+        return dict(comment._mapping) if comment else None
 
     async def create(self, content: str, task_uuid: str) -> Mapping:
         uuid_new, sid_new = new_ids()
@@ -135,4 +135,4 @@ class CommentForUser(LoggedInUserRepo):
                 "task": task_uuid,
             },
         )
-        return comment._mapping if comment else None
+        return dict(comment._mapping) if comment else None

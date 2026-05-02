@@ -11,7 +11,7 @@
     </h3>
     <ul class="mt-3 text-sm font-semibold">
         {% for l in lists|rejectattr("default") %}
-            <Nav.Lists.Item list={l} />
+            <Nav.Lists.Item list={{l}} />
         {% endfor %}
     </ul>
     <button
@@ -40,12 +40,12 @@
         </div>
     </button>
     <Dialog.Create
-        title={"Add a new list"}
-        subtitle={"Lists are like containers of common things."}
-        action={"/lists"}
+        title={{"Add a new list"}}
+        subtitle={{"Lists are like containers of common things."}}
+        action={{"/lists"}}
         hx-target="#nav-lists"
         hx-swap="beforeend"
-        hidden_vals={{"space": space.uuid}}
+        hidden_vals={{{"space": space["uuid"]}}}
     >
         <div class="flex flex-col gap-3 mt-4">
             <div class="space-y-1">

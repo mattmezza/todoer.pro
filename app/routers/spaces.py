@@ -97,7 +97,7 @@ async def add(
     return (
         dict(
             space=dict(sp) | {"lists": 0},
-            tasks_by_space={sp.uuid: 0},
+            tasks_by_space={sp["uuid"]: 0},
             user=user,
         ),
         200,

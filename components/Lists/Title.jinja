@@ -1,6 +1,6 @@
 {# def list #}
 <div class="w-full flex flex-row items-center gap-2">
-    <Lists.Color color={list.color} />
+    <Lists.Color color={{list.color}} />
     <form
         class="flex items-center gap-1"
         hx-put="/list/{{ list.sid }}/color"

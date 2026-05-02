@@ -36,7 +36,8 @@ app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 
 @app.exception_handler(404)
 async def handle_404(req: Request, _):
-    return HTMLResponse(tpl.jinx.render("Page.404", req=req), 404)
+    tpl._current_request.set(req)
+    return HTMLResponse(tpl.jinx.render("Page.404"), 404)
 
 
 @app.middleware("http")

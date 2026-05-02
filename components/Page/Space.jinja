@@ -11,46 +11,46 @@
     view_complete,
     is_bookmarked=False
 #}
-<Layout.App spaces={spaces} space={space} user={user} title={"@" + space.title} lists={lists}>
+<Layout.App spaces={{spaces}} space={{space}} user={{user}} title={{"@" + space.title}} lists={{lists}}>
 <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
     <div class="flex justify-between items-center gap-4 md:px-2 md:py-4">
-        <Spaces.Title space={space} />
+        <Spaces.Title space={{space}} />
         {% if not space.default %}
-        <Bookmarks.Toggle entity_type="space" entity_uuid={space.uuid} bookmarked={is_bookmarked} />
+        <Bookmarks.Toggle entity_type="space" entity_uuid={{space.uuid}} bookmarked={{is_bookmarked}} />
         {% endif %}
-        <Btn.CopyId id={space.sid} prefix="@" title={"Copy space id (@" + space.sid + ")"} />
-        <Spaces.Actions space={space} view_complete={view_complete} is_bookmarked={is_bookmarked} />
+        <Btn.CopyId id={{space.sid}} prefix="@" title={{"Copy space id (@" + space.sid + ")"}} />
+        <Spaces.Actions space={{space}} view_complete={{view_complete}} is_bookmarked={{is_bookmarked}} />
     </div>
     <div>
-        <Spaces.Descr space={space} />
+        <Spaces.Descr space={{space}} />
     </div>
 
     <!-- default section (inbox) -->
     <ul class="sections">
         {% set section_def = sections_inbox|selectattr("default")|first %}
         <Section
-            section={section_def}
-            sections={sections_inbox}
-            view_complete={view_complete}
-            tasks={tasks_by_section_inbox[section_def.uuid]}
-            lists={lists}
-            list={list_inbox}
+            section={{section_def}}
+            sections={{sections_inbox}}
+            view_complete={{view_complete}}
+            tasks={{tasks_by_section_inbox[section_def.uuid]}}
+            lists={{lists}}
+            list={{list_inbox}}
         />
     </ul>
     <!-- sections -->
     <ul class="py-8 sections">
     {% for section in sections_inbox|rejectattr("default") %}
         <Section
-            section={section}
-            sections={sections_inbox}
-            view_complete={view_complete}
-            tasks={tasks_by_section_inbox[section.uuid]}
-            lists={lists}
-            list={list_inbox}
+            section={{section}}
+            sections={{sections_inbox}}
+            view_complete={{view_complete}}
+            tasks={{tasks_by_section_inbox[section.uuid]}}
+            lists={{lists}}
+            list={{list_inbox}}
         />
     {% endfor %}
     </ul>
-    <Btn.Create id="btn-section-create" class="mb-24" with-text-reveal={False}>Add section</Btn.Create>
-    <Lists.SectionAddForm list={list_inbox} />
+    <Btn.Create id="btn-section-create" class="mb-24" with-text-reveal={{False}}>Add section</Btn.Create>
+    <Lists.SectionAddForm list={{list_inbox}} />
 </div>
 </Layout.App>

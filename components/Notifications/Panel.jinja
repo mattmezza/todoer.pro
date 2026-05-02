@@ -11,7 +11,7 @@
     </div>
     <ul>
         {% for task in overdue %}
-            <Notifications.Item task={task} kind="overdue" />
+            <Notifications.Item task={{task}} kind="overdue" />
         {% endfor %}
     </ul>
     {% endif %}
@@ -21,7 +21,7 @@
     </div>
     <ul>
         {% for task in due_today %}
-            <Notifications.Item task={task} kind="today" />
+            <Notifications.Item task={{task}} kind="today" />
         {% endfor %}
     </ul>
     {% endif %}
@@ -31,7 +31,7 @@
     </div>
     <ul>
         {% for task in upcoming %}
-            <Notifications.Item task={task} kind="upcoming" />
+            <Notifications.Item task={{task}} kind="upcoming" />
         {% endfor %}
     </ul>
     {% endif %}

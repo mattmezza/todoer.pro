@@ -86,10 +86,10 @@
         </div>
         {%- if space %}
             <Dialog.Create
-                title={"Add a new list"}
-                subtitle={"You can choose a color to mark your list and set a description for the kind of tasks it will hold."}
-                action={"/lists"}
-                hidden_vals={{'space': space.uuid}}
+                title={{"Add a new list"}}
+                subtitle={{"You can choose a color to mark your list and set a description for the kind of tasks it will hold."}}
+                action={{"/lists"}}
+                hidden_vals={{{'space': space.uuid}}}
                 hx_target="#nav-lists"
             >
                 <div class="flex flex-col gap-3 mt-4">
