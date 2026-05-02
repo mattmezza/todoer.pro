@@ -12,11 +12,9 @@ My personal TODO app.
 
 ## Makefile targets
 
-- `serve-reload` starts a development server of fastapi
-- `tailwind-watch` compiles tailwindcss and starts watching for edits
-- `tailwind` compiles tailwindcss and minifies the CSS
-- `dev` builds images for dev environment
-- `prod` builds images for prod environment
+- `dev` starts a development server of fastapi
+- `cssd` compiles tailwindcss and starts watching for edits
+- `css` compiles tailwindcss and minifies the CSS
 - `release` uses `gh` to create a release (`make release VERSION=v0.20`)
 - `build` uses `build.sh` script to build a release for an environment
 - `deploy` uses `deploy.sh` script to deploy a release for an environment
