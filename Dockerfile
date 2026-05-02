@@ -1,13 +1,13 @@
-FROM node:alpine as tailwindcss
+FROM node:alpine AS tailwindcss
 WORKDIR /tmp
-COPY package*.json postcss.config.js tailwind.config.js ./
-ADD components ./components
-ADD app ./app
-ADD styles ./styles
+COPY package*.json ./
+COPY components ./components
+COPY app ./app
+COPY styles ./styles
 RUN npm install
-RUN npx tailwindcss -i styles/global.css -o style.css --minify
+RUN npx @tailwindcss/cli -i styles/global.css -o style.css --minify
 
-FROM python:3.11-slim
+FROM python:3.13-slim
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
 COPY ./pyproject.toml ./uv.lock ./
