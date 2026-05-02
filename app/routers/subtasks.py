@@ -9,6 +9,66 @@ from app.deps import RepoDB, get_current_active_user, repo_db
 router = APIRouter()
 
 
+@router.get("/subtask/{sid}")
+@tpl.htmx("Page.Subtask")
+async def view(
+    req: Request,
+    sid: str,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    urepo = db.for_user(user)
+    full = http.Opt(await urepo.subtasks().by_sid_full(sid)).or_404(
+        f"Subtask #{sid} not found."
+    )
+
+    subtask = await urepo.subtasks().by_sid(sid)
+    children = await urepo.subtasks().by_parent(subtask["uuid"])
+    ancestors = await urepo.subtasks().ancestors(subtask["uuid"])
+
+    task = {
+        "uuid": full["task_uuid"],
+        "sid": full["task_sid"],
+        "title": full["task_title"],
+    }
+    section = {
+        "uuid": full["section_uuid"],
+        "sid": full["section_sid"],
+        "title": full["section_title"],
+    }
+    list_ = {
+        "uuid": full["list_uuid"],
+        "sid": full["list_sid"],
+        "title": full["list_title"],
+        "color": full["list_color"],
+        "default": full["list_default"],
+    }
+    space = {
+        "uuid": full["space_uuid"],
+        "sid": full["space_sid"],
+        "title": full["space_title"],
+        "default": full["space_default"],
+    }
+
+    srepo = urepo.spaces()
+    lrepo = urepo.lists()
+    spaces = await srepo.all()
+    lists = await lrepo.all_by_space(space["sid"])
+
+    return {
+        "user": user,
+        "subtask": subtask,
+        "children": children,
+        "ancestors": ancestors,
+        "task": task,
+        "section": section,
+        "list": list_,
+        "lists": lists,
+        "space": space,
+        "spaces": spaces,
+    }
+
+
 @router.delete("/subtask/{sid}", response_class=HTMLResponse)
 async def delete(
     req: Request,
@@ -29,13 +89,19 @@ async def add(
     task: Annotated[str, Form()],
     title: Annotated[str, Form()],
     descr: Annotated[str | None, Form()] = None,
+    parent: Annotated[str | None, Form()] = None,
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
     subtask = http.Opt(
         await db.for_user(user)
         .subtasks()
-        .create(title.strip(), descr.strip() if descr else None, task)
+        .create(
+            title.strip(),
+            descr.strip() if descr else None,
+            task,
+            parent or None,
+        )
     ).or_400()
     return (
         {
@@ -69,3 +135,60 @@ async def update(
     else:
         hx_trigger += f", subtask-incomplete, subtask-{sid}-incomplete"
     return {"subtask": subtask}, 200, {"HX-Trigger": hx_trigger}
+
+
+@router.put("/subtask/{sid}/title")
+@tpl.htmx("Subtasks.Title")
+async def update_title(
+    req: Request,
+    sid: str,
+    title: Annotated[str, Form()],
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    subtask = http.Opt(
+        await db.for_user(user).subtasks().update_title(sid, title.strip())
+    ).or_404(f"Subtask #{sid} not found.")
+    return (
+        {"subtask": subtask},
+        200,
+        {"HX-Trigger": f"subtask-update, subtask-{sid}-update"},
+    )
+
+
+@router.put("/subtask/{sid}/descr", response_class=HTMLResponse)
+@tpl.htmx("Subtasks.Descr")
+async def update_descr(
+    req: Request,
+    res: HTMLResponse,
+    sid: str,
+    descr: Annotated[str | None, Form()] = None,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    subtask = http.Opt(
+        await db.for_user(user)
+        .subtasks()
+        .update_descr(sid, descr.strip() if descr else None)
+    ).or_404(f"Subtask #{sid} not found.")
+    res.headers["HX-Trigger"] = f"subtask-update, subtask-{sid}-update"
+    return {"subtask": subtask}
+
+
+@router.put("/subtask/{sid}/complete")
+@tpl.htmx("Subtasks.Title")
+async def update_complete(
+    req: Request,
+    sid: str,
+    complete: Annotated[str | None, Form()] = None,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    subtask = http.Opt(
+        await db.for_user(user).subtasks().update_complete(sid, bool(complete))
+    ).or_404(f"Subtask #{sid} not found.")
+    return (
+        {"subtask": subtask},
+        200,
+        {"HX-Trigger": f"subtask-update, subtask-{sid}-update"},
+    )
