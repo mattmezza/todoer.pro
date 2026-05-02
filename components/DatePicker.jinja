@@ -67,6 +67,10 @@ function datePicker() {
                 self.$el.close();
                 htmx.trigger(document.body, 'task-update');
                 htmx.trigger(document.body, 'task-' + self.taskSid + '-update');
+                var el = document.querySelector('.task[data-sid="' + self.taskSid + '"]');
+                var sec = el ? el.closest('.section') : null;
+                var secSid = sec ? sec.id.replace('section-', '') : null;
+                if (secSid) htmx.trigger(document.body, 'section-' + secSid + '-update');
             });
         },
 
@@ -82,6 +86,10 @@ function datePicker() {
                 self.$el.close();
                 htmx.trigger(document.body, 'task-update');
                 htmx.trigger(document.body, 'task-' + self.taskSid + '-update');
+                var el = document.querySelector('.task[data-sid="' + self.taskSid + '"]');
+                var sec = el ? el.closest('.section') : null;
+                var secSid = sec ? sec.id.replace('section-', '') : null;
+                if (secSid) htmx.trigger(document.body, 'section-' + secSid + '-update');
             });
         },
 
