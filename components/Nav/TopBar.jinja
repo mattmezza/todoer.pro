@@ -15,6 +15,7 @@
                 >
                     <span id="topbar-notifications-bell"
                         hx-get="/notifications/badge"
+                        hx-target="this"
                         hx-trigger="load, task-create from:body, task-update from:body, notification-update from:body"
                         hx-swap="innerHTML">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-slate-400">
