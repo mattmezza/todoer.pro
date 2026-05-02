@@ -2,9 +2,9 @@
 <Layout.App spaces={{spaces}} space={{space}} user={{user}} title={{"%" + task.sid + " \"" + task.title + "\""}} lists={{lists}}>
 <div id="page-context" data-space-sid="{{ space.sid }}" data-space-title="{{ space.title }}" data-list-sid="{{ list.sid }}" data-list-title="{{ list.title }}" data-section-sid="{{ section.sid }}" data-section-title="{{ section.title }}" style="display:none"></div>
 <div class="py-6 px-4 md:px-8"
-     x-data="{ sidebarOpen: false }"
-     @keydown.alt.h.window="sidebarOpen = false"
-     @keydown.alt.l.window="sidebarOpen = true">
+     x-data="{ sidebarOpen: window.innerWidth >= 1024 ? false : true }"
+     @keydown.alt.h.window="if (window.innerWidth >= 1024) sidebarOpen = false"
+     @keydown.alt.l.window="if (window.innerWidth >= 1024) sidebarOpen = true">
 
     <!-- Desktop: grid that switches columns when sidebar collapses -->
     <div class="lg:grid lg:gap-6"
