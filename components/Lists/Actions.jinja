@@ -40,6 +40,18 @@
         <span>Settings</span>
     </Menu.CtxItem>
 
+    <button
+        tabindex="0"
+        class="{{ btn_cls }}"
+        title="Toggle visual selection mode (v)"
+        @click="selectMode = !selectMode; if (!selectMode) selected = []"
+    >
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+        </svg>
+        <span x-text="selectMode ? 'Exit select mode' : 'Select mode'">Select mode</span>
+    </button>
+
     <hr class="border-slate-900">
     <button
         tabindex="0"

@@ -7,21 +7,10 @@
 >
     <div
         class="shadow-lg rounded-sm border-b border-slate-200 dark:border-slate-800 py-2 group cursor-pointer{% if task.complete %} opacity-40{% endif %} flex items-start justify-between px-2">
-        <!-- Bulk select checkbox -->
-        <template x-if="typeof selectMode !== 'undefined' && selectMode">
-            <div class="flex items-center mr-2 mt-1" @click.stop="toggleSelect('{{ task.sid }}')">
-                <input
-                    type="checkbox"
-                    :checked="isSelected('{{ task.sid }}')"
-                    class="form-checkbox w-5 h-5 rounded cursor-pointer text-indigo-600"
-                    @click.stop="toggleSelect('{{ task.sid }}')"
-                >
-            </div>
-        </template>
         <!-- Drag handle -->
         {% if not task.complete %}
-        <div class="drag-handle items-center mr-1 mt-1 cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-300 select-none" title="Drag to reorder"
-            :class="typeof selectMode !== 'undefined' && selectMode ? '!hidden' : 'hidden group-hover:flex'">
+        <div class="drag-handle flex md:!hidden items-center mr-1 mt-1 cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-300 select-none" title="Drag to reorder"
+            :class="typeof selectMode !== 'undefined' && selectMode ? '!hidden' : ''">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
             </svg>
@@ -99,6 +88,30 @@
                 {% endfor %}
             </div>
             {% endif %}
+            <form class="task-descr-edit ml-8 mt-1 flex-grow flex flex-col gap-1" style="display:none"
+                onclick="event.stopPropagation()"
+                hx-put="/task/{{ task.sid }}"
+                hx-target="closest li"
+                hx-swap="outerHTML"
+                hx-push-url="false"
+                _="on reset hide me"
+            >
+                <input name="title" type="hidden" value="{{ task.title }}" />
+                {% if task.complete %}<input name="complete" type="hidden" value="on" />{% endif %}
+                <textarea name="descr" rows="3"
+                    class="form-input text-sm w-full px-2 py-1 resize-none"
+                    _="on keyup[key is 'Escape'] reset() the closest <form/>"
+                    x-data="{ resize() { $el.style.height = '0px'; $el.style.height = $el.scrollHeight + 'px' } }"
+                    x-init="$nextTick(() => resize())"
+                    @input="resize()"
+                    @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
+                    @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
+                >{{ task.descr or '' }}</textarea>
+                <div class="flex gap-1">
+                    <button type="submit" class="btn text-xs py-0.5 px-2 bg-indigo-600 hover:bg-indigo-700 text-white">Save</button>
+                    <button type="reset" class="btn text-xs py-0.5 px-2">Cancel</button>
+                </div>
+            </form>
         </div>
         <!-- Right side -->
         <div class="items-center justify-end space-x-2 flex">
