@@ -25,7 +25,7 @@ class ListForUser(LoggedInUserRepo):
                 "limit": limit,
             },
         )
-        return [ll._mapping for ll in lists]
+        return [dict(ll._mapping) for ll in lists]
 
     async def by_sid(self, sid: str) -> Mapping | None:
         list_ = await self.db.fetch_one(
@@ -37,7 +37,7 @@ class ListForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "creator": self.user["uuid"]},
         )
-        return list_._mapping if list_ else None
+        return dict(list_._mapping) if list_ else None
 
     async def by_uuid(self, uuid: str) -> Mapping | None:
         list_ = await self.db.fetch_one(
@@ -49,7 +49,7 @@ class ListForUser(LoggedInUserRepo):
             """,
             {"uuid": uuid, "creator": self.user["uuid"]},
         )
-        return list_._mapping if list_ else None
+        return dict(list_._mapping) if list_ else None
 
     async def default_for_space(self, sid: str) -> Mapping | None:
         list_ = await self.db.fetch_one(
@@ -62,7 +62,7 @@ class ListForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "creator": self.user["uuid"]},
         )
-        return list_._mapping if list_ else None
+        return dict(list_._mapping) if list_ else None
 
     async def all(self, limit: int = 100) -> list[Mapping]:
         lists = await self.db.fetch_all(
@@ -76,7 +76,7 @@ class ListForUser(LoggedInUserRepo):
             """,
             {"limit": limit, "creator": self.user["uuid"]},
         )
-        return [ll._mapping for ll in lists]
+        return [dict(ll._mapping) for ll in lists]
 
     async def all_by_space(self, sid: str, limit: int = 100) -> Mapping | None:
         lists = await self.db.fetch_all(
@@ -91,7 +91,7 @@ class ListForUser(LoggedInUserRepo):
             """,
             {"limit": limit, "creator": self.user["uuid"], "sid": sid},
         )
-        return [li._mapping for li in lists]
+        return [dict(li._mapping) for li in lists]
 
     async def num_sections_by_list_for_space(self, sid: str) -> Mapping | None:
         num_sections_in_list = await self.db.fetch_all(
@@ -143,7 +143,7 @@ class ListForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "creator": self.user["uuid"]},
         )
-        return li._mapping if li else None
+        return dict(li._mapping) if li else None
 
     async def del_by_sid(self, sid: str) -> None:
         await self.db.execute(
@@ -177,7 +177,7 @@ class ListForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "descr": descr, "creator": self.user["uuid"]},
         )
-        return li._mapping if li is not None else None
+        return dict(li._mapping) if li is not None else None
 
     async def update_color_by_sid(self, color: str, sid: str) -> str | None:
         li = await self.db.fetch_one(
@@ -205,7 +205,7 @@ class ListForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "space": str(space), "creator": self.user["uuid"]},
         )
-        return li._mapping if li is not None else None
+        return dict(li._mapping) if li is not None else None
 
     async def update_settings_by_sid(
         self,
@@ -233,7 +233,7 @@ class ListForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        return li._mapping if li is not None else None
+        return dict(li._mapping) if li is not None else None
 
     async def insert(
         self,
@@ -265,4 +265,4 @@ class ListForUser(LoggedInUserRepo):
                     "creator": self.user["uuid"],
                 },
             )
-            return None if li is None else li._mapping
+            return None if li is None else dict(li._mapping)

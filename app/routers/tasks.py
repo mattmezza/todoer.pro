@@ -205,7 +205,7 @@ async def view(
     section = await secrepo.by_uuid(task["section"])
     lrepo = urepo.lists()
     list_ = await lrepo.by_uuid(section["list"])
-    sections = await secrepo.all_by_list(list_.uuid)
+    sections = await secrepo.all_by_list(list_["uuid"])
     srepo = urepo.spaces()
     space = await srepo.by_uuid(list_["space"])
     lists = await lrepo.all_by_space(space["sid"])
@@ -420,7 +420,7 @@ async def update_section(
         ).or_404(f"Task #{sid} not found.")
         section = await urepo.sections().by_uuid(task["section"])
         headers = dict()
-        headers["HX-Trigger"] = f"section-update, section-{section.sid}-update"
+        headers["HX-Trigger"] = f"section-update, section-{section['sid']}-update"
         if reload:
             headers["HX-Redirect"] = f"/task/{sid}"
         return HTMLResponse("", status_code=200, headers=headers)
@@ -551,7 +551,7 @@ async def move_up(
             "sections_by_list": sections_by_list,
         },
         200,
-        {"HX-Trigger": f"section-{section.sid}-update"},
+        {"HX-Trigger": f"section-{section['sid']}-update"},
     )
 
 
@@ -584,7 +584,7 @@ async def move_down(
             "sections_by_list": sections_by_list,
         },
         200,
-        {"HX-Trigger": f"section-{section.sid}-update"},
+        {"HX-Trigger": f"section-{section['sid']}-update"},
     )
 
 
@@ -600,7 +600,7 @@ async def move_top(
     repo = db.for_user(user)
     tarepo = repo.tasks()
     task = http.Opt(await tarepo.by_sid(sid)).or_404(f"Task #{sid} not found.")
-    if task.order == 0:
+    if task["order"] == 0:
         return "", 204
     task = await tarepo.move_top(sid)
     serepo = repo.sections()
@@ -618,7 +618,7 @@ async def move_top(
             "sections_by_list": sections_by_list,
         },
         200,
-        {"HX-Trigger": f"section-{section.sid}-update"},
+        {"HX-Trigger": f"section-{section['sid']}-update"},
     )
 
 
@@ -650,7 +650,7 @@ async def move_bottom(
             "sections_by_list": sections_by_list,
         },
         200,
-        {"HX-Trigger": f"section-{section.sid}-update"},
+        {"HX-Trigger": f"section-{section['sid']}-update"},
     )
 
 

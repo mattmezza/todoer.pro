@@ -17,7 +17,7 @@ class AttachmentForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "creator": self.user["uuid"]},
         )
-        return attachment._mapping if attachment else None
+        return dict(attachment._mapping) if attachment else None
 
     async def by_uuid(self, uuid: str) -> Mapping | None:
         attachment = await self.db.fetch_one(
@@ -32,7 +32,7 @@ class AttachmentForUser(LoggedInUserRepo):
             """,
             {"uuid": uuid, "creator": self.user["uuid"]},
         )
-        return attachment._mapping if attachment else None
+        return dict(attachment._mapping) if attachment else None
 
     async def by_task(
         self,
@@ -57,7 +57,7 @@ class AttachmentForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        return [st._mapping for st in attachments]
+        return [dict(st._mapping) for st in attachments]
 
     async def del_by_sid(self, sid: str) -> None:
         await self.db.execute(
@@ -123,4 +123,4 @@ class AttachmentForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        return attachment._mapping if attachment else None
+        return dict(attachment._mapping) if attachment else None

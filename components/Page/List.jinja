@@ -1,5 +1,5 @@
 {# def user, spaces, space, lists, list, sections, sections_by_list, view_complete, tasks_by_section, is_bookmarked=False #}
-<Layout.App spaces={spaces} space={space} user={user} title={"#" + list.title} lists={lists}>
+<Layout.App spaces={{spaces}} space={{space}} user={{user}} title={{"#" + list.title}} lists={{lists}}>
 <div
     class="py-4 md:py-8 px-2 md:px-8 max-w-screen-xl mx-auto"
     x-data="{
@@ -71,16 +71,16 @@
     </a>
 -->
     <div class="ml-2 md:ml-0 mb-2 md:mb-4">
-        <Breadcrumbs.Items with_back_arrow={"/space/" + space.sid}>
-            <Breadcrumbs.Item title="Go to space." href={"/space/" + space.sid}>
+        <Breadcrumbs.Items with_back_arrow={{"/space/" + space.sid}}>
+            <Breadcrumbs.Item title="Go to space." href={{"/space/" + space.sid}}>
                 @{{ space.title }}
             </Breadcrumbs.Item>
         </Breadcrumbs.Items>
     </div>
     <div class="ml-2 md:ml-0 flex justify-between items-center gap-4 md:py-4">
-        <Lists.Title list={list} />
-        <Bookmarks.Toggle entity_type="list" entity_uuid={list.uuid} bookmarked={is_bookmarked} />
-        <Btn.CopyId id={list.sid} prefix="#" title={"Copy list id (#" + list.sid + ")"} />
+        <Lists.Title list={{list}} />
+        <Bookmarks.Toggle entity_type="list" entity_uuid={{list.uuid}} bookmarked={{is_bookmarked}} />
+        <Btn.CopyId id={{list.sid}} prefix="#" title={{"Copy list id (#" + list.sid + ")"}} />
         <!-- Select mode toggle button -->
         <button
             type="button"
@@ -94,7 +94,7 @@
             </svg>
             <span x-text="selectMode ? 'Selecting' : 'Select'"></span>
         </button>
-        <Lists.Actions list={list} view_complete={view_complete} is_bookmarked={is_bookmarked} />
+        <Lists.Actions list={{list}} view_complete={{view_complete}} is_bookmarked={{is_bookmarked}} />
 
         <Dialog.Closable id="dialog-list-move" class="md:w-1/3">
             <form class="space-y-8 mx-auto" hx-put="/list/{{ list.sid }}/space">
@@ -155,37 +155,37 @@
 
     </div>
     <div class="ml-2 md:ml-0">
-        <Lists.Descr list={list} />
+        <Lists.Descr list={{list}} />
     </div>
     <!-- default section (inbox) -->
     <ul class="sections">
         {% set section_def = sections|selectattr("default")|first %}
         <Section
-            section={section_def}
-            sections={sections}
-            sections_by_list={sections_by_list}
-            view_complete={view_complete}
-            tasks={tasks_by_section[section_def.uuid]}
-            lists={lists}
-            list={list}
+            section={{section_def}}
+            sections={{sections}}
+            sections_by_list={{sections_by_list}}
+            view_complete={{view_complete}}
+            tasks={{tasks_by_section[section_def.uuid]}}
+            lists={{lists}}
+            list={{list}}
         />
     </ul>
     <!-- sections -->
     <ul id="sections" class="py-8 sections">
     {% for section in sections|rejectattr("default") %}
         <Section
-            section={section}
-            sections={sections}
-            sections_by_list={sections_by_list}
-            view_complete={view_complete}
-            tasks={tasks_by_section[section.uuid]}
-            lists={lists}
-            list={list}
+            section={{section}}
+            sections={{sections}}
+            sections_by_list={{sections_by_list}}
+            view_complete={{view_complete}}
+            tasks={{tasks_by_section[section.uuid]}}
+            lists={{lists}}
+            list={{list}}
         />
     {% endfor %}
     </ul>
-    <Btn.Create id="btn-section-create" class="mb-24" with-text-reveal={False}>Add section</Btn.Create>
-    <Lists.SectionAddForm list={list} />
+    <Btn.Create id="btn-section-create" class="mb-24" with-text-reveal={{False}}>Add section</Btn.Create>
+    <Lists.SectionAddForm list={{list}} />
     <!-- Select all link (visible in select mode) -->
     <div x-show="selectMode" x-cloak class="flex justify-center mb-24">
         <button
@@ -194,6 +194,6 @@
             @click="selectAll()"
         >Select all tasks</button>
     </div>
-    <Tasks.BulkActions sections_by_list={sections_by_list} />
+    <Tasks.BulkActions sections_by_list={{sections_by_list}} />
 </div>
 </Layout.App>

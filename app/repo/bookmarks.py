@@ -33,7 +33,7 @@ class BookmarkForUser(LoggedInUserRepo):
             """,
             {"user": self.user["uuid"]},
         )
-        return [bm._mapping for bm in bookmarks]
+        return [dict(bm._mapping) for bm in bookmarks]
 
     async def create(
         self, entity_type: str, entity_uuid: str
@@ -58,7 +58,7 @@ class BookmarkForUser(LoggedInUserRepo):
                 "entity_uuid": entity_uuid,
             },
         )
-        return bm._mapping if bm else None
+        return dict(bm._mapping) if bm else None
 
     async def del_by_entity(
         self, entity_type: str, entity_uuid: str

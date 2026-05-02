@@ -26,16 +26,16 @@
 </head>
 <body class="font-inter antialiased sidebar-expanded {{ body_class }}">
     <div class="flex h-[100dvh] overflow-hidden">
-        <Nav.Menu spaces={spaces} user={user} space={space} lists={lists} />
+        <Nav.Menu spaces={{spaces}} user={{user}} space={{space}} lists={{lists}} />
             <div class="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden lg:rounded-l-xl {{ content_class }}">
-            {# <Nav.TopBar user={user} /> #}
+            {# <Nav.TopBar user={{user}} /> #}
             <div class="flex flex-row">
                 <div id="main" class="grow">
                     {{ content }}
                 </div>
             </div>
         </div>
-            <Nav.Mobile space={space} spaces={spaces} lists={lists} />
+            <Nav.Mobile space={{space}} spaces={{spaces}} lists={{lists}} />
     </div>
     <dialog id="search-dialog" class="bg-transparent backdrop:bg-black/50 w-full max-w-xl mx-auto mt-[15vh]"
         _="on keydown[key is 'Escape'] close me">

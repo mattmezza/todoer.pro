@@ -1,5 +1,5 @@
 {# def user, spaces, tasks_by_space #}
-<Layout.App spaces={spaces} user={user} title="Spaces">
+<Layout.App spaces={{spaces}} user={{user}} title="Spaces">
     <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
         <div class="flex justify-between items-center gap-4 md:p-4">
             <h1 class="text-2xl md:text-5xl font-bold py-1">Spaces</h1>
@@ -11,7 +11,7 @@
         </div>
         <ul class="my-16 space-y-1">
             {% for space in spaces|rejectattr("default") %}
-            <Spaces.ListItem space={space} tasks_by_space={tasks_by_space} />
+            <Spaces.ListItem space={{space}} tasks_by_space={{tasks_by_space}} />
             {% else %}
             <p class="py-4 md:py-8 opacity-70 text-center italic">It looks like you didn't create a space yet.</p>
             {% endfor %}

@@ -1,42 +1,42 @@
 {# def user, space, spaces, lists, list, section, sections, sections_by_list, task, subtasks, attachments, comments, audit_log #}
-<Layout.App spaces={spaces} space={space} user={user} title={"%" + task.sid + " \"" + task.title + "\""} lists={lists}>
+<Layout.App spaces={{spaces}} space={{space}} user={{user}} title={{"%" + task.sid + " \"" + task.title + "\""}} lists={{lists}}>
 <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
     <div class="mb-8 space-y-4">
         <div class="ml-2 md:ml-0 mb-2 md:mb-4">
-            <Breadcrumbs.Items with_back_arrow={"/list/" + list.sid + "#section-" + section.sid}>
-                <Breadcrumbs.Item title="Go to space." href={"/space/" + space.sid}>
+            <Breadcrumbs.Items with_back_arrow={{"/list/" + list.sid + "#section-" + section.sid}}>
+                <Breadcrumbs.Item title="Go to space." href={{"/space/" + space.sid}}>
                     @{{ space.title }}
                 </Breadcrumbs.Item>
                 <Breadcrumbs.Separator />
-                <Breadcrumbs.Item title="Go to list." href={"/list/" + list.sid}>
+                <Breadcrumbs.Item title="Go to list." href={{"/list/" + list.sid}}>
                     #{{ list.title }}
                 </Breadcrumbs.Item>
                 <Breadcrumbs.Separator />
-                <Breadcrumbs.Item title="Go to section." href={"/list/" + list.sid + "#section-" + section.sid}>
+                <Breadcrumbs.Item title="Go to section." href={{"/list/" + list.sid + "#section-" + section.sid}}>
                     ${{ section.title }}
                 </Breadcrumbs.Item>
             </Breadcrumbs.Items>
         </div>
         <div class="flex justify-between items-center gap-2">
-            <Tasks.Title task={task} section={section} list={list} space={space} />
-            <Btn.CopyId id={task.sid} prefix="%" title={"Copy task id (%" + task.sid + ")"} />
-            <Tasks.Actions task={task} list={list} view_complete={False} />
-            <Tasks.ActionMove task={task} section={section} sections={sections} sections_by_list={sections_by_list} should-reload={True} />
+            <Tasks.Title task={{task}} section={{section}} list={{list}} space={{space}} />
+            <Btn.CopyId id={{task.sid}} prefix="%" title={{"Copy task id (%" + task.sid + ")"}} />
+            <Tasks.Actions task={{task}} list={{list}} view_complete={{False}} />
+            <Tasks.ActionMove task={{task}} section={{section}} sections={{sections}} sections_by_list={{sections_by_list}} should-reload={{True}} />
         </div>
-        <Tasks.Descr task={task} />
-        <Tasks.DueDate task={task} />
-        <Tasks.Priority task={task} />
-        <Tasks.Tags task={task} />
+        <Tasks.Descr task={{task}} />
+        <Tasks.DueDate task={{task}} />
+        <Tasks.Priority task={{task}} />
+        <Tasks.Tags task={{task}} />
 
         <div>
             <!-- sub-task -->
             <h3 class="font-bold">&nbsp;</h3>
             <ul class="list-none space-y-1">
                 {% for subt in subtasks %}
-                    <Subtask subtask={subt} />
+                    <Subtask subtask={{subt}} />
                 {% endfor %}
             </ul>
-            <Btn.Create id="btn-subtask-create" with-text-reveal={False} class="!justify-start">Add sub-task</Btn.Create>
+            <Btn.Create id="btn-subtask-create" with-text-reveal={{False}} class="!justify-start">Add sub-task</Btn.Create>
             <form
                 style="display: none"
                 class="rounded-sm border border-slate-600"
@@ -82,7 +82,7 @@
             <div class="space-y-6">
                 <ul id="attachments" class="list-none text-sm flex flex-wrap gap-4">
                     {% for a in attachments %}
-                        <Attachment attachment={a} />
+                        <Attachment attachment={{a}} />
                     {% endfor %}
                 </ul>
                 <form
@@ -120,11 +120,11 @@
         <h3 class="font-bold">&nbsp;</h3>
         <div id="comments" class="space-y-4">
             {% for c in comments %}
-                <Comment comment={c} />
+                <Comment comment={{c}} />
             {% endfor %}
         </div>
         <div class="flex justify-start">
-            <Btn.Create id="btn-comment-create" with-text-reveal={False} focus-tag="textarea">Add comment</Btn.Create>
+            <Btn.Create id="btn-comment-create" with-text-reveal={{False}} focus-tag="textarea">Add comment</Btn.Create>
         </div>
         <form
             style="display: none"
@@ -164,7 +164,7 @@
 
         <!-- audit log -->
         <h3 class="font-bold">&nbsp;</h3>
-        <Tasks.AuditLog audit_log={audit_log} />
+        <Tasks.AuditLog audit_log={{audit_log}} />
     </div>
 </div>
 <script>

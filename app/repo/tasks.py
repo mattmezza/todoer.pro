@@ -53,7 +53,7 @@ class TaskForUser(LoggedInUserRepo):
                 "days_ago": f"-{days} days",
             },
         )
-        return [r._mapping for r in rows]
+        return [dict(r._mapping) for r in rows]
 
     async def overdue(self) -> list[Mapping]:
         rows = await self.db.fetch_all(
@@ -75,7 +75,7 @@ class TaskForUser(LoggedInUserRepo):
             """,
             {"creator": self.user["uuid"]},
         )
-        return [r._mapping for r in rows]
+        return [dict(r._mapping) for r in rows]
 
     async def due_today(self) -> list[Mapping]:
         rows = await self.db.fetch_all(
@@ -97,7 +97,7 @@ class TaskForUser(LoggedInUserRepo):
             """,
             {"creator": self.user["uuid"]},
         )
-        return [r._mapping for r in rows]
+        return [dict(r._mapping) for r in rows]
 
     async def upcoming(self, days: int = 7) -> list[Mapping]:
         rows = await self.db.fetch_all(
@@ -123,7 +123,7 @@ class TaskForUser(LoggedInUserRepo):
                 "days_ahead": f"+{days} days",
             },
         )
-        return [r._mapping for r in rows]
+        return [dict(r._mapping) for r in rows]
 
     async def search(self, query: str, limit: int = 20) -> list[Mapping]:
         tasks = await self.db.fetch_all(
@@ -148,7 +148,7 @@ class TaskForUser(LoggedInUserRepo):
                 "limit": limit,
             },
         )
-        return [t._mapping for t in tasks]
+        return [dict(t._mapping) for t in tasks]
 
     async def by_sid(self, sid: str) -> Mapping | None:
         task = await self.db.fetch_one(
@@ -175,7 +175,7 @@ class TaskForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "creator": self.user["uuid"]},
         )
-        return task._mapping if task else None
+        return dict(task._mapping) if task else None
 
     async def by_uuid(self, uuid: str) -> Mapping | None:
         task = await self.db.fetch_one(
@@ -202,7 +202,7 @@ class TaskForUser(LoggedInUserRepo):
             """,
             {"uuid": uuid, "creator": self.user["uuid"]},
         )
-        return task._mapping if task else None
+        return dict(task._mapping) if task else None
 
     async def by_list(
         self,
@@ -231,7 +231,7 @@ class TaskForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        return [tt._mapping for tt in tasks]
+        return [dict(tt._mapping) for tt in tasks]
 
     async def by_section_for_list(
         self,
@@ -280,7 +280,7 @@ class TaskForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        return [tt._mapping for tt in tasks]
+        return [dict(tt._mapping) for tt in tasks]
 
     async def update_priority_by_sid(
         self, priority: int | None, sid: str
@@ -306,7 +306,7 @@ class TaskForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        return ta._mapping if ta is not None else None
+        return dict(ta._mapping) if ta is not None else None
 
     async def update_due_date_by_sid(
         self, due_date: str | None, sid: str
@@ -332,7 +332,7 @@ class TaskForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        return ta._mapping if ta is not None else None
+        return dict(ta._mapping) if ta is not None else None
 
     async def update_tags_by_sid(self, tags: str, sid: str) -> Mapping | None:
         ta = await self.db.fetch_one(
@@ -356,7 +356,7 @@ class TaskForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        return ta._mapping if ta is not None else None
+        return dict(ta._mapping) if ta is not None else None
 
     async def update_descr_by_sid(
         self, descr: str | None, sid: str
@@ -378,7 +378,7 @@ class TaskForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "descr": descr, "creator": self.user["uuid"]},
         )
-        return ta._mapping if ta is not None else None
+        return dict(ta._mapping) if ta is not None else None
 
     async def update_section(self, section: UUID, sid: str) -> str | None:
         ta = await self.db.fetch_one(
@@ -409,7 +409,7 @@ class TaskForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        return ta._mapping if ta is not None else None
+        return dict(ta._mapping) if ta is not None else None
 
     async def update_title_by_sid(
         self, title: str, sid: str
@@ -431,7 +431,7 @@ class TaskForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "title": title, "creator": self.user["uuid"]},
         )
-        return ta._mapping if ta is not None else None
+        return dict(ta._mapping) if ta is not None else None
 
     async def _reorder_on_complete_toggle(
         self, task_before, task_after
@@ -565,7 +565,7 @@ class TaskForUser(LoggedInUserRepo):
                 """,
                 {"sid": sid},
             )
-        return ta._mapping if ta is not None else None
+        return dict(ta._mapping) if ta is not None else None
 
     async def update_task_by_sid(
         self,
@@ -625,7 +625,7 @@ class TaskForUser(LoggedInUserRepo):
                 """,
                 {"sid": sid},
             )
-        return ta._mapping if ta is not None else None
+        return dict(ta._mapping) if ta is not None else None
 
     async def archive(self, sid: str) -> Mapping | None:
         ta = await self.db.fetch_one(
@@ -644,7 +644,7 @@ class TaskForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "creator": self.user["uuid"]},
         )
-        return ta._mapping if ta else None
+        return dict(ta._mapping) if ta else None
 
     async def del_by_sid(self, sid: str) -> None:
         async with self.db.transaction():
@@ -673,7 +673,7 @@ class TaskForUser(LoggedInUserRepo):
                 WHERE section = :section
                 AND `order` > :order
                 """,
-                {"section": task.section, "order": task.order},
+                {"section": task._mapping["section"], "order": task._mapping["order"]},
             )
 
     async def create(
@@ -717,7 +717,7 @@ class TaskForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        return task._mapping if task else None
+        return dict(task._mapping) if task else None
 
     async def move_up(self, sid: str) -> None | Mapping:
         task = await self.db.fetch_one(
@@ -745,14 +745,14 @@ class TaskForUser(LoggedInUserRepo):
             LIMIT 1
             """,
             {
-                "section": task.section,
-                "order": task.order,
+                "section": task._mapping["section"],
+                "order": task._mapping["order"],
                 "creator": self.user["uuid"],
             },
         )
         if task_before is None:
-            return task._mapping if task is not None else None
-        order_before = task_before.order
+            return dict(task._mapping) if task is not None else None
+        order_before = task_before._mapping["order"]
         task_before = await self.db.fetch_one(
             """
             UPDATE tasks
@@ -761,7 +761,7 @@ class TaskForUser(LoggedInUserRepo):
                 WHERE uuid = :uuid
             RETURNING *
             """,
-            {"order": task.order, "uuid": task_before.uuid},
+            {"order": task._mapping["order"], "uuid": task_before._mapping["uuid"]},
         )
         task = await self.db.fetch_one(
             """
@@ -771,9 +771,9 @@ class TaskForUser(LoggedInUserRepo):
                 WHERE uuid = :uuid
             RETURNING *
             """,
-            {"order": order_before, "uuid": task.uuid},
+            {"order": order_before, "uuid": task._mapping["uuid"]},
         )
-        return task._mapping if task is not None else None
+        return dict(task._mapping) if task is not None else None
 
     async def move_down(self, sid: str) -> None | Mapping:
         task = await self.db.fetch_one(
@@ -795,13 +795,13 @@ class TaskForUser(LoggedInUserRepo):
             LIMIT 1
             """,
             {
-                "order": task.order,
-                "section": task.section,
+                "order": task._mapping["order"],
+                "section": task._mapping["section"],
             },
         )
         if task_after is None:
-            return task._mapping if task is not None else None
-        order_after = task_after.order
+            return dict(task._mapping) if task is not None else None
+        order_after = task_after._mapping["order"]
         task_after = await self.db.fetch_one(
             """
             UPDATE tasks
@@ -810,7 +810,7 @@ class TaskForUser(LoggedInUserRepo):
             WHERE uuid = :uuid
             RETURNING *
             """,
-            {"order": task.order, "uuid": task_after.uuid},
+            {"order": task._mapping["order"], "uuid": task_after._mapping["uuid"]},
         )
         task = await self.db.fetch_one(
             """
@@ -820,9 +820,9 @@ class TaskForUser(LoggedInUserRepo):
             WHERE uuid = :uuid
             RETURNING *
             """,
-            {"order": order_after, "uuid": task.uuid},
+            {"order": order_after, "uuid": task._mapping["uuid"]},
         )
-        return task._mapping if task is not None else None
+        return dict(task._mapping) if task is not None else None
 
     async def move_top(self, sid: str) -> None | Mapping:
         async with self.db.transaction():
@@ -839,9 +839,9 @@ class TaskForUser(LoggedInUserRepo):
             )
             if not task:
                 return None
-            if task.order == 0:
-                return task._mapping
-            order_old = task.order
+            if task._mapping["order"] == 0:
+                return dict(task._mapping)
+            order_old = task._mapping["order"]
             task = await self.db.fetch_one(
                 """
                 UPDATE tasks
@@ -850,7 +850,7 @@ class TaskForUser(LoggedInUserRepo):
                 WHERE uuid = :uuid
                 RETURNING *
                 """,
-                {"uuid": task.uuid},
+                {"uuid": task._mapping["uuid"]},
             )
             await self.db.execute(
                 """
@@ -860,9 +860,9 @@ class TaskForUser(LoggedInUserRepo):
                     AND section = :section
                     AND `order` >= 0 AND `order` < :order_old
                 """,
-                {"section": task.section, "sid": sid, "order_old": order_old},
+                {"section": task._mapping["section"], "sid": sid, "order_old": order_old},
             )
-            return task._mapping if task is not None else None
+            return dict(task._mapping) if task is not None else None
 
     async def log_action(
         self,
@@ -897,7 +897,7 @@ class TaskForUser(LoggedInUserRepo):
             """,
             {"task": task_uuid, "limit": limit},
         )
-        return [r._mapping for r in rows]
+        return [dict(r._mapping) for r in rows]
 
     async def reorder(self, sids: list[str]) -> None:
         """Bulk-update task order based on the provided list of SIDs.
@@ -945,7 +945,7 @@ class TaskForUser(LoggedInUserRepo):
             )
             if not task:
                 return None
-            order_old = task.order
+            order_old = task._mapping["order"]
             task = await self.db.fetch_one(
                 """
                 UPDATE tasks
@@ -956,7 +956,7 @@ class TaskForUser(LoggedInUserRepo):
                 WHERE sid = :sid AND section = :section
                 RETURNING *
                 """,
-                {"sid": sid, "section": task.section},
+                {"sid": sid, "section": task._mapping["section"]},
             )
             await self.db.execute(
                 """
@@ -966,9 +966,9 @@ class TaskForUser(LoggedInUserRepo):
                     AND section = :section
                     AND `order` > :order
                 """,
-                {"section": task.section, "sid": sid, "order": order_old},
+                {"section": task._mapping["section"], "sid": sid, "order": order_old},
             )
-            return task._mapping if task is not None else None
+            return dict(task._mapping) if task is not None else None
 
     async def bulk_complete(self, sids: list[str]) -> int:
         """Mark multiple tasks as complete by their SIDs."""

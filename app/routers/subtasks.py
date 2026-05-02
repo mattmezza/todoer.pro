@@ -64,7 +64,7 @@ async def update(
         .update(sid, title.strip(), descr.strip() if descr else None, complete)
     ).or_400()
     hx_trigger = f"subtask-update, subtask-{sid}-update"
-    if subtask.complete == 1:
+    if subtask["complete"] == 1:
         hx_trigger += f", subtask-complete, subtask-{sid}-complete"
     else:
         hx_trigger += f", subtask-incomplete, subtask-{sid}-incomplete"

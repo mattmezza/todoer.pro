@@ -22,7 +22,7 @@ class SpaceForUser(LoggedInUserRepo):
                 "limit": limit,
             },
         )
-        return [s._mapping for s in spaces]
+        return [dict(s._mapping) for s in spaces]
 
     async def by_sid(self, sid: str) -> Mapping | None:
         space = await self.db.fetch_one(
@@ -33,7 +33,7 @@ class SpaceForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "creator": self.user["uuid"]},
         )
-        return space._mapping if space else None
+        return dict(space._mapping) if space else None
 
     async def by_sid_with_tot_lists(self, sid: str) -> Mapping | None:
         space = await self.db.fetch_one(
@@ -48,7 +48,7 @@ class SpaceForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "creator": self.user["uuid"]},
         )
-        return space._mapping if space else None
+        return dict(space._mapping) if space else None
 
     async def num_tasks(self, sid: str) -> Mapping | None:
         space = await self.db.fetch_one(
@@ -66,7 +66,7 @@ class SpaceForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "creator": self.user["uuid"]},
         )
-        return space._mapping if space else None
+        return dict(space._mapping) if space else None
 
     async def by_uuid(self, uuid: str) -> Mapping | None:
         space = await self.db.fetch_one(
@@ -77,7 +77,7 @@ class SpaceForUser(LoggedInUserRepo):
             """,
             {"uuid": uuid, "creator": self.user["uuid"]},
         )
-        return space._mapping if space else None
+        return dict(space._mapping) if space else None
 
     async def all(self, limit: int = 100) -> list[Mapping]:
         spaces = await self.db.fetch_all(
@@ -90,7 +90,7 @@ class SpaceForUser(LoggedInUserRepo):
             """,
             {"limit": limit, "creator": self.user["uuid"]},
         )
-        return [s._mapping for s in spaces]
+        return [dict(s._mapping) for s in spaces]
 
     async def all_with_tot_lists(self, limit: int = 100) -> list[Mapping]:
         spaces = await self.db.fetch_all(
@@ -108,7 +108,7 @@ class SpaceForUser(LoggedInUserRepo):
             """,
             {"limit": limit, "creator": self.user["uuid"]},
         )
-        return [s._mapping for s in spaces]
+        return [dict(s._mapping) for s in spaces]
 
     async def tasks_by_space(self, limit: int = 100) -> list[Mapping]:
         num_tasks = await self.db.fetch_all(
@@ -128,7 +128,7 @@ class SpaceForUser(LoggedInUserRepo):
         )
         tasks_by_space = defaultdict(lambda: 0)
         for num_task in num_tasks:
-            tasks_by_space[num_task.space] = num_task.tasks_tot
+            tasks_by_space[num_task._mapping["space"]] = num_task._mapping["tasks_tot"]
         return tasks_by_space
 
     async def archive(self, sid: str) -> Mapping | None:
@@ -140,7 +140,7 @@ class SpaceForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "creator": self.user["uuid"]},
         )
-        return sp._mapping if sp else None
+        return dict(sp._mapping) if sp else None
 
     async def insert(
         self, title: str, descr: str | None, default: bool = False
@@ -173,8 +173,7 @@ class SpaceForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        return sp._mapping
-
+        return dict(sp._mapping)
     async def delete(self, sid: str) -> None:
         await self.db.execute(
             """
@@ -195,7 +194,7 @@ class SpaceForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "title": title, "creator": self.user["uuid"]},
         )
-        return None if sp is None else sp.title
+        return None if sp is None else sp._mapping["title"]
 
     async def update_descr(
         self, sid: str, descr: str | None
@@ -210,7 +209,7 @@ class SpaceForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "descr": descr, "creator": self.user["uuid"]},
         )
-        return None if se is None else se._mapping
+        return None if se is None else dict(se._mapping)
 
     async def default(self) -> Mapping | None:
         space = await self.db.fetch_one(
@@ -221,4 +220,4 @@ class SpaceForUser(LoggedInUserRepo):
             """,
             {"creator": self.user["uuid"]},
         )
-        return space._mapping if space else None
+        return dict(space._mapping) if space else None

@@ -17,7 +17,7 @@ class SubtaskForUser(LoggedInUserRepo):
             """,
             {"sid": sid, "creator": self.user["uuid"]},
         )
-        return subtask._mapping if subtask else None
+        return dict(subtask._mapping) if subtask else None
 
     async def by_uuid(self, uuid: str) -> Mapping | None:
         subtask = await self.db.fetch_one(
@@ -32,7 +32,7 @@ class SubtaskForUser(LoggedInUserRepo):
             """,
             {"uuid": uuid, "creator": self.user["uuid"]},
         )
-        return subtask._mapping if subtask else None
+        return dict(subtask._mapping) if subtask else None
 
     async def by_task(
         self,
@@ -57,7 +57,7 @@ class SubtaskForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        return [st._mapping for st in subtasks]
+        return [dict(st._mapping) for st in subtasks]
 
     async def del_by_sid(self, sid: str) -> None:
         await self.db.execute(
@@ -113,7 +113,7 @@ class SubtaskForUser(LoggedInUserRepo):
                 "creator": self.user["uuid"],
             },
         )
-        return subtask._mapping if subtask else None
+        return dict(subtask._mapping) if subtask else None
 
     async def update(
         self, sid: str, title: str, descr: str | None, complete: bool
@@ -137,4 +137,4 @@ class SubtaskForUser(LoggedInUserRepo):
                 "user": self.user['uuid'],
             },
         )
-        return subtask._mapping if subtask else None
+        return dict(subtask._mapping) if subtask else None
