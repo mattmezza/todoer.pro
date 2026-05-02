@@ -1,0 +1,60 @@
+{# def title="Todoer — Todos without the bullshit." #}
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+    <title>{{ title }}</title>
+    <meta name="description" content="Open-source, self-hosted task management for power users. Keyboard-first, dark by default, no tracking. Deploy with Docker in 60 seconds.">
+    <meta name="theme-color" content="#000000">
+    <link rel="canonical" href="https://todoer.pro/">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://todoer.pro/">
+    <meta property="og:title" content="Todoer — Todos without the bullshit.">
+    <meta property="og:description" content="Open-source, self-hosted task management. Keyboard-first, dark by default, no tracking. Deploy with Docker in 60 seconds.">
+    <meta property="og:image" content="https://todoer.pro/public/og-image.png">
+    <meta property="og:site_name" content="Todoer">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Todoer — Todos without the bullshit.">
+    <meta name="twitter:description" content="Open-source, self-hosted task management. Keyboard-first, dark by default, no tracking.">
+    <meta name="twitter:image" content="https://todoer.pro/public/og-image.png">
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Todoer",
+        "url": "https://todoer.pro",
+        "applicationCategory": "ProductivityApplication",
+        "operatingSystem": "Any",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "description": "Free up to 10,000 tasks"
+        },
+        "description": "Open-source, self-hosted task management for power users.",
+        "license": "https://github.com/mattmezza/todoer.pro/blob/main/LICENSE"
+    }
+    </script>
+
+    {% if ENV == "local" %}
+    <link href="/public/style.css?v={{ epoch() }}" rel="stylesheet">
+    {% else %}
+    <link href="/public/style.css?v={{ RELEASE or '' }}" rel="stylesheet">
+    {% endif %}
+    <link rel="icon" href="/public/favicon.ico?v={{ RELEASE or '' }}">
+    <link rel="icon" href="/public/favicon.png?v={{ RELEASE or '' }}">
+</head>
+<body class="bg-black text-slate-300 font-inter antialiased">
+    {{ content }}
+    {% if ENV == "local" %}
+        {{ hot_reload.script("ws://" + HOST + "/hot-reload") | safe }}
+    {% endif %}
+</body>
+</html>
