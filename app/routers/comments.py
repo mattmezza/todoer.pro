@@ -18,7 +18,7 @@ async def delete(
     db: RepoDB = Depends(repo_db),
 ):
     await db.for_user(user).comments().del_by_sid(sid)
-    res.headers["HX-Trigger"] = f"comment-delete, comment-{sid}-delete"
+    res.headers["HX-Trigger"] = f"task-update, comment-delete, comment-{sid}-delete"
     return ""
 
 
@@ -43,7 +43,7 @@ async def update(
             },
         },
         200,
-        {"HX-Trigger": f"comment-update, comment-{sid}-update"},
+        {"HX-Trigger": f"task-update, comment-update, comment-{sid}-update"},
     )
 
 
@@ -68,5 +68,5 @@ async def add(
             },
         },
         201,
-        {"HX-Trigger": "comment-create"},
+        {"HX-Trigger": "task-update, comment-create"},
     )

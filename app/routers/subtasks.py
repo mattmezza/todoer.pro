@@ -97,7 +97,7 @@ async def delete(
     db: RepoDB = Depends(repo_db),
 ):
     await db.for_user(user).subtasks().del_by_sid(sid)
-    res.headers["HX-Trigger"] = f"subtask-delete, subtask-{sid}-delete"
+    res.headers["HX-Trigger"] = f"task-update, subtask-delete, subtask-{sid}-delete"
     return ""
 
 
@@ -128,7 +128,7 @@ async def add(
             | {"author_email_hash": user["email_hash"]},
         },
         201,
-        {"HX-Trigger": "subtask-create"},
+        {"HX-Trigger": "task-update, subtask-create"},
     )
 
 
@@ -148,7 +148,7 @@ async def update(
         .subtasks()
         .update(sid, title.strip(), descr.strip() if descr else None, complete)
     ).or_400()
-    hx_trigger = f"subtask-update, subtask-{sid}-update"
+    hx_trigger = f"task-update, subtask-update, subtask-{sid}-update"
     if subtask["complete"] == 1:
         hx_trigger += f", subtask-complete, subtask-{sid}-complete"
     else:
@@ -171,7 +171,7 @@ async def update_title(
     return (
         {"subtask": subtask},
         200,
-        {"HX-Trigger": f"subtask-update, subtask-{sid}-update"},
+        {"HX-Trigger": f"task-update, subtask-update, subtask-{sid}-update"},
     )
 
 
@@ -190,7 +190,7 @@ async def update_descr(
         .subtasks()
         .update_descr(sid, descr.strip() if descr else None)
     ).or_404(f"Subtask #{sid} not found.")
-    res.headers["HX-Trigger"] = f"subtask-update, subtask-{sid}-update"
+    res.headers["HX-Trigger"] = f"task-update, subtask-update, subtask-{sid}-update"
     return {"subtask": subtask}
 
 
@@ -209,5 +209,5 @@ async def update_complete(
     return (
         {"subtask": subtask},
         200,
-        {"HX-Trigger": f"subtask-update, subtask-{sid}-update"},
+        {"HX-Trigger": f"task-update, subtask-update, subtask-{sid}-update"},
     )
