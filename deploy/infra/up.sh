@@ -16,31 +16,10 @@ echo 'server {
                 proxy_set_header   X-Real-IP        $remote_addr;
                 proxy_set_header   X-Forwarded-For  $proxy_add_x_forwarded_for;
                 client_max_body_size 20M;
-                allow 127.0.0.1;
-                allow 172.20.0.0/16;
-                allow 172.21.0.0/16;
-                allow 172.22.0.0/16;
-                allow 86.84.57.38; # kpn ip
-                allow 31.20.200.235; # odido ip
-                ######################
-                # allow stripe webhooks
-                # https://stripe.com/files/ips/ips_webhooks.txt
-                # https://stripe.com/docs/ips
-                allow 3.18.12.63;
-                allow 3.130.192.231;
-                allow 13.235.14.237;
-                allow 13.235.122.149;
-                allow 18.211.135.69;
-                allow 35.154.171.200;
-                allow 52.15.183.38;
-                allow 54.88.130.119;
-                allow 54.88.130.237;
-                allow 54.187.174.169;
-                allow 54.187.205.235;
-                allow 54.187.216.72;
-                # end list of stripe webhooks
-                ######################
-               deny all;
+                # Uncomment and add IPs to restrict access:
+                # allow 127.0.0.1;
+                # allow YOUR.IP.HERE;
+                # deny all;
         }
 }' | sudo tee /etc/nginx/sites-available/dev.todoer.pro > /dev/null
 sudo ln -s /etc/nginx/sites-available/dev.todoer.pro /etc/nginx/sites-enabled/
