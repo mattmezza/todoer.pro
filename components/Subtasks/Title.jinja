@@ -27,7 +27,8 @@
                 class="form-input px-2 py-1 text-2xl md:text-4xl text-white w-full grow"
                 name="title"
                 value="{{ subtask.title }}"
-                _="on keyup[key is 'Escape'] call the closest <form />.reset() then call the closest <form />.dispatchEvent(new Event('reset'))">
+                x-data
+                @keydown.escape="$el.closest('form').reset();$el.closest('form').style.display='none';$el.closest('.font-bold').querySelector('.page-title-display').style.display=''">
             <div class="flex items-center">
                 <button type="reset" class="btn text-xs py-0.5 text-white cursor-pointer">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
