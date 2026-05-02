@@ -5,10 +5,10 @@ FastAPI + Jinja2/JinjaX app with HTMX frontend, SQLite DB, Tailwind CSS.
 ## Setup
 
 ```bash
-uv sync                # install deps
-cp .env.example .envrc # configure env vars
-make serve-reload      # run dev server (default :8000, override: port=N)
-make tailwind-watch    # run tailwind in watch mode (separate terminal)
+uv sync                 # install deps
+cp .env.example .envrc  # configure env vars
+make dev                # run dev server (port is $TODOER_PORT)
+make cssd               # run tailwind in watch mode (separate terminal)
 ```
 
 ## Project structure
