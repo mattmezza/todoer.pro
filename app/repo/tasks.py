@@ -60,7 +60,7 @@ class TaskForUser(LoggedInUserRepo):
     async def overdue(self) -> list[Mapping]:
         rows = await self.db.fetch_all(
             """
-            SELECT ta.sid, ta.title, ta.due_date,
+            SELECT ta.uuid, ta.sid, ta.title, ta.due_date,
                    se.sid as section_sid, l.sid as list_sid,
                    sp.sid as space_sid,
                    sp.title as space_title, l.title as list_title
@@ -82,7 +82,7 @@ class TaskForUser(LoggedInUserRepo):
     async def due_today(self) -> list[Mapping]:
         rows = await self.db.fetch_all(
             """
-            SELECT ta.sid, ta.title, ta.due_date,
+            SELECT ta.uuid, ta.sid, ta.title, ta.due_date,
                    se.sid as section_sid, l.sid as list_sid,
                    sp.sid as space_sid,
                    sp.title as space_title, l.title as list_title
@@ -104,7 +104,7 @@ class TaskForUser(LoggedInUserRepo):
     async def upcoming(self, days: int = 7) -> list[Mapping]:
         rows = await self.db.fetch_all(
             """
-            SELECT ta.sid, ta.title, ta.due_date,
+            SELECT ta.uuid, ta.sid, ta.title, ta.due_date,
                    se.sid as section_sid, l.sid as list_sid,
                    sp.sid as space_sid,
                    sp.title as space_title, l.title as list_title
