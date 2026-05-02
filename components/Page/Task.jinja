@@ -1,5 +1,6 @@
 {# def user, space, spaces, lists, list, section, sections, sections_by_list, task, subtasks, attachments, comments, audit_log #}
 <Layout.App spaces={{spaces}} space={{space}} user={{user}} title={{"%" + task.sid + " \"" + task.title + "\""}} lists={{lists}}>
+<div id="page-context" data-space-sid="{{ space.sid }}" data-space-title="{{ space.title }}" data-list-sid="{{ list.sid }}" data-list-title="{{ list.title }}" data-section-sid="{{ section.sid }}" data-section-title="{{ section.title }}" style="display:none"></div>
 <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
     <div class="mb-8 space-y-4">
         <div class="ml-2 md:ml-0 mb-2 md:mb-4">

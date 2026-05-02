@@ -24,6 +24,17 @@ class SpaceForUser(LoggedInUserRepo):
         )
         return [dict(s._mapping) for s in spaces]
 
+    async def find_by_title(self, title: str) -> Mapping | None:
+        row = await self.db.fetch_one(
+            """
+            SELECT * FROM spaces
+            WHERE creator = :creator AND archived = 0
+              AND lower(title) = lower(:title)
+            """,
+            {"creator": self.user["uuid"], "title": title},
+        )
+        return dict(row._mapping) if row else None
+
     async def by_sid(self, sid: str) -> Mapping | None:
         space = await self.db.fetch_one(
             """

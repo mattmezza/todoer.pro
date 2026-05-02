@@ -12,6 +12,7 @@
     is_bookmarked=False
 #}
 <Layout.App spaces={{spaces}} space={{space}} user={{user}} title={{"@" + space.title}} lists={{lists}}>
+<div id="page-context" data-space-sid="{{ space.sid }}" data-space-title="{{ space.title }}" style="display:none"></div>
 <div
     class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto"
     x-data="{

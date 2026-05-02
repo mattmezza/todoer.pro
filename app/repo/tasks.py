@@ -30,7 +30,9 @@ class TaskForUser(LoggedInUserRepo):
             """,
             {"creator": self.user["uuid"]},
         )
-        return row._mapping if row else {}
+        if not row:
+            return {"total": 0, "completed": 0, "active": 0, "overdue": 0}
+        return dict(row._mapping)
 
     async def completed_per_period(self, days: int = 30) -> list[Mapping]:
         rows = await self.db.fetch_all(
@@ -125,9 +127,34 @@ class TaskForUser(LoggedInUserRepo):
         )
         return [dict(r._mapping) for r in rows]
 
-    async def search(self, query: str, limit: int = 20) -> list[Mapping]:
+    async def search(
+        self,
+        query: str,
+        limit: int = 20,
+        space_sid: str | None = None,
+        list_sid: str | None = None,
+    ) -> list[Mapping]:
+        conds = ["sp.creator = :creator", "ta.archived = 0"]
+        params: dict = {
+            "creator": self.user["uuid"],
+            "limit": limit,
+        }
+        if query:
+            conds.append(
+                "(ta.title LIKE :query"
+                " OR ta.descr LIKE :query"
+                " OR ta.tags LIKE :query)"
+            )
+            params["query"] = f"%{query}%"
+        if space_sid:
+            conds.append("sp.sid = :space_sid")
+            params["space_sid"] = space_sid
+        if list_sid:
+            conds.append("l.sid = :list_sid")
+            params["list_sid"] = list_sid
+        where = " AND ".join(conds)
         tasks = await self.db.fetch_all(
-            """
+            f"""
             SELECT ta.sid, ta.title, ta.descr, 'task' as type,
                    se.sid as section_sid, l.sid as list_sid,
                    sp.sid as space_sid,
@@ -136,19 +163,33 @@ class TaskForUser(LoggedInUserRepo):
             JOIN sections se ON se.uuid = ta.section
             JOIN lists l ON l.uuid = se.list
             JOIN spaces sp ON sp.uuid = l.space
-            WHERE sp.creator = :creator
-              AND ta.archived = 0
-              AND (ta.title LIKE :query OR ta.descr LIKE :query OR ta.tags LIKE :query)
+            WHERE {where}
             ORDER BY ta.updated DESC, ta.created DESC
             LIMIT :limit
             """,
-            {
-                "creator": self.user["uuid"],
-                "query": f"%{query}%",
-                "limit": limit,
-            },
+            params,
         )
         return [dict(t._mapping) for t in tasks]
+
+    async def all_tags(self) -> list[str]:
+        rows = await self.db.fetch_all(
+            """
+            SELECT DISTINCT tags FROM tasks ta
+            JOIN sections se ON se.uuid = ta.section
+            JOIN lists l ON l.uuid = se.list
+            JOIN spaces sp ON sp.uuid = l.space
+            WHERE sp.creator = :creator
+              AND ta.tags != '' AND ta.tags IS NOT NULL
+            """,
+            {"creator": self.user["uuid"]},
+        )
+        all_tags: set[str] = set()
+        for row in rows:
+            for tag in dict(row._mapping)["tags"].split(","):
+                t = tag.strip()
+                if t:
+                    all_tags.add(t)
+        return sorted(all_tags)
 
     async def by_sid(self, sid: str) -> Mapping | None:
         task = await self.db.fetch_one(

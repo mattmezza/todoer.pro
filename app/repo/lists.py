@@ -6,26 +6,60 @@ from .utils import LoggedInUserRepo, new_ids
 
 
 class ListForUser(LoggedInUserRepo):
-    async def search(self, query: str, limit: int = 10) -> list[Mapping]:
+    async def search(
+        self,
+        query: str,
+        limit: int = 10,
+        space_sid: str | None = None,
+    ) -> list[Mapping]:
+        conds = ["s.creator = :creator", "l.archived = 0"]
+        params: dict = {
+            "creator": self.user["uuid"],
+            "limit": limit,
+        }
+        if query:
+            conds.append(
+                "(l.title LIKE :query OR l.descr LIKE :query)"
+            )
+            params["query"] = f"%{query}%"
+        if space_sid:
+            conds.append("s.sid = :space_sid")
+            params["space_sid"] = space_sid
+        where = " AND ".join(conds)
         lists = await self.db.fetch_all(
+            f"""
+            SELECT l.sid, l.title, l.color, 'list' as type,
+                   s.sid as space_sid, s.title as space_title
+            FROM lists l
+            JOIN spaces s ON s.uuid = l.space
+            WHERE {where}
+            ORDER BY l.updated DESC, l.created DESC
+            LIMIT :limit
+            """,
+            params,
+        )
+        return [dict(ll._mapping) for ll in lists]
+
+    async def find_by_title_in_space(
+        self, title: str, space_sid: str
+    ) -> Mapping | None:
+        row = await self.db.fetch_one(
             """
             SELECT l.sid, l.title, l.color, 'list' as type,
                    s.sid as space_sid, s.title as space_title
             FROM lists l
             JOIN spaces s ON s.uuid = l.space
-            WHERE s.creator = :creator
-              AND l.archived = 0
-              AND (l.title LIKE :query OR l.descr LIKE :query)
-            ORDER BY l.updated DESC, l.created DESC
-            LIMIT :limit
+            WHERE s.creator = :creator AND l.archived = 0
+              AND s.sid = :space_sid
+              AND lower(l.title) = lower(:title)
             """,
             {
                 "creator": self.user["uuid"],
-                "query": f"%{query}%",
-                "limit": limit,
+                "space_sid": space_sid,
+                "title": title,
             },
         )
-        return [dict(ll._mapping) for ll in lists]
+        return dict(row._mapping) if row else None
 
     async def by_sid(self, sid: str) -> Mapping | None:
         list_ = await self.db.fetch_one(

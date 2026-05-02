@@ -1,0 +1,273 @@
+<script>
+function datePicker() {
+    var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var MONTH_SHORT = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    return {
+        taskSid: '', selectedDate: null, viewYear: 2026, viewMonth: 0,
+        focusDay: null, focusOffset: 0, query: '',
+
+        open(taskSid, currentDate) {
+            this.taskSid = taskSid;
+            this.selectedDate = currentDate || null;
+            this.query = '';
+            var d = currentDate ? new Date(currentDate + 'T00:00:00') : new Date();
+            this.viewYear = d.getFullYear();
+            this.viewMonth = d.getMonth();
+            this.focusDay = d.getDate();
+            this.focusOffset = 0;
+            this.$el.showModal();
+            var self = this;
+            this.$nextTick(function() { self.$refs.dateSearch.focus(); });
+        },
+
+        ym(o) {
+            var m = this.viewMonth + o, y = this.viewYear;
+            while (m < 0) { m += 12; y--; }
+            while (m > 11) { m -= 12; y++; }
+            return [y, m];
+        },
+        dim(y, m) { return new Date(y, m + 1, 0).getDate(); },
+        fdow(y, m) { return (new Date(y, m, 1).getDay() + 6) % 7; },
+
+        cells(o) {
+            var p = this.ym(o), f = this.fdow(p[0], p[1]), d = this.dim(p[0], p[1]), c = [];
+            for (var i = 0; i < f; i++) c.push(0);
+            for (var i = 1; i <= d; i++) c.push(i);
+            return c;
+        },
+        label(o) { var p = this.ym(o); return MONTHS[p[1]] + ' ' + p[0]; },
+
+        isToday(day, o) {
+            if (!day) return false;
+            var p = this.ym(o), n = new Date();
+            return p[0] === n.getFullYear() && p[1] === n.getMonth() && day === n.getDate();
+        },
+        isSel(day, o) {
+            if (!day || !this.selectedDate) return false;
+            var p = this.ym(o);
+            return this.selectedDate === p[0] + '-' + String(p[1]+1).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+        },
+        isFoc(day, o) { return day && this.focusDay === day && this.focusOffset === o; },
+
+        pick(day, o) {
+            if (!day) return;
+            var p = this.ym(o);
+            this.submit(p[0] + '-' + String(p[1]+1).padStart(2,'0') + '-' + String(day).padStart(2,'0'));
+        },
+
+        submit(ds) {
+            var self = this;
+            fetch('/task/' + this.taskSid + '/due-date', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'due_date=' + encodeURIComponent(ds)
+            }).then(function(r) { return r.text(); }).then(function(html) {
+                var w = document.querySelector('.due-date-wrapper[data-task-sid="' + self.taskSid + '"]');
+                if (w) { var t = document.createElement('div'); t.innerHTML = html.trim(); var n = t.firstElementChild; w.replaceWith(n); htmx.process(n); }
+                self.$el.close();
+                htmx.trigger(document.body, 'task-update');
+                htmx.trigger(document.body, 'task-' + self.taskSid + '-update');
+            });
+        },
+
+        clear() {
+            var self = this;
+            fetch('/task/' + this.taskSid + '/due-date', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'due_date='
+            }).then(function(r) { return r.text(); }).then(function(html) {
+                var w = document.querySelector('.due-date-wrapper[data-task-sid="' + self.taskSid + '"]');
+                if (w) { var t = document.createElement('div'); t.innerHTML = html.trim(); var n = t.firstElementChild; w.replaceWith(n); htmx.process(n); }
+                self.$el.close();
+                htmx.trigger(document.body, 'task-update');
+                htmx.trigger(document.body, 'task-' + self.taskSid + '-update');
+            });
+        },
+
+        submitDaysFromNow(n) {
+            var d = new Date(); d.setDate(d.getDate()+n);
+            this.submit(d.toISOString().slice(0,10));
+        },
+
+        move(dx, dy) {
+            if (this.focusDay === null) { this.focusDay = 1; this.focusOffset = 0; return; }
+            var p = this.ym(this.focusOffset), d = this.dim(p[0], p[1]);
+            var nd = this.focusDay + dx + dy * 7, no = this.focusOffset;
+            if (nd < 1) { no--; var pp = this.ym(no); nd = this.dim(pp[0], pp[1]) + nd; }
+            else if (nd > d) { nd = nd - d; no++; }
+            if (no < -1) { this.prev(); no++; }
+            if (no > 1) { this.next(); no--; }
+            this.focusDay = nd; this.focusOffset = no;
+        },
+
+        prev() { this.viewMonth--; if (this.viewMonth < 0) { this.viewMonth = 11; this.viewYear--; } },
+        next() { this.viewMonth++; if (this.viewMonth > 11) { this.viewMonth = 0; this.viewYear++; } },
+
+        parseQuery() {
+            var q = this.query.trim().toLowerCase();
+            if (!q) return;
+            var now = new Date();
+            if (q === 'today' || q === 'tod') { this.submit(now.toISOString().slice(0,10)); return; }
+            if (q === 'tomorrow' || q === 'tmr' || q === 'tom') {
+                var d = new Date(now); d.setDate(d.getDate()+1); this.submit(d.toISOString().slice(0,10)); return;
+            }
+            if (q === 'yesterday') {
+                var d = new Date(now); d.setDate(d.getDate()-1); this.submit(d.toISOString().slice(0,10)); return;
+            }
+            if (q.match(/^next\s+week$/)) {
+                var d = new Date(now); d.setDate(d.getDate()+7); this.submit(d.toISOString().slice(0,10)); return;
+            }
+            if (q.match(/^next\s+month$/)) {
+                var d = new Date(now); d.setMonth(d.getMonth()+1); this.submit(d.toISOString().slice(0,10)); return;
+            }
+            var plusMatch = q.match(/^\+(\d+)d?$/);
+            if (plusMatch) {
+                var d = new Date(now); d.setDate(d.getDate()+parseInt(plusMatch[1])); this.submit(d.toISOString().slice(0,10)); return;
+            }
+            var dayNames = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+            var dayShort = ['mon','tue','wed','thu','fri','sat','sun'];
+            for (var i = 0; i < 7; i++) {
+                if (q === dayShort[i] || q === dayNames[i]) {
+                    var target = (i + 1) % 7; // mon=1..sun=0
+                    var current = now.getDay();
+                    var diff = target - current;
+                    if (diff <= 0) diff += 7;
+                    var d = new Date(now); d.setDate(d.getDate()+diff);
+                    this.submit(d.toISOString().slice(0,10)); return;
+                }
+            }
+            for (var i = 0; i < 12; i++) {
+                var s = MONTH_SHORT[i], f = MONTHS[i].toLowerCase(), rest = null;
+                if (q.startsWith(f)) rest = q.slice(f.length).trim();
+                else if (q.startsWith(s)) rest = q.slice(s.length).trim();
+                if (rest !== null) {
+                    var day = parseInt(rest);
+                    if (day >= 1 && day <= 31) {
+                        var yr = now.getFullYear();
+                        if (i < now.getMonth() || (i === now.getMonth() && day < now.getDate())) yr++;
+                        this.viewYear = yr; this.viewMonth = i; this.focusDay = day; this.focusOffset = 0; return;
+                    }
+                    if (!rest) {
+                        var yr = now.getFullYear(); if (i < now.getMonth()) yr++;
+                        this.viewYear = yr; this.viewMonth = i; this.focusDay = 1; this.focusOffset = 0; return;
+                    }
+                }
+            }
+            var iso = q.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+            if (iso) { this.viewYear = parseInt(iso[1]); this.viewMonth = parseInt(iso[2])-1; this.focusDay = parseInt(iso[3]); this.focusOffset = 0; return; }
+            var slash = q.match(/^(\d{1,2})[\/\-](\d{1,2})$/);
+            if (slash) {
+                var m = parseInt(slash[1])-1, dv = parseInt(slash[2]);
+                if (m >= 0 && m < 12 && dv >= 1 && dv <= 31) {
+                    var yr = now.getFullYear(); if (m < now.getMonth()) yr++;
+                    this.viewYear = yr; this.viewMonth = m; this.focusDay = dv; this.focusOffset = 0;
+                }
+            }
+        },
+
+        handleKey(e) {
+            if (e.target.tagName === 'INPUT') {
+                if (e.key === 'Escape') { e.preventDefault(); if (this.query) this.query = ''; else this.$el.close(); return; }
+                if (e.key === 'Enter') { e.preventDefault(); this.parseQuery(); return; }
+                return;
+            }
+            switch(e.key) {
+                case 'h': e.preventDefault(); this.move(-1, 0); break;
+                case 'j': e.preventDefault(); this.move(0, 1); break;
+                case 'k': e.preventDefault(); this.move(0, -1); break;
+                case 'l': e.preventDefault(); this.move(1, 0); break;
+                case 'Enter': e.preventDefault(); if (this.focusDay) this.pick(this.focusDay, this.focusOffset); break;
+                case '/': case 'i': e.preventDefault(); this.$refs.dateSearch.focus(); break;
+                case 'Escape': e.preventDefault(); this.$el.close(); break;
+                case 'H': e.preventDefault(); this.prev(); break;
+                case 'L': e.preventDefault(); this.next(); break;
+            }
+        }
+    };
+}
+window.openDatePicker = function(taskSid, currentDate) {
+    var d = document.getElementById('date-picker-dialog');
+    d._x_dataStack[0].open(taskSid, currentDate);
+};
+</script>
+<dialog id="date-picker-dialog"
+    class="bg-transparent backdrop:bg-black/50 w-full max-w-3xl mx-auto mt-[10vh]"
+    x-data="datePicker()"
+    @keydown="handleKey($event)">
+    <div class="bg-slate-800 rounded-lg border border-slate-700 shadow-2xl p-4">
+        <div class="mb-4">
+            <input type="text" x-ref="dateSearch" x-model="query"
+                placeholder="today, nov 3, +5d, next week, mon..."
+                class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:ring-indigo-500 focus:border-indigo-500">
+        </div>
+        <div class="flex items-center justify-between mb-3">
+            <button type="button" @click="prev()" class="p-1 text-slate-400 hover:text-slate-200 cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+            </button>
+            <span class="text-sm font-semibold text-slate-300 hidden md:inline" x-text="label(-1) + '  ·  ' + label(0) + '  ·  ' + label(1)"></span>
+            <span class="text-sm font-semibold text-slate-300 md:hidden" x-text="label(0)"></span>
+            <button type="button" @click="next()" class="p-1 text-slate-400 hover:text-slate-200 cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+            </button>
+        </div>
+        <div class="flex gap-6">
+            <div class="hidden md:block flex-1">
+                <div class="grid grid-cols-7 gap-px text-center">
+                    <template x-for="d in ['Mo','Tu','We','Th','Fr','Sa','Su']"><div class="text-[10px] text-slate-600 py-1" x-text="d"></div></template>
+                    <template x-for="c in cells(-1)">
+                        <div class="flex items-center justify-center">
+                            <button x-show="c" type="button" @click="pick(c, -1)" x-text="c"
+                                class="w-7 h-7 rounded-full text-xs cursor-pointer"
+                                :class="isSel(c,-1) ? 'bg-indigo-600 text-white' : isFoc(c,-1) ? 'ring-2 ring-indigo-400 text-slate-300' : isToday(c,-1) ? 'bg-slate-600 text-white font-bold' : 'text-slate-400 hover:bg-slate-700'"></button>
+                            <span x-show="!c" class="w-7 h-7"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            <div class="flex-1">
+                <div class="grid grid-cols-7 gap-px text-center">
+                    <template x-for="d in ['Mo','Tu','We','Th','Fr','Sa','Su']"><div class="text-xs text-slate-500 py-1" x-text="d"></div></template>
+                    <template x-for="c in cells(0)">
+                        <div class="flex items-center justify-center">
+                            <button x-show="c" type="button" @click="pick(c, 0)" x-text="c"
+                                class="w-8 h-8 rounded-full text-sm cursor-pointer"
+                                :class="isSel(c,0) ? 'bg-indigo-600 text-white font-bold' : isFoc(c,0) ? 'ring-2 ring-indigo-400 text-slate-200' : isToday(c,0) ? 'bg-slate-600 text-white font-bold' : 'text-slate-300 hover:bg-slate-700'"></button>
+                            <span x-show="!c" class="w-8 h-8"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            <div class="hidden md:block flex-1">
+                <div class="grid grid-cols-7 gap-px text-center">
+                    <template x-for="d in ['Mo','Tu','We','Th','Fr','Sa','Su']"><div class="text-[10px] text-slate-600 py-1" x-text="d"></div></template>
+                    <template x-for="c in cells(1)">
+                        <div class="flex items-center justify-center">
+                            <button x-show="c" type="button" @click="pick(c, 1)" x-text="c"
+                                class="w-7 h-7 rounded-full text-xs cursor-pointer"
+                                :class="isSel(c,1) ? 'bg-indigo-600 text-white' : isFoc(c,1) ? 'ring-2 ring-indigo-400 text-slate-300' : isToday(c,1) ? 'bg-slate-600 text-white font-bold' : 'text-slate-400 hover:bg-slate-700'"></button>
+                            <span x-show="!c" class="w-7 h-7"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center justify-between mt-4 pt-3 border-t border-slate-700">
+            <div class="flex gap-2">
+                <button type="button" @click="submitDaysFromNow(0)" class="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 cursor-pointer">Today</button>
+                <button type="button" @click="submitDaysFromNow(1)" class="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 cursor-pointer">Tomorrow</button>
+                <button type="button" @click="submitDaysFromNow(7)" class="text-xs px-2 py-1 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 cursor-pointer">+1 week</button>
+            </div>
+            <div class="flex gap-2">
+                <button type="button" @click="clear()" class="text-xs px-2 py-1 text-red-400 hover:text-red-300 cursor-pointer">Clear</button>
+                <button type="button" @click="$el.closest('dialog').close()" class="text-xs px-2 py-1 text-slate-500 hover:text-slate-400 cursor-pointer">Cancel</button>
+            </div>
+        </div>
+        <div class="mt-2 flex flex-wrap gap-3 text-[10px] text-slate-600">
+            <span><kbd class="px-1 bg-slate-700 rounded">hjkl</kbd> navigate</span>
+            <span><kbd class="px-1 bg-slate-700 rounded">H/L</kbd> month</span>
+            <span><kbd class="px-1 bg-slate-700 rounded">/</kbd> search</span>
+            <span><kbd class="px-1 bg-slate-700 rounded">Enter</kbd> select</span>
+        </div>
+    </div>
+</dialog>
