@@ -290,6 +290,7 @@
                 if (el._sortable) return;
                 el._sortable = new Sortable(el, {
                     handle: '.drag-handle',
+                    forceFallback: true,
                     animation: 150,
                     ghostClass: 'opacity-30',
                     chosenClass: 'ring-2 ring-indigo-500 rounded',
