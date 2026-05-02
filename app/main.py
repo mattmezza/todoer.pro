@@ -21,6 +21,7 @@ from .routers import (
     notifications,
     search,
     sections,
+    settings,
     spaces,
     subtasks,
     tasks,
@@ -156,5 +157,9 @@ app.include_router(
 )
 app.include_router(
     ai.router,
+    dependencies=[Depends(get_current_active_user)],
+)
+app.include_router(
+    settings.router,
     dependencies=[Depends(get_current_active_user)],
 )
