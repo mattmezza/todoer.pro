@@ -1,5 +1,5 @@
 {# def task #}
-<div class="priority-wrapper inline-flex items-center gap-1">
+<div class="priority-wrapper inline-flex items-center gap-1" data-task-sid="{{ task.sid }}">
     {% set p = task.priority %}
     {% if p == 1 %}
         <span class="priority-display inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-red-500/20 text-red-400 cursor-pointer"

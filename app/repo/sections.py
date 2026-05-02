@@ -32,6 +32,44 @@ class SectionForUser(LoggedInUserRepo):
         )
         return dict(section._mapping) if section else None
 
+    async def search(
+        self,
+        query: str,
+        limit: int = 10,
+        list_sid: str | None = None,
+        space_sid: str | None = None,
+    ) -> list[Mapping]:
+        conds = ["sp.creator = :creator", "se.archived = 0"]
+        params: dict = {
+            "creator": self.user["uuid"],
+            "limit": limit,
+        }
+        if query:
+            conds.append("se.title LIKE :query")
+            params["query"] = f"%{query}%"
+        if list_sid:
+            conds.append("l.sid = :list_sid")
+            params["list_sid"] = list_sid
+        if space_sid:
+            conds.append("sp.sid = :space_sid")
+            params["space_sid"] = space_sid
+        where = " AND ".join(conds)
+        sections = await self.db.fetch_all(
+            f"""
+            SELECT se.sid, se.title, 'section' as type,
+                   l.sid as list_sid, l.title as list_title,
+                   sp.sid as space_sid, sp.title as space_title
+            FROM sections se
+            JOIN lists l ON l.uuid = se.list
+            JOIN spaces sp ON sp.uuid = l.space
+            WHERE {where}
+            ORDER BY se.title
+            LIMIT :limit
+            """,
+            params,
+        )
+        return [dict(s._mapping) for s in sections]
+
     async def by_list(self, list_uuid: str, limit: int = 100) -> list[Mapping]:
         sections = await self.db.fetch_all(
             """

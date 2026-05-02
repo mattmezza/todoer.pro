@@ -1,5 +1,5 @@
 {# def task #}
-<div class="tags-wrapper flex flex-wrap items-center gap-1">
+<div class="tags-wrapper flex flex-wrap items-center gap-1" data-task-sid="{{ task.sid }}" data-tags="{{ task.tags or '' }}">
     {% set tag_list = task.tags.split(',') if task.tags else [] %}
     {% for tag in tag_list %}
         {% if tag.strip() %}
@@ -9,19 +9,7 @@
         {% endif %}
     {% endfor %}
     <button type="button" class="tags-display text-xs text-slate-600 hover:text-slate-400 cursor-pointer"
-        _="on click hide me then show next <.tags-edit/> then set el to next <.tags-edit/> then call el.querySelector('input').focus()">
+        onclick="event.stopPropagation(); openTagsPicker('{{ task.sid }}', this.closest('.tags-wrapper').dataset.tags)">
         + tag
     </button>
-    <form class="tags-edit inline-flex items-center gap-1" style="display: none"
-        hx-put="/task/{{ task.sid }}/tags"
-        hx-target="closest .tags-wrapper"
-        hx-swap="outerHTML"
-        _="on reset hide me then show previous .tags-display">
-        <input type="text" name="tags" value="{{ task.tags or '' }}"
-            placeholder="tag1, tag2, ..."
-            class="form-input text-xs bg-slate-800 border-slate-600 rounded px-2 py-0.5 w-48"
-            _="on keyup[key is 'Escape'] reset() the closest <form />">
-        <button type="submit" class="text-xs text-indigo-400 hover:text-indigo-300">Save</button>
-        <button type="reset" class="text-xs text-slate-500 hover:text-slate-400">Cancel</button>
-    </form>
 </div>
