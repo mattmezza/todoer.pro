@@ -8,6 +8,8 @@ from functools import partial, wraps
 from html.parser import HTMLParser
 from typing import Type
 
+import jinja2 as jinja2_mod
+
 import arel
 import markdown as md
 from fastapi.responses import HTMLResponse, Response
@@ -225,6 +227,7 @@ if os.environ["TODOER_ENV"] == "local":
     jinja2.env.globals["hot_reload"] = hot_reload
 
 jinx = Catalog(jinja_env=jinja2.env)
+jinx.jinja_env.undefined = jinja2_mod.Undefined
 jinx.add_folder("components")
 jinx.jinja_env.globals["ENV"] = os.environ["TODOER_ENV"]
 jinx.jinja_env.globals["RELEASE"] = os.environ["TODOER_RELEASE"]
