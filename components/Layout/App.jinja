@@ -77,7 +77,7 @@
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     {% if ENV == "local" %}
         <script src="//unpkg.com/htmx.org/dist/ext/debug.js"></script>
-        {{ hot_reload.script("ws://localhost:8000/hot-reload") | safe }}
+        {{ hot_reload.script("ws://" + HOST + "/hot-reload") | safe }}
     {% endif %}
     {% block scripts %}
     {% endblock %}

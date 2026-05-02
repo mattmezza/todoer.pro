@@ -4,7 +4,7 @@ help: ## show help message
 
 .PHONY: serve-reload tailwind-watch tailwind
 serve-reload:  ## serves the app with debug and auto reload on (e.g. make serve-reload port=3000)
-	uv run uvicorn app.main:app --reload --port $(or $(port),8000)
+	TODOER_PORT=$(or $(port),8000) uv run uvicorn app.main:app --reload --port $(or $(port),8000)
 tailwind-watch:  ## starts tailwindcss compilation and watches files for change
 	npx tailwindcss -i styles/global.css -o public/style.css --watch
 tailwind:  ## compiles css with tailwindcss
