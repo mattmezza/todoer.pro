@@ -255,6 +255,32 @@ async def view(
     }
 
 
+@router.get("/task/{sid}/indicators")
+@tpl.htmx("Tasks.Indicators")
+async def view_indicators(
+    req: Request,
+    sid: str,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    urepo = db.for_user(user)
+    task = http.Opt(await urepo.tasks().by_sid(sid)).or_404(
+        f"Task #{sid} not found."
+    )
+    task_id = task["uuid"]
+    attachments = await urepo.attachments().by_task(task_id)
+    attachments = [dict(at) for at in attachments]
+    for a in attachments:
+        a['url'] = blob.url_signed_for(
+            a['uuid'],
+            blob.URL_SIGNED_VALIDITY_DURATION_DEFAULT,
+        )
+    return {
+        "task": task,
+        "attachments": attachments,
+    }
+
+
 @router.get("/task/{sid}/item")
 @tpl.htmx("Tasks.TaskItem")
 async def view_item(
