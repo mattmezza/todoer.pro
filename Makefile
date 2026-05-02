@@ -6,9 +6,9 @@ help: ## show help message
 dev:  ## serves the app with debug and auto reload on (e.g. make serve-reload port=3000)
 	uv run uvicorn app.main:app --reload --port $(TODOER_PORT)
 cssd:  ## starts tailwindcss compilation and watches files for change
-	npx tailwindcss -i styles/global.css -o public/style.css --watch
+	npx @tailwindcss/cli -i styles/global.css -o public/style.css --watch
 css:  ## compiles css with tailwindcss
-	npx tailwindcss -i styles/global.css -o public/style.css --minify
+	npx @tailwindcss/cli -i styles/global.css -o public/style.css --minify
 
 .PHONY: release
 release:  ## creates a release on github (e.g. make release name=v0.20)
