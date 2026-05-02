@@ -356,6 +356,16 @@
                 var fileInput = document.querySelector('#post-attachment');
                 if (fileInput) fileInput.click();
                 break;
+            case 'A':
+                e.preventDefault();
+                var addSubBtn = document.querySelector('#btn-child-subtask-create');
+                if (addSubBtn) addSubBtn.click();
+                break;
+            case 'C':
+                e.preventDefault();
+                var addCommentBtn = document.querySelector('#btn-comment-create');
+                if (addCommentBtn) addCommentBtn.click();
+                break;
         }
     });
 })();
