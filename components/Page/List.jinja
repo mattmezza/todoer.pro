@@ -63,9 +63,7 @@
     }"
     @keydown.escape.window="if (selectMode) { exitSelectMode(); $event.preventDefault(); }"
 >
-    <div class="max-w-6xl mx-auto">
-
-        <!-- Breadcrumbs -->
+    <!-- Breadcrumbs -->
         <div class="mb-4">
             <Breadcrumbs.Items with_back_arrow={{"/space/" + space.sid}}>
                 <Breadcrumbs.Item title="Go to space." href={{"/space/" + space.sid}}>
@@ -182,8 +180,6 @@
         <div class="pb-24">
             <Btn.Create id="btn-section-create" class="!justify-start" with-text-reveal={{False}}>Add section</Btn.Create>
             <Lists.SectionAddForm list={{list}} />
-        </div>
-
         <!-- Select all link (visible in select mode) -->
         <div x-show="selectMode" x-cloak class="flex justify-center pb-24">
             <button
