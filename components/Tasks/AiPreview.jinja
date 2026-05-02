@@ -1,0 +1,59 @@
+{# def tasks=[], section_sid="", section={}, error="" #}
+{% if error %}
+<div class="rounded border border-red-500/50 bg-red-500/10 p-3 text-sm text-red-400">
+    {{ error }}
+</div>
+{% else %}
+<form
+    hx-post="/ai/add-tasks"
+    hx-swap="none"
+    x-data="{ selectedCount: {{ tasks|length }} }"
+    @htmx:after-request="if(event.detail.successful) { document.getElementById('ai-dialog-{{ section_sid }}').close() }"
+>
+    <p class="text-sm text-slate-400 mb-3">
+        <span class="font-semibold" x-text="selectedCount">{{ tasks|length }}</span> tasks generated. Uncheck any you don't want.
+    </p>
+    <ul class="space-y-2 max-h-80 overflow-y-auto pr-1">
+        {% for task in tasks %}
+        <li class="flex items-start gap-2 p-2 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-zinc-800">
+            <input
+                type="checkbox"
+                name="task_selected_{{ loop.index0 }}"
+                checked
+                class="form-checkbox w-4 h-4 rounded mt-0.5 cursor-pointer shrink-0"
+                @change="selectedCount += $event.target.checked ? 1 : -1"
+            >
+            <div class="grow min-w-0">
+                <div class="flex items-center gap-2">
+                    <span class="font-semibold text-sm truncate">{{ task.title }}</span>
+                    {% if task.priority == 1 %}
+                    <span class="text-xs px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 shrink-0">P1</span>
+                    {% elif task.priority == 2 %}
+                    <span class="text-xs px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400 shrink-0">P2</span>
+                    {% elif task.priority == 3 %}
+                    <span class="text-xs px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 shrink-0">P3</span>
+                    {% elif task.priority == 4 %}
+                    <span class="text-xs px-1.5 py-0.5 rounded bg-slate-500/20 text-slate-400 shrink-0">P4</span>
+                    {% endif %}
+                </div>
+                {% if task.description %}
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{{ task.description }}</p>
+                {% endif %}
+            </div>
+            <input type="hidden" name="task_title_{{ loop.index0 }}" value="{{ task.title }}">
+            <input type="hidden" name="task_descr_{{ loop.index0 }}" value="{{ task.description or '' }}">
+        </li>
+        {% endfor %}
+    </ul>
+    <input type="hidden" name="section_sid" value="{{ section_sid }}">
+    <div class="flex justify-end mt-4">
+        <button
+            type="submit"
+            class="btn bg-indigo-600 text-white rounded px-6 py-1 text-sm disabled:opacity-50"
+            :disabled="selectedCount === 0"
+        >
+            <span x-text="'Add ' + selectedCount + ' task' + (selectedCount !== 1 ? 's' : '')">Add {{ tasks|length }} tasks</span>
+        </button>
+    </div>
+</form>
+{% endif %}

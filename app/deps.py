@@ -12,7 +12,8 @@ from jose import JWTError, jwt
 
 from .repo import RepoDB
 from .security import ALGORITHM, SECRET_KEY
-from .tpl import hot_reload, jinx, jinja2, filter_age
+from .svc.ai import is_enabled as ai_is_enabled
+from .tpl import filter_age, hot_reload, jinja2, jinx
 
 db = Database(os.environ["TODOER_DB_URL"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -34,6 +35,7 @@ def renderer() -> Renderer:
         jinx.jinja_env.globals["hot_reload"] = hot_reload
     jinja2.env.filters["age"] = filter_age
     jinx.jinja_env.globals["epoch"] = lambda: str(int(time.time()))
+    jinx.jinja_env.globals["AI_ENABLED"] = ai_is_enabled()
     jinx.jinja_env.filters["age"] = filter_age
     return jinx.render
 
@@ -69,7 +71,7 @@ async def get_current_user_api(
 
 
 async def get_current_active_user_api(
-    current_user: Annotated[Mapping, Depends(get_current_user_api)]
+    current_user: Annotated[Mapping, Depends(get_current_user_api)],
 ):
     if current_user["disabled"]:
         raise HTTPException(status_code=400, detail="Inactive user")
@@ -110,7 +112,7 @@ async def get_current_user(
 
 
 async def get_current_active_user(
-    current_user: Annotated[Mapping, Depends(get_current_user)]
+    current_user: Annotated[Mapping, Depends(get_current_user)],
 ) -> Mapping:
     if current_user["disabled"]:
         return RedirectResponse("/signin?err=auth-disabled")
@@ -122,4 +124,5 @@ def with_cache_control_header(header: str):
         res = await call_next(req)
         res.headers["Cache-Control"] = header
         return res
+
     return add_cache_control_header
