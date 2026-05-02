@@ -67,11 +67,22 @@ make tailwind-watch    # run tailwind in watch mode (separate terminal)
 - Common patterns: `<Menu.Ctx>` for dropdown menus, `<Btn.Create>` for add buttons
 
 ### Inline editing pattern (used throughout)
-1. Display element (h1/span) with hyperscript: `_="on click hide me then show next <form /> then select() next <input />"`
+1. Display element (h1/span) with hyperscript: `_="on click hide me then show next <form /> then set el to next <form /> then call el.querySelector('input').select()"`
 2. Hidden `<form>` with htmx PUT, `style="display: none"`
 3. Cancel via `type="reset"` button + hyperscript to re-show display element
 4. Escape key: `_="on keyup[key is 'Escape'] reset() the closest <form />"`
 5. Cmd/Ctrl+Enter submit via Alpine: `@keydown.meta.enter="...dispatchEvent(new Event('submit'))"`
+
+### Hyperscript gotchas (v0.9.11)
+- `close me` is NOT valid — use `call me.close()` for dialog elements
+- CSS selectors must use `<.class/>` query syntax, not bare `.class`
+- Chained method calls (`next <.foo/>.querySelector('x').focus()`) fail — use `set el to next <.foo/> then call el.querySelector('x').focus()`
+- Always test hyperscript in browser console after changes
+
+### SortableJS notes
+- `chosenClass` / `dragClass` / `ghostClass` only accept a SINGLE class token (no spaces)
+- Use CSS classes with `@apply` for multi-property styles (see `.sortable-chosen` in global.css)
+- `forceFallback: true` prevents text selection during drag (bypasses native HTML5 drag API)
 
 ### Textarea auto-resize (Alpine.js pattern)
 ```
@@ -101,5 +112,32 @@ x-init="$nextTick(() => resize())"
 - HTMX for server-driven interactivity
 - Alpine.js for client-side state (dropdowns, auto-resize, toggle)
 - Hyperscript (`_="..."`) for simple DOM manipulation (show/hide, focus)
-- Tailwind CSS for styling (dark mode via `dark:` prefix)
+- Tailwind CSS for styling (dark mode via `media` strategy, use `dark:` prefix)
+- SortableJS for drag-and-drop reordering (tasks, sections)
 - Group hover pattern: `group` on parent, `group-hover:flex` on child for hover-reveal actions
+- Native date inputs: `color-scheme: dark` in CSS for dark calendar picker UI
+
+### Keyboard navigation
+- Vim-style: `j`/`k` (move), `G` (last), `gg` (first), `{`/`}` (section bounds)
+- Numeric prefix: `2j` = move 2 down, `3k` = move 3 up
+- Actions: `x` (complete), `Enter` (open), `e` (edit title), `d` (due date), `s` (select mode)
+- `n` = quick add, `Cmd+k` = search, `?` = shortcuts dialog
+- Implementation: single `keydown` listener in `Layout/App.jinja` with state vars for `gg` sequence and numeric prefix
+
+### Alpine.js x-data scopes
+- Any page with TaskItem components MUST have an `x-data` scope with `selectMode`, `toggleSelect()`, etc.
+- Without `x-data`, Alpine `@click` directives are dead — tasks won't be clickable
+- Both `Page.List` and `Page.Space` have this scope
+
+### Hot-reload (dev only)
+- arel library provides WebSocket-based hot-reload
+- WS URL uses `TODOER_PORT` env var (set by Makefile from `port=` arg)
+- Script injected only when `ENV == "local"`
+- Must run both `make serve-reload` and `make tailwind-watch` in separate terminals
+
+
+### Development pattern
+
+- Python 3.14+, managed via `uv` (pyproject.toml + uv.lock)
+- commit frequently
+- always judge before doing a modification: are you adding or removing complexity?
