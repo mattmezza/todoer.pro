@@ -2,7 +2,7 @@
 <{% if href %}a{% else %}span{% endif %}
     {% if href %}href="{{ href }}"{% endif %}
     {% if title %}title="{{title}}"{% endif %}
-    class="inline-block min-w-0 max-w-40 truncate rounded hover:bg-slate-50 dark:hover:bg-slate-800/70 p-1 cursor-pointer hover:text-slate-900 hover:dark:text-slate-50 active:scale-95 transition-all">
+    class="shrink min-w-0 max-w-[160px] truncate rounded hover:bg-slate-50 dark:hover:bg-slate-800/70 p-1 cursor-pointer hover:text-slate-900 hover:dark:text-slate-50 active:scale-95 transition-all">
     {{ content }}
 </{% if href %}a{% else %}span{% endif %}>
 
