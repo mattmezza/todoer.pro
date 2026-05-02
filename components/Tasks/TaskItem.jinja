@@ -55,10 +55,11 @@
                     hx-target="closest li"
                     hx-swap="outerHTML"
                     hx-push-url="false"
-                    _="on reset hide me then show previous <form/>"
+                    x-data
+                    @keydown.escape="$el.reset();$el.style.display='none';$el.previousElementSibling.style.display=''"
+                    @reset="$el.style.display='none';$el.previousElementSibling.style.display=''"
                 >
-                    <input class="form-input text-sm w-full px-2 py-0.5" name="title" value="{{ task.title }}"
-                        _="on keyup[key is 'Escape'] reset() the closest <form/>">
+                    <input class="form-input text-sm w-full px-2 py-0.5" name="title" value="{{ task.title }}">
                     {% if task.descr %}<input name="descr" type="hidden" value="{{ task.descr }}" />{% endif %}
                     {% if task.complete %}<input name="complete" type="hidden" value="on" />{% endif %}
                     <button type="submit" class="btn text-xs py-0.5 px-2 bg-indigo-600 hover:bg-indigo-700 text-white">Save</button>
@@ -94,13 +95,14 @@
                 hx-target="closest li"
                 hx-swap="outerHTML"
                 hx-push-url="false"
-                _="on reset hide me"
+                x-data
+                @keydown.escape="$el.reset();$el.style.display='none'"
+                @reset="$el.style.display='none'"
             >
                 <input name="title" type="hidden" value="{{ task.title }}" />
                 {% if task.complete %}<input name="complete" type="hidden" value="on" />{% endif %}
                 <textarea name="descr" rows="3"
                     class="form-input text-sm w-full px-2 py-1 resize-none"
-                    _="on keyup[key is 'Escape'] reset() the closest <form/>"
                     x-data="{ resize() { $el.style.height = '0px'; $el.style.height = $el.scrollHeight + 'px' } }"
                     x-init="$nextTick(() => resize())"
                     @input="resize()"
