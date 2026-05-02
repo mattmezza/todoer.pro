@@ -1,0 +1,46 @@
+{# def overdue, due_today, upcoming, read_tasks=[] #}
+{% if not overdue and not due_today and not upcoming %}
+    <div class="py-20 flex flex-col items-center gap-3 text-slate-400 dark:text-slate-500">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" class="w-16 h-16">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+        </svg>
+        <span class="text-base font-medium">No upcoming deadlines</span>
+        <span class="text-sm">You're all caught up!</span>
+    </div>
+{% else %}
+    {% if overdue %}
+    <div class="mb-1 flex items-center gap-2 px-1">
+        <span class="text-xs font-semibold text-red-400 uppercase">Overdue</span>
+        <span class="text-xs bg-red-500/10 text-red-400 rounded-full px-1.5 py-0.5 font-medium">{{ overdue|length }}</span>
+    </div>
+    <ul class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden mb-4">
+        {% for task in overdue %}
+            <Notifications.FullItem task={{task}} kind="overdue" is_read={{ (task.uuid, "overdue") in read_tasks }} />
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if due_today %}
+    <div class="mb-1 flex items-center gap-2 px-1">
+        <span class="text-xs font-semibold text-amber-400 uppercase">Due Today</span>
+        <span class="text-xs bg-amber-500/10 text-amber-400 rounded-full px-1.5 py-0.5 font-medium">{{ due_today|length }}</span>
+    </div>
+    <ul class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden mb-4">
+        {% for task in due_today %}
+            <Notifications.FullItem task={{task}} kind="today" is_read={{ (task.uuid, "today") in read_tasks }} />
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if upcoming %}
+    <div class="mb-1 flex items-center gap-2 px-1">
+        <span class="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase">Upcoming</span>
+        <span class="text-xs bg-slate-500/10 text-slate-400 rounded-full px-1.5 py-0.5 font-medium">{{ upcoming|length }}</span>
+    </div>
+    <ul class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden mb-4">
+        {% for task in upcoming %}
+            <Notifications.FullItem task={{task}} kind="upcoming" is_read={{ (task.uuid, "upcoming") in read_tasks }} />
+        {% endfor %}
+    </ul>
+    {% endif %}
+{% endif %}
