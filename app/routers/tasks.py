@@ -120,8 +120,24 @@ async def quick_add_form(
     req: Request,
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
+    section: Annotated[str | None, Query()] = None,
 ):
     urepo = db.for_user(user)
+    if section:
+        sec = await urepo.sections().by_sid(section)
+        if sec:
+            li = await urepo.lists().by_uuid(sec["list"])
+            sp = await urepo.spaces().by_uuid(li["space"])
+            lists = await urepo.lists().all_by_space(sp["sid"])
+            sections = await urepo.sections().by_list(li["uuid"])
+            return {
+                "spaces": await urepo.spaces().all(),
+                "lists": lists,
+                "sections": sections,
+                "default_space": sp,
+                "default_list": li,
+                "default_section": sec,
+            }
     spaces = await urepo.spaces().all()
     default_space = await urepo.spaces().default()
     lists = await urepo.lists().all_by_space(default_space["sid"])
@@ -359,6 +375,16 @@ async def update_due_date(
         200,
         {"HX-Trigger": f"task-update, task-{sid}-update"},
     )
+
+
+@router.get("/api/tags")
+async def list_tags(
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    urepo = db.for_user(user)
+    tags = await urepo.tasks().all_tags()
+    return JSONResponse({"tags": tags})
 
 
 @router.put("/task/{sid}/tags")
