@@ -298,31 +298,40 @@
                     pendingC = false;
                     e.preventDefault();
                     focused = getFocusedTask();
-                    if (!focused) return;
-                    if (key === 'c') {
-                        var df2 = focused.querySelector('form:not(.task-title-edit)');
-                        var ef2 = focused.querySelector('.task-title-edit');
-                        if (df2 && ef2) {
-                            df2.style.display = 'none';
-                            ef2.style.display = '';
-                            var ti2 = ef2.querySelector('input[name=title]');
-                            if (ti2) { ti2.value = ''; ti2.focus(); }
+                    if (focused) {
+                        if (key === 'c') {
+                            var df2 = focused.querySelector('form:not(.task-title-edit)');
+                            var ef2 = focused.querySelector('.task-title-edit');
+                            if (df2 && ef2) {
+                                df2.style.display = 'none';
+                                ef2.style.display = '';
+                                var ti2 = ef2.querySelector('input[name=title]');
+                                if (ti2) { ti2.value = ''; ti2.focus(); }
+                            }
+                        } else if (key === 't') {
+                            var displayForm = focused.querySelector('form:not(.task-title-edit)');
+                            var editForm = focused.querySelector('.task-title-edit');
+                            if (displayForm && editForm) {
+                                displayForm.style.display = 'none';
+                                editForm.style.display = '';
+                                var titleInput = editForm.querySelector('input[name=title]');
+                                if (titleInput) titleInput.select();
+                            }
+                        } else if (key === 'd') {
+                            var descrForm = focused.querySelector('.task-descr-edit');
+                            if (descrForm) {
+                                descrForm.style.display = '';
+                                var ta = descrForm.querySelector('textarea[name=descr]');
+                                if (ta) ta.focus();
+                            }
                         }
-                    } else if (key === 't') {
-                        var displayForm = focused.querySelector('form:not(.task-title-edit)');
-                        var editForm = focused.querySelector('.task-title-edit');
-                        if (displayForm && editForm) {
-                            displayForm.style.display = 'none';
-                            editForm.style.display = '';
-                            var titleInput = editForm.querySelector('input[name=title]');
-                            if (titleInput) titleInput.select();
-                        }
-                    } else if (key === 'd') {
-                        var descrForm = focused.querySelector('.task-descr-edit');
-                        if (descrForm) {
-                            descrForm.style.display = '';
-                            var ta = descrForm.querySelector('textarea[name=descr]');
-                            if (ta) ta.focus();
+                    } else {
+                        if (key === 't') {
+                            var pageTitle = document.querySelector('.page-title-display');
+                            if (pageTitle) pageTitle.click();
+                        } else if (key === 'd') {
+                            var pageDescr = document.querySelector('.page-descr-display');
+                            if (pageDescr) pageDescr.click();
                         }
                     }
                     return;

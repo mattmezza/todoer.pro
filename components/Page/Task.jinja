@@ -199,4 +199,90 @@
         console.log(ev)
     }
 </script>
+<script>
+(function() {
+    var taskSid = '{{ task.sid }}';
+    var pendingBang = false;
+    var bangTimeout = null;
+    var pendingC = false;
+    var cTimeout = null;
+
+    function isInputFocused() {
+        var active = document.activeElement;
+        if (!active) return false;
+        var tag = active.tagName.toLowerCase();
+        return tag === 'input' || tag === 'textarea' || tag === 'select' || active.isContentEditable;
+    }
+    function isAnyDialogOpen() {
+        var dialogs = document.getElementsByTagName('dialog');
+        for (var i = 0; i < dialogs.length; i++) {
+            if (dialogs[i].open) return true;
+        }
+        return false;
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        if (isInputFocused()) return;
+        if (isAnyDialogOpen()) return;
+        if (document.querySelector('.task.task-focused')) return;
+
+        var key = e.key;
+
+        if (pendingBang) {
+            clearTimeout(bangTimeout);
+            pendingBang = false;
+            if (key >= '0' && key <= '4') {
+                e.preventDefault();
+                fetch('/task/' + taskSid + '/priority', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: 'priority=' + (key === '0' ? '' : key)
+                }).then(function(r) { return r.text(); }).then(function(html) {
+                    var w = document.querySelector('.priority-wrapper[data-task-sid="' + taskSid + '"]');
+                    if (w) { var t = document.createElement('div'); t.innerHTML = html.trim(); var n = t.firstElementChild; w.replaceWith(n); htmx.process(n); }
+                });
+            }
+            return;
+        }
+
+        if (pendingC) {
+            clearTimeout(cTimeout);
+            pendingC = false;
+            e.preventDefault();
+            if (key === 't') {
+                var pageTitle = document.querySelector('.page-title-display');
+                if (pageTitle) pageTitle.click();
+            } else if (key === 'd') {
+                var pageDescr = document.querySelector('.page-descr-display');
+                if (pageDescr) pageDescr.click();
+            }
+            return;
+        }
+
+        switch (key) {
+            case '!':
+                e.preventDefault();
+                pendingBang = true;
+                bangTimeout = setTimeout(function() { pendingBang = false; }, 1000);
+                break;
+            case 'd':
+                e.preventDefault();
+                var dw = document.querySelector('.due-date-wrapper[data-task-sid="' + taskSid + '"]');
+                window.openDatePicker(taskSid, dw ? dw.dataset.dueDate : '');
+                break;
+            case 't':
+                e.preventDefault();
+                var tw = document.querySelector('.tags-wrapper[data-task-sid="' + taskSid + '"]');
+                window.openTagsPicker(taskSid, tw ? tw.dataset.tags : '');
+                break;
+            case 'c':
+                e.preventDefault();
+                pendingC = true;
+                cTimeout = setTimeout(function() { pendingC = false; }, 500);
+                break;
+        }
+    });
+})();
+</script>
 </Layout.App>
