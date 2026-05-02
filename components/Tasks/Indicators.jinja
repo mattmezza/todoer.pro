@@ -11,14 +11,6 @@
      title="Priority P{{ task.priority }}">
     P{{ task.priority }}
 </div>
-{% else %}
-<div class="w-9 h-9 rounded-lg flex items-center justify-center text-xs text-slate-600 cursor-pointer shadow-lg border border-slate-700/50"
-     @click="sidebarOpen = true"
-     title="No priority set">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-    </svg>
-</div>
 {% endif %}
 
 <!-- Due date indicator -->
