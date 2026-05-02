@@ -30,7 +30,7 @@ async def delete(
         blob.delete(uuid)
     except Exception:
         logger.error("blob %s couldn't be deleted from remote storage", uuid)
-    res.headers["HX-Trigger"] = f"attachment-delete, attachment-{sid}-delete"
+    res.headers["HX-Trigger"] = f"task-update, attachment-delete, attachment-{sid}-delete"
     return ""
 
 
@@ -69,5 +69,5 @@ async def add(
             "user": user,
         },
         201,
-        {"HX-Trigger": "attachment-create"},
+        {"HX-Trigger": "task-update, attachment-create"},
     )
