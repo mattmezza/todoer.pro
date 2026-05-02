@@ -117,13 +117,11 @@
             <div class="shrink-0 group/ring relative flex items-center justify-center" aria-label="{{ task.subtasks_done }}/{{ task.subtasks_total }} subtasks done">
                 <svg class="w-10 h-10" viewBox="0 0 36 36">
                     <circle cx="18" cy="18" r="14" fill="none" class="stroke-slate-700" stroke-width="3" />
-                    {% if task.subtasks_done > 0 %}
                     <circle cx="18" cy="18" r="14" fill="none"
                         stroke="{{ list.color if list and list.color else '#6366f1' }}"
-                        stroke-width="3" stroke-linecap="round"
+                        stroke-width="3"
                         stroke-dasharray="{{ progress }}, {{ remaining }}"
                         transform="rotate(-90 18 18)" />
-                    {% endif %}
                 </svg>
                 <span class="absolute text-[10px] font-semibold text-slate-400 pointer-events-none select-none">{{ task.subtasks_done }}</span>
                 <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 rounded bg-slate-800 text-xs text-slate-200 whitespace-nowrap opacity-0 group-hover/ring:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">
