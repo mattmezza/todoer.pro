@@ -11,7 +11,7 @@
     {% endif %}
     <ul class="list-none space-y-3 tasks sortable-tasks" data-section-sid="{{ section.sid }}">
         {% for task in tasks|rejectattr("complete") %}
-            <Tasks.TaskItem task={{task}} section={{section}} sections={{sections}} sections_by_list={{sections_by_list}} />
+            <Tasks.TaskItem task={{task}} section={{section}} sections={{sections}} sections_by_list={{sections_by_list}} list={{list}} />
         {% endfor %}
     </ul>
     <div class="flex items-center gap-1">
@@ -80,7 +80,7 @@
         <span class="font-bold uppercase text-sm ml-2">Complete</span>
         <ul class="list-none space-y-3 mb-8">
             {% for task in tasks|selectattr("complete") if tasks|selectattr("complete")|list|length %}
-                    <Tasks.TaskItem task={{task}} section={{section}} sections={{sections}} sections_by_list={{sections_by_list}} />
+                    <Tasks.TaskItem task={{task}} section={{section}} sections={{sections}} sections_by_list={{sections_by_list}} list={{list}} />
             {% else %}
                 <span class="text-sm text-slate-700 dark:text-slate-600 ml-2">(no completed tasks)</span>
             {% endfor %}
