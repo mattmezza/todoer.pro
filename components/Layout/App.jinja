@@ -126,6 +126,8 @@
         (function() {
             var pendingG = false;
             var gTimeout = null;
+            var pendingC = false;
+            var cTimeout = null;
             var numericPrefix = 0;
             var numericTimeout = null;
 
@@ -255,6 +257,58 @@
                         e.preventDefault();
                         var secTasksStart = getTasksInSection(focused);
                         if (secTasksStart.length > 0) setFocusedTask(secTasksStart[0]);
+                        break;
+
+                    case 'A':
+                        e.preventDefault();
+                        focused = getFocusedTask();
+                        var section = focused ? focused.closest('.section') : document.querySelector('.section');
+                        if (!section) return;
+                        var sectionSid = section.querySelector('.sortable-tasks').dataset.sectionSid;
+                        var createBtn = document.getElementById('btn-task-create-' + sectionSid);
+                        if (createBtn) {
+                            createBtn.click();
+                            var addForm = section.querySelector('.add-task-form');
+                            if (addForm) {
+                                var titleInput = addForm.querySelector('input[name=title]');
+                                if (titleInput) setTimeout(function() { titleInput.focus(); }, 50);
+                            }
+                        }
+                        break;
+
+                    case 'a':
+                        focused = getFocusedTask();
+                        if (!focused) return;
+                        e.preventDefault();
+                        var df = focused.querySelector('form:not(.task-title-edit)');
+                        var ef = focused.querySelector('.task-title-edit');
+                        if (df && ef) {
+                            df.style.display = 'none';
+                            ef.style.display = '';
+                            var ti = ef.querySelector('input[name=title]');
+                            if (ti) { ti.focus(); ti.setSelectionRange(ti.value.length, ti.value.length); }
+                        }
+                        break;
+
+                    case 'c':
+                        e.preventDefault();
+                        if (pendingC) {
+                            clearTimeout(cTimeout);
+                            pendingC = false;
+                            focused = getFocusedTask();
+                            if (!focused) return;
+                            var df2 = focused.querySelector('form:not(.task-title-edit)');
+                            var ef2 = focused.querySelector('.task-title-edit');
+                            if (df2 && ef2) {
+                                df2.style.display = 'none';
+                                ef2.style.display = '';
+                                var ti2 = ef2.querySelector('input[name=title]');
+                                if (ti2) { ti2.value = ''; ti2.focus(); }
+                            }
+                        } else {
+                            pendingC = true;
+                            cTimeout = setTimeout(function() { pendingC = false; }, 500);
+                        }
                         break;
 
                     case 'x':
