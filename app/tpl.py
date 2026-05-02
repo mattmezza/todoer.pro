@@ -225,6 +225,9 @@ jinja2.env.globals["DEBUG"] = os.environ["TODOER_ENV"] == "local"
 
 if os.environ["TODOER_ENV"] == "local":
     jinja2.env.globals["hot_reload"] = hot_reload
+    jinja2.env.globals["HOST"] = "localhost:" + os.environ.get(
+        "TODOER_PORT", "8000"
+    )
 
 jinx = Catalog(jinja_env=jinja2.env)
 jinx.jinja_env.undefined = jinja2_mod.Undefined

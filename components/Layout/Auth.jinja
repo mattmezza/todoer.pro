@@ -42,7 +42,7 @@
     <script src="//unpkg.com/hyperscript.org@0.9.11"></script>
     {% if ENV == "local" %}
         <script src="//unpkg.com/htmx.org/dist/ext/debug.js"></script>
-        {{ hot_reload.script("ws://localhost:8000/hot-reload") | safe }}
+        {{ hot_reload.script("ws://" + HOST + "/hot-reload") | safe }}
     {% endif %}
     {{ catalog.render_assets() }}
 </body>

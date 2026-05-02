@@ -26,7 +26,7 @@
         {{ content }}
     </main>
     {% if ENV == "local" %}
-        {{ hot_reload.script("ws://localhost:8000/hot-reload") | safe }}
+        {{ hot_reload.script("ws://" + HOST + "/hot-reload") | safe }}
     {% endif %}
     {{ catalog.render_assets() }}
 </body>
