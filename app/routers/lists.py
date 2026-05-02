@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from app import http, svc, tpl
 from app.deps import Renderer, get_current_active_user, renderer, repo_db
 from app.repo import RepoDB
+from app.utils import slugify_title
 
 router = APIRouter()
 
@@ -261,7 +262,7 @@ async def update_title(
     db: RepoDB = Depends(repo_db),
 ):
     t = http.Opt(
-        await db.for_user(user).lists().update_title_by_sid(title.strip(), sid)
+        await db.for_user(user).lists().update_title_by_sid(slugify_title(title), sid)
     ).or_404(f"List #{sid} not found.")
     res = PlainTextResponse("#" + t)
     res.headers["HX-Trigger"] = f"list-update, list-{sid}-update"
@@ -319,7 +320,7 @@ async def add(
         user,
         db,
         color if color else svc.lists.DEFAULT_COLOR,
-        title.strip(),
+        slugify_title(title),
         descr.strip() if descr else None,
         space,
         default=False,

@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 
 from app import http, svc, tpl
 from app.deps import RepoDB, get_current_active_user, repo_db
+from app.utils import slugify_title
 
 router = APIRouter()
 
@@ -90,7 +91,7 @@ async def add(
     sp, *_ = await svc.spaces.create(
         user,
         db,
-        title.strip(),
+        slugify_title(title),
         descr.strip() if descr else None,
         default=False,
     )
@@ -141,7 +142,7 @@ async def update_title(
 ):
     res.headers["HX-Trigger"] = "space-update"
     return "@" + await db.for_user(user).spaces().update_title(
-        sid, title.strip()
+        sid, slugify_title(title)
     )
 
 

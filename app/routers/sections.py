@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse
 
 from app import http, svc, tpl
 from app.deps import RepoDB, get_current_active_user, repo_db
+from app.utils import slugify_title
 
 router = APIRouter()
 
@@ -126,7 +127,7 @@ async def update_title(
     urepo = db.for_user(user)
     serepo = urepo.sections()
     section = dict(
-        http.Opt(await serepo.update_title_by_sid(title.strip(), sid)).or_404(
+        http.Opt(await serepo.update_title_by_sid(slugify_title(title), sid)).or_404(
             f"Section #{sid} not found."
         )
     )
@@ -165,7 +166,7 @@ async def add(
 ):
     urepo = db.for_user(user)
     serepo = urepo.sections()
-    section = dict(http.Opt(await serepo.insert(title, list_id)).or_400())
+    section = dict(http.Opt(await serepo.insert(slugify_title(title), list_id)).or_400())
     section["is_first"] = section["order"] == 1
     section["is_last"] = True
     list_ = await urepo.lists().by_uuid(section["list"])
