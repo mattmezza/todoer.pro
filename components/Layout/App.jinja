@@ -124,6 +124,11 @@
     <script>
         // Keyboard navigation for tasks
         (function() {
+            var pendingG = false;
+            var gTimeout = null;
+            var numericPrefix = 0;
+            var numericTimeout = null;
+
             function isInputFocused() {
                 var active = document.activeElement;
                 if (!active) return false;
@@ -141,6 +146,14 @@
 
             function getVisibleTasks() {
                 return Array.from(document.querySelectorAll('.task')).filter(function(el) {
+                    return el.offsetParent !== null;
+                });
+            }
+
+            function getTasksInSection(taskEl) {
+                var sortable = taskEl.closest('.sortable-tasks');
+                if (!sortable) return [taskEl];
+                return Array.from(sortable.querySelectorAll('.task')).filter(function(el) {
                     return el.offsetParent !== null;
                 });
             }
@@ -171,6 +184,17 @@
                 var key = e.key;
                 var tasks, focused, idx;
 
+                if (key >= '0' && key <= '9') {
+                    e.preventDefault();
+                    numericPrefix = numericPrefix * 10 + parseInt(key);
+                    clearTimeout(numericTimeout);
+                    numericTimeout = setTimeout(function() { numericPrefix = 0; }, 1500);
+                    return;
+                }
+                var count = numericPrefix || 1;
+                numericPrefix = 0;
+                clearTimeout(numericTimeout);
+
                 switch (key) {
                     case 'j':
                         e.preventDefault();
@@ -181,9 +205,7 @@
                             setFocusedTask(tasks[0]);
                         } else {
                             idx = tasks.indexOf(focused);
-                            if (idx < tasks.length - 1) {
-                                setFocusedTask(tasks[idx + 1]);
-                            }
+                            setFocusedTask(tasks[Math.min(idx + count, tasks.length - 1)]);
                         }
                         break;
 
@@ -196,10 +218,43 @@
                             setFocusedTask(tasks[tasks.length - 1]);
                         } else {
                             idx = tasks.indexOf(focused);
-                            if (idx > 0) {
-                                setFocusedTask(tasks[idx - 1]);
-                            }
+                            setFocusedTask(tasks[Math.max(idx - count, 0)]);
                         }
+                        break;
+
+                    case 'G':
+                        e.preventDefault();
+                        tasks = getVisibleTasks();
+                        if (tasks.length > 0) setFocusedTask(tasks[tasks.length - 1]);
+                        break;
+
+                    case 'g':
+                        e.preventDefault();
+                        if (pendingG) {
+                            clearTimeout(gTimeout);
+                            pendingG = false;
+                            tasks = getVisibleTasks();
+                            if (tasks.length > 0) setFocusedTask(tasks[0]);
+                        } else {
+                            pendingG = true;
+                            gTimeout = setTimeout(function() { pendingG = false; }, 500);
+                        }
+                        break;
+
+                    case '}':
+                        focused = getFocusedTask();
+                        if (!focused) return;
+                        e.preventDefault();
+                        var secTasksEnd = getTasksInSection(focused);
+                        if (secTasksEnd.length > 0) setFocusedTask(secTasksEnd[secTasksEnd.length - 1]);
+                        break;
+
+                    case '{':
+                        focused = getFocusedTask();
+                        if (!focused) return;
+                        e.preventDefault();
+                        var secTasksStart = getTasksInSection(focused);
+                        if (secTasksStart.length > 0) setFocusedTask(secTasksStart[0]);
                         break;
 
                     case 'x':
@@ -242,7 +297,6 @@
 
                     case 's':
                         e.preventDefault();
-                        // Toggle select mode via Alpine.js
                         var bulkScope = document.querySelector('[x-data*="selectMode"]');
                         if (bulkScope && bulkScope._x_dataStack) {
                             var data = bulkScope._x_dataStack[0];
