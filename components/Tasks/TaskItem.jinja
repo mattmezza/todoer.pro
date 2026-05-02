@@ -83,7 +83,7 @@
             <div class="ml-8 flex flex-wrap gap-1 mt-1">
                 {% for tag in task.tags.split(',') %}
                     {% if tag.strip() %}
-                    <span class="text-xs px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400">#{{ tag.strip() }}</span>
+                    <span class="text-xs px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400">+{{ tag.strip() }}</span>
                     {% endif %}
                 {% endfor %}
             </div>
