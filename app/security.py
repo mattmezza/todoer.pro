@@ -39,17 +39,13 @@ def get_password_hash(password: str) -> str:
     ).decode()
 
 
-# Pre-computed bcrypt hash used as a dummy target when the user doesn't
-# exist, so we always spend time on a bcrypt verify and avoid leaking
-# whether an email is registered via response-time differences.
-_DUMMY_HASH = pwd_context.hash("dummy-timing-safe-placeholder")
+_DUMMY_HASH = get_password_hash("dummy-timing-safe-placeholder")
 
 
 async def authenticate_user(urepo: UserForAnon, email: str, password: str):
     user = await urepo.by_email(email)
     if not user:
-        # Perform a dummy verify to keep constant timing
-        pwd_context.verify(password, _DUMMY_HASH)
+        verify_password(password, _DUMMY_HASH)
         return False
     if not verify_password(password, user["password"]):
         return False

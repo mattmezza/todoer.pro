@@ -6,7 +6,9 @@ import secrets
 import pyotp
 from cryptography.fernet import Fernet
 
-from app.security import SECRET_KEY, pwd_context
+import bcrypt as _bcrypt
+
+from app.security import SECRET_KEY
 
 # Derive a Fernet key from TODOER_SECRET_KEY (which is a hex string).
 # Fernet requires a 32-byte url-safe base64-encoded key.
@@ -53,7 +55,10 @@ def generate_backup_codes() -> list[str]:
 
 def hash_backup_codes(codes: list[str]) -> str:
     """Hash backup codes and return as JSON array."""
-    hashed = [pwd_context.hash(c) for c in codes]
+    hashed = [
+        _bcrypt.hashpw(c.encode(), _bcrypt.gensalt()).decode()
+        for c in codes
+    ]
     return json.dumps(hashed)
 
 
@@ -64,7 +69,7 @@ def verify_backup_code(code: str, hashed_codes_json: str) -> str | None:
     """
     hashed_codes = json.loads(hashed_codes_json)
     for i, h in enumerate(hashed_codes):
-        if pwd_context.verify(code.upper(), h):
+        if _bcrypt.checkpw(code.upper().encode(), h.encode()):
             hashed_codes.pop(i)
             return json.dumps(hashed_codes)
     return None
