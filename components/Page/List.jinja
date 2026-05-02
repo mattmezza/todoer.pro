@@ -184,4 +184,35 @@
     </div>
     <Tasks.BulkActions sections_by_list={{sections_by_list}} />
 </div>
+<script>
+(function() {
+    function isInputFocused() {
+        var active = document.activeElement;
+        if (!active) return false;
+        var tag = active.tagName.toLowerCase();
+        return tag === 'input' || tag === 'textarea' || tag === 'select' || active.isContentEditable;
+    }
+    function isAnyDialogOpen() {
+        var dialogs = document.getElementsByTagName('dialog');
+        for (var i = 0; i < dialogs.length; i++) {
+            if (dialogs[i].open) return true;
+        }
+        return false;
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        if (isInputFocused()) return;
+        if (isAnyDialogOpen()) return;
+
+        switch (e.key) {
+            case 'S':
+                e.preventDefault();
+                var btn = document.querySelector('#btn-section-create');
+                if (btn) btn.click();
+                break;
+        }
+    });
+})();
+</script>
 </Layout.App>
