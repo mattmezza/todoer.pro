@@ -37,6 +37,8 @@
                         <span class="text-sm">
                             {%- if error == "auth-needs-signin" %}
                             You need to sign in first.
+                            {%- elif error == "auth-2fa-expired" %}
+                            Verification session expired. Please sign in again.
                             {%- elif error == "auth-disabled" %}
                             Invalid credentials.
                             {%- elif error == "auth-credentials" %}
