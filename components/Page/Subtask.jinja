@@ -1,27 +1,27 @@
 {# def user, space, spaces, lists, list, section, task, subtask, children, ancestors #}
-<Layout.App spaces={spaces} space={space} user={user} title={"%" + task.sid + " > " + subtask.title} lists={lists}>
+<Layout.App spaces={{spaces}} space={{space}} user={{user}} title={{"%" + task.sid + " > " + subtask.title}} lists={{lists}}>
 <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
     <div class="mb-8 space-y-4">
         <div class="ml-2 md:ml-0 mb-2 md:mb-4">
-            <Breadcrumbs.Items with_back_arrow={"/task/" + task.sid}>
-                <Breadcrumbs.Item title="Go to space." href={"/space/" + space.sid}>
+            <Breadcrumbs.Items with_back_arrow={{"/task/" + task.sid}}>
+                <Breadcrumbs.Item title="Go to space." href={{"/space/" + space.sid}}>
                     @{{ space.title }}
                 </Breadcrumbs.Item>
                 <Breadcrumbs.Separator />
-                <Breadcrumbs.Item title="Go to list." href={"/list/" + list.sid}>
+                <Breadcrumbs.Item title="Go to list." href={{"/list/" + list.sid}}>
                     #{{ list.title }}
                 </Breadcrumbs.Item>
                 <Breadcrumbs.Separator />
-                <Breadcrumbs.Item title="Go to section." href={"/list/" + list.sid + "#section-" + section.sid}>
+                <Breadcrumbs.Item title="Go to section." href={{"/list/" + list.sid + "#section-" + section.sid}}>
                     ${{ section.title }}
                 </Breadcrumbs.Item>
                 <Breadcrumbs.Separator />
-                <Breadcrumbs.Item title="Go to task." href={"/task/" + task.sid}>
+                <Breadcrumbs.Item title="Go to task." href={{"/task/" + task.sid}}>
                     %{{ task.title }}
                 </Breadcrumbs.Item>
                 {% for anc in ancestors %}
                 <Breadcrumbs.Separator />
-                <Breadcrumbs.Item title="Go to parent subtask." href={"/subtask/" + anc.sid}>
+                <Breadcrumbs.Item title="Go to parent subtask." href={{"/subtask/" + anc.sid}}>
                     {{ anc.title }}
                 </Breadcrumbs.Item>
                 {% endfor %}
@@ -29,20 +29,20 @@
         </div>
 
         <div class="flex justify-between items-center gap-2">
-            <Subtasks.Title subtask={subtask} />
+            <Subtasks.Title subtask={{subtask}} />
         </div>
 
-        <Subtasks.Descr subtask={subtask} />
+        <Subtasks.Descr subtask={{subtask}} />
 
         <!-- Child subtasks -->
         <div>
             <h3 class="font-bold">&nbsp;</h3>
             <ul class="list-none space-y-1">
                 {% for child in children %}
-                    <Subtask subtask={child} />
+                    <Subtask subtask={{child}} />
                 {% endfor %}
             </ul>
-            <Btn.Create id="btn-child-subtask-create" with-text-reveal={False} class="!justify-start">Add sub-task</Btn.Create>
+            <Btn.Create id="btn-child-subtask-create" with-text-reveal={{False}} class="!justify-start">Add sub-task</Btn.Create>
             <form
                 style="display: none"
                 class="rounded-sm border border-slate-600"
