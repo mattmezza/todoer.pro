@@ -54,23 +54,24 @@ class NotificationReadForUser(LoggedInUserRepo):
         )
 
     async def mark_all_read(self, items: list[dict]) -> None:
-        for item in items:
-            uuid_new, _ = new_ids()
-            await self.db.execute(
-                """
-                INSERT INTO notification_reads (
-                    uuid, creator, task_uuid, kind
+        async with self.db.transaction():
+            for item in items:
+                uuid_new, _ = new_ids()
+                await self.db.execute(
+                    """
+                    INSERT INTO notification_reads (
+                        uuid, creator, task_uuid, kind
+                    )
+                    VALUES (:uuid, :creator, :task_uuid, :kind)
+                    ON CONFLICT(creator, task_uuid, kind) DO NOTHING
+                    """,
+                    {
+                        "uuid": uuid_new,
+                        "creator": self.user["uuid"],
+                        "task_uuid": item["task_uuid"],
+                        "kind": item["kind"],
+                    },
                 )
-                VALUES (:uuid, :creator, :task_uuid, :kind)
-                ON CONFLICT(creator, task_uuid, kind) DO NOTHING
-                """,
-                {
-                    "uuid": uuid_new,
-                    "creator": self.user["uuid"],
-                    "task_uuid": item["task_uuid"],
-                    "kind": item["kind"],
-                },
-            )
 
     async def mark_all_unread(self) -> None:
         await self.db.execute(
