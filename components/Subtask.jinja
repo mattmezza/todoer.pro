@@ -18,7 +18,7 @@
                         <input hx-put="/subtask/{{ subtask.sid }}" hx-target="closest li" hx-swap="outerHTML" hx-trigger="click consume" name="complete" hx-push-url="false" type="checkbox" {% if subtask.complete %}checked{% endif %} class="form-checkbox w-5 h-5 rounded-full peer cursor-pointer">
                         <input name="title" type="hidden" value="{{ subtask.title }}" />
                         {% if subtask.descr %}<input name="descr" type="hidden" value="{{ subtask.descr }}" />{% endif %}
-                        <span class="font-semibold text-slate-800 dark:text-slate-100 peer-checked:line-through ml-3 xs:text-xs sm:text-sm md:text-base lg:text-lg">{{ subtask.title }}</span>
+                        <a href="/subtask/{{ subtask.sid }}" class="font-semibold text-slate-800 dark:text-slate-100 peer-checked:line-through ml-3 xs:text-xs sm:text-sm md:text-base lg:text-lg hover:text-indigo-500 dark:hover:text-indigo-400" onclick="event.stopPropagation()">{{ subtask.title }}</a>
                     </div>
                 </div>
                 {% if subtask.descr %}

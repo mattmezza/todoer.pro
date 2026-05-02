@@ -30,7 +30,7 @@
             @focus="resize()"
             @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
             @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
-            _="on keyup[key is 'Escape'] reset() the closest <form />"
+            _="on keyup[key is 'Escape'] send reset to the closest <form />"
             class="form-input h-auto min-h-[3lh] block py-1 px-3 border-0 w-full resize-none text-base lg:text-lg"
             >{% if task.descr %}{{ task.descr }}{% endif %}</textarea>
         <div class="flex justify-between items-center p-2">

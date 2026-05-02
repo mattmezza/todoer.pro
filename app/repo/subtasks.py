@@ -49,11 +49,11 @@ class SubtaskForUser(LoggedInUserRepo):
                 li.sid AS list_sid,
                 li.title AS list_title,
                 li.color AS list_color,
-                li.default AS list_default,
+                li."default" AS list_default,
                 sp.uuid AS space_uuid,
                 sp.sid AS space_sid,
                 sp.title AS space_title,
-                sp.default AS space_default
+                sp."default" AS space_default
             FROM subtasks st
             JOIN tasks ta ON ta.uuid = st.task
             JOIN sections se ON se.uuid = ta.section
