@@ -1,6 +1,6 @@
 {# def user, spaces, stats, recent_completions, overdue, due_today, upcoming #}
 <Layout.App spaces={{spaces}} user={{user}}>
-    <div class="py-2 min-h-screen" id="content-bg">
+    <div class="py-2 min-h-screen flex flex-col" id="content-bg">
         <div class="px-2 md:px-8">
             <h1 class="mt-16 md:mt-24 text-2xl md:text-5xl font-bold">Hi, {{ user.name|d("there", True) }}!</h1>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
@@ -81,7 +81,7 @@
             </div>
             {% endif %}
         </div>
-        <div class="px-2 pb-4 w-full text-center mx-auto hidden md:block font-semibold text-sm md:text-base text-zinc-200">
+        <div class="mt-auto px-2 pb-6 pt-8 w-full text-center mx-auto hidden md:block font-semibold text-sm md:text-base text-zinc-200">
             Have a swell <span id="datetime" class="lowercase">day</span>
         </div>
     </div>
