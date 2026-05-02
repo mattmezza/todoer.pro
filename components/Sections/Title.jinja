@@ -39,7 +39,7 @@
                         class="form-input block py-1 px-3 border w-full font-semibold placeholder:font-semibold rounded flex-grow md:text-base"
                         name="title"
                         value="{{ section.title }}"
-                        _="on keyup[key is 'Escape'] send reset to the closest <form />"
+                        _="on keyup[key is 'Escape'] call the closest <form />.reset() then call the closest <form />.dispatchEvent(new Event('reset'))"
                         required>
                     <button type="reset" class="btn text-xs py-0.5 text-white cursor-pointer">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
