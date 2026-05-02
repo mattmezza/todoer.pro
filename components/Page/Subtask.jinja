@@ -189,7 +189,7 @@
                 var dw = document.querySelector('.due-date-wrapper[data-task-sid="' + taskSid + '"]');
                 window.openDatePicker(taskSid, dw ? dw.dataset.dueDate : '');
                 break;
-            case 't':
+            case '+':
                 e.preventDefault();
                 var tw = document.querySelector('.tags-wrapper[data-task-sid="' + taskSid + '"]');
                 window.openTagsPicker(taskSid, tw ? tw.dataset.tags : '');
