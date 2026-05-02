@@ -45,11 +45,21 @@ async def notifications(
     read_keys = await nrepo.get_read_keys(
         task_uuids, ["overdue", "today", "upcoming"]
     )
+    overdue = [
+        t for t in overdue if (t["uuid"], "overdue") not in read_keys
+    ]
+    due_today = [
+        t for t in due_today if (t["uuid"], "today") not in read_keys
+    ]
+    upcoming = [
+        t
+        for t in upcoming
+        if (t["uuid"], "upcoming") not in read_keys
+    ]
     return {
         "overdue": overdue,
         "due_today": due_today,
         "upcoming": upcoming,
-        "read_tasks": read_keys,
     }
 
 
@@ -224,12 +234,7 @@ async def mark_all_read(
     nrepo = urepo.notification_reads()
     await nrepo.mark_all_read(items)
     return (
-        {
-            "overdue": [],
-            "due_today": [],
-            "upcoming": [],
-            "read_tasks": set(),
-        },
+        {"overdue": [], "due_today": [], "upcoming": []},
         200,
         {"HX-Trigger": "notification-update"},
     )
@@ -251,7 +256,6 @@ async def mark_all_unread(
             "overdue": overdue,
             "due_today": due_today,
             "upcoming": upcoming,
-            "read_tasks": set(),
         },
         200,
         {"HX-Trigger": "notification-update"},
