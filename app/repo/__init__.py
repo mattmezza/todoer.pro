@@ -2,6 +2,7 @@ from typing import Mapping
 
 from databases import Database
 
+from .ai_usage import AIUsageForUser
 from .attachments import AttachmentForUser
 from .bookmarks import BookmarkForUser
 from .comments import CommentForUser
@@ -41,6 +42,9 @@ class ForUser:
 
     def bookmarks(self) -> BookmarkForUser:
         return BookmarkForUser(self.user, self.db)
+
+    def ai_usage(self) -> AIUsageForUser:
+        return AIUsageForUser(self.user, self.db)
 
     def users(self) -> UserForUser:
         return UserForUser(self.user, self.db)

@@ -10,6 +10,7 @@ from . import tpl
 from .deps import get_current_active_user, hot_reload
 from .routers import (
     account,
+    ai,
     attachments,
     auth,
     bookmarks,
@@ -151,5 +152,9 @@ app.include_router(
 )
 app.include_router(
     notifications.router,
+    dependencies=[Depends(get_current_active_user)],
+)
+app.include_router(
+    ai.router,
     dependencies=[Depends(get_current_active_user)],
 )
