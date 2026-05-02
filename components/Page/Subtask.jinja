@@ -1,4 +1,4 @@
-{# def user, space, spaces, lists, list, section, task, subtask, children, ancestors #}
+{# def user, space, spaces, lists, list, section, task, subtask, children, ancestors, comments, attachments, audit_log #}
 <Layout.App spaces={{spaces}} space={{space}} user={{user}} title={{"%" + task.sid + " > " + subtask.title}} lists={{lists}}>
 <div class="py-8 px-4 md:px-8 max-w-screen-xl mx-auto">
     <div class="mb-8 space-y-4">
@@ -82,6 +82,38 @@
                 </div>
             </form>
         </div>
+        <Tasks.Sections task={{task}} comments={{comments}} attachments={{attachments}} audit_log={{audit_log}} user={{user}} />
     </div>
 </div>
+<script>
+    function fileIsTooLarge(input) {
+        const fileSize = input.files[0].size / 1024 / 1024; // in MiB
+        if (fileSize > 10)
+            return true
+        return false
+    }
+    function fileTypeIsNotAllowed(input) {
+        const notAllowed = [
+            'a-mime/type',
+        ]
+        if (notAllowed.includes(input.files[0].type))
+            return true
+        return false
+    }
+    function validate(input) {
+        if (fileIsTooLarge(input)) {
+            alert('File size is over 10MB. Select a smaller file please.')
+            return false
+        }
+        if (fileTypeIsNotAllowed(input)) {
+            alert('File type is not allowed. Select a different file please.')
+            return false
+        }
+
+        input.form.querySelector("button[type=submit]").click()
+    }
+    function processDrop(ev) {
+        console.log(ev)
+    }
+</script>
 </Layout.App>

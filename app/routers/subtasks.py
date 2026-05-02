@@ -3,7 +3,7 @@ from typing import Annotated, Mapping
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
-from app import http, tpl
+from app import blob, http, tpl
 from app.deps import RepoDB, get_current_active_user, repo_db
 
 router = APIRouter()
@@ -50,6 +50,17 @@ async def view(
         "default": full["space_default"],
     }
 
+    task_id = task["uuid"]
+    comments = await urepo.comments().by_task(task_id)
+    attachments = await urepo.attachments().by_task(task_id)
+    attachments = [dict(at) for at in attachments]
+    for a in attachments:
+        a['url'] = blob.url_signed_for(
+            a['uuid'],
+            blob.URL_SIGNED_VALIDITY_DURATION_DEFAULT,
+        )
+    audit_log = await urepo.tasks().audit_log(task_id)
+
     srepo = urepo.spaces()
     lrepo = urepo.lists()
     spaces = await srepo.all()
@@ -66,6 +77,9 @@ async def view(
         "lists": lists,
         "space": space,
         "spaces": spaces,
+        "comments": comments,
+        "attachments": attachments,
+        "audit_log": audit_log,
     }
 
 
