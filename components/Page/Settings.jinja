@@ -1,0 +1,73 @@
+{# def user, spaces, ai_settings={} #}
+<Layout.App spaces={{spaces}} user={{user}} title="Settings">
+<div class="py-8 px-4 md:px-8 max-w-screen-md mx-auto space-y-8">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold">Settings</h1>
+    </div>
+
+    <!-- Navigation -->
+    <div class="flex gap-4 border-b border-slate-700 pb-2">
+        <span class="text-sm font-semibold text-indigo-400 border-b-2 border-indigo-400 pb-2 -mb-2.5">General</span>
+        <a href="/settings/keybindings" class="text-sm text-slate-400 hover:text-white pb-2 -mb-2.5">Keybindings</a>
+    </div>
+
+    <!-- AI Configuration -->
+    <div class="space-y-4">
+        <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-indigo-400">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+            </svg>
+            <h2 class="text-lg font-bold">AI Task Generation</h2>
+        </div>
+        <p class="text-sm text-slate-400">Configure the DeepSeek API for AI-powered task generation. Provide your own API key to enable the feature.</p>
+        <form
+            class="space-y-4"
+            hx-put="/settings/ai"
+            hx-swap="none">
+            <div>
+                <label class="text-sm text-slate-400 block mb-1">API Key</label>
+                <input
+                    type="password"
+                    name="ai_api_key"
+                    value="{{ ai_settings.get('ai_api_key', '') }}"
+                    placeholder="sk-..."
+                    class="form-input w-full rounded px-3 py-2 text-sm"
+                    autocomplete="off">
+            </div>
+            <div>
+                <label class="text-sm text-slate-400 block mb-1">Model</label>
+                <input
+                    type="text"
+                    name="ai_model"
+                    value="{{ ai_settings.get('ai_model', 'deepseek-chat') }}"
+                    placeholder="deepseek-chat"
+                    class="form-input w-full rounded px-3 py-2 text-sm">
+                <p class="text-xs text-slate-500 mt-1">Default: deepseek-chat (DeepSeek V3)</p>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="text-sm text-slate-400 block mb-1">Max Tokens</label>
+                    <input
+                        type="number"
+                        name="ai_max_tokens"
+                        value="{{ ai_settings.get('ai_max_tokens', '2000') }}"
+                        placeholder="2000"
+                        class="form-input w-full rounded px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label class="text-sm text-slate-400 block mb-1">Temperature</label>
+                    <input
+                        type="text"
+                        name="ai_temperature"
+                        value="{{ ai_settings.get('ai_temperature', '0.7') }}"
+                        placeholder="0.7"
+                        class="form-input w-full rounded px-3 py-2 text-sm">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="submit" class="btn bg-indigo-600 text-white text-sm py-1.5 px-4">Save AI settings</button>
+            </div>
+        </form>
+    </div>
+</div>
+</Layout.App>

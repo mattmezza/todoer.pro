@@ -59,7 +59,7 @@
                 <div class="py-8 text-center text-sm text-slate-500">Type to search...</div>
             </div>
             <div class="px-4 py-2 border-t border-slate-700 text-xs text-slate-500 flex justify-between">
-                <span><kbd class="px-1 bg-slate-700 rounded font-mono">↑↓</kbd> or <kbd class="px-1 bg-slate-700 rounded font-mono">C-n/p</kbd> navigate · <kbd class="px-1 bg-slate-700 rounded font-mono">@#$%</kbd> scope</span>
+                <span><kbd class="px-1 bg-slate-700 rounded font-mono">↑↓</kbd> or <kbd class="px-1 bg-slate-700 rounded font-mono">C-j/k</kbd> navigate · <kbd class="px-1 bg-slate-700 rounded font-mono">@#$%</kbd> scope</span>
                 <span><kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">Esc</kbd> to close</span>
             </div>
         </div>
@@ -108,21 +108,19 @@
             }
         });
         document.getElementById('search-input').addEventListener('keydown', function(e) {
-            if ((e.ctrlKey && e.key === 'n') || e.key === 'ArrowDown') {
-                e.preventDefault();
-            } else if ((e.ctrlKey && e.key === 'p') || e.key === 'ArrowUp') {
-                e.preventDefault();
-            }
+            var isDown = e.key === 'ArrowDown' || (e.ctrlKey && e.key === 'j');
+            var isUp = e.key === 'ArrowUp' || (e.ctrlKey && e.key === 'k');
+            if (isDown || isUp) e.preventDefault();
             var results = document.querySelectorAll('#search-results li a');
             if (!results.length) return;
             var current = document.querySelector('#search-results li a.search-focused');
             var idx = current ? Array.from(results).indexOf(current) : -1;
-            if ((e.ctrlKey && e.key === 'n') || e.key === 'ArrowDown') {
+            if (isDown) {
                 if (current) current.classList.remove('search-focused');
                 idx = Math.min(idx + 1, results.length - 1);
                 results[idx].classList.add('search-focused');
                 results[idx].scrollIntoView({ block: 'nearest' });
-            } else if ((e.ctrlKey && e.key === 'p') || e.key === 'ArrowUp') {
+            } else if (isUp) {
                 if (current) current.classList.remove('search-focused');
                 idx = Math.max(idx - 1, 0);
                 results[idx].classList.add('search-focused');
@@ -666,11 +664,21 @@
         }
 
         document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.key === 'w') {
+            if (e.altKey && e.key === 'w') {
                 e.preventDefault();
                 pendingCtrlW = true;
                 clearTimeout(ctrlWTimeout);
                 ctrlWTimeout = setTimeout(function() { pendingCtrlW = false; }, 500);
+                return;
+            }
+            if (e.altKey && e.key === 'h') {
+                e.preventDefault();
+                enterSidebar();
+                return;
+            }
+            if (e.altKey && e.key === 'l') {
+                e.preventDefault();
+                exitSidebar();
                 return;
             }
 

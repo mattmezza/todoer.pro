@@ -9,6 +9,7 @@ from .comments import CommentForUser
 from .lists import ListForUser
 from .notification_reads import NotificationReadForUser
 from .sections import SectionForUser
+from .settings import SettingsForUser
 from .spaces import SpaceForUser
 from .subtasks import SubtaskForUser
 from .tasks import TaskForUser
@@ -49,6 +50,9 @@ class ForUser:
 
     def notification_reads(self) -> NotificationReadForUser:
         return NotificationReadForUser(self.user, self.db)
+
+    def settings(self) -> SettingsForUser:
+        return SettingsForUser(self.user, self.db)
 
     def users(self) -> UserForUser:
         return UserForUser(self.user, self.db)
