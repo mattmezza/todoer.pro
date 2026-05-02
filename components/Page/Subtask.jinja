@@ -158,4 +158,49 @@
         console.log(ev)
     }
 </script>
+<script>
+(function() {
+    var taskSid = '{{ task.sid }}';
+
+    function isInputFocused() {
+        var active = document.activeElement;
+        if (!active) return false;
+        var tag = active.tagName.toLowerCase();
+        return tag === 'input' || tag === 'textarea' || tag === 'select' || active.isContentEditable;
+    }
+    function isAnyDialogOpen() {
+        var dialogs = document.getElementsByTagName('dialog');
+        for (var i = 0; i < dialogs.length; i++) {
+            if (dialogs[i].open) return true;
+        }
+        return false;
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        if (isInputFocused()) return;
+        if (isAnyDialogOpen()) return;
+
+        var key = e.key;
+
+        switch (key) {
+            case 'd':
+                e.preventDefault();
+                var dw = document.querySelector('.due-date-wrapper[data-task-sid="' + taskSid + '"]');
+                window.openDatePicker(taskSid, dw ? dw.dataset.dueDate : '');
+                break;
+            case 't':
+                e.preventDefault();
+                var tw = document.querySelector('.tags-wrapper[data-task-sid="' + taskSid + '"]');
+                window.openTagsPicker(taskSid, tw ? tw.dataset.tags : '');
+                break;
+            case 'f':
+                e.preventDefault();
+                var fileInput = document.querySelector('#post-attachment');
+                if (fileInput) fileInput.click();
+                break;
+        }
+    });
+})();
+</script>
 </Layout.App>
