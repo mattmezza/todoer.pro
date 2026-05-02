@@ -67,7 +67,9 @@
                         hx-swap="beforeend"
                         hx-post="/subtasks"
                         hx-on::after-request="this.reset();this.querySelector('input[name=title]').focus()"
-                        _="on keyup[key is 'Escape'] reset() on me then hide me then show #btn-child-subtask-create">
+                        x-data
+                        @keydown.escape="$el.reset();$el.style.display='none';document.getElementById('btn-child-subtask-create').style.display=''"
+                        @reset="$el.style.display='none';document.getElementById('btn-child-subtask-create').style.display=''">
                         <div class="py-2">
                             <input autocapitalize="none" class="form-input block py-1 px-3 border-0 w-full placeholder:font-semibold font-semibold md:text-base" name="title" placeholder="Sub-task name" required autofocus>
                             <textarea
@@ -84,7 +86,6 @@
                                 @input="resize()"
                                 @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                                 @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
-                                _="on keyup[key is 'Escape'] reset() the closest <form />"
                                 class="form-input h-auto min-h-[40px] block py-1 px-3 border-0 w-full resize-none md:text-base"
                                 ></textarea>
                             <input type="hidden" name="task" value="{{ subtask.task }}">
@@ -93,7 +94,7 @@
                         <div class="flex flex-row justify-between items-center border-t border-slate-600 px-3 py-2">
                             <div></div>
                             <div class="space-x-2">
-                                <button type="reset" class="btn py-1" _="on click hide the closest <form /> then show #btn-child-subtask-create">Cancel</button>
+                                <button type="reset" class="btn py-1">Cancel</button>
                                 <button type="submit" class="btn py-1 bg-indigo-600 text-white">Add sub-task</button>
                             </div>
                         </div>
@@ -117,7 +118,9 @@
                         hx-target="#comments" hx-swap="beforeend"
                         hx-post="/comments"
                         hx-on::after-request="this.reset()"
-                        _="on reset or keyup[key is 'Escape'] hide me then show #btn-comment-create">
+                        x-data
+                        @keydown.escape="$el.reset();$el.style.display='none';document.getElementById('btn-comment-create').style.display=''"
+                        @reset="$el.style.display='none';document.getElementById('btn-comment-create').style.display=''">
                         <div class="py-2">
                             <textarea
                                 name="content"
@@ -132,7 +135,6 @@
                                 @input="resize()"
                                 @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                                 @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
-                                _="on keyup[key is 'Escape'] reset() the closest <form />"
                                 class="form-input h-auto min-h-[40px] block py-1 px-3 border-0 w-full resize-none md:text-base"
                                 autofocus></textarea>
                             <input type="hidden" name="task" value="{{ task.uuid }}">

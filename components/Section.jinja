@@ -37,7 +37,9 @@
         hx-swap="beforeend"
         hx-post="/tasks"
         hx-on::after-request="this.reset();this.querySelector('input[name=title]').focus()"
-        _="on keyup[key is 'Escape'] hide me then show #btn-task-create-{{ section.sid }}">
+        x-data
+        @keydown.escape="$el.reset();$el.style.display='none';document.getElementById('btn-task-create-{{ section.sid }}').style.display=''"
+        @reset="$el.style.display='none';document.getElementById('btn-task-create-{{ section.sid }}').style.display=''">
         <div class="py-2">
             <input
                 class="form-input block py-1 px-3 border-0 w-full font-semibold placeholder:font-semibold xs:text-xs sm:text-sm md:text-base lg:text-lg"
@@ -59,7 +61,6 @@
                 @input="resize()"
                 @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
                 @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
-                _="on keyup[key is 'Escape'] reset() the closest <form />"
                 class="form-input h-auto min-h-[40px] block py-1 px-3 border-0 w-full resize-none"
                 ></textarea>
 
@@ -68,7 +69,7 @@
             <div>
             </div>
             <div class="space-x-2">
-                <button type="reset" class="btn py-1" _="on click hide closest <form /> then show #btn-task-create-{{ section.sid }}">Cancel</button>
+                <button type="reset" class="btn py-1">Cancel</button>
                 <button type="submit" class="btn py-1 bg-indigo-600 text-white">Add task</button>
             </div>
         </div>
