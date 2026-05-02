@@ -12,17 +12,10 @@
                     <label class="block text-sm font-medium mb-1" for="email">Email Address <span class="text-rose-500">*</span></label>
                     <input name="email" class="form-input w-full" type="email" required >
                 </div>
-                <!--<div>
-                    <label class="block text-sm font-medium mb-1" for="role">Your Role <span class="text-rose-500">*</span></label>
-                    <select id="role" class="form-select w-full">
-                        <option>Designer</option>
-                        <option>Developer</option>
-                        <option>Accountant</option>
-                    </select>
-                </div>-->
                 <div>
                     <label class="block text-sm font-medium mb-1" for="password">Password <span class="text-rose-500">*</span></label>
-                    <input name="password" class="form-input w-full" type="password" autocomplete="on" required>
+                    <input name="password" class="form-input w-full" type="password" autocomplete="new-password" minlength="8" required>
+                    <p class="text-xs text-slate-500 mt-1">Must be at least 8 characters</p>
                 </div>
             </div>
             <div class="flex items-center justify-between mt-6">
@@ -47,7 +40,7 @@
                             {%- if error == "password-too-short" %}
                             Password must be at least 8 characters.
                             {%- elif error == "email-already-exists" %}
-                            An account with this email already exists.
+                            An account with this email already exists. <a class="underline" href="/signin">Sign in</a> instead?
                             {%- elif error == "consent-required" %}
                             You must accept the consent checkbox.
                             {%- else %}
@@ -60,4 +53,3 @@
         </div>
     </div>
 </Layout.Auth>
-
