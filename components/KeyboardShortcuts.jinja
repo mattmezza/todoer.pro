@@ -33,15 +33,35 @@
                 </div>
             </div>
             <div class="mb-4">
+                <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Scoped search</h4>
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Search spaces</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">@</kbd>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Search lists (in space)</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">#</kbd>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Search sections (in list)</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">$</kbd>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Search tasks</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">%</kbd>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-4">
                 <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Task navigation</h4>
                 <div class="space-y-1.5">
                     <div class="flex justify-between items-center text-sm">
-                        <span class="text-slate-300">Move focus down</span>
-                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">j</kbd>
-                    </div>
-                    <div class="flex justify-between items-center text-sm">
-                        <span class="text-slate-300">Move focus up</span>
-                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">k</kbd>
+                        <span class="text-slate-300">Move focus down / up</span>
+                        <div class="flex gap-0.5">
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">j</kbd>
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">k</kbd>
+                        </div>
                     </div>
                     <div class="flex justify-between items-center text-sm">
                         <span class="text-slate-300">Move N down/up</span>
@@ -51,40 +71,34 @@
                         </div>
                     </div>
                     <div class="flex justify-between items-center text-sm">
-                        <span class="text-slate-300">Go to first task</span>
+                        <span class="text-slate-300">First / last task</span>
                         <div class="flex gap-0.5">
-                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">g</kbd>
-                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">g</kbd>
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">gg</kbd>
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">G</kbd>
                         </div>
                     </div>
                     <div class="flex justify-between items-center text-sm">
-                        <span class="text-slate-300">Go to last task</span>
-                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">G</kbd>
-                    </div>
-                    <div class="flex justify-between items-center text-sm">
-                        <span class="text-slate-300">First in section</span>
-                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">{</kbd>
-                    </div>
-                    <div class="flex justify-between items-center text-sm">
-                        <span class="text-slate-300">Last in section</span>
-                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">}</kbd>
-                    </div>
-                    <div class="flex justify-between items-center text-sm">
-                        <span class="text-slate-300">Clear focus</span>
-                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">Esc</kbd>
+                        <span class="text-slate-300">Section bounds</span>
+                        <div class="flex gap-0.5">
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">{</kbd>
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">}</kbd>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="mb-4">
-                <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Bulk actions</h4>
+                <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Visual mode</h4>
                 <div class="space-y-1.5">
                     <div class="flex justify-between items-center text-sm">
-                        <span class="text-slate-300">Toggle select mode</span>
-                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">s</kbd>
+                        <span class="text-slate-300">Enter / exit visual mode</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">v</kbd>
                     </div>
                     <div class="flex justify-between items-center text-sm">
-                        <span class="text-slate-300">Exit select mode</span>
-                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">Esc</kbd>
+                        <span class="text-slate-300">Delete selected</span>
+                        <div class="flex gap-0.5">
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">d</kbd>
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">d</kbd>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -108,6 +122,17 @@
                         <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">d</kbd>
                     </div>
                     <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Set priority</span>
+                        <div class="flex gap-0.5">
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">!</kbd>
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">1-4</kbd>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Tags</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">t</kbd>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
                         <span class="text-slate-300">Append to title</span>
                         <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">a</kbd>
                     </div>
@@ -121,6 +146,61 @@
                     <div class="flex justify-between items-center text-sm">
                         <span class="text-slate-300">New task in section</span>
                         <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">A</kbd>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Change title</span>
+                        <div class="flex gap-0.5">
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">c</kbd>
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">t</kbd>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Change description</span>
+                        <div class="flex gap-0.5">
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">c</kbd>
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">d</kbd>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Toggle bookmark</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">b</kbd>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Copy title</span>
+                        <div class="flex gap-0.5">
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">y</kbd>
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">y</kbd>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-4">
+                <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Window navigation</h4>
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Focus sidebar</span>
+                        <div class="flex gap-0.5">
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">Ctrl-w</kbd>
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">h</kbd>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Focus main</span>
+                        <div class="flex gap-0.5">
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">Ctrl-w</kbd>
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">l</kbd>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Navigate sidebar items</span>
+                        <div class="flex gap-0.5">
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">j</kbd>
+                            <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">k</kbd>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="text-slate-300">Add list (sidebar)</span>
+                        <kbd class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 font-mono text-xs">n</kbd>
                     </div>
                 </div>
             </div>
