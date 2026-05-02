@@ -223,16 +223,12 @@ async def mark_all_read(
     items = _all_items(overdue, due_today, upcoming)
     nrepo = urepo.notification_reads()
     await nrepo.mark_all_read(items)
-    task_uuids = _all_task_uuids(overdue, due_today, upcoming)
-    read_keys = await nrepo.get_read_keys(
-        task_uuids, ["overdue", "today", "upcoming"]
-    )
     return (
         {
-            "overdue": overdue,
-            "due_today": due_today,
-            "upcoming": upcoming,
-            "read_tasks": read_keys,
+            "overdue": [],
+            "due_today": [],
+            "upcoming": [],
+            "read_tasks": set(),
         },
         200,
         {"HX-Trigger": "notification-update"},
