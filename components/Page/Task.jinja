@@ -194,6 +194,11 @@
                 pendingC = true;
                 cTimeout = setTimeout(function() { pendingC = false; }, 500);
                 break;
+            case 'f':
+                e.preventDefault();
+                var fileInput = document.querySelector('#post-attachment');
+                if (fileInput) fileInput.click();
+                break;
         }
     });
 })();
