@@ -6,7 +6,9 @@
     hx-post="/sections"
     hx-on::after-request="this.reset()"
     class="rounded-sm border border-slate-600 add-task-form mb-16"
-    _="on keyup[key is 'Escape'] hide me then show #btn-section-create">
+    x-data
+    @keydown.escape="$el.reset();$el.style.display='none';document.getElementById('btn-section-create').style.display=''"
+    @reset="$el.style.display='none';document.getElementById('btn-section-create').style.display=''">
     <div class="py-2">
         <input
             name="title"
