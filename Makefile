@@ -11,7 +11,10 @@ css:  ## compiles css with tailwindcss
 	npx @tailwindcss/cli -i styles/global.css -o public/style.css --minify
 
 .PHONY: release
-release:  ## creates a release on github (e.g. make release name=v0.20)
+release:  ## build & push docker image to GHCR, create github release (e.g. make release name=v1.0)
+	docker build -t ghcr.io/mattmezza/todoer.pro:$(name) -t ghcr.io/mattmezza/todoer.pro:latest .
+	docker push ghcr.io/mattmezza/todoer.pro:$(name)
+	docker push ghcr.io/mattmezza/todoer.pro:latest
 	gh release create $(name) --generate-notes
 	git fetch --all
 
