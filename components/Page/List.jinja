@@ -2,8 +2,6 @@
 <Layout.App spaces={{spaces}} space={{space}} user={{user}} title={{"#" + list.title}} lists={{lists}}>
 <style>
     #list-skeleton { display: none; }
-    #page-content.htmx-request { opacity: 0.2; pointer-events: none; }
-    #page-content.htmx-request ~ #list-skeleton { display: block; }
 </style>
 <div id="page-context" data-space-sid="{{ space.sid }}" data-space-title="{{ space.title }}" data-list-sid="{{ list.sid }}" data-list-title="{{ list.title }}" style="display:none"></div>
 <div id="page-content"
