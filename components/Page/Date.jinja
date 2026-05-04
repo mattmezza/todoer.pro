@@ -296,15 +296,15 @@
                     {% if is_today %}border-indigo-500/40 bg-indigo-950/20
                     {% elif is_focus %}border-indigo-500/20 bg-slate-800/30
                     {% else %}border-slate-800/50 bg-slate-900/30{% endif %}">
-                    <div class="px-3 py-2 border-b border-slate-800/50 flex items-center justify-between">
+                    <a href="/date?view=day&amp;date={{ day_iso }}"
+                       hx-get="/date?view=day&amp;date={{ day_iso }}"
+                       hx-target="#main" hx-select="#main"
+                       hx-push-url="true"
+                       hx-indicator="#date-skeleton"
+                       class="px-3 py-2 border-b border-slate-800/50 flex items-center justify-between hover:bg-indigo-950/10 transition cursor-pointer">
                         <div>
                             <span class="text-xs font-medium text-slate-400">{{ wd.label }}</span>
-                            <a href="/date?view=day&amp;date={{ day_iso }}"
-                               hx-get="/date?view=day&amp;date={{ day_iso }}"
-                               hx-target="#main" hx-select="#main"
-                               hx-push-url="true"
-                               hx-indicator="#date-skeleton"
-                               class="text-sm font-bold text-slate-200 hover:text-indigo-400 ml-1.5 transition cursor-pointer">{{ wd.day }}</a>
+                            <span class="text-sm font-bold text-slate-200 ml-1.5">{{ wd.day }}</span>
                         </div>
                         {% if day_tasks|length > 0 %}
                         <span class="text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0
@@ -314,7 +314,7 @@
                             {{ day_tasks|length }}
                         </span>
                         {% endif %}
-                    </div>
+                    </a>
                     <div class="p-2 space-y-1.5">
                         {% if day_tasks %}
                             {% for t in day_tasks %}
