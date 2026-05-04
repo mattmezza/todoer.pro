@@ -153,13 +153,13 @@ async def date_view(
                 m_last = start.replace(year=start.year + 1, month=1, day=1) - timedelta(days=1)
             else:
                 m_last = start.replace(month=m + 1, day=1) - timedelta(days=1)
-            days_with_tasks = set()
+            day_counts = {}
             for t in tasks:
                 td = t["due_date"]
                 if td:
                     d = date.fromisoformat(td)
                     if d.month == m:
-                        days_with_tasks.add(d.day)
+                        day_counts[d.day] = day_counts.get(d.day, 0) + 1
             # Build mini calendar grid for this month
             grid = _build_calendar_grid(m_first, m_last)
             total = sum(1 for t in tasks if t["due_date"] and date.fromisoformat(t["due_date"]).month == m)
@@ -170,7 +170,7 @@ async def date_view(
                 "first": m_first,
                 "last": m_last,
                 "grid": grid,
-                "days_with_tasks": days_with_tasks,
+                "day_counts": day_counts,
                 "total_tasks": total,
             })
     else:  # month

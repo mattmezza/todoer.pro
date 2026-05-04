@@ -565,11 +565,11 @@
                         {% endif %}
                     </a>
                     <!-- Mini calendar grid with week numbers + day numbers -->
-                    <div class="grid grid-cols-[1.25rem_repeat(7,1fr)] gap-[1px] text-[9px]">
+                    <div class="grid grid-cols-[1.5rem_repeat(7,1fr)] gap-[2px] text-xs">
                         <!-- Day headers -->
                         <div></div>
                         {% for wd in ["M","T","W","T","F","S","S"] %}
-                        <span class="text-[7px] text-slate-700 text-center leading-none">{{ wd }}</span>
+                        <span class="text-[7px] text-slate-700 text-center leading-none pb-0.5">{{ wd }}</span>
                         {% endfor %}
                         <!-- Week rows -->
                         {% for wrow in md.grid %}
@@ -581,22 +581,30 @@
                            hx-target="#main" hx-select="#main"
                            hx-push-url="true"
                            hx-indicator="#cal-skeleton"
-                           class="text-[7px] font-mono text-slate-700 hover:text-indigo-400 text-center leading-none pt-0.5 cursor-pointer week-{{ m_idx }}-{{ w_idx }}"
+                           class="text-[8px] font-mono text-slate-700 hover:text-indigo-400 text-center leading-none pt-1 cursor-pointer week-{{ m_idx }}-{{ w_idx }}"
                            onmouseenter="this.closest('.month-card').querySelectorAll('.week-{{ m_idx }}-{{ w_idx }}').forEach(e => e.classList.add('year-wn-highlight'))"
                            onmouseleave="this.closest('.month-card').querySelectorAll('.week-{{ m_idx }}-{{ w_idx }}').forEach(e => e.classList.remove('year-wn-highlight'))">{{ wn }}</a>
                         {% for day in wrow.days %}
                             {% if day %}
                             {% set iso = day.isoformat() %}
-                            {% set has = day.day in md.days_with_tasks %}
+                            {% set cnt = md.day_counts.get(day.day, 0) %}
+                            {% if cnt >= 6 %}
+                            {% set shade = 'bg-indigo-500/50 text-indigo-100 font-semibold' %}
+                            {% elif cnt >= 3 %}
+                            {% set shade = 'bg-indigo-500/30 text-indigo-200 font-medium' %}
+                            {% elif cnt >= 1 %}
+                            {% set shade = 'bg-indigo-500/15 text-indigo-300' %}
+                            {% else %}
+                            {% set shade = 'text-slate-600 hover:text-slate-400' %}
+                            {% endif %}
                             <a href="/calendar?view=day&amp;date={{ iso }}"
                                hx-get="/calendar?view=day&amp;date={{ iso }}"
                                hx-target="#main" hx-select="#main"
                                hx-push-url="true"
                                hx-indicator="#cal-skeleton"
-                               class="text-center leading-none py-0.5 rounded-sm cursor-pointer transition
-                                      week-{{ m_idx }}-{{ w_idx }}
-                                      {% if has %}text-indigo-400 font-medium{% else %}text-slate-600 hover:text-slate-400{% endif %}
-                                      hover:bg-slate-800/40">{{ day.day }}</a>
+                               class="text-center leading-tight py-1.5 rounded-sm cursor-pointer transition
+                                      week-{{ m_idx }}-{{ w_idx }} {{ shade }}
+                                      hover:brightness-125">{{ day.day }}</a>
                             {% else %}
                             <div></div>
                             {% endif %}
