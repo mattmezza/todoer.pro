@@ -9,7 +9,7 @@
 <div
     class="mb-6 flex flex-wrap items-center gap-2"
     data-filter-opts='{{ filter_opts | tojson }}'
-    x-data="filterBar()">
+    x-data="createFilterBar($el)">
     <!-- Sort -->
     <div class="relative" @click.outside="sortDropdownOpen = false">
         <button
