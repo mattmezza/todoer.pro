@@ -211,3 +211,70 @@ async def update_complete(
         200,
         {"HX-Trigger": f"task-update, subtask-update, subtask-{sid}-update"},
     )
+
+
+@router.put("/subtask/{sid}/priority")
+@tpl.htmx("Tasks.Priority")
+async def update_subtask_priority(
+    req: Request,
+    sid: str,
+    priority: Annotated[str | None, Form()] = None,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    urepo = db.for_user(user)
+    priority_val = int(priority) if priority else None
+    if priority_val is not None and priority_val not in (1, 2, 3, 4):
+        priority_val = None
+    subtask = http.Opt(
+        await urepo.subtasks().update_priority_by_sid(priority_val, sid)
+    ).or_404(f"Subtask #{sid} not found.")
+    return (
+        {"task": subtask},
+        200,
+        {"HX-Trigger": f"subtask-update, subtask-{sid}-update"},
+    )
+
+
+@router.put("/subtask/{sid}/due-date")
+@tpl.htmx("Tasks.DueDate")
+async def update_subtask_due_date(
+    req: Request,
+    sid: str,
+    due_date: Annotated[str | None, Form()] = None,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    urepo = db.for_user(user)
+    subtask = http.Opt(
+        await urepo.subtasks().update_due_date_by_sid(
+            due_date if due_date else None, sid
+        )
+    ).or_404(f"Subtask #{sid} not found.")
+    return (
+        {"task": subtask},
+        200,
+        {"HX-Trigger": f"subtask-update, subtask-{sid}-update"},
+    )
+
+
+@router.put("/subtask/{sid}/tags")
+@tpl.htmx("Tasks.Tags")
+async def update_subtask_tags(
+    req: Request,
+    sid: str,
+    tags: Annotated[str | None, Form()] = None,
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    urepo = db.for_user(user)
+    subtask = http.Opt(
+        await urepo.subtasks().update_tags_by_sid(
+            tags.strip() if tags else "", sid
+        )
+    ).or_404(f"Subtask #{sid} not found.")
+    return (
+        {"task": subtask},
+        200,
+        {"HX-Trigger": f"subtask-update, subtask-{sid}-update"},
+    )

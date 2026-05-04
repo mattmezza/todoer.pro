@@ -19,6 +19,7 @@ from .routers import (
     lists,
     nav,
     notifications,
+    priority,
     search,
     sections,
     settings,
@@ -167,5 +168,9 @@ app.include_router(
 )
 app.include_router(
     settings.router,
+    dependencies=[Depends(get_current_active_user)],
+)
+app.include_router(
+    priority.router,
     dependencies=[Depends(get_current_active_user)],
 )

@@ -22,6 +22,11 @@
                 hx-trigger="load"
                 hx-swap="innerHTML"
             ></div>
+            <div
+                hx-get="/nav/priority-counts"
+                hx-trigger="load"
+                hx-swap="innerHTML"
+            ></div>
             {%- if cur_path_starts_with("/dashboard") -%}
                 {%- if spaces and spaces|rejectattr("default")|list|length %}<Nav.Spaces spaces={{spaces}} />{% endif %}
             {%- else -%}
