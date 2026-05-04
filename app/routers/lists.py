@@ -1,5 +1,6 @@
 import csv
 import io
+from collections import defaultdict
 from typing import Annotated, Mapping
 from uuid import UUID
 

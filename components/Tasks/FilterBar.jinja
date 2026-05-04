@@ -1,11 +1,12 @@
 {# def list, sort_by='manual', filter_priority=None, filter_due=None, filter_tags=None, all_tags=[] #}
-<div
-    class="mb-6 flex flex-wrap items-center gap-2"
-    x-data='{
-        sortBy: {{ (sort_by if sort_by else 'manual') | tojson }},
-        filterPriority: {{ filter_priority if filter_priority else 'null' }},
-        filterDue: {{ (filter_due if filter_due else none) | tojson }},
-        filterTags: {{ (filter_tags if filter_tags else []) | tojson }},
+<script>
+if (typeof Alpine !== 'undefined') {
+    Alpine.data('filterBar', (opts) => ({
+        sid: opts.sid,
+        sortBy: opts.sortBy || 'manual',
+        filterPriority: opts.filterPriority,
+        filterDue: opts.filterDue || null,
+        filterTags: opts.filterTags || [],
         tagDropdownOpen: false,
         dueDropdownOpen: false,
         sortDropdownOpen: false,
@@ -26,7 +27,7 @@
             if (this.filterPriority) params.set('priority', this.filterPriority);
             if (this.filterDue) params.set('due', this.filterDue);
             if (this.filterTags.length) params.set('tags', this.filterTags.join(','));
-            const url = '/list/{{ list.sid }}' + (params.toString() ? '?' + params.toString() : '');
+            const url = '/list/' + this.sid + (params.toString() ? '?' + params.toString() : '');
             htmx.ajax('GET', url, { target: '#page-content', swap: 'innerHTML' });
         },
         clearFilters() {
@@ -42,7 +43,18 @@
                 || this.filterDue
                 || this.filterTags.length > 0;
         }
-    }">
+    }));
+}
+</script>
+<div
+    class="mb-6 flex flex-wrap items-center gap-2"
+    x-data="filterBar({
+        sid: '{{ list.sid }}',
+        sortBy: '{{ sort_by or 'manual' }}',
+        filterPriority: {{ filter_priority if filter_priority else 'null' }},
+        filterDue: '{{ filter_due or '' }}',
+        filterTags: [{% if filter_tags %}{% for t in filter_tags %}'{{ t }}'{% if not loop.last %},{% endif %}{% endfor %}{% endif %}]
+    })">
     <!-- Sort -->
     <div class="relative" @click.outside="sortDropdownOpen = false">
         <button
