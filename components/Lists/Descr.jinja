@@ -1,6 +1,6 @@
 {#def list #}
 <div
-    class="page-descr-display cursor-pointer rounded min-h-[3lh] w-full prose dark:prose-white prose-base lg:prose-lg mt-4 sm:mt-0"
+    class="page-descr-display cursor-pointer rounded min-h-[3lh] w-full prose dark:prose-invert prose-base lg:prose-lg mt-4 sm:mt-0"
     _="on click hide me then show the next <form /> then select() on the next <textarea />">
 {%- if list.descr -%}
     {{ list.descr|markdown|safe }}
