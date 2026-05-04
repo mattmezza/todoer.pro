@@ -57,12 +57,15 @@
                 {% for _ in range(12) %}
                 <div class="p-3 rounded-xl border border-slate-800/30 bg-slate-900/20">
                     <div class="h-4 w-16 bg-slate-700/30 rounded mb-3"></div>
-                    <div class="grid grid-cols-7 gap-0.5">
-                        {% for _ in range(7) %}
+                    <div class="grid grid-cols-[1.25rem_repeat(7,1fr)] gap-[1px]">
+                        {% for _ in range(8) %}
                         <div class="h-2 bg-slate-700/10 rounded"></div>
                         {% endfor %}
-                        {% for _ in range(35) %}
-                        <div class="flex items-center justify-center"><span class="block w-1.5 h-1.5 rounded-full bg-slate-800"></span></div>
+                        {% for _ in range(6) %}
+                        <div class="h-3 bg-slate-700/10 rounded"></div>
+                        {% for _ in range(7) %}
+                        <div class="h-3 bg-slate-700/10 rounded"></div>
+                        {% endfor %}
                         {% endfor %}
                     </div>
                 </div>
@@ -524,41 +527,81 @@
 
         <!-- ==================== YEAR VIEW ==================== -->
         {% elif view == "year" %}
-        <div class="mb-8">
+        <!-- Hidden links for scroll-wheel HTMX nav -->
+        <a id="cal-year-prev" href="/calendar?view=year&amp;date={{ prev_date }}"
+           hx-get="/calendar?view=year&amp;date={{ prev_date }}"
+           hx-target="#main" hx-select="#main"
+           hx-push-url="true" hx-indicator="#cal-skeleton"
+           class="hidden"></a>
+        <a id="cal-year-next" href="/calendar?view=year&amp;date={{ next_date }}"
+           hx-get="/calendar?view=year&amp;date={{ next_date }}"
+           hx-target="#main" hx-select="#main"
+           hx-push-url="true" hx-indicator="#cal-skeleton"
+           class="hidden"></a>
+        <div class="mb-8"
+             x-data="{}"
+             @wheel.prevent="
+                 if (Math.abs($event.deltaY) < 40) return;
+                 let link = document.getElementById($event.deltaY > 0 ? 'cal-year-next' : 'cal-year-prev');
+                 if (link) link.click();
+             ">
             {% if month_days %}
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {% for md in month_days %}
                 {% set m_str = '%02d' % md.month %}
-                <a href="/calendar?view=month&amp;date={{ focus_date.split('-')[0] }}-{{ m_str }}-01"
-                   hx-get="/calendar?view=month&amp;date={{ focus_date.split('-')[0] }}-{{ m_str }}-01"
-                   hx-target="#main" hx-select="#main"
-                   hx-push-url="true"
-                   hx-indicator="#cal-skeleton"
-                   class="block p-3 rounded-xl border border-slate-800/50 bg-slate-900/30 hover:bg-slate-800/40 hover:border-slate-700 transition cursor-pointer group">
-                    <div class="flex items-center justify-between mb-2">
+                {% set year_str = focus_date.split('-')[0] %}
+                <div class="block p-3 rounded-xl border border-slate-800/50 bg-slate-900/30 group month-card">
+                    <!-- Month header — clickable → month view -->
+                    <a href="/calendar?view=month&amp;date={{ year_str }}-{{ m_str }}-01"
+                       hx-get="/calendar?view=month&amp;date={{ year_str }}-{{ m_str }}-01"
+                       hx-target="#main" hx-select="#main"
+                       hx-push-url="true"
+                       hx-indicator="#cal-skeleton"
+                       class="flex items-center justify-between mb-2 hover:bg-slate-800/40 -mx-1 px-1 py-0.5 rounded transition cursor-pointer">
                         <span class="text-sm font-semibold text-slate-300 group-hover:text-white transition-colors">{{ md.label_full }}</span>
                         {% if md.total_tasks > 0 %}
                         <span class="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400">{{ md.total_tasks }}</span>
                         {% endif %}
-                    </div>
-                    {% set first_dow = md.first.weekday() %}
-                    {% set days_in_month = md.last.day %}
-                    <div class="grid grid-cols-7 gap-0.5">
-                        {% for wd in ["M","T","W","T","F","S","S"] %}
-                        <span class="text-[7px] text-slate-700 text-center">{{ wd }}</span>
-                        {% endfor %}
-                        {% for _ in range(first_dow) %}
+                    </a>
+                    <!-- Mini calendar grid with week numbers + day numbers -->
+                    <div class="grid grid-cols-[1.25rem_repeat(7,1fr)] gap-[1px] text-[9px]">
+                        <!-- Day headers -->
                         <div></div>
+                        {% for wd in ["M","T","W","T","F","S","S"] %}
+                        <span class="text-[7px] text-slate-700 text-center leading-none">{{ wd }}</span>
                         {% endfor %}
-                        {% for d in range(1, days_in_month + 1) %}
-                        {% set has = d in md.days_with_tasks %}
-                        <div class="flex items-center justify-center">
-                            <span class="block w-1.5 h-1.5 rounded-full
-                                {% if has %}bg-indigo-400{% else %}bg-slate-800{% endif %}"></span>
-                        </div>
+                        <!-- Week rows -->
+                        {% for wrow in md.grid %}
+                        {% set wn = wrow.week_num %}
+                        <!-- Week number -->
+                        <a href="/calendar?view=week&amp;date={{ wrow.monday_iso }}"
+                           hx-get="/calendar?view=week&amp;date={{ wrow.monday_iso }}"
+                           hx-target="#main" hx-select="#main"
+                           hx-push-url="true"
+                           hx-indicator="#cal-skeleton"
+                           class="text-[7px] font-mono text-slate-700 hover:text-indigo-400 text-center leading-none pt-0.5 cursor-pointer week-{{ loop.parentloop.counter }}-{{ loop.index }}"
+                           onmouseenter="this.closest('.month-card').querySelectorAll('.week-{{ loop.parentloop.counter }}-{{ loop.index }}').forEach(e => e.classList.add('year-wn-highlight'))"
+                           onmouseleave="this.closest('.month-card').querySelectorAll('.week-{{ loop.parentloop.counter }}-{{ loop.index }}').forEach(e => e.classList.remove('year-wn-highlight'))">{{ wn }}</a>
+                        {% for day in wrow.days %}
+                            {% if day %}
+                            {% set iso = day.isoformat() %}
+                            {% set has = day.day in md.days_with_tasks %}
+                            <a href="/calendar?view=day&amp;date={{ iso }}"
+                               hx-get="/calendar?view=day&amp;date={{ iso }}"
+                               hx-target="#main" hx-select="#main"
+                               hx-push-url="true"
+                               hx-indicator="#cal-skeleton"
+                               class="text-center leading-none py-0.5 rounded-sm cursor-pointer transition
+                                      week-{{ loop.parentloop.parentloop.counter }}-{{ loop.parentloop.index }}
+                                      {% if has %}text-indigo-400 font-medium{% else %}text-slate-600 hover:text-slate-400{% endif %}
+                                      hover:bg-slate-800/40">{{ day.day }}</a>
+                            {% else %}
+                            <div></div>
+                            {% endif %}
+                        {% endfor %}
                         {% endfor %}
                     </div>
-                </a>
+                </div>
                 {% endfor %}
             </div>
             {% endif %}
@@ -583,6 +626,11 @@
     }
     .week-row:hover .week-num-cell span {
         color: #a5b4fc;
+    }
+
+    /* Year view: week row highlight */
+    .year-wn-highlight {
+        background-color: rgba(99, 102, 241, 0.08);
     }
 </style>
 </Layout.App>
