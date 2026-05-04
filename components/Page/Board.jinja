@@ -1,11 +1,7 @@
 {# def user, spaces, space, lists, list, sections, sections_by_list, view_complete, tasks_by_section, sort_by='manual', filter_priority=None, filter_due=None, filter_tags=None, all_tags=[], is_bookmarked=False, today='' #}
 <Layout.App spaces={{spaces}} space={{space}} user={{user}} title={{"#" + list.title}} lists={{lists}}>
 <div id="page-context" data-space-sid="{{ space.sid }}" data-space-title="{{ space.title }}" data-list-sid="{{ list.sid }}" data-list-title="{{ list.title }}" data-show-completed="{{ 'true' if view_complete else 'false' }}" style="display:none"></div>
-<div id="page-content"
-    hx-get="/list/{{ list.sid }}"
-    hx-trigger="list-{{ list.sid }}-settings-update from:body"
-    hx-target="#page-content"
-    hx-swap="innerHTML">
+<div id="page-content">
     <Page.BoardContent
         user={{user}}
         spaces={{spaces}}
@@ -25,35 +21,4 @@
         today={{today}}
     />
 </div>
-<script>
-(function() {
-    function isInputFocused() {
-        var active = document.activeElement;
-        if (!active) return false;
-        var tag = active.tagName.toLowerCase();
-        return tag === 'input' || tag === 'textarea' || tag === 'select' || active.isContentEditable;
-    }
-    function isAnyDialogOpen() {
-        var dialogs = document.getElementsByTagName('dialog');
-        for (var i = 0; i < dialogs.length; i++) {
-            if (dialogs[i].open) return true;
-        }
-        return false;
-    }
-
-    document.addEventListener('keydown', function(e) {
-        if (e.metaKey || e.ctrlKey || e.altKey) return;
-        if (isInputFocused()) return;
-        if (isAnyDialogOpen()) return;
-
-        switch (e.key) {
-            case 'S':
-                e.preventDefault();
-                var btn = document.getElementById('board-add-section-btn');
-                if (btn) { btn.scrollIntoView({ behavior: 'smooth' }); btn.click(); }
-                break;
-        }
-    });
-})();
-</script>
 </Layout.App>

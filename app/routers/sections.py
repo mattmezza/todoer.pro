@@ -1,7 +1,7 @@
 from typing import Annotated, Mapping
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Body, Depends, Form, Request
 from fastapi.responses import HTMLResponse
 
 from app import http, svc, tpl
@@ -208,6 +208,21 @@ async def update_list(
         content="",
         status_code=200,
         headers={"HX-Trigger": f"section-update, section-{sid}-update"},
+    )
+
+
+@router.put("/sections/reorder", response_class=HTMLResponse)
+async def reorder_sections(
+    req: Request,
+    sids: Annotated[list[str], Body()],
+    user: Mapping = Depends(get_current_active_user),
+    db: RepoDB = Depends(repo_db),
+):
+    await db.for_user(user).sections().reorder(sids)
+    return HTMLResponse(
+        "",
+        status_code=200,
+        headers={"HX-Trigger": "list-update, sections-reorder"},
     )
 
 

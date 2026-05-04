@@ -304,6 +304,24 @@ class SectionForUser(LoggedInUserRepo):
             )
             return dict(section._mapping) if section is not None else None
 
+    async def reorder(self, sids: list[str]) -> None:
+        async with self.db.transaction():
+            for idx, sid in enumerate(sids):
+                await self.db.execute(
+                    """
+                    UPDATE sections SET `order` = :idx, updated = CURRENT_TIMESTAMP
+                    WHERE sid = :sid
+                        AND EXISTS (
+                            SELECT 1 FROM sections s
+                            JOIN lists l ON l.uuid = s.list
+                            JOIN spaces sp ON sp.uuid = l.space
+                            WHERE s.uuid = sections.uuid
+                                AND sp.creator = :creator
+                        )
+                    """,
+                    {"idx": idx + 1, "sid": sid, "creator": self.user["uuid"]},
+                )
+
     async def move_up(self, sid: str) -> None | Mapping:
         section = await self.db.fetch_one(
             """

@@ -68,10 +68,6 @@ async def view(
     list_r = user_repo.lists()
     li = http.Opt(await list_r.by_sid(sid)).or_404(f"List #{sid} not found.")
 
-    # Use list setting as default, allow query param override
-    if view_complete is None:
-        view_complete = bool(li.get("show_completed", 0))
-
     if sort_by is None:
         sort_by = li.get("sort_by", "manual")
 
@@ -137,11 +133,7 @@ async def view(
     is_htmx = req.headers.get("hx-request") == "true"
     import datetime
     data["today"] = datetime.date.today().isoformat()
-    default_view = li.get("default_view", "list")
-    if default_view == "board":
-        tpl_name = "Page.BoardContent" if is_htmx else "Page.Board"
-    else:
-        tpl_name = "Page.ListContent" if is_htmx else "Page.List"
+    tpl_name = "Page.ListContent" if is_htmx else "Page.List"
     tpl._current_request.set(req)
     return HTMLResponse(render(tpl_name, **data))
 
@@ -247,46 +239,6 @@ async def update_color(
         dict(color=col),
         200,
         {"HX-Trigger": f"list-update, list-{sid}-update"},
-    )
-
-
-@router.get("/list/{sid}/settings")
-@tpl.htmx("Lists.Settings")
-async def get_settings(
-    req: Request,
-    sid: str,
-    user: Mapping = Depends(get_current_active_user),
-    db: RepoDB = Depends(repo_db),
-):
-    li = http.Opt(
-        await db.for_user(user).lists().by_sid(sid)
-    ).or_404(f"List #{sid} not found.")
-    return {"list": li}
-
-
-@router.put("/list/{sid}/settings")
-@tpl.htmx("Lists.Settings")
-async def update_settings(
-    req: Request,
-    sid: str,
-    default_view: Annotated[str, Form()] = "board",
-    show_completed: Annotated[bool, Form()] = False,
-    user: Mapping = Depends(get_current_active_user),
-    db: RepoDB = Depends(repo_db),
-):
-    li = http.Opt(
-        await db.for_user(user)
-        .lists()
-        .update_settings_by_sid(
-            sid,
-            default_view=default_view,
-            show_completed=show_completed,
-        )
-    ).or_404(f"List #{sid} not found.")
-    return (
-        {"list": li},
-        200,
-        {"HX-Trigger": f"list-update, list-{sid}-update, list-{sid}-settings-update"},
     )
 
 
