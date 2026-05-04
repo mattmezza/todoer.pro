@@ -36,16 +36,31 @@
                     <input name="title" type="hidden" value="{{ task.title }}" />
                     {% if task.descr %}<input name="descr" type="hidden" value="{{ task.descr }}" />{% endif %}
                     <span class="font-semibold text-slate-800 dark:text-slate-100 peer-checked:line-through ml-3 xs:text-xs sm:text-sm md:text-base lg:text-lg">{{ task.title }}</span>
-                    {% if task.priority %}
-                    <span class="ml-2 w-2 h-2 rounded-full inline-block flex-shrink-0
-                        {% if task.priority == 1 %}bg-red-500
-                        {% elif task.priority == 2 %}bg-orange-500
-                        {% elif task.priority == 3 %}bg-yellow-500
-                        {% elif task.priority == 4 %}bg-blue-500
-                        {% endif %}" title="P{{ task.priority }}"></span>
-                    {% endif %}
                 </form>
-                <div class="ml-2" onclick="event.stopPropagation()">
+                <div class="flex items-center gap-1" onclick="event.stopPropagation()">
+                    {% if task.priority %}
+                    {% set p = task.priority %}
+                    <span class="priority-display inline-flex items-center text-xs font-mono px-1.5 py-0.5 rounded cursor-pointer
+                        {% if p == 1 %}bg-red-500/20 text-red-400
+                        {% elif p == 2 %}bg-orange-500/20 text-orange-400
+                        {% elif p == 3 %}bg-yellow-500/20 text-yellow-400
+                        {% elif p == 4 %}bg-blue-500/20 text-blue-400
+                        {% endif %}"
+                        _="on click hide me then show next .priority-edit">P{{ p }}</span>
+                    <div class="priority-edit inline-flex items-center gap-0.5" style="display: none"
+                        _="on clickOutside hide me then show previous .priority-display">
+                        <button type="button" class="text-xs font-mono px-1 py-0.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 cursor-pointer"
+                            hx-put="/task/{{ task.sid }}/priority" hx-target="closest li" hx-swap="outerHTML" hx-vals='{"priority": "1"}'>P1</button>
+                        <button type="button" class="text-xs font-mono px-1 py-0.5 rounded bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 cursor-pointer"
+                            hx-put="/task/{{ task.sid }}/priority" hx-target="closest li" hx-swap="outerHTML" hx-vals='{"priority": "2"}'>P2</button>
+                        <button type="button" class="text-xs font-mono px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 cursor-pointer"
+                            hx-put="/task/{{ task.sid }}/priority" hx-target="closest li" hx-swap="outerHTML" hx-vals='{"priority": "3"}'>P3</button>
+                        <button type="button" class="text-xs font-mono px-1 py-0.5 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 cursor-pointer"
+                            hx-put="/task/{{ task.sid }}/priority" hx-target="closest li" hx-swap="outerHTML" hx-vals='{"priority": "4"}'>P4</button>
+                        <button type="button" class="text-xs font-mono px-1 py-0.5 rounded text-slate-500 hover:text-slate-400 cursor-pointer"
+                            hx-put="/task/{{ task.sid }}/priority" hx-target="closest li" hx-swap="outerHTML" hx-vals='{"priority": ""}'>✕</button>
+                    </div>
+                    {% endif %}
                     <Tasks.DueDate task={{task}} />
                 </div>
                 <!-- Inline title edit form (hidden by default) -->
