@@ -4,10 +4,10 @@
     tasks, by_date, calendar_grid, months, prev_year, next_year,
     weekdays, hours, total_tasks
 #}
-<Layout.App spaces={{spaces}} user={{user}} title={{"Date: " + title}}>
+<Layout.App spaces={{spaces}} user={{user}} title={{"Calendar: " + title}}>
 <div class="py-6 px-4 md:px-8 lg:max-w-6xl lg:mx-auto">
     <!-- Loading skeleton (shown during HTMX requests) -->
-    <div id="date-skeleton" class="htmx-indicator">
+    <div id="cal-skeleton" class="htmx-indicator">
         <div class="animate-pulse space-y-4">
             <div class="flex items-center gap-3">
                 <div class="h-7 w-7 bg-slate-700/50 rounded"></div>
@@ -57,7 +57,7 @@
     </div>
 
     <!-- Main content (fade out during HTMX request) -->
-    <div class="hx-content">
+    <div class="cal-content">
         <!-- Header: title + view switcher + nav arrows -->
         <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
             <div class="flex items-center gap-3">
@@ -69,47 +69,47 @@
             <div class="flex items-center gap-2">
                 <!-- View switcher -->
                 <div class="flex bg-slate-800/50 rounded-lg p-0.5 text-xs font-medium gap-0.5">
-                    <a href="/date?view=month&amp;date={{ focus_date }}"
-                       hx-get="/date?view=month&amp;date={{ focus_date }}"
+                    <a href="/calendar?view=month&amp;date={{ focus_date }}"
+                       hx-get="/calendar?view=month&amp;date={{ focus_date }}"
                        hx-target="#main" hx-select="#main"
                        hx-push-url="true"
-                       hx-indicator="#date-skeleton"
+                       hx-indicator="#cal-skeleton"
                        class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
                        {% if view == 'month' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                         Month
                     </a>
-                    <a href="/date?view=week&amp;date={{ focus_date }}"
-                       hx-get="/date?view=week&amp;date={{ focus_date }}"
+                    <a href="/calendar?view=week&amp;date={{ focus_date }}"
+                       hx-get="/calendar?view=week&amp;date={{ focus_date }}"
                        hx-target="#main" hx-select="#main"
                        hx-push-url="true"
-                       hx-indicator="#date-skeleton"
+                       hx-indicator="#cal-skeleton"
                        class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
                        {% if view == 'week' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                         Week
                     </a>
-                    <a href="/date?view=work-week&amp;date={{ focus_date }}"
-                       hx-get="/date?view=work-week&amp;date={{ focus_date }}"
+                    <a href="/calendar?view=work-week&amp;date={{ focus_date }}"
+                       hx-get="/calendar?view=work-week&amp;date={{ focus_date }}"
                        hx-target="#main" hx-select="#main"
                        hx-push-url="true"
-                       hx-indicator="#date-skeleton"
+                       hx-indicator="#cal-skeleton"
                        class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
                        {% if view == 'work-week' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                         Work Week
                     </a>
-                    <a href="/date?view=weekend&amp;date={{ focus_date }}"
-                       hx-get="/date?view=weekend&amp;date={{ focus_date }}"
+                    <a href="/calendar?view=weekend&amp;date={{ focus_date }}"
+                       hx-get="/calendar?view=weekend&amp;date={{ focus_date }}"
                        hx-target="#main" hx-select="#main"
                        hx-push-url="true"
-                       hx-indicator="#date-skeleton"
+                       hx-indicator="#cal-skeleton"
                        class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
                        {% if view == 'weekend' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                         Week End
                     </a>
-                    <a href="/date?view=day&amp;date={{ focus_date }}"
-                       hx-get="/date?view=day&amp;date={{ focus_date }}"
+                    <a href="/calendar?view=day&amp;date={{ focus_date }}"
+                       hx-get="/calendar?view=day&amp;date={{ focus_date }}"
                        hx-target="#main" hx-select="#main"
                        hx-push-url="true"
-                       hx-indicator="#date-skeleton"
+                       hx-indicator="#cal-skeleton"
                        class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
                        {% if view == 'day' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                         Day
@@ -118,30 +118,30 @@
 
                 <!-- Nav arrows -->
                 <div class="flex items-center gap-1">
-                    <a href="/date?view={{ view }}&amp;date={{ prev_date }}"
-                       hx-get="/date?view={{ view }}&amp;date={{ prev_date }}"
+                    <a href="/calendar?view={{ view }}&amp;date={{ prev_date }}"
+                       hx-get="/calendar?view={{ view }}&amp;date={{ prev_date }}"
                        hx-target="#main" hx-select="#main"
                        hx-push-url="true"
-                       hx-indicator="#date-skeleton"
+                       hx-indicator="#cal-skeleton"
                        class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
                        title="{{ prev_label }}">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
                         </svg>
                     </a>
-                    <a href="/date?view={{ view }}&amp;date={{ today }}"
-                       hx-get="/date?view={{ view }}&amp;date={{ today }}"
+                    <a href="/calendar?view={{ view }}&amp;date={{ today }}"
+                       hx-get="/calendar?view={{ view }}&amp;date={{ today }}"
                        hx-target="#main" hx-select="#main"
                        hx-push-url="true"
-                       hx-indicator="#date-skeleton"
+                       hx-indicator="#cal-skeleton"
                        class="px-2 py-1 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition rounded-md hover:bg-slate-800/50 cursor-pointer">
                         Today
                     </a>
-                    <a href="/date?view={{ view }}&amp;date={{ next_date }}"
-                       hx-get="/date?view={{ view }}&amp;date={{ next_date }}"
+                    <a href="/calendar?view={{ view }}&amp;date={{ next_date }}"
+                       hx-get="/calendar?view={{ view }}&amp;date={{ next_date }}"
                        hx-target="#main" hx-select="#main"
                        hx-push-url="true"
-                       hx-indicator="#date-skeleton"
+                       hx-indicator="#cal-skeleton"
                        class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
                        title="{{ next_label }}">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
@@ -163,31 +163,31 @@
         <div class="mb-8">
             {% if months %}
             <div class="flex items-center gap-2 mb-4 text-xs">
-                <a href="/date?view=month&amp;date={{ prev_year }}-{{ focus_date.split('-')[1] }}-01"
-                   hx-get="/date?view=month&amp;date={{ prev_year }}-{{ focus_date.split('-')[1] }}-01"
+                <a href="/calendar?view=month&amp;date={{ prev_year }}-{{ focus_date.split('-')[1] }}-01"
+                   hx-get="/calendar?view=month&amp;date={{ prev_year }}-{{ focus_date.split('-')[1] }}-01"
                    hx-target="#main" hx-select="#main"
                    hx-push-url="true"
-                   hx-indicator="#date-skeleton"
+                   hx-indicator="#cal-skeleton"
                    class="px-2 py-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition font-medium cursor-pointer">
                     {{ prev_year }}
                 </a>
                 {% for m in months %}
                 {% set is_active = m.year == focus_date.split('-')[0]|int and m.month == focus_date.split('-')[1]|int %}
-                <a href="/date?view=month&amp;date={{ m.year }}-{{ '%02d' % m.month }}-01"
-                   hx-get="/date?view=month&amp;date={{ m.year }}-{{ '%02d' % m.month }}-01"
+                <a href="/calendar?view=month&amp;date={{ m.year }}-{{ '%02d' % m.month }}-01"
+                   hx-get="/calendar?view=month&amp;date={{ m.year }}-{{ '%02d' % m.month }}-01"
                    hx-target="#main" hx-select="#main"
                    hx-push-url="true"
-                   hx-indicator="#date-skeleton"
+                   hx-indicator="#cal-skeleton"
                    class="px-2 py-1 rounded-md transition cursor-pointer
                    {% if is_active %}bg-indigo-600/30 text-indigo-300 font-medium{% else %}text-slate-500 hover:text-slate-300 hover:bg-slate-800/50{% endif %}">
                     {{ m.label }}
                 </a>
                 {% endfor %}
-                <a href="/date?view=month&amp;date={{ next_year }}-{{ focus_date.split('-')[1] }}-01"
-                   hx-get="/date?view=month&amp;date={{ next_year }}-{{ focus_date.split('-')[1] }}-01"
+                <a href="/calendar?view=month&amp;date={{ next_year }}-{{ focus_date.split('-')[1] }}-01"
+                   hx-get="/calendar?view=month&amp;date={{ next_year }}-{{ focus_date.split('-')[1] }}-01"
                    hx-target="#main" hx-select="#main"
                    hx-push-url="true"
-                   hx-indicator="#date-skeleton"
+                   hx-indicator="#cal-skeleton"
                    class="px-2 py-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition font-medium cursor-pointer">
                     {{ next_year }}
                 </a>
@@ -208,11 +208,11 @@
                 {% for week_row in calendar_grid %}
                 <div class="contents week-row">
                     <!-- Week number -->
-                    <a href="/date?view=week&amp;date={{ week_row.monday_iso }}"
-                       hx-get="/date?view=week&amp;date={{ week_row.monday_iso }}"
+                    <a href="/calendar?view=week&amp;date={{ week_row.monday_iso }}"
+                       hx-get="/calendar?view=week&amp;date={{ week_row.monday_iso }}"
                        hx-target="#main" hx-select="#main"
                        hx-push-url="true"
-                       hx-indicator="#date-skeleton"
+                       hx-indicator="#cal-skeleton"
                        class="min-h-[80px] sm:min-h-[110px] p-1 flex items-start justify-center transition cursor-pointer bg-slate-900/30 hover:bg-slate-800/40 week-num-cell">
                         <span class="text-[10px] font-mono text-slate-600 group-hover:text-indigo-300 transition-colors">{{ week_row.week_num }}</span>
                     </a>
@@ -222,11 +222,11 @@
                             {% set count = by_date.get(day_iso, [])|length %}
                             {% set is_today = day_iso == today %}
                             {% set is_focus = day_iso == focus_date %}
-                            <a href="/date?view=day&amp;date={{ day_iso }}"
-                               hx-get="/date?view=day&amp;date={{ day_iso }}"
+                            <a href="/calendar?view=day&amp;date={{ day_iso }}"
+                               hx-get="/calendar?view=day&amp;date={{ day_iso }}"
                                hx-target="#main" hx-select="#main"
                                hx-push-url="true"
-                               hx-indicator="#date-skeleton"
+                               hx-indicator="#cal-skeleton"
                                class="min-h-[80px] sm:min-h-[110px] p-1.5 sm:p-2 transition cursor-pointer
                                {% if is_focus %}bg-indigo-600/15{% elif is_today %}bg-indigo-500/10{% else %}bg-slate-900/30 hover:bg-slate-800/40{% endif %}
                                {% if is_focus %}ring-1 ring-indigo-500/40{% endif %}
@@ -296,11 +296,11 @@
                     {% if is_today %}border-indigo-500/40 bg-indigo-950/20
                     {% elif is_focus %}border-indigo-500/20 bg-slate-800/30
                     {% else %}border-slate-800/50 bg-slate-900/30{% endif %}">
-                    <a href="/date?view=day&amp;date={{ day_iso }}"
-                       hx-get="/date?view=day&amp;date={{ day_iso }}"
+                    <a href="/calendar?view=day&amp;date={{ day_iso }}"
+                       hx-get="/calendar?view=day&amp;date={{ day_iso }}"
                        hx-target="#main" hx-select="#main"
                        hx-push-url="true"
-                       hx-indicator="#date-skeleton"
+                       hx-indicator="#cal-skeleton"
                        class="px-3 py-2 border-b border-slate-800/50 flex items-center justify-between hover:bg-indigo-950/10 transition cursor-pointer">
                         <div>
                             <span class="text-xs font-medium text-slate-400">{{ wd.label }}</span>
@@ -485,10 +485,10 @@
 
 <style>
     /* Show skeleton, hide content during HTMX request */
-    #date-skeleton { display: none; }
-    .hx-content { display: block; }
-    .htmx-request#date-skeleton { display: block; }
-    .htmx-request#date-skeleton ~ .hx-content { display: none; }
+    #cal-skeleton { display: none; }
+    .cal-content { display: block; }
+    .htmx-request#cal-skeleton { display: block; }
+    .htmx-request#cal-skeleton ~ .cal-content { display: none; }
 
     /* Highlight entire week row on week-number hover */
     .week-row:hover .week-num-cell {

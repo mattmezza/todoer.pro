@@ -85,8 +85,8 @@ def _fmt_date(dt: date) -> str:
     return dt.isoformat()
 
 
-@router.get("/date")
-@tpl.htmx("Page.Date")
+@router.get("/calendar")
+@tpl.htmx("Page.Calendar")
 async def date_view(
     req: Request,
     view: Annotated[str, Query()] = "month",
