@@ -6,369 +6,462 @@
 #}
 <Layout.App spaces={{spaces}} user={{user}} title={{"Date: " + title}}>
 <div class="py-6 px-4 md:px-8 lg:max-w-6xl lg:mx-auto">
-    <!-- Header: title + view switcher + nav arrows -->
-    <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div class="flex items-center gap-3">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-slate-400">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-            </svg>
-            <h1 class="text-2xl font-bold text-slate-100">{{ title }}</h1>
-        </div>
-        <div class="flex items-center gap-2">
-            <!-- View switcher -->
-            <div class="flex bg-slate-800/50 rounded-lg p-0.5 text-xs font-medium gap-0.5">
-                <a href="/date?view=month&amp;date={{ focus_date }}"
-                   class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap
-                   {% if view == 'month' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
-                    Month
-                </a>
-                <a href="/date?view=week&amp;date={{ focus_date }}"
-                   class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap
-                   {% if view == 'week' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
-                    Week
-                </a>
-                <a href="/date?view=work-week&amp;date={{ focus_date }}"
-                   class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap
-                   {% if view == 'work-week' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
-                    Work Week
-                </a>
-                <a href="/date?view=weekend&amp;date={{ focus_date }}"
-                   class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap
-                   {% if view == 'weekend' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
-                    Week End
-                </a>
-                <a href="/date?view=day&amp;date={{ focus_date }}"
-                   class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap
-                   {% if view == 'day' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
-                    Day
-                </a>
+    <!-- Loading skeleton (shown during HTMX requests) -->
+    <div id="date-skeleton" class="htmx-indicator">
+        <div class="animate-pulse space-y-4">
+            <div class="flex items-center gap-3">
+                <div class="h-7 w-7 bg-slate-700/50 rounded"></div>
+                <div class="h-7 w-48 bg-slate-700/50 rounded"></div>
             </div>
-
-            <!-- Nav arrows -->
-            <div class="flex items-center gap-1">
-                <a href="/date?view={{ view }}&amp;date={{ prev_date }}"
-                   class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
-                   title="{{ prev_label }}">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-                    </svg>
-                </a>
-                <a href="/date?view={{ view }}&amp;date={{ today }}"
-                   class="px-2 py-1 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition rounded-md hover:bg-slate-800/50 cursor-pointer">
-                    Today
-                </a>
-                <a href="/date?view={{ view }}&amp;date={{ next_date }}"
-                   class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
-                   title="{{ next_label }}">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                    </svg>
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Summary -->
-    <div class="mb-4 text-sm text-slate-500">
-        {{ total_tasks }} task{% if total_tasks != 1 %}s{% endif %} with due dates
-        {% if view == 'day' %}on this day{% else %}in this range{% endif %}
-    </div>
-
-    <!-- ==================== MONTH VIEW ==================== -->
-    {% if view == "month" %}
-    <div class="mb-8">
-        {% if months %}
-        <!-- All 12 months + year navigation -->
-        <div class="flex items-center gap-2 mb-4 text-xs">
-            <a href="/date?view=month&amp;date={{ prev_year }}-{{ focus_date.split('-')[1] }}-01"
-               class="px-2 py-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition font-medium">
-                {{ prev_year }}
-            </a>
-            {% for m in months %}
-            {% set is_active = m.year == focus_date.split('-')[0]|int and m.month == focus_date.split('-')[1]|int %}
-            <a href="/date?view=month&amp;date={{ m.year }}-{{ '%02d' % m.month }}-01"
-               class="px-2 py-1 rounded-md transition
-               {% if is_active %}bg-indigo-600/30 text-indigo-300 font-medium{% else %}text-slate-500 hover:text-slate-300 hover:bg-slate-800/50{% endif %}">
-                {{ m.label }}
-            </a>
-            {% endfor %}
-            <a href="/date?view=month&amp;date={{ next_year }}-{{ focus_date.split('-')[1] }}-01"
-               class="px-2 py-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition font-medium">
-                {{ next_year }}
-            </a>
-        </div>
-        {% endif %}
-
-        {% if calendar_grid %}
-        <div class="grid grid-cols-7 gap-px bg-slate-800/30 rounded-lg overflow-hidden border border-slate-800/50">
-            {% for wd in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] %}
-            <div class="px-2 py-2 text-xs font-medium text-slate-500 text-center bg-slate-900/50">
-                <span class="hidden sm:inline">{{ wd }}</span>
-                <span class="sm:hidden">{{ wd[:1] }}</span>
-            </div>
-            {% endfor %}
-
-            {% for week in calendar_grid %}
-            {% for day in week %}
-                {% if day %}
-                    {% set day_iso = day.isoformat() %}
-                    {% set count = by_date.get(day_iso, [])|length %}
-                    {% set is_today = day_iso == today %}
-                    {% set is_focus = day_iso == focus_date %}
-                    <a href="/date?view=day&amp;date={{ day_iso }}"
-                       class="min-h-[80px] sm:min-h-[110px] p-1.5 sm:p-2 transition cursor-pointer
-                       {% if is_focus %}bg-indigo-600/15{% elif is_today %}bg-indigo-500/10{% else %}bg-slate-900/30 hover:bg-slate-800/40{% endif %}
-                       {% if is_focus %}ring-1 ring-indigo-500/40{% endif %}
-                       group">
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-xs sm:text-sm font-medium
-                                {% if is_today %}text-indigo-400{% elif is_focus %}text-indigo-300{% elif day.weekday() >= 5 %}text-slate-600{% else %}text-slate-400{% endif %}">
-                                {{ day.day }}
-                            </span>
-                            {% if count > 0 %}
-                            <span class="text-[10px] sm:text-xs font-medium px-1.5 py-0.5 rounded-full
-                                {% if count > 3 %}bg-red-500/20 text-red-400
-                                {% elif count > 1 %}bg-amber-500/20 text-amber-400
-                                {% else %}bg-indigo-500/20 text-indigo-400{% endif %}">
-                                {{ count }}
-                            </span>
-                            {% endif %}
+            <div class="h-4 w-32 bg-slate-700/30 rounded"></div>
+            {% if view == "month" %}
+            <div class="grid grid-cols-7 gap-px bg-slate-800/20 rounded-lg overflow-hidden">
+                {% for _ in range(7) %}
+                <div class="h-5 bg-slate-800/20"></div>
+                {% endfor %}
+                {% for _ in range(35) %}
+                <div class="min-h-[100px] bg-slate-900/20">
+                    <div class="p-2">
+                        <div class="h-4 w-6 bg-slate-700/30 rounded mb-2"></div>
+                        <div class="space-y-1">
+                            <div class="h-3 w-full bg-slate-700/20 rounded"></div>
+                            <div class="h-3 w-3/4 bg-slate-700/20 rounded"></div>
                         </div>
-                        {% if count > 0 %}
-                        <div class="hidden sm:flex flex-col gap-0.5 mt-1">
-                            {% for t in by_date.get(day_iso, [])[:3] %}
-                            <div class="flex items-center gap-1 min-w-0">
-                                {% if t.complete %}
-                                <span class="shrink-0 w-1.5 h-1.5 rounded-full bg-green-500/60"></span>
-                                {% elif t.priority %}
-                                <span class="shrink-0 w-1.5 h-1.5 rounded-full
-                                    {% if t.priority == 1 %}bg-red-500
-                                    {% elif t.priority == 2 %}bg-orange-500
-                                    {% elif t.priority == 3 %}bg-yellow-500
-                                    {% elif t.priority == 4 %}bg-blue-500
-                                    {% endif %}"></span>
-                                {% else %}
-                                <span class="shrink-0 w-1.5 h-1.5 rounded-full bg-slate-600"></span>
-                                {% endif %}
-                                <span class="text-[10px] text-slate-500 truncate group-hover:text-slate-300 transition-colors
-                                    {% if t.complete %}line-through text-slate-700{% endif %}">
-                                    {{ t.title }}
-                                </span>
-                            </div>
-                            {% endfor %}
-                            {% if count > 3 %}
-                            <span class="text-[10px] text-slate-600">+{{ count - 3 }} more</span>
-                            {% endif %}
-                        </div>
-                        {% endif %}
-                    </a>
-                {% else %}
-                    <div class="min-h-[80px] sm:min-h-[110px] bg-slate-900/20"></div>
-                {% endif %}
-            {% endfor %}
-            {% endfor %}
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- ==================== WEEK / WORK-WEEK / WEEKEND VIEW ==================== -->
-    {% elif view in ("week", "work-week", "weekend") %}
-    <div class="space-y-6">
-        <!-- Full-width columns, taller -->
-        <div class="flex gap-3">
-            {% for wd in weekdays %}
-            {% set day_iso = wd.iso %}
-            {% set day_tasks = by_date.get(day_iso, []) %}
-            {% set is_today = day_iso == today %}
-            {% set is_focus = day_iso == focus_date %}
-            <div class="flex-1 min-w-0 rounded-lg border
-                {% if is_today %}border-indigo-500/40 bg-indigo-950/20
-                {% elif is_focus %}border-indigo-500/20 bg-slate-800/30
-                {% else %}border-slate-800/50 bg-slate-900/30{% endif %}">
-                <div class="px-3 py-2 border-b border-slate-800/50 flex items-center justify-between">
-                    <div>
-                        <span class="text-xs font-medium text-slate-400">{{ wd.label }}</span>
-                        <a href="/date?view=day&amp;date={{ day_iso }}"
-                           class="text-sm font-bold text-slate-200 hover:text-indigo-400 ml-1.5 transition">{{ wd.day }}</a>
                     </div>
-                    {% if day_tasks|length > 0 %}
-                    <span class="text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0
-                        {% if day_tasks|length > 3 %}bg-red-500/20 text-red-400
-                        {% elif day_tasks|length > 1 %}bg-amber-500/20 text-amber-400
-                        {% else %}bg-indigo-500/20 text-indigo-400{% endif %}">
-                        {{ day_tasks|length }}
-                    </span>
-                    {% endif %}
-                </div>
-                <!-- No max-h — fills available space -->
-                <div class="p-2 space-y-1.5">
-                    {% if day_tasks %}
-                        {% for t in day_tasks %}
-                        <a href="/task/{{ t.sid }}"
-                           class="block px-2 py-1.5 rounded-md hover:bg-slate-800/50 transition group
-                           {% if t.complete %}opacity-50{% endif %}">
-                            <div class="flex items-center gap-2">
-                                {% if t.complete %}
-                                <span class="shrink-0 w-1.5 h-1.5 rounded-full bg-green-500/60"></span>
-                                {% elif t.priority %}
-                                <span class="shrink-0 w-1.5 h-1.5 rounded-full
-                                    {% if t.priority == 1 %}bg-red-500
-                                    {% elif t.priority == 2 %}bg-orange-500
-                                    {% elif t.priority == 3 %}bg-yellow-500
-                                    {% elif t.priority == 4 %}bg-blue-500
-                                    {% endif %}"></span>
-                                {% else %}
-                                <span class="shrink-0 w-1.5 h-1.5 rounded-full bg-slate-600"></span>
-                                {% endif %}
-                                <span class="text-xs font-medium text-slate-300 group-hover:text-white transition-colors truncate
-                                    {% if t.complete %}line-through text-slate-600{% endif %}">
-                                    {{ t.title }}
-                                </span>
-                            </div>
-                            <div class="flex items-center gap-1.5 mt-0.5 ml-3.5">
-                                <span class="text-[10px] text-slate-600 truncate">{{ t.space_title }}</span>
-                                <span class="text-[10px] text-slate-700">/</span>
-                                <span class="text-[10px] text-slate-600 truncate" style="color: {{ t.list_color or '#6366f1' }}">{{ t.list_title }}</span>
-                            </div>
-                            {% if t.tags %}
-                            <div class="flex gap-1 mt-0.5 ml-3.5 flex-wrap">
-                                {% for tag in t.tags.split(',') %}
-                                    {% if tag.strip() %}
-                                    <span class="text-[9px] px-1 py-px rounded-full bg-indigo-500/10 text-indigo-400">+{{ tag.strip() }}</span>
-                                    {% endif %}
-                                {% endfor %}
-                            </div>
-                            {% endif %}
-                        </a>
-                        {% endfor %}
-                    {% else %}
-                        <div class="text-center py-4">
-                            <p class="text-[10px] text-slate-600">No tasks</p>
-                        </div>
-                    {% endif %}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-
-        {% if tasks %}
-        <details class="group">
-            <summary class="text-xs font-medium text-slate-500 cursor-pointer hover:text-slate-300 transition list-none flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3 transition group-open:rotate-90">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                </svg>
-                View all {{ tasks|length }} tasks
-            </summary>
-            <div class="mt-3 space-y-4">
-                {% set sorted_dates = by_date.items()|list|sort(attribute='0') %}
-                {% for day_iso, day_tasks in sorted_dates %}
-                <div>
-                    <h3 class="text-sm font-semibold text-slate-400 mb-2">{{ day_iso }}</h3>
-                    {% for t in day_tasks %}
-                    <a href="/task/{{ t.sid }}"
-                       class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-800/40 transition group
-                       {% if t.complete %}opacity-50{% endif %}">
-                        <span class="shrink-0 w-2 h-2 rounded-full
-                            {% if t.complete %}bg-green-500/60
-                            {% elif t.priority == 1 %}bg-red-500
-                            {% elif t.priority == 2 %}bg-orange-500
-                            {% elif t.priority == 3 %}bg-yellow-500
-                            {% elif t.priority == 4 %}bg-blue-500
-                            {% else %}bg-slate-600{% endif %}"></span>
-                        <span class="text-sm text-slate-300 group-hover:text-white transition-colors truncate
-                            {% if t.complete %}line-through text-slate-600{% endif %}">{{ t.title }}</span>
-                    </a>
-                    {% endfor %}
                 </div>
                 {% endfor %}
             </div>
-        </details>
-        {% endif %}
+            {% elif view in ("week", "work-week", "weekend") %}
+            <div class="flex gap-3">
+                {% for _ in weekdays %}
+                <div class="flex-1 min-w-0 bg-slate-900/30 rounded-lg h-64">
+                    <div class="p-3 border-b border-slate-800/50">
+                        <div class="h-4 w-16 bg-slate-700/30 rounded"></div>
+                    </div>
+                    <div class="p-2 space-y-2">
+                        <div class="h-8 bg-slate-700/20 rounded"></div>
+                        <div class="h-8 bg-slate-700/20 rounded"></div>
+                        <div class="h-8 bg-slate-700/20 rounded"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% elif view == "day" %}
+            <div class="space-y-2">
+                {% for _ in range(5) %}
+                <div class="h-14 bg-slate-900/30 rounded-lg"></div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
     </div>
 
-    <!-- ==================== DAY VIEW ==================== -->
-    {% elif view == "day" %}
-    <div class="space-y-4">
-        <div class="text-sm text-slate-500 mb-2">
-            {% set dt = focus_date.split('-') %}
-            {% if focus_date == today %}<span class="text-indigo-400 font-medium">Today</span> &middot; {% endif %}
-            {{ dt[2] }}/{{ dt[1] }}/{{ dt[0] }}
+    <!-- Main content (fade out during HTMX request) -->
+    <div class="hx-content">
+        <!-- Header: title + view switcher + nav arrows -->
+        <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+            <div class="flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-7 h-7 text-slate-400">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                </svg>
+                <h1 class="text-2xl font-bold text-slate-100">{{ title }}</h1>
+            </div>
+            <div class="flex items-center gap-2">
+                <!-- View switcher -->
+                <div class="flex bg-slate-800/50 rounded-lg p-0.5 text-xs font-medium gap-0.5">
+                    <a href="/date?view=month&amp;date={{ focus_date }}"
+                       hx-get="/date?view=month&amp;date={{ focus_date }}"
+                       hx-target="#main" hx-select="#main"
+                       hx-indicator="#date-skeleton"
+                       class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
+                       {% if view == 'month' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        Month
+                    </a>
+                    <a href="/date?view=week&amp;date={{ focus_date }}"
+                       hx-get="/date?view=week&amp;date={{ focus_date }}"
+                       hx-target="#main" hx-select="#main"
+                       hx-indicator="#date-skeleton"
+                       class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
+                       {% if view == 'week' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        Week
+                    </a>
+                    <a href="/date?view=work-week&amp;date={{ focus_date }}"
+                       hx-get="/date?view=work-week&amp;date={{ focus_date }}"
+                       hx-target="#main" hx-select="#main"
+                       hx-indicator="#date-skeleton"
+                       class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
+                       {% if view == 'work-week' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        Work Week
+                    </a>
+                    <a href="/date?view=weekend&amp;date={{ focus_date }}"
+                       hx-get="/date?view=weekend&amp;date={{ focus_date }}"
+                       hx-target="#main" hx-select="#main"
+                       hx-indicator="#date-skeleton"
+                       class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
+                       {% if view == 'weekend' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        Week End
+                    </a>
+                    <a href="/date?view=day&amp;date={{ focus_date }}"
+                       hx-get="/date?view=day&amp;date={{ focus_date }}"
+                       hx-target="#main" hx-select="#main"
+                       hx-indicator="#date-skeleton"
+                       class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
+                       {% if view == 'day' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        Day
+                    </a>
+                </div>
+
+                <!-- Nav arrows -->
+                <div class="flex items-center gap-1">
+                    <a href="/date?view={{ view }}&amp;date={{ prev_date }}"
+                       hx-get="/date?view={{ view }}&amp;date={{ prev_date }}"
+                       hx-target="#main" hx-select="#main"
+                       hx-indicator="#date-skeleton"
+                       class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                       title="{{ prev_label }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                        </svg>
+                    </a>
+                    <a href="/date?view={{ view }}&amp;date={{ today }}"
+                       hx-get="/date?view={{ view }}&amp;date={{ today }}"
+                       hx-target="#main" hx-select="#main"
+                       hx-indicator="#date-skeleton"
+                       class="px-2 py-1 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition rounded-md hover:bg-slate-800/50 cursor-pointer">
+                        Today
+                    </a>
+                    <a href="/date?view={{ view }}&amp;date={{ next_date }}"
+                       hx-get="/date?view={{ view }}&amp;date={{ next_date }}"
+                       hx-target="#main" hx-select="#main"
+                       hx-indicator="#date-skeleton"
+                       class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                       title="{{ next_label }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                        </svg>
+                    </a>
+                </div>
+            </div>
         </div>
 
-        {% if tasks %}
-        <div class="space-y-1">
-            {% for t in tasks %}
-            <div class="px-4 py-2.5 rounded-lg border border-slate-800/50 bg-slate-900/30
-                {% if t.complete %}border-green-900/30 bg-green-950/10 opacity-60{% endif %}">
-                <div class="flex items-center gap-3">
-                    <!-- Completion dot -->
-                    <div class="shrink-0">
-                        {% if t.complete %}
-                        <span class="flex items-center justify-center w-4 h-4 rounded-full bg-green-500/20">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-2.5 h-2.5 text-green-400">
-                              <path fill-rule="evenodd" d="M19.916 4.626a.75.75 0 0 1 .208 1.04l-9 13.5a.75.75 0 0 1-1.154.114l-6-6a.75.75 0 0 1 1.06-1.06l5.353 5.353 8.493-12.74a.75.75 0 0 1 1.04-.207Z" clip-rule="evenodd" />
-                            </svg>
+        <!-- Summary -->
+        <div class="mb-4 text-sm text-slate-500">
+            {{ total_tasks }} task{% if total_tasks != 1 %}s{% endif %} with due dates
+            {% if view == 'day' %}on this day{% else %}in this range{% endif %}
+        </div>
+
+        <!-- ==================== MONTH VIEW ==================== -->
+        {% if view == "month" %}
+        <div class="mb-8">
+            {% if months %}
+            <div class="flex items-center gap-2 mb-4 text-xs">
+                <a href="/date?view=month&amp;date={{ prev_year }}-{{ focus_date.split('-')[1] }}-01"
+                   hx-get="/date?view=month&amp;date={{ prev_year }}-{{ focus_date.split('-')[1] }}-01"
+                   hx-target="#main" hx-select="#main"
+                   hx-indicator="#date-skeleton"
+                   class="px-2 py-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition font-medium cursor-pointer">
+                    {{ prev_year }}
+                </a>
+                {% for m in months %}
+                {% set is_active = m.year == focus_date.split('-')[0]|int and m.month == focus_date.split('-')[1]|int %}
+                <a href="/date?view=month&amp;date={{ m.year }}-{{ '%02d' % m.month }}-01"
+                   hx-get="/date?view=month&amp;date={{ m.year }}-{{ '%02d' % m.month }}-01"
+                   hx-target="#main" hx-select="#main"
+                   hx-indicator="#date-skeleton"
+                   class="px-2 py-1 rounded-md transition cursor-pointer
+                   {% if is_active %}bg-indigo-600/30 text-indigo-300 font-medium{% else %}text-slate-500 hover:text-slate-300 hover:bg-slate-800/50{% endif %}">
+                    {{ m.label }}
+                </a>
+                {% endfor %}
+                <a href="/date?view=month&amp;date={{ next_year }}-{{ focus_date.split('-')[1] }}-01"
+                   hx-get="/date?view=month&amp;date={{ next_year }}-{{ focus_date.split('-')[1] }}-01"
+                   hx-target="#main" hx-select="#main"
+                   hx-indicator="#date-skeleton"
+                   class="px-2 py-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition font-medium cursor-pointer">
+                    {{ next_year }}
+                </a>
+            </div>
+            {% endif %}
+
+            {% if calendar_grid %}
+            <div class="grid grid-cols-7 gap-px bg-slate-800/30 rounded-lg overflow-hidden border border-slate-800/50">
+                {% for wd in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] %}
+                <div class="px-2 py-2 text-xs font-medium text-slate-500 text-center bg-slate-900/50">
+                    <span class="hidden sm:inline">{{ wd }}</span>
+                    <span class="sm:hidden">{{ wd[:1] }}</span>
+                </div>
+                {% endfor %}
+
+                {% for week in calendar_grid %}
+                {% for day in week %}
+                    {% if day %}
+                        {% set day_iso = day.isoformat() %}
+                        {% set count = by_date.get(day_iso, [])|length %}
+                        {% set is_today = day_iso == today %}
+                        {% set is_focus = day_iso == focus_date %}
+                        <a href="/date?view=day&amp;date={{ day_iso }}"
+                           hx-get="/date?view=day&amp;date={{ day_iso }}"
+                           hx-target="#main" hx-select="#main"
+                           hx-indicator="#date-skeleton"
+                           class="min-h-[80px] sm:min-h-[110px] p-1.5 sm:p-2 transition cursor-pointer
+                           {% if is_focus %}bg-indigo-600/15{% elif is_today %}bg-indigo-500/10{% else %}bg-slate-900/30 hover:bg-slate-800/40{% endif %}
+                           {% if is_focus %}ring-1 ring-indigo-500/40{% endif %}
+                           group">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs sm:text-sm font-medium
+                                    {% if is_today %}text-indigo-400{% elif is_focus %}text-indigo-300{% elif day.weekday() >= 5 %}text-slate-600{% else %}text-slate-400{% endif %}">
+                                    {{ day.day }}
+                                </span>
+                                {% if count > 0 %}
+                                <span class="text-[10px] sm:text-xs font-medium px-1.5 py-0.5 rounded-full
+                                    {% if count > 3 %}bg-red-500/20 text-red-400
+                                    {% elif count > 1 %}bg-amber-500/20 text-amber-400
+                                    {% else %}bg-indigo-500/20 text-indigo-400{% endif %}">
+                                    {{ count }}
+                                </span>
+                                {% endif %}
+                            </div>
+                            {% if count > 0 %}
+                            <div class="hidden sm:flex flex-col gap-0.5 mt-1">
+                                {% for t in by_date.get(day_iso, [])[:3] %}
+                                <div class="flex items-center gap-1 min-w-0">
+                                    {% if t.complete %}
+                                    <span class="shrink-0 w-1.5 h-1.5 rounded-full bg-green-500/60"></span>
+                                    {% elif t.priority %}
+                                    <span class="shrink-0 w-1.5 h-1.5 rounded-full
+                                        {% if t.priority == 1 %}bg-red-500
+                                        {% elif t.priority == 2 %}bg-orange-500
+                                        {% elif t.priority == 3 %}bg-yellow-500
+                                        {% elif t.priority == 4 %}bg-blue-500
+                                        {% endif %}"></span>
+                                    {% else %}
+                                    <span class="shrink-0 w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                                    {% endif %}
+                                    <span class="text-[10px] text-slate-500 truncate group-hover:text-slate-300 transition-colors
+                                        {% if t.complete %}line-through text-slate-700{% endif %}">
+                                        {{ t.title }}
+                                    </span>
+                                </div>
+                                {% endfor %}
+                                {% if count > 3 %}
+                                <span class="text-[10px] text-slate-600">+{{ count - 3 }} more</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </a>
+                    {% else %}
+                        <div class="min-h-[80px] sm:min-h-[110px] bg-slate-900/20"></div>
+                    {% endif %}
+                {% endfor %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- ==================== WEEK / WORK-WEEK / WEEKEND VIEW ==================== -->
+        {% elif view in ("week", "work-week", "weekend") %}
+        <div class="space-y-6">
+            <div class="flex gap-3">
+                {% for wd in weekdays %}
+                {% set day_iso = wd.iso %}
+                {% set day_tasks = by_date.get(day_iso, []) %}
+                {% set is_today = day_iso == today %}
+                {% set is_focus = day_iso == focus_date %}
+                <div class="flex-1 min-w-0 rounded-lg border
+                    {% if is_today %}border-indigo-500/40 bg-indigo-950/20
+                    {% elif is_focus %}border-indigo-500/20 bg-slate-800/30
+                    {% else %}border-slate-800/50 bg-slate-900/30{% endif %}">
+                    <div class="px-3 py-2 border-b border-slate-800/50 flex items-center justify-between">
+                        <div>
+                            <span class="text-xs font-medium text-slate-400">{{ wd.label }}</span>
+                            <a href="/date?view=day&amp;date={{ day_iso }}"
+                               hx-get="/date?view=day&amp;date={{ day_iso }}"
+                               hx-target="#main" hx-select="#main"
+                               hx-indicator="#date-skeleton"
+                               class="text-sm font-bold text-slate-200 hover:text-indigo-400 ml-1.5 transition cursor-pointer">{{ wd.day }}</a>
+                        </div>
+                        {% if day_tasks|length > 0 %}
+                        <span class="text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0
+                            {% if day_tasks|length > 3 %}bg-red-500/20 text-red-400
+                            {% elif day_tasks|length > 1 %}bg-amber-500/20 text-amber-400
+                            {% else %}bg-indigo-500/20 text-indigo-400{% endif %}">
+                            {{ day_tasks|length }}
                         </span>
-                        {% elif t.priority %}
-                        <span class="flex items-center justify-center w-4 h-4 rounded-full
-                            {% if t.priority == 1 %}bg-red-500/20
-                            {% elif t.priority == 2 %}bg-orange-500/20
-                            {% elif t.priority == 3 %}bg-yellow-500/20
-                            {% elif t.priority == 4 %}bg-blue-500/20
-                            {% endif %}">
-                            <span class="text-[8px] font-bold
-                                {% if t.priority == 1 %}text-red-400
-                                {% elif t.priority == 2 %}text-orange-400
-                                {% elif t.priority == 3 %}text-yellow-400
-                                {% elif t.priority == 4 %}text-blue-400
-                                {% endif %}">{{ t.priority }}</span>
-                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="p-2 space-y-1.5">
+                        {% if day_tasks %}
+                            {% for t in day_tasks %}
+                            <a href="/task/{{ t.sid }}"
+                               class="block px-2 py-1.5 rounded-md hover:bg-slate-800/50 transition group
+                               {% if t.complete %}opacity-50{% endif %}">
+                                <div class="flex items-center gap-2">
+                                    {% if t.complete %}
+                                    <span class="shrink-0 w-1.5 h-1.5 rounded-full bg-green-500/60"></span>
+                                    {% elif t.priority %}
+                                    <span class="shrink-0 w-1.5 h-1.5 rounded-full
+                                        {% if t.priority == 1 %}bg-red-500
+                                        {% elif t.priority == 2 %}bg-orange-500
+                                        {% elif t.priority == 3 %}bg-yellow-500
+                                        {% elif t.priority == 4 %}bg-blue-500
+                                        {% endif %}"></span>
+                                    {% else %}
+                                    <span class="shrink-0 w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                                    {% endif %}
+                                    <span class="text-xs font-medium text-slate-300 group-hover:text-white transition-colors truncate
+                                        {% if t.complete %}line-through text-slate-600{% endif %}">
+                                        {{ t.title }}
+                                    </span>
+                                </div>
+                                <div class="flex items-center gap-1.5 mt-0.5 ml-3.5">
+                                    <span class="text-[10px] text-slate-600 truncate">{{ t.space_title }}</span>
+                                    <span class="text-[10px] text-slate-700">/</span>
+                                    <span class="text-[10px] text-slate-600 truncate" style="color: {{ t.list_color or '#6366f1' }}">{{ t.list_title }}</span>
+                                </div>
+                                {% if t.tags %}
+                                <div class="flex gap-1 mt-0.5 ml-3.5 flex-wrap">
+                                    {% for tag in t.tags.split(',') %}
+                                        {% if tag.strip() %}
+                                        <span class="text-[9px] px-1 py-px rounded-full bg-indigo-500/10 text-indigo-400">+{{ tag.strip() }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </a>
+                            {% endfor %}
                         {% else %}
-                        <span class="block w-4 h-4 rounded-full bg-slate-700/50"></span>
+                            <div class="text-center py-4">
+                                <p class="text-[10px] text-slate-600">No tasks</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if tasks %}
+            <details class="group">
+                <summary class="text-xs font-medium text-slate-500 cursor-pointer hover:text-slate-300 transition list-none flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3 transition group-open:rotate-90">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                    </svg>
+                    View all {{ tasks|length }} tasks
+                </summary>
+                <div class="mt-3 space-y-4">
+                    {% set sorted_dates = by_date.items()|list|sort(attribute='0') %}
+                    {% for day_iso, day_tasks in sorted_dates %}
+                    <div>
+                        <h3 class="text-sm font-semibold text-slate-400 mb-2">{{ day_iso }}</h3>
+                        {% for t in day_tasks %}
+                        <a href="/task/{{ t.sid }}"
+                           class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-800/40 transition group
+                           {% if t.complete %}opacity-50{% endif %}">
+                            <span class="shrink-0 w-2 h-2 rounded-full
+                                {% if t.complete %}bg-green-500/60
+                                {% elif t.priority == 1 %}bg-red-500
+                                {% elif t.priority == 2 %}bg-orange-500
+                                {% elif t.priority == 3 %}bg-yellow-500
+                                {% elif t.priority == 4 %}bg-blue-500
+                                {% else %}bg-slate-600{% endif %}"></span>
+                            <span class="text-sm text-slate-300 group-hover:text-white transition-colors truncate
+                                {% if t.complete %}line-through text-slate-600{% endif %}">{{ t.title }}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endif %}
+        </div>
+
+        <!-- ==================== DAY VIEW ==================== -->
+        {% elif view == "day" %}
+        <div class="space-y-4">
+            <div class="text-sm text-slate-500 mb-2">
+                {% set dt = focus_date.split('-') %}
+                {% if focus_date == today %}<span class="text-indigo-400 font-medium">Today</span> &middot; {% endif %}
+                {{ dt[2] }}/{{ dt[1] }}/{{ dt[0] }}
+            </div>
+
+            {% if tasks %}
+            <div class="space-y-1">
+                {% for t in tasks %}
+                <div class="px-4 py-2.5 rounded-lg border border-slate-800/50 bg-slate-900/30
+                    {% if t.complete %}border-green-900/30 bg-green-950/10 opacity-60{% endif %}">
+                    <div class="flex items-center gap-3">
+                        <div class="shrink-0">
+                            {% if t.complete %}
+                            <span class="flex items-center justify-center w-4 h-4 rounded-full bg-green-500/20">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-2.5 h-2.5 text-green-400">
+                                  <path fill-rule="evenodd" d="M19.916 4.626a.75.75 0 0 1 .208 1.04l-9 13.5a.75.75 0 0 1-1.154.114l-6-6a.75.75 0 0 1 1.06-1.06l5.353 5.353 8.493-12.74a.75.75 0 0 1 1.04-.207Z" clip-rule="evenodd" />
+                                </svg>
+                            </span>
+                            {% elif t.priority %}
+                            <span class="flex items-center justify-center w-4 h-4 rounded-full
+                                {% if t.priority == 1 %}bg-red-500/20
+                                {% elif t.priority == 2 %}bg-orange-500/20
+                                {% elif t.priority == 3 %}bg-yellow-500/20
+                                {% elif t.priority == 4 %}bg-blue-500/20
+                                {% endif %}">
+                                <span class="text-[8px] font-bold
+                                    {% if t.priority == 1 %}text-red-400
+                                    {% elif t.priority == 2 %}text-orange-400
+                                    {% elif t.priority == 3 %}text-yellow-400
+                                    {% elif t.priority == 4 %}text-blue-400
+                                    {% endif %}">{{ t.priority }}</span>
+                            </span>
+                            {% else %}
+                            <span class="block w-4 h-4 rounded-full bg-slate-700/50"></span>
+                            {% endif %}
+                        </div>
+
+                        <div class="min-w-0 flex-1">
+                            <a href="/task/{{ t.sid }}"
+                               class="text-sm font-medium text-slate-200 hover:text-white transition-colors
+                               {% if t.complete %}line-through text-slate-600{% endif %}">
+                                {{ t.title }}
+                            </a>
+                            <span class="text-xs text-slate-600 ml-2">
+                                @{{ t.space_title }} / #{{ t.list_title }} · {{ t.section_title }}
+                            </span>
+                        </div>
+
+                        {% if t.tags %}
+                        <div class="hidden sm:flex gap-1 shrink-0">
+                            {% for tag in t.tags.split(',') %}
+                                {% if tag.strip() %}
+                                <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400">+{{ tag.strip() }}</span>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
                         {% endif %}
                     </div>
 
-                    <!-- Title + context in one line -->
-                    <div class="min-w-0 flex-1">
-                        <a href="/task/{{ t.sid }}"
-                           class="text-sm font-medium text-slate-200 hover:text-white transition-colors
-                           {% if t.complete %}line-through text-slate-600{% endif %}">
-                            {{ t.title }}
-                        </a>
-                        <span class="text-xs text-slate-600 ml-2">
-                            @{{ t.space_title }} / #{{ t.list_title }} · {{ t.section_title }}
-                        </span>
-                    </div>
-
-                    <!-- Tags -->
-                    {% if t.tags %}
-                    <div class="hidden sm:flex gap-1 shrink-0">
-                        {% for tag in t.tags.split(',') %}
-                            {% if tag.strip() %}
-                            <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400">+{{ tag.strip() }}</span>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
+                    {% if t.descr %}
+                    <div class="mt-1 ml-7 text-xs text-slate-600 truncate">{{ t.descr[:100] }}{% if t.descr|length > 100 %}...{% endif %}</div>
                     {% endif %}
                 </div>
-
-                <!-- Description below -->
-                {% if t.descr %}
-                <div class="mt-1 ml-7 text-xs text-slate-600 truncate">{{ t.descr[:100] }}{% if t.descr|length > 100 %}...{% endif %}</div>
-                {% endif %}
+                {% endfor %}
             </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="text-center py-16">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" class="w-16 h-16 text-slate-700 mx-auto mb-4">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-            </svg>
-            <p class="text-slate-500 font-medium">No tasks due on this day</p>
-            <p class="text-sm text-slate-600 mt-1">Tasks with a due date will appear here</p>
+            {% else %}
+            <div class="text-center py-16">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" class="w-16 h-16 text-slate-700 mx-auto mb-4">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+                </svg>
+                <p class="text-slate-500 font-medium">No tasks due on this day</p>
+                <p class="text-sm text-slate-600 mt-1">Tasks with a due date will appear here</p>
+            </div>
+            {% endif %}
         </div>
         {% endif %}
     </div>
-    {% endif %}
 </div>
+
+<style>
+    /* Show skeleton, hide content during HTMX request */
+    #date-skeleton { display: none; }
+    .hx-content { display: block; }
+    .htmx-request#date-skeleton { display: block; }
+    .htmx-request#date-skeleton ~ .hx-content { display: none; }
+</style>
 </Layout.App>
