@@ -103,7 +103,7 @@
                     if (this.filterDue) params.set('due', this.filterDue);
                     if (this.filterTags.length) params.set('tags', this.filterTags.join(','));
                     var url = '/list/' + this.sid + (params.toString() ? '?' + params.toString() : '');
-                    htmx.ajax('GET', url, { target: '#page-content', swap: 'innerHTML', indicator: '#list-skeleton' });
+                    htmx.ajax('GET', url, { target: '#page-content', swap: 'innerHTML' });
                 },
                 clearFilters: function() {
                     this.sortBy = 'manual';
