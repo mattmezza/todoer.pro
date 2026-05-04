@@ -135,8 +135,9 @@ async def view(
         all_tags=all_tags,
     )
     is_htmx = req.headers.get("hx-request") == "true"
-    tpl = "Page.ListContent" if is_htmx else "Page.List"
-    return HTMLResponse(render(tpl, **data))
+    tpl_name = "Page.ListContent" if is_htmx else "Page.List"
+    tpl._current_request.set(req)
+    return HTMLResponse(render(tpl_name, **data))
 
 
 @router.get("/list/{sid}/export.txt")
