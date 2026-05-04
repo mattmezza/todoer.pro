@@ -131,13 +131,9 @@
          }"
          @keydown.escape.window="if (selectMode) { exitSelectMode(); $event.preventDefault(); }">
 
-        <!-- Board columns - auto-refresh on task/section changes -->
+        <!-- Board columns -->
         <div id="board-columns" class="flex gap-4 min-h-[60vh]"
-             style="min-width: max-content;"
-             hx-get="/list/{{ list.sid }}/board?view_complete={{ 'true' if view_complete else 'false' }}"
-             hx-trigger="task-create from:body, section-create from:body, section-delete from:body, sections-reorder from:body, list-{{ list.sid }}-update from:body, task-update from:body"
-             hx-target="#board-columns"
-             hx-swap="innerHTML">
+             style="min-width: max-content;">
             {% set section_def = sections|selectattr("default")|first %}
             {% set all_sections = [section_def] + (sections|rejectattr("default")|list) %}
             {% for section in all_sections %}
@@ -276,29 +272,24 @@
                         style="display: none"
                         class="flex-col gap-2 p-2 rounded border border-slate-700 bg-slate-800/50"
                         hx-post="/tasks"
-                        hx-swap="none"
-                        x-data
-                        @keydown.escape="$el.reset()"
-                        @reset="$el.style.display='none';document.getElementById('board-add-btn-{{ section.uuid }}').style.display=''">
+                        hx-swap="none">
                         <input
                             class="form-input block w-full text-sm px-2 py-1.5 border border-slate-600 rounded focus:ring-0 bg-slate-800 placeholder:text-slate-600"
                             name="title"
                             placeholder="Task name"
-                            required>
+                            required
+                            autofocus>
                         <textarea
                             name="descr"
                             placeholder="Description (optional)"
                             rows="2"
                             class="form-input block w-full text-xs px-2 py-1 border border-slate-600 rounded focus:ring-0 bg-slate-800 placeholder:text-slate-600 resize-none"
-                            x-data="{ resize() { $el.style.height = '0px'; $el.style.height = $el.scrollHeight + 'px' } }"
-                            x-init="$nextTick(() => resize())"
-                            @input="resize()"
-                            @keydown.meta.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"
-                            @keydown.ctrl.enter="$event.target.form && $event.target.form.dispatchEvent(new Event('submit'))"></textarea>
+                            oninput="this.style.height='0px';this.style.height=this.scrollHeight+'px'"
+                            onkeydown="if((event.metaKey||event.ctrlKey)&&event.key==='Enter')event.target.form&&event.target.form.requestSubmit()"></textarea>
                         <div class="flex gap-1">
                             <button type="reset"
                                 class="text-xs px-2 py-1 rounded text-slate-500 hover:text-slate-300 cursor-pointer"
-                                @click="$el.closest('form').reset();$el.closest('form').style.display='none';document.getElementById('board-add-btn-{{ section.uuid }}').style.display=''">Cancel</button>
+                                onclick="var f=this.closest('form'); f.style.display='none'; f.reset(); document.getElementById('board-add-btn-{{ section.uuid }}').style.display=''">Cancel</button>
                             <button type="submit" class="text-xs px-2 py-1 rounded bg-indigo-600 text-white cursor-pointer">Add</button>
                         </div>
                         <input type="hidden" name="section" value="{{ section.uuid }}">
@@ -319,18 +310,17 @@
                     style="display: none"
                     class="rounded-lg border border-slate-700 bg-slate-900/50 p-3"
                     hx-post="/sections"
-                    hx-swap="none"
-                    x-data
-                    @keydown.escape="$el.reset()"
-                    @reset="$el.style.display='none';document.getElementById('board-add-section-btn').style.display='block'">
+                    hx-swap="none">
                     <input
                         class="form-input block w-full text-sm px-2 py-1.5 border border-slate-600 rounded focus:ring-0 bg-slate-800 placeholder:text-slate-600 mb-2"
                         name="title"
                         placeholder="Section title"
-                        required>
+                        required
+                        autofocus>
                     <input type="hidden" name="list_id" value="{{ list.uuid }}">
                     <div class="flex gap-1">
-                        <button type="reset" class="text-xs px-2 py-1 rounded text-slate-500 hover:text-slate-300 cursor-pointer">Cancel</button>
+                        <button type="reset" class="text-xs px-2 py-1 rounded text-slate-500 hover:text-slate-300 cursor-pointer"
+                            onclick="var f=this.closest('form'); f.style.display='none'; f.reset(); document.getElementById('board-add-section-btn').style.display=''">Cancel</button>
                         <button type="submit" class="text-xs px-2 py-1 rounded bg-indigo-600 text-white cursor-pointer">Add</button>
                     </div>
                 </form>
