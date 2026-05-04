@@ -49,9 +49,11 @@ def _weekend_bounds(dt: date) -> tuple[date, date]:
     return saturday, saturday + timedelta(days=1)
 
 
-def _build_calendar_grid(first: date, last: date) -> list[list[date | None]]:
-    """Build a 6-week grid (list of weeks, each week is 7 days).
+def _build_calendar_grid(first: date, last: date) -> list[dict]:
+    """Build a 6-week grid.
 
+    Returns list of dicts:
+        {"week_num": int, "monday_iso": str, "days": list[date | None]}
     None = day outside the month.
     """
     # Start from Monday of the week containing first
@@ -69,7 +71,13 @@ def _build_calendar_grid(first: date, last: date) -> list[list[date | None]]:
             else:
                 week.append(None)
             current += timedelta(days=1)
-        weeks.append(week)
+        week_num = start.isocalendar()[1]
+        weeks.append({
+            "week_num": week_num,
+            "monday_iso": _fmt_date(start),
+            "days": week,
+        })
+        start += timedelta(days=7)
     return weeks
 
 

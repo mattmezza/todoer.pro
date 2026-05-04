@@ -15,11 +15,11 @@
             </div>
             <div class="h-4 w-32 bg-slate-700/30 rounded"></div>
             {% if view == "month" %}
-            <div class="grid grid-cols-7 gap-px bg-slate-800/20 rounded-lg overflow-hidden">
-                {% for _ in range(7) %}
+            <div class="grid grid-cols-8 gap-px bg-slate-800/20 rounded-lg overflow-hidden">
+                {% for _ in range(8) %}
                 <div class="h-5 bg-slate-800/20"></div>
                 {% endfor %}
-                {% for _ in range(35) %}
+                {% for _ in range(40) %}
                 <div class="min-h-[100px] bg-slate-900/20">
                     <div class="p-2">
                         <div class="h-4 w-6 bg-slate-700/30 rounded mb-2"></div>
@@ -184,7 +184,9 @@
             {% endif %}
 
             {% if calendar_grid %}
-            <div class="grid grid-cols-7 gap-px bg-slate-800/30 rounded-lg overflow-hidden border border-slate-800/50">
+            <div class="grid grid-cols-8 gap-px bg-slate-800/30 rounded-lg overflow-hidden border border-slate-800/50">
+                <!-- Week number header -->
+                <div class="px-1 py-2 text-[10px] font-medium text-slate-600 text-center bg-slate-900/50">#</div>
                 {% for wd in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] %}
                 <div class="px-2 py-2 text-xs font-medium text-slate-500 text-center bg-slate-900/50">
                     <span class="hidden sm:inline">{{ wd }}</span>
@@ -192,8 +194,16 @@
                 </div>
                 {% endfor %}
 
-                {% for week in calendar_grid %}
-                {% for day in week %}
+                {% for week_row in calendar_grid %}
+                <!-- Week number -->
+                <a href="/date?view=week&amp;date={{ week_row.monday_iso }}"
+                   hx-get="/date?view=week&amp;date={{ week_row.monday_iso }}"
+                   hx-target="#main" hx-select="#main"
+                   hx-indicator="#date-skeleton"
+                   class="min-h-[80px] sm:min-h-[110px] p-1 flex items-start justify-center transition cursor-pointer bg-slate-900/30 hover:bg-slate-800/40 group">
+                    <span class="text-[10px] font-mono text-slate-600 group-hover:text-indigo-400 transition-colors">{{ week_row.week_num }}</span>
+                </a>
+                {% for day in week_row.days %}
                     {% if day %}
                         {% set day_iso = day.isoformat() %}
                         {% set count = by_date.get(day_iso, [])|length %}
