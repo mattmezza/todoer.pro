@@ -24,8 +24,8 @@
     {% else %}
         {% for space_sid, space_tasks in by_space.items() %}
         {% set space_title = space_tasks[0].space_title %}
-        <div class="mb-10">
-            <h2 class="text-lg font-semibold text-slate-300 mb-4">
+        <div class="mb-12">
+            <h2 class="text-lg font-semibold text-slate-300 mb-5">
                 <a href="/space/{{ space_sid }}" class="hover:text-indigo-400 transition-colors">@{{ space_title }}</a>
             </h2>
 
@@ -34,32 +34,36 @@
             {% for task in space_tasks %}
                 {% if task.list_sid != ns.last_list_sid %}
                     {% set ns.last_list_sid = task.list_sid %}
-                    <h3 class="text-sm font-medium text-slate-500 mb-2 ml-4 mt-4">
+                    <h3 class="text-sm font-medium text-slate-500 mb-3 mt-6">
                         <a href="/list/{{ task.list_sid }}" class="hover:text-indigo-400 transition-colors"
                            style="color: {{ task.list_color or '#6366f1' }}">#{{ task.list_title }}</a>
                         <span class="text-slate-600">/</span>
-                        <span class="text-slate-600">{{ task.section_title }}</span>
+                        <a href="/list/{{ task.list_sid }}#section-{{ task.section_sid }}"
+                           class="hover:text-indigo-400 transition-colors text-slate-600">{{ task.section_title }}</a>
                     </h3>
                 {% endif %}
-                <div class="ml-6 mb-1.5">
+                <div class="mb-3">
                     <a href="/task/{{ task.sid }}"
                        class="block px-3 py-2 rounded-lg hover:bg-white/5 transition-colors group">
                         <div class="flex items-center gap-2">
-                            <span class="text-sm font-medium text-slate-200 group-hover:text-white transition-colors
+                            <span class="text-base font-medium text-slate-200 group-hover:text-white transition-colors
                                 {% if task.complete %}line-through text-slate-600{% endif %}">
                                 {{ task.title }}
                             </span>
-                            {% if task.due_date %}
-                            <span class="text-xs text-slate-500 ml-auto">{{ task.due_date|date_short }}</span>
-                            {% endif %}
                         </div>
-                        <div class="flex gap-1 mt-1 ml-4">
-                            <span class="text-xs font-mono px-1.5 py-0.5 rounded
+                        {% if task.descr %}
+                        <div class="text-sm text-slate-500 mt-0.5 truncate">{{ task.descr[:100] }}{% if task.descr|length > 100 %}...{% endif %}</div>
+                        {% endif %}
+                        <div class="flex gap-1.5 mt-1.5 items-center flex-wrap">
+                            <span class="text-sm font-mono px-1.5 py-0.5 rounded
                                 {% if priority_color == 'red' %}bg-red-500/20 text-red-400
                                 {% elif priority_color == 'orange' %}bg-orange-500/20 text-orange-400
                                 {% elif priority_color == 'yellow' %}bg-yellow-500/20 text-yellow-400
                                 {% elif priority_color == 'blue' %}bg-blue-500/20 text-blue-400
                                 {% endif %}">{{ priority_label }}</span>
+                            {% if task.due_date %}
+                            <span class="text-sm text-slate-500">{{ task.due_date|date_short }}</span>
+                            {% endif %}
                             {% if task.tags %}
                             {% for tag in task.tags.split(',') %}
                                 {% if tag.strip() %}
