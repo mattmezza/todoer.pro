@@ -75,12 +75,20 @@
     <KeyboardShortcuts />
     <script src="//unpkg.com/alpinejs"></script>
     <script>
-        Alpine.data('filterBar', (opts) => ({
-            sid: opts.sid,
-            sortBy: opts.sortBy || 'manual',
-            filterPriority: opts.filterPriority,
-            filterDue: opts.filterDue || null,
-            filterTags: opts.filterTags || [],
+        Alpine.data('filterBar', () => ({
+            get opts() { return JSON.parse(this.$el.dataset.filterOpts); },
+            init() {
+                this.sid = this.opts.sid;
+                this.sortBy = this.opts.sortBy || 'manual';
+                this.filterPriority = this.opts.filterPriority;
+                this.filterDue = this.opts.filterDue || null;
+                this.filterTags = this.opts.filterTags || [];
+            },
+            sid: '',
+            sortBy: 'manual',
+            filterPriority: null,
+            filterDue: null,
+            filterTags: [],
             tagDropdownOpen: false,
             dueDropdownOpen: false,
             sortDropdownOpen: false,

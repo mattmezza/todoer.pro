@@ -1,13 +1,15 @@
 {# def list, sort_by='manual', filter_priority=None, filter_due=None, filter_tags=None, all_tags=[] #}
+{% set filter_opts = {
+    'sid': list.sid,
+    'sortBy': sort_by or 'manual',
+    'filterPriority': filter_priority,
+    'filterDue': filter_due,
+    'filterTags': filter_tags or [],
+} %}
 <div
     class="mb-6 flex flex-wrap items-center gap-2"
-    x-data="filterBar({
-        sid: '{{ list.sid }}',
-        sortBy: '{{ sort_by or 'manual' }}',
-        filterPriority: {{ filter_priority if filter_priority else 'null' }},
-        filterDue: '{{ filter_due or '' }}',
-        filterTags: [{% if filter_tags %}{% for t in filter_tags %}'{{ t }}'{% if not loop.last %},{% endif %}{% endfor %}{% endif %}]
-    })">
+    data-filter-opts='{{ filter_opts | tojson }}'
+    x-data="filterBar()">
     <!-- Sort -->
     <div class="relative" @click.outside="sortDropdownOpen = false">
         <button
