@@ -72,6 +72,7 @@
                     <a href="/date?view=month&amp;date={{ focus_date }}"
                        hx-get="/date?view=month&amp;date={{ focus_date }}"
                        hx-target="#main" hx-select="#main"
+                       hx-push-url="true"
                        hx-indicator="#date-skeleton"
                        class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
                        {% if view == 'month' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
@@ -80,6 +81,7 @@
                     <a href="/date?view=week&amp;date={{ focus_date }}"
                        hx-get="/date?view=week&amp;date={{ focus_date }}"
                        hx-target="#main" hx-select="#main"
+                       hx-push-url="true"
                        hx-indicator="#date-skeleton"
                        class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
                        {% if view == 'week' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
@@ -88,6 +90,7 @@
                     <a href="/date?view=work-week&amp;date={{ focus_date }}"
                        hx-get="/date?view=work-week&amp;date={{ focus_date }}"
                        hx-target="#main" hx-select="#main"
+                       hx-push-url="true"
                        hx-indicator="#date-skeleton"
                        class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
                        {% if view == 'work-week' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
@@ -96,6 +99,7 @@
                     <a href="/date?view=weekend&amp;date={{ focus_date }}"
                        hx-get="/date?view=weekend&amp;date={{ focus_date }}"
                        hx-target="#main" hx-select="#main"
+                       hx-push-url="true"
                        hx-indicator="#date-skeleton"
                        class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
                        {% if view == 'weekend' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
@@ -104,6 +108,7 @@
                     <a href="/date?view=day&amp;date={{ focus_date }}"
                        hx-get="/date?view=day&amp;date={{ focus_date }}"
                        hx-target="#main" hx-select="#main"
+                       hx-push-url="true"
                        hx-indicator="#date-skeleton"
                        class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
                        {% if view == 'day' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
@@ -116,6 +121,7 @@
                     <a href="/date?view={{ view }}&amp;date={{ prev_date }}"
                        hx-get="/date?view={{ view }}&amp;date={{ prev_date }}"
                        hx-target="#main" hx-select="#main"
+                       hx-push-url="true"
                        hx-indicator="#date-skeleton"
                        class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
                        title="{{ prev_label }}">
@@ -126,6 +132,7 @@
                     <a href="/date?view={{ view }}&amp;date={{ today }}"
                        hx-get="/date?view={{ view }}&amp;date={{ today }}"
                        hx-target="#main" hx-select="#main"
+                       hx-push-url="true"
                        hx-indicator="#date-skeleton"
                        class="px-2 py-1 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition rounded-md hover:bg-slate-800/50 cursor-pointer">
                         Today
@@ -133,6 +140,7 @@
                     <a href="/date?view={{ view }}&amp;date={{ next_date }}"
                        hx-get="/date?view={{ view }}&amp;date={{ next_date }}"
                        hx-target="#main" hx-select="#main"
+                       hx-push-url="true"
                        hx-indicator="#date-skeleton"
                        class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition cursor-pointer"
                        title="{{ next_label }}">
@@ -158,6 +166,7 @@
                 <a href="/date?view=month&amp;date={{ prev_year }}-{{ focus_date.split('-')[1] }}-01"
                    hx-get="/date?view=month&amp;date={{ prev_year }}-{{ focus_date.split('-')[1] }}-01"
                    hx-target="#main" hx-select="#main"
+                   hx-push-url="true"
                    hx-indicator="#date-skeleton"
                    class="px-2 py-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition font-medium cursor-pointer">
                     {{ prev_year }}
@@ -167,6 +176,7 @@
                 <a href="/date?view=month&amp;date={{ m.year }}-{{ '%02d' % m.month }}-01"
                    hx-get="/date?view=month&amp;date={{ m.year }}-{{ '%02d' % m.month }}-01"
                    hx-target="#main" hx-select="#main"
+                   hx-push-url="true"
                    hx-indicator="#date-skeleton"
                    class="px-2 py-1 rounded-md transition cursor-pointer
                    {% if is_active %}bg-indigo-600/30 text-indigo-300 font-medium{% else %}text-slate-500 hover:text-slate-300 hover:bg-slate-800/50{% endif %}">
@@ -176,6 +186,7 @@
                 <a href="/date?view=month&amp;date={{ next_year }}-{{ focus_date.split('-')[1] }}-01"
                    hx-get="/date?view=month&amp;date={{ next_year }}-{{ focus_date.split('-')[1] }}-01"
                    hx-target="#main" hx-select="#main"
+                   hx-push-url="true"
                    hx-indicator="#date-skeleton"
                    class="px-2 py-1 rounded-md text-slate-500 hover:text-slate-300 hover:bg-slate-800/50 transition font-medium cursor-pointer">
                     {{ next_year }}
@@ -195,74 +206,78 @@
                 {% endfor %}
 
                 {% for week_row in calendar_grid %}
-                <!-- Week number -->
-                <a href="/date?view=week&amp;date={{ week_row.monday_iso }}"
-                   hx-get="/date?view=week&amp;date={{ week_row.monday_iso }}"
-                   hx-target="#main" hx-select="#main"
-                   hx-indicator="#date-skeleton"
-                   class="min-h-[80px] sm:min-h-[110px] p-1 flex items-start justify-center transition cursor-pointer bg-slate-900/30 hover:bg-slate-800/40 group">
-                    <span class="text-[10px] font-mono text-slate-600 group-hover:text-indigo-400 transition-colors">{{ week_row.week_num }}</span>
-                </a>
-                {% for day in week_row.days %}
-                    {% if day %}
-                        {% set day_iso = day.isoformat() %}
-                        {% set count = by_date.get(day_iso, [])|length %}
-                        {% set is_today = day_iso == today %}
-                        {% set is_focus = day_iso == focus_date %}
-                        <a href="/date?view=day&amp;date={{ day_iso }}"
-                           hx-get="/date?view=day&amp;date={{ day_iso }}"
-                           hx-target="#main" hx-select="#main"
-                           hx-indicator="#date-skeleton"
-                           class="min-h-[80px] sm:min-h-[110px] p-1.5 sm:p-2 transition cursor-pointer
-                           {% if is_focus %}bg-indigo-600/15{% elif is_today %}bg-indigo-500/10{% else %}bg-slate-900/30 hover:bg-slate-800/40{% endif %}
-                           {% if is_focus %}ring-1 ring-indigo-500/40{% endif %}
-                           group">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-xs sm:text-sm font-medium
-                                    {% if is_today %}text-indigo-400{% elif is_focus %}text-indigo-300{% elif day.weekday() >= 5 %}text-slate-600{% else %}text-slate-400{% endif %}">
-                                    {{ day.day }}
-                                </span>
-                                {% if count > 0 %}
-                                <span class="text-[10px] sm:text-xs font-medium px-1.5 py-0.5 rounded-full
-                                    {% if count > 3 %}bg-red-500/20 text-red-400
-                                    {% elif count > 1 %}bg-amber-500/20 text-amber-400
-                                    {% else %}bg-indigo-500/20 text-indigo-400{% endif %}">
-                                    {{ count }}
-                                </span>
-                                {% endif %}
-                            </div>
-                            {% if count > 0 %}
-                            <div class="hidden sm:flex flex-col gap-0.5 mt-1">
-                                {% for t in by_date.get(day_iso, [])[:3] %}
-                                <div class="flex items-center gap-1 min-w-0">
-                                    {% if t.complete %}
-                                    <span class="shrink-0 w-1.5 h-1.5 rounded-full bg-green-500/60"></span>
-                                    {% elif t.priority %}
-                                    <span class="shrink-0 w-1.5 h-1.5 rounded-full
-                                        {% if t.priority == 1 %}bg-red-500
-                                        {% elif t.priority == 2 %}bg-orange-500
-                                        {% elif t.priority == 3 %}bg-yellow-500
-                                        {% elif t.priority == 4 %}bg-blue-500
-                                        {% endif %}"></span>
-                                    {% else %}
-                                    <span class="shrink-0 w-1.5 h-1.5 rounded-full bg-slate-600"></span>
-                                    {% endif %}
-                                    <span class="text-[10px] text-slate-500 truncate group-hover:text-slate-300 transition-colors
-                                        {% if t.complete %}line-through text-slate-700{% endif %}">
-                                        {{ t.title }}
+                <div class="contents week-row">
+                    <!-- Week number -->
+                    <a href="/date?view=week&amp;date={{ week_row.monday_iso }}"
+                       hx-get="/date?view=week&amp;date={{ week_row.monday_iso }}"
+                       hx-target="#main" hx-select="#main"
+                       hx-push-url="true"
+                       hx-indicator="#date-skeleton"
+                       class="min-h-[80px] sm:min-h-[110px] p-1 flex items-start justify-center transition cursor-pointer bg-slate-900/30 hover:bg-slate-800/40 week-num-cell">
+                        <span class="text-[10px] font-mono text-slate-600 group-hover:text-indigo-300 transition-colors">{{ week_row.week_num }}</span>
+                    </a>
+                    {% for day in week_row.days %}
+                        {% if day %}
+                            {% set day_iso = day.isoformat() %}
+                            {% set count = by_date.get(day_iso, [])|length %}
+                            {% set is_today = day_iso == today %}
+                            {% set is_focus = day_iso == focus_date %}
+                            <a href="/date?view=day&amp;date={{ day_iso }}"
+                               hx-get="/date?view=day&amp;date={{ day_iso }}"
+                               hx-target="#main" hx-select="#main"
+                               hx-push-url="true"
+                               hx-indicator="#date-skeleton"
+                               class="min-h-[80px] sm:min-h-[110px] p-1.5 sm:p-2 transition cursor-pointer
+                               {% if is_focus %}bg-indigo-600/15{% elif is_today %}bg-indigo-500/10{% else %}bg-slate-900/30 hover:bg-slate-800/40{% endif %}
+                               {% if is_focus %}ring-1 ring-indigo-500/40{% endif %}
+                               week-day-cell">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-xs sm:text-sm font-medium
+                                        {% if is_today %}text-indigo-400{% elif is_focus %}text-indigo-300{% elif day.weekday() >= 5 %}text-slate-600{% else %}text-slate-400{% endif %}">
+                                        {{ day.day }}
                                     </span>
+                                    {% if count > 0 %}
+                                    <span class="text-[10px] sm:text-xs font-medium px-1.5 py-0.5 rounded-full
+                                        {% if count > 3 %}bg-red-500/20 text-red-400
+                                        {% elif count > 1 %}bg-amber-500/20 text-amber-400
+                                        {% else %}bg-indigo-500/20 text-indigo-400{% endif %}">
+                                        {{ count }}
+                                    </span>
+                                    {% endif %}
                                 </div>
-                                {% endfor %}
-                                {% if count > 3 %}
-                                <span class="text-[10px] text-slate-600">+{{ count - 3 }} more</span>
+                                {% if count > 0 %}
+                                <div class="hidden sm:flex flex-col gap-0.5 mt-1">
+                                    {% for t in by_date.get(day_iso, [])[:3] %}
+                                    <div class="flex items-center gap-1 min-w-0">
+                                        {% if t.complete %}
+                                        <span class="shrink-0 w-1.5 h-1.5 rounded-full bg-green-500/60"></span>
+                                        {% elif t.priority %}
+                                        <span class="shrink-0 w-1.5 h-1.5 rounded-full
+                                            {% if t.priority == 1 %}bg-red-500
+                                            {% elif t.priority == 2 %}bg-orange-500
+                                            {% elif t.priority == 3 %}bg-yellow-500
+                                            {% elif t.priority == 4 %}bg-blue-500
+                                            {% endif %}"></span>
+                                        {% else %}
+                                        <span class="shrink-0 w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                                        {% endif %}
+                                        <span class="text-[10px] text-slate-500 truncate group-hover:text-slate-300 transition-colors
+                                            {% if t.complete %}line-through text-slate-700{% endif %}">
+                                            {{ t.title }}
+                                        </span>
+                                    </div>
+                                    {% endfor %}
+                                    {% if count > 3 %}
+                                    <span class="text-[10px] text-slate-600">+{{ count - 3 }} more</span>
+                                    {% endif %}
+                                </div>
                                 {% endif %}
-                            </div>
-                            {% endif %}
-                        </a>
-                    {% else %}
-                        <div class="min-h-[80px] sm:min-h-[110px] bg-slate-900/20"></div>
-                    {% endif %}
-                {% endfor %}
+                            </a>
+                        {% else %}
+                            <div class="min-h-[80px] sm:min-h-[110px] bg-slate-900/20"></div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
                 {% endfor %}
             </div>
             {% endif %}
@@ -287,6 +302,7 @@
                             <a href="/date?view=day&amp;date={{ day_iso }}"
                                hx-get="/date?view=day&amp;date={{ day_iso }}"
                                hx-target="#main" hx-select="#main"
+                               hx-push-url="true"
                                hx-indicator="#date-skeleton"
                                class="text-sm font-bold text-slate-200 hover:text-indigo-400 ml-1.5 transition cursor-pointer">{{ wd.day }}</a>
                         </div>
@@ -473,5 +489,16 @@
     .hx-content { display: block; }
     .htmx-request#date-skeleton { display: block; }
     .htmx-request#date-skeleton ~ .hx-content { display: none; }
+
+    /* Highlight entire week row on week-number hover */
+    .week-row:hover .week-num-cell {
+        background-color: rgba(99, 102, 241, 0.12);
+    }
+    .week-row:hover .week-day-cell {
+        background-color: rgba(99, 102, 241, 0.06);
+    }
+    .week-row:hover .week-num-cell span {
+        color: #a5b4fc;
+    }
 </style>
 </Layout.App>
