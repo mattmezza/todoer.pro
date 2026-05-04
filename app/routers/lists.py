@@ -3,7 +3,7 @@ import io
 from typing import Annotated, Mapping
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from app import http, svc, tpl
@@ -56,6 +56,10 @@ async def view(
     req: Request,
     sid: str,
     view_complete: bool | None = None,
+    sort_by: str | None = None,
+    filter_priority: str | None = Query(None, alias="priority"),
+    filter_due: str | None = Query(None, alias="due"),
+    filter_tags: str | None = Query(None, alias="tags"),
     db: RepoDB = Depends(repo_db),
     user: Mapping = Depends(get_current_active_user),
     render: Renderer = Depends(renderer),
@@ -68,14 +72,34 @@ async def view(
     if view_complete is None:
         view_complete = bool(li.get("show_completed", 0))
 
-    sort_by = li.get("sort_by", "manual")
+    if sort_by is None:
+        sort_by = li.get("sort_by", "manual")
+
+    # Parse filter params
+    filter_priority_val = int(filter_priority) if filter_priority else None
+    filter_tags_list = [t.strip() for t in filter_tags.split(",") if t.strip()] if filter_tags else None
 
     space_r = user_repo.spaces()
     section_r = user_repo.sections()
     space = await space_r.by_uuid(li["space"])
     sections = await section_r.by_list(li["uuid"])
     tarepo = user_repo.tasks()
-    tasks_by_section = await tarepo.by_section_for_list(li["uuid"])
+
+    # Use filtered query if any filter is active
+    has_filters = filter_priority_val is not None or filter_due or filter_tags_list
+    if has_filters:
+        tasks_by_section = defaultdict(list)
+        filtered = await tarepo.filtered_by_list(
+            li["uuid"],
+            sort_by=sort_by,
+            priority=filter_priority_val,
+            due=filter_due,
+            tags=filter_tags_list,
+        )
+        for t in filtered:
+            tasks_by_section[t["section"]].append(t)
+    else:
+        tasks_by_section = await tarepo.by_section_for_list(li["uuid"])
     for tt in tasks_by_section.values():
         svc.lists.sort_tasks(tt, sort_by)
         incomplete = [i for i, t in enumerate(tt) if not t["complete"]]
@@ -92,6 +116,7 @@ async def view(
     is_bookmarked = await user_repo.bookmarks().is_bookmarked(
         "list", li["uuid"]
     )
+    all_tags = await tarepo.all_tags_annotated()
     return {
         "spaces": await space_r.all(),
         "space": space,
@@ -103,6 +128,11 @@ async def view(
         "is_bookmarked": is_bookmarked,
         "user": user,
         "tasks_by_section": tasks_by_section,
+        "sort_by": sort_by,
+        "filter_priority": filter_priority_val,
+        "filter_due": filter_due,
+        "filter_tags": filter_tags_list,
+        "all_tags": all_tags,
     }
 
 

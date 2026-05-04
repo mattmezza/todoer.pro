@@ -1120,3 +1120,138 @@ class TaskForUser(LoggedInUserRepo):
                 if ta is not None:
                     count += 1
         return count
+
+    async def filtered_by_list(
+        self,
+        list_uuid: str,
+        sort_by: str = "manual",
+        priority: int | None = None,
+        due: str | None = None,
+        tags: list[str] | None = None,
+        limit: int = 100,
+    ) -> list[Mapping]:
+        """Fetch tasks for a list with optional filters.
+
+        due filters: 'overdue', 'today', 'this-week', 'next-week', 'none'
+        """
+        conds = [
+            "s.creator = :creator",
+            "ta.archived = 0",
+            "se.list = :list_uuid",
+        ]
+        params: dict = {
+            "creator": self.user["uuid"],
+            "list_uuid": list_uuid,
+            "limit": limit,
+        }
+        if priority is not None:
+            conds.append("ta.priority = :priority")
+            params["priority"] = priority
+        if due == "overdue":
+            conds.append(
+                "ta.due_date IS NOT NULL AND ta.due_date < date('now')"
+            )
+        elif due == "today":
+            conds.append("ta.due_date = date('now')")
+        elif due == "this-week":
+            conds.append(
+                "ta.due_date > date('now') AND ta.due_date <= date('now', '+7 days')"
+            )
+        elif due == "next-week":
+            conds.append(
+                "ta.due_date > date('now', '+7 days') AND ta.due_date <= date('now', '+14 days')"
+            )
+        elif due == "none":
+            conds.append("ta.due_date IS NULL")
+        if tags:
+            tag_conds = []
+            for i, t in enumerate(tags):
+                tag_conds.append(f"ta.tags LIKE :tags_{i}")
+                params[f"tags_{i}"] = f"%{t.strip()}%"
+            conds.append(f"({' OR '.join(tag_conds)})")
+        where = " AND ".join(conds)
+        order_clause = "ta.`order` ASC, ta.created ASC"
+        if sort_by == "priority":
+            order_clause = (
+                "COALESCE(ta.priority, 99) ASC, ta.`order` ASC"
+            )
+        elif sort_by == "due-date":
+            order_clause = (
+                "ta.due_date IS NULL ASC, ta.due_date ASC, ta.`order` ASC"
+            )
+        elif sort_by == "created":
+            order_clause = "ta.created ASC, ta.`order` ASC"
+        elif sort_by == "alphabetical":
+            order_clause = "LOWER(ta.title) ASC, ta.`order` ASC"
+        tasks = await self.db.fetch_all(
+            f"""
+            SELECT
+                ta.*,
+                COALESCE((SELECT COUNT(*) FROM subtasks WHERE task = ta.uuid), 0) AS subtasks_total,
+                COALESCE((SELECT COUNT(*) FROM subtasks WHERE task = ta.uuid AND complete = 1), 0) AS subtasks_done
+            FROM tasks ta
+            JOIN sections se ON se.uuid = ta.section
+            JOIN lists l ON l.uuid = se.list
+            JOIN spaces s ON s.uuid = l.space
+            WHERE {where}
+            ORDER BY ta.complete ASC, {order_clause}
+            LIMIT :limit
+            """,
+            params,
+        )
+        return [dict(tt._mapping) for tt in tasks]
+
+    async def all_by_priority(
+        self, priority: int, limit: int = 200
+    ) -> list[Mapping]:
+        """Fetch all tasks with given priority across all user's spaces."""
+        rows = await self.db.fetch_all(
+            """
+            SELECT ta.uuid, ta.sid, ta.title, ta.descr, ta.priority,
+                   ta.due_date, ta.tags, ta.complete, ta.archived,
+                   ta.section, ta.created,
+                   se.sid as section_sid, se.title as section_title,
+                   l.sid as list_sid, l.title as list_title, l.color as list_color,
+                   sp.sid as space_sid, sp.title as space_title
+            FROM tasks ta
+            JOIN sections se ON se.uuid = ta.section
+            JOIN lists l ON l.uuid = se.list
+            JOIN spaces sp ON sp.uuid = l.space
+            WHERE sp.creator = :creator
+                AND ta.archived = 0
+                AND ta.priority = :priority
+            ORDER BY ta.due_date ASC NULLS LAST, ta.created ASC
+            LIMIT :limit
+            """,
+            {
+                "creator": self.user["uuid"],
+                "priority": priority,
+                "limit": limit,
+            },
+        )
+        return [dict(r._mapping) for r in rows]
+
+    async def all_tags_annotated(self) -> list[dict]:
+        """Return all tags with counts."""
+        rows = await self.db.fetch_all(
+            """
+            SELECT ta.tags FROM tasks ta
+            JOIN sections se ON se.uuid = ta.section
+            JOIN lists l ON l.uuid = se.list
+            JOIN spaces sp ON sp.uuid = l.space
+            WHERE sp.creator = :creator
+                AND ta.archived = 0
+                AND ta.tags != '' AND ta.tags IS NOT NULL
+            """,
+            {"creator": self.user["uuid"]},
+        )
+        counts: dict[str, int] = {}
+        for row in rows:
+            for tag in row._mapping["tags"].split(","):
+                t = tag.strip()
+                if t:
+                    counts[t] = counts.get(t, 0) + 1
+        return sorted(
+            [{"tag": k, "count": v} for k, v in counts.items()],
+            key=lambda x: (-x["count"], x["tag"]),
+        )

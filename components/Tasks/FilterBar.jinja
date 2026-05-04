@@ -1,0 +1,186 @@
+{# def list, sort_by, filter_priority, filter_due, filter_tags, all_tags #}
+<div
+    class="mb-6 flex flex-wrap items-center gap-2"
+    x-data="{
+        sortBy: {{ sort_by | tojson if sort_by else "'manual'" }},
+        filterPriority: {{ filter_priority if filter_priority else 'null' }},
+        filterDue: {{ filter_due | tojson if filter_due else 'null' }},
+        filterTags: {{ filter_tags | tojson if filter_tags else '[]' }},
+        tagDropdownOpen: false,
+        dueDropdownOpen: false,
+        sortDropdownOpen: false,
+        selectedTag(tag) {
+            return this.filterTags.includes(tag);
+        },
+        toggleTag(tag) {
+            const idx = this.filterTags.indexOf(tag);
+            if (idx === -1) {
+                this.filterTags.push(tag);
+            } else {
+                this.filterTags.splice(idx, 1);
+            }
+        },
+        applyFilters() {
+            const params = new URLSearchParams();
+            if (this.sortBy && this.sortBy !== 'manual') params.set('sort_by', this.sortBy);
+            if (this.filterPriority) params.set('priority', this.filterPriority);
+            if (this.filterDue) params.set('due', this.filterDue);
+            if (this.filterTags.length) params.set('tags', this.filterTags.join(','));
+            const url = '/list/{{ list.sid }}' + (params.toString() ? '?' + params.toString() : '');
+            htmx.ajax('GET', url, { target: '#page-content', swap: 'innerHTML' });
+        },
+        clearFilters() {
+            this.sortBy = 'manual';
+            this.filterPriority = null;
+            this.filterDue = null;
+            this.filterTags = [];
+            this.applyFilters();
+        },
+        hasActiveFilters() {
+            return this.sortBy !== 'manual'
+                || this.filterPriority
+                || this.filterDue
+                || this.filterTags.length > 0;
+        }
+    }">
+    <!-- Sort -->
+    <div class="relative" @click.outside="sortDropdownOpen = false">
+        <button
+            class="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 hover:border-slate-500 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+            @click="sortDropdownOpen = !sortDropdownOpen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5 7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" />
+            </svg>
+            <span x-text="sortBy === 'manual' ? 'Manual' : sortBy === 'priority' ? 'Priority' : sortBy === 'due-date' ? 'Due date' : sortBy === 'created' ? 'Created' : sortBy === 'alphabetical' ? 'A-Z' : 'Sort'"></span>
+        </button>
+        <div
+            x-show="sortDropdownOpen"
+            x-cloak
+            class="absolute top-full left-0 mt-1 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20 py-1">
+            <template x-for="opt in [
+                {value: 'manual', label: 'Manual'},
+                {value: 'priority', label: 'Priority'},
+                {value: 'due-date', label: 'Due date'},
+                {value: 'created', label: 'Created'},
+                {value: 'alphabetical', label: 'A-Z'}
+            ]" :key="opt.value">
+                <button
+                    class="block w-full text-left px-3 py-1.5 text-xs hover:bg-slate-700 transition-colors cursor-pointer"
+                    :class="sortBy === opt.value ? 'text-indigo-400' : 'text-slate-400'"
+                    x-text="opt.label"
+                    @click="sortBy = opt.value; sortDropdownOpen = false; applyFilters()">
+                </button>
+            </template>
+        </div>
+    </div>
+
+    <!-- Priority filter -->
+    <template x-for="p in [
+        {value: 1, label: 'P1', cls: 'bg-red-500/20 text-red-400 hover:bg-red-500/30'},
+        {value: 2, label: 'P2', cls: 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30'},
+        {value: 3, label: 'P3', cls: 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30'},
+        {value: 4, label: 'P4', cls: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30'}
+    ]" :key="p.value">
+        <button
+            class="text-xs px-2 py-1 rounded-lg border transition-colors cursor-pointer font-mono"
+            :class="filterPriority === p.value
+                ? p.cls + ' border-transparent'
+                : 'border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-500'"
+            x-text="p.label"
+            @click="filterPriority = filterPriority === p.value ? null : p.value; applyFilters()">
+        </button>
+    </template>
+
+    <!-- Due date filter -->
+    <div class="relative" @click.outside="dueDropdownOpen = false">
+        <button
+            class="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer"
+            :class="filterDue ? 'border-indigo-500/50 text-indigo-400' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'"
+            @click="dueDropdownOpen = !dueDropdownOpen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+            </svg>
+            <span x-text="filterDue ? filterDue.replace('-', ' ') : 'Due'"></span>
+        </button>
+        <div
+            x-show="dueDropdownOpen"
+            x-cloak
+            class="absolute top-full left-0 mt-1 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20 py-1">
+            <template x-for="opt in [
+                {value: 'overdue', label: 'Overdue'},
+                {value: 'today', label: 'Today'},
+                {value: 'this-week', label: 'This week'},
+                {value: 'next-week', label: 'Next week'},
+                {value: 'none', label: 'No due date'}
+            ]" :key="opt.value">
+                <button
+                    class="block w-full text-left px-3 py-1.5 text-xs hover:bg-slate-700 transition-colors cursor-pointer"
+                    :class="filterDue === opt.value ? 'text-indigo-400' : 'text-slate-400'"
+                    x-text="opt.label"
+                    @click="filterDue = filterDue === opt.value ? null : opt.value; dueDropdownOpen = false; applyFilters()">
+                </button>
+            </template>
+        </div>
+    </div>
+
+    <!-- Tags filter -->
+    {% if all_tags %}
+    <div class="relative" @click.outside="tagDropdownOpen = false">
+        <button
+            class="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer"
+            :class="filterTags.length ? 'border-indigo-500/50 text-indigo-400' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'"
+            @click="tagDropdownOpen = !tagDropdownOpen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
+            </svg>
+            <span>Tags</span>
+        </button>
+        <div
+            x-show="tagDropdownOpen"
+            x-cloak
+            class="absolute top-full left-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-20 py-1 max-h-60 overflow-y-auto">
+            {% for tag_info in all_tags %}
+            <label class="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-700 cursor-pointer">
+                <input
+                    type="checkbox"
+                    class="form-checkbox w-3.5 h-3.5 rounded"
+                    value="{{ tag_info.tag }}"
+                    x-bind:checked="selectedTag('{{ tag_info.tag }}')"
+                    @change="toggleTag('{{ tag_info.tag }}'); applyFilters()">
+                <span>+{{ tag_info.tag }}</span>
+                <span class="ml-auto text-slate-600">({{ tag_info.count }})</span>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Active filter chips -->
+    <div class="w-full" x-show="hasActiveFilters()" x-cloak>
+        <div class="flex flex-wrap items-center gap-1.5 mt-1">
+            <span class="text-xs text-slate-600">Filters:</span>
+            <template x-if="filterPriority">
+                <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400">
+                    <span x-text="'P' + filterPriority"></span>
+                    <button class="hover:text-white cursor-pointer" @click="filterPriority = null; applyFilters()">&times;</button>
+                </span>
+            </template>
+            <template x-if="filterDue">
+                <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400">
+                    <span x-text="filterDue.replace('-', ' ')"></span>
+                    <button class="hover:text-white cursor-pointer" @click="filterDue = null; applyFilters()">&times;</button>
+                </span>
+            </template>
+            <template x-for="tag in filterTags" :key="tag">
+                <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400">
+                    <span x-text="'+' + tag"></span>
+                    <button class="hover:text-white cursor-pointer" @click="toggleTag(tag); applyFilters()">&times;</button>
+                </span>
+            </template>
+            <button
+                class="text-xs text-slate-500 hover:text-slate-300 underline cursor-pointer"
+                @click="clearFilters()">Clear all</button>
+        </div>
+    </div>
+</div>

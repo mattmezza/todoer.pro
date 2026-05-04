@@ -293,3 +293,84 @@ class SubtaskForUser(LoggedInUserRepo):
             },
         )
         return dict(subtask._mapping) if subtask else None
+
+    async def update_priority_by_sid(
+        self, priority: int | None, sid: str
+    ) -> Mapping | None:
+        st = await self.db.fetch_one(
+            """
+            UPDATE subtasks
+                SET priority = :priority, updated = CURRENT_TIMESTAMP
+                WHERE sid = :sid
+                    AND EXISTS (
+                        SELECT 1 FROM subtasks st
+                        JOIN tasks ta ON ta.uuid = st.task
+                        JOIN sections se ON se.uuid = ta.section
+                        JOIN lists l ON l.uuid = se.list
+                        JOIN spaces sp ON sp.uuid = l.space
+                        WHERE st.uuid = subtasks.uuid
+                            AND sp.creator = :creator
+                    )
+            RETURNING *
+            """,
+            {
+                "sid": sid,
+                "priority": priority,
+                "creator": self.user["uuid"],
+            },
+        )
+        return dict(st._mapping) if st is not None else None
+
+    async def update_due_date_by_sid(
+        self, due_date: str | None, sid: str
+    ) -> Mapping | None:
+        st = await self.db.fetch_one(
+            """
+            UPDATE subtasks
+                SET due_date = :due_date, updated = CURRENT_TIMESTAMP
+                WHERE sid = :sid
+                    AND EXISTS (
+                        SELECT 1 FROM subtasks st
+                        JOIN tasks ta ON ta.uuid = st.task
+                        JOIN sections se ON se.uuid = ta.section
+                        JOIN lists l ON l.uuid = se.list
+                        JOIN spaces sp ON sp.uuid = l.space
+                        WHERE st.uuid = subtasks.uuid
+                            AND sp.creator = :creator
+                    )
+            RETURNING *
+            """,
+            {
+                "sid": sid,
+                "due_date": due_date,
+                "creator": self.user["uuid"],
+            },
+        )
+        return dict(st._mapping) if st is not None else None
+
+    async def update_tags_by_sid(
+        self, tags: str, sid: str
+    ) -> Mapping | None:
+        st = await self.db.fetch_one(
+            """
+            UPDATE subtasks
+                SET tags = :tags, updated = CURRENT_TIMESTAMP
+                WHERE sid = :sid
+                    AND EXISTS (
+                        SELECT 1 FROM subtasks st
+                        JOIN tasks ta ON ta.uuid = st.task
+                        JOIN sections se ON se.uuid = ta.section
+                        JOIN lists l ON l.uuid = se.list
+                        JOIN spaces sp ON sp.uuid = l.space
+                        WHERE st.uuid = subtasks.uuid
+                            AND sp.creator = :creator
+                    )
+            RETURNING *
+            """,
+            {
+                "sid": sid,
+                "tags": tags,
+                "creator": self.user["uuid"],
+            },
+        )
+        return dict(st._mapping) if st is not None else None
