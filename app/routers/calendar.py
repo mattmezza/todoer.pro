@@ -216,6 +216,11 @@ async def date_view(
     # Day view — also provide hours breakdown
     hours = list(range(24))
 
+    # Group tasks by space for day view (matching priority view pattern)
+    by_space = defaultdict(list)
+    for t in tasks:
+        by_space[t["space_sid"]].append(t)
+
     return {
         "spaces": await urepo.spaces().all(),
         "user": user,
@@ -238,5 +243,6 @@ async def date_view(
         "weekdays": weekdays,
         "month_days": month_grids if view == "year" else None,
         "hours": hours,
+        "by_space": dict(by_space),
         "total_tasks": len(tasks),
     }

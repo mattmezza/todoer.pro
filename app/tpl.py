@@ -239,6 +239,24 @@ jinx.jinja_env.globals["cur_path_starts_with"] = cur_path_starts_with
 jinx.jinja_env.globals["now_date"] = lambda: date.today().isoformat()
 
 
+def format_date_short(d: str) -> str:
+    """Convert 2026-05-09 to 'May 9th'"""
+    if not d:
+        return ""
+    try:
+        dt = date.fromisoformat(d)
+    except (ValueError, TypeError):
+        return d
+    month = dt.strftime("%B")
+    day = dt.day
+    suffix = "th" if 11 <= day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    return f"{month} {day}{suffix}"
+
+
+jinx.jinja_env.filters["date_short"] = format_date_short
+jinx.jinja_env.globals["format_date_short"] = format_date_short
+
+
 def htmx(tpl: str, resp: Type[Response] = HTMLResponse):
     def decorator(func):
         @wraps(func)
