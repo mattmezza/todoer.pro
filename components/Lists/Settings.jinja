@@ -17,20 +17,6 @@
             </select>
         </div>
 
-        <div>
-            <label class="block text-sm font-semibold mb-1" for="sort_by">Sort tasks by</label>
-            <select
-                id="sort_by"
-                name="sort_by"
-                class="rounded dark:bg-black dark:text-white cursor-pointer border border-slate-600 w-full font-mono px-3 py-2 text-sm">
-                <option value="manual" {% if list.sort_by == 'manual' %}selected{% endif %}>Manual order</option>
-                <option value="due-date" {% if list.sort_by == 'due-date' %}selected{% endif %}>Due date</option>
-                <option value="created" {% if list.sort_by == 'created' %}selected{% endif %}>Created date</option>
-                <option value="alphabetical" {% if list.sort_by == 'alphabetical' %}selected{% endif %}>Alphabetical</option>
-                <option value="priority" {% if list.sort_by == 'priority' %}selected{% endif %}>Priority</option>
-            </select>
-        </div>
-
         <div class="flex items-center gap-3">
             <input
                 type="checkbox"

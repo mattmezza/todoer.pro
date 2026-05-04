@@ -601,8 +601,17 @@
                     case 'h':
                         e.preventDefault();
                         var url = new URL(window.location.href);
-                        if (url.searchParams.get('view_complete') === 'true') {
-                            url.searchParams.delete('view_complete');
+                        var ctx = document.getElementById('page-context');
+                        var showByDefault = ctx && ctx.dataset.showCompleted === 'true';
+                        var currentParam = url.searchParams.get('view_complete');
+                        var isShowing;
+                        if (currentParam === null) {
+                            isShowing = showByDefault;
+                        } else {
+                            isShowing = currentParam === 'true';
+                        }
+                        if (isShowing) {
+                            url.searchParams.set('view_complete', 'false');
                         } else {
                             url.searchParams.set('view_complete', 'true');
                         }
