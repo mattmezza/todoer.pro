@@ -51,8 +51,7 @@ async def delete(
     return res
 
 
-@router.get("/list/{sid}")
-@tpl.htmx("Page.List")
+@router.get("/list/{sid}", response_class=HTMLResponse)
 async def view(
     req: Request,
     sid: str,
@@ -65,7 +64,6 @@ async def view(
     user: Mapping = Depends(get_current_active_user),
     render: Renderer = Depends(renderer),
 ):
-    is_htmx = req.headers.get("hx-request") == "true"
     user_repo = db.for_user(user)
     list_r = user_repo.lists()
     li = http.Opt(await list_r.by_sid(sid)).or_404(f"List #{sid} not found.")
@@ -119,24 +117,26 @@ async def view(
         "list", li["uuid"]
     )
     all_tags = await tarepo.all_tags_annotated()
-    return {
-        "spaces": await space_r.all(),
-        "space": space,
-        "lists": await list_r.all_by_space(space["sid"]),
-        "list": li,
-        "sections": sections,
-        "sections_by_list": sections_by_list,
-        "view_complete": view_complete,
-        "is_bookmarked": is_bookmarked,
-        "user": user,
-        "tasks_by_section": tasks_by_section,
-        "sort_by": sort_by,
-        "filter_priority": filter_priority_val,
-        "filter_due": filter_due,
-        "filter_tags": filter_tags_list,
-        "all_tags": all_tags,
-        "layout": not is_htmx,
-    }
+    data = dict(
+        spaces=await space_r.all(),
+        space=space,
+        lists=await list_r.all_by_space(space["sid"]),
+        list=li,
+        sections=sections,
+        sections_by_list=sections_by_list,
+        view_complete=view_complete,
+        is_bookmarked=is_bookmarked,
+        user=user,
+        tasks_by_section=tasks_by_section,
+        sort_by=sort_by,
+        filter_priority=filter_priority_val,
+        filter_due=filter_due,
+        filter_tags=filter_tags_list,
+        all_tags=all_tags,
+    )
+    is_htmx = req.headers.get("hx-request") == "true"
+    tpl = "Page.ListContent" if is_htmx else "Page.List"
+    return HTMLResponse(render(tpl, **data))
 
 
 @router.get("/list/{sid}/export.txt")
