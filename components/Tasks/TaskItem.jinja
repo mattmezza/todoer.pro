@@ -123,7 +123,7 @@
                         stroke-dasharray="{{ progress }}, {{ remaining }}"
                         transform="rotate(-90 18 18)" />
                 </svg>
-                <span class="absolute inset-0 flex items-center justify-center text-[9px] leading-none font-mono font-semibold text-slate-400 pointer-events-none select-none">{{ task.subtasks_done }}</span>
+                <span class="absolute inset-0 flex items-center justify-center text-[9px] leading-none font-mono font-semibold text-slate-400 pointer-events-none select-none translate-y-[0.5px]">{{ task.subtasks_done }}</span>
                 <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 rounded bg-slate-800 text-xs text-slate-200 whitespace-nowrap opacity-0 group-hover/ring:opacity-100 transition-opacity pointer-events-none z-10 shadow-lg">
                     {{ task.subtasks_done }}/{{ task.subtasks_total }} subtasks
                 </div>
