@@ -65,6 +65,7 @@ async def view(
     user: Mapping = Depends(get_current_active_user),
     render: Renderer = Depends(renderer),
 ):
+    is_htmx = req.headers.get("hx-request") == "true"
     user_repo = db.for_user(user)
     list_r = user_repo.lists()
     li = http.Opt(await list_r.by_sid(sid)).or_404(f"List #{sid} not found.")
@@ -134,6 +135,7 @@ async def view(
         "filter_due": filter_due,
         "filter_tags": filter_tags_list,
         "all_tags": all_tags,
+        "layout": not is_htmx,
     }
 
 
