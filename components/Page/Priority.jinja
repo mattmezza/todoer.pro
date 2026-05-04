@@ -25,10 +25,7 @@
         {% for space_sid, space_tasks in by_space.items() %}
         {% set space_title = space_tasks[0].space_title %}
         <div class="mb-10">
-            <h2 class="text-lg font-semibold text-slate-300 mb-4 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-                </svg>
+            <h2 class="text-lg font-semibold text-slate-300 mb-4">
                 <a href="/space/{{ space_sid }}" class="hover:text-indigo-400 transition-colors">@{{ space_title }}</a>
             </h2>
 
@@ -48,29 +45,29 @@
                     <a href="/task/{{ task.sid }}"
                        class="block px-3 py-2 rounded-lg hover:bg-white/5 transition-colors group">
                         <div class="flex items-center gap-2">
-                            <div class="w-2 h-2 rounded-full shrink-0
-                                {% if priority_color == 'red' %}bg-red-500
-                                {% elif priority_color == 'orange' %}bg-orange-500
-                                {% elif priority_color == 'yellow' %}bg-yellow-500
-                                {% elif priority_color == 'blue' %}bg-blue-500
-                                {% endif %}"></div>
                             <span class="text-sm font-medium text-slate-200 group-hover:text-white transition-colors
                                 {% if task.complete %}line-through text-slate-600{% endif %}">
                                 {{ task.title }}
                             </span>
                             {% if task.due_date %}
-                            <span class="text-xs text-slate-500 ml-auto">{{ task.due_date }}</span>
+                            <span class="text-xs text-slate-500 ml-auto">{{ task.due_date|date_short }}</span>
                             {% endif %}
                         </div>
-                        {% if task.tags %}
                         <div class="flex gap-1 mt-1 ml-4">
+                            <span class="text-xs font-mono px-1.5 py-0.5 rounded
+                                {% if priority_color == 'red' %}bg-red-500/20 text-red-400
+                                {% elif priority_color == 'orange' %}bg-orange-500/20 text-orange-400
+                                {% elif priority_color == 'yellow' %}bg-yellow-500/20 text-yellow-400
+                                {% elif priority_color == 'blue' %}bg-blue-500/20 text-blue-400
+                                {% endif %}">{{ priority_label }}</span>
+                            {% if task.tags %}
                             {% for tag in task.tags.split(',') %}
                                 {% if tag.strip() %}
                                 <span class="text-xs px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400">+{{ tag.strip() }}</span>
                                 {% endif %}
                             {% endfor %}
+                            {% endif %}
                         </div>
-                        {% endif %}
                     </a>
                 </div>
             {% endfor %}
