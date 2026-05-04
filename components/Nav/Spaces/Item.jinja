@@ -7,9 +7,9 @@
         @click="open = false">
         <div class="flex items-center justify-between">
             <div class="flex items-center">
-                <span
-                    class="lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200 text-ellipsis overflow-hidden">
-                    @{{ space.title[0:20] }}
+                <span class="rounded-full shrink-0 w-6 h-6 bg-indigo-500/20 flex items-center justify-center text-xs text-indigo-400 font-mono">@</span>
+                <span class="text-sm ml-3 lg:opacity-0 lg:sidebar-expanded:opacity-100 2xl:opacity-100 duration-200 text-ellipsis overflow-hidden">
+                    {{ space.title[0:20] }}
                 </span>
             </div>
             <div class="flex flex-shrink-0 ml-2">
