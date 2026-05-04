@@ -1,7 +1,11 @@
 {# def user, spaces, space, lists, list, sections, sections_by_list, view_complete, tasks_by_section, sort_by='manual', filter_priority=None, filter_due=None, filter_tags=None, all_tags=[], is_bookmarked=False, today='' #}
 <Layout.App spaces={{spaces}} space={{space}} user={{user}} title={{"#" + list.title}} lists={{lists}}>
 <div id="page-context" data-space-sid="{{ space.sid }}" data-space-title="{{ space.title }}" data-list-sid="{{ list.sid }}" data-list-title="{{ list.title }}" data-show-completed="{{ 'true' if view_complete else 'false' }}" style="display:none"></div>
-<div id="page-content">
+<div id="page-content"
+     hx-get="/list/{{ list.sid }}/board?view_complete={{ 'true' if view_complete else 'false' }}"
+     hx-trigger="task-create from:body, section-create from:body, section-delete from:body, sections-reorder from:body, list-{{ list.sid }}-update from:body, task-update from:body"
+     hx-target="#page-content"
+     hx-swap="innerHTML">
     <Page.BoardContent
         user={{user}}
         spaces={{spaces}}
