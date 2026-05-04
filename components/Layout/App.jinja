@@ -433,6 +433,8 @@
                     return;
                 }
 
+                // Skip task navigation keys in board mode (has own handler)
+                if (document.querySelector('.board-column') && ['j','k','h','l','g','G','x','Enter','e','d','+','!','A','Escape'].includes(key)) return;
                 switch (key) {
                     case 'j':
                         e.preventDefault();

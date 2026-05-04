@@ -1,4 +1,4 @@
-{# def user, spaces, space, lists, list, sections, sections_by_list, view_complete, tasks_by_section, sort_by='manual', filter_priority=None, filter_due=None, filter_tags=None, all_tags=[], is_bookmarked=False #}
+{# def user, spaces, space, lists, list, sections, sections_by_list, view_complete, tasks_by_section, sort_by='manual', filter_priority=None, filter_due=None, filter_tags=None, all_tags=[], is_bookmarked=False, today='' #}
 <Layout.App spaces={{spaces}} space={{space}} user={{user}} title={{"#" + list.title}} lists={{lists}}>
 <div id="page-context" data-space-sid="{{ space.sid }}" data-space-title="{{ space.title }}" data-list-sid="{{ list.sid }}" data-list-title="{{ list.title }}" data-show-completed="{{ 'true' if view_complete else 'false' }}" style="display:none"></div>
 <div id="page-content"
@@ -22,6 +22,7 @@
         filter_tags={{filter_tags}}
         all_tags={{all_tags}}
         is_bookmarked={{is_bookmarked}}
+        today={{today}}
     />
 </div>
 <script>
@@ -48,8 +49,8 @@
         switch (e.key) {
             case 'S':
                 e.preventDefault();
-                var btn = document.querySelector('#btn-section-create');
-                if (btn) btn.click();
+                var btn = document.getElementById('board-add-section-btn');
+                if (btn) { btn.scrollIntoView({ behavior: 'smooth' }); btn.click(); }
                 break;
         }
     });
