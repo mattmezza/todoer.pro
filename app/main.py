@@ -16,6 +16,7 @@ from .routers import (
     bookmarks,
     comments,
     dashboard,
+    date,
     lists,
     nav,
     notifications,
@@ -172,5 +173,9 @@ app.include_router(
 )
 app.include_router(
     priority.router,
+    dependencies=[Depends(get_current_active_user)],
+)
+app.include_router(
+    date.router,
     dependencies=[Depends(get_current_active_user)],
 )
