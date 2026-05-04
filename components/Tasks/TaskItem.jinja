@@ -37,7 +37,7 @@
                     {% if task.descr %}<input name="descr" type="hidden" value="{{ task.descr }}" />{% endif %}
                     <span class="font-semibold text-slate-800 dark:text-slate-100 peer-checked:line-through ml-3 xs:text-xs sm:text-sm md:text-base lg:text-lg">{{ task.title }}</span>
                 </form>
-                <div class="flex items-center gap-1" onclick="event.stopPropagation()">
+                <div class="flex items-center gap-1 ml-2" onclick="event.stopPropagation()">
                     {% if task.priority %}
                     {% set p = task.priority %}
                     <span class="priority-display inline-flex items-center text-xs font-mono px-1.5 py-0.5 rounded cursor-pointer
