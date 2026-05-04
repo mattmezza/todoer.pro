@@ -1,5 +1,7 @@
-{# def user, spaces, space, lists, list, sections, sections_by_list, view_complete, tasks_by_section, sort_by='manual', filter_priority=None, filter_due=None, filter_tags=None, all_tags=[], is_bookmarked=False #}
+{# def user, spaces, space, lists, list, sections, sections_by_list, view_complete, tasks_by_section, sort_by='manual', filter_priority=None, filter_due=None, filter_tags=None, all_tags=[], is_bookmarked=False, layout=True #}
+{% if layout %}
 <Layout.App spaces={{spaces}} space={{space}} user={{user}} title={{"#" + list.title}} lists={{lists}}>
+{% endif %}
 <div id="page-context" data-space-sid="{{ space.sid }}" data-space-title="{{ space.title }}" data-list-sid="{{ list.sid }}" data-list-title="{{ list.title }}" style="display:none"></div>
 <div id="page-content"
     class="py-6 px-4 md:px-8 lg:max-w-4xl lg:mx-auto"
@@ -226,4 +228,6 @@
     });
 })();
 </script>
+{% if layout %}
 </Layout.App>
+{% endif %}
