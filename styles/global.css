@@ -92,6 +92,10 @@
         @apply bg-black/50 backdrop-blur grid place-items-center fixed inset-0 z-50 w-full h-full;
     }
 
+    button {
+        cursor: pointer;
+    }
+
     input[type="date"] {
         color-scheme: dark;
     }
@@ -126,7 +130,7 @@
 
 /* Buttons */
 .btn {
-    @apply px-3 py-2 font-medium text-sm inline-flex items-center justify-center border border-transparent rounded leading-5 shadow-sm transition duration-150 ease-in-out;
+    @apply px-3 py-2 font-medium text-sm inline-flex items-center justify-center border border-transparent rounded leading-5 shadow-sm transition duration-150 ease-in-out cursor-pointer;
 }
 
 @variant xs {
