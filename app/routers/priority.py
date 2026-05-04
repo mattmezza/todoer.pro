@@ -2,7 +2,7 @@ from typing import Annotated, Mapping
 
 from fastapi import APIRouter, Depends, Query, Request
 
-from app import http, tpl
+from app import tpl
 from app.deps import RepoDB, get_current_active_user, repo_db
 
 router = APIRouter()
@@ -14,6 +14,25 @@ PRIORITY_COLORS = {
     3: "yellow",
     4: "blue",
 }
+
+
+@router.get("/priority")
+@tpl.htmx("Page.PriorityHub")
+async def hub(
+    req: Request,
+    db: RepoDB = Depends(repo_db),
+    user: Mapping = Depends(get_current_active_user),
+):
+    urepo = db.for_user(user)
+    counts = {}
+    for p in [1, 2, 3, 4]:
+        tasks = await urepo.tasks().all_by_priority(p, limit=500)
+        counts[p] = len(tasks)
+    return {
+        "spaces": await urepo.spaces().all(),
+        "user": user,
+        "counts": counts,
+    }
 
 
 @router.get("/priority/{level}")
@@ -47,18 +66,3 @@ async def view(
         "priority_color": PRIORITY_COLORS[level],
         "tasks_total": len(tasks),
     }
-
-
-@router.get("/nav/priority-counts")
-@tpl.htmx("Nav.PriorityCounts")
-async def nav_counts(
-    req: Request,
-    db: RepoDB = Depends(repo_db),
-    user: Mapping = Depends(get_current_active_user),
-):
-    urepo = db.for_user(user)
-    counts = {}
-    for p in [1, 2, 3, 4]:
-        tasks = await urepo.tasks().all_by_priority(p, limit=500)
-        counts[p] = len(tasks)
-    return {"counts": counts}
