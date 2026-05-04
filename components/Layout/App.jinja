@@ -103,7 +103,14 @@
                     if (this.filterDue) params.set('due', this.filterDue);
                     if (this.filterTags.length) params.set('tags', this.filterTags.join(','));
                     var url = '/list/' + this.sid + (params.toString() ? '?' + params.toString() : '');
-                    htmx.ajax('GET', url, { target: '#page-content', swap: 'innerHTML' });
+                    var el = document.getElementById('page-content');
+                    var skel = document.getElementById('list-skeleton');
+                    if (skel) skel.style.display = 'block';
+                    if (el) { el.style.opacity = '0.2'; el.style.pointerEvents = 'none'; }
+                    htmx.ajax('GET', url, { target: '#page-content', swap: 'innerHTML' }).then(function() {
+                        if (skel) skel.style.display = '';
+                        if (el) { el.style.opacity = ''; el.style.pointerEvents = ''; }
+                    });
                 },
                 clearFilters: function() {
                     this.sortBy = 'manual';
