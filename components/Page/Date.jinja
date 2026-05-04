@@ -15,7 +15,7 @@
             </div>
             <div class="h-4 w-32 bg-slate-700/30 rounded"></div>
             {% if view == "month" %}
-            <div class="grid grid-cols-8 gap-px bg-slate-800/20 rounded-lg overflow-hidden">
+            <div class="grid grid-cols-[1.75rem_repeat(7,minmax(0,1fr))] gap-px bg-slate-800/20 rounded-lg overflow-hidden">
                 {% for _ in range(8) %}
                 <div class="h-5 bg-slate-800/20"></div>
                 {% endfor %}
@@ -184,7 +184,7 @@
             {% endif %}
 
             {% if calendar_grid %}
-            <div class="grid grid-cols-8 gap-px bg-slate-800/30 rounded-lg overflow-hidden border border-slate-800/50">
+            <div class="grid grid-cols-[1.75rem_repeat(7,minmax(0,1fr))] gap-px bg-slate-800/30 rounded-lg overflow-hidden border border-slate-800/50">
                 <!-- Week number header -->
                 <div class="px-1 py-2 text-[10px] font-medium text-slate-600 text-center bg-slate-900/50">#</div>
                 {% for wd in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] %}
