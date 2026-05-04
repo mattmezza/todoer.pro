@@ -187,12 +187,12 @@
         {% if view == "month" %}
         <div class="mb-8"
              x-data="{}"
-             @wheel.prevent="
-                 if (Math.abs($event.deltaY) < 20) return;
+             @wheel.window="
+                 if (Math.abs($event.deltaY) < 40) return;
                  let url = $event.deltaY > 0
                      ? '/calendar?view=month&amp;date={{ next_date }}'
                      : '/calendar?view=month&amp;date={{ prev_date }}';
-                 htmx.ajax('GET', url, {target: '#main', select: '#main', pushUrl: true, indicator: '#cal-skeleton'});
+                 window.location.href = url;
              ">
             {% if months %}
             <div class="flex items-center gap-2 mb-4 text-xs">
