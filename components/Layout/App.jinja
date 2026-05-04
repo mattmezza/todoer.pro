@@ -524,6 +524,17 @@
                         }
                         break;
 
+                    case 'h':
+                        e.preventDefault();
+                        var url = new URL(window.location.href);
+                        if (url.searchParams.get('view_complete') === 'true') {
+                            url.searchParams.delete('view_complete');
+                        } else {
+                            url.searchParams.set('view_complete', 'true');
+                        }
+                        window.location.href = url.toString();
+                        break;
+
                     case 'd':
                         e.preventDefault();
                         if (pendingD) {
