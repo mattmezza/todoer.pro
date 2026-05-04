@@ -574,15 +574,16 @@
                         <!-- Week rows -->
                         {% for wrow in md.grid %}
                         {% set wn = wrow.week_num %}
+                        {% set w_idx = loop.index %}
                         <!-- Week number -->
                         <a href="/calendar?view=week&amp;date={{ wrow.monday_iso }}"
                            hx-get="/calendar?view=week&amp;date={{ wrow.monday_iso }}"
                            hx-target="#main" hx-select="#main"
                            hx-push-url="true"
                            hx-indicator="#cal-skeleton"
-                           class="text-[7px] font-mono text-slate-700 hover:text-indigo-400 text-center leading-none pt-0.5 cursor-pointer week-{{ m_idx }}-{{ loop.index }}"
-                           onmouseenter="this.closest('.month-card').querySelectorAll('.week-{{ m_idx }}-{{ loop.index }}').forEach(e => e.classList.add('year-wn-highlight'))"
-                           onmouseleave="this.closest('.month-card').querySelectorAll('.week-{{ m_idx }}-{{ loop.index }}').forEach(e => e.classList.remove('year-wn-highlight'))">{{ wn }}</a>
+                           class="text-[7px] font-mono text-slate-700 hover:text-indigo-400 text-center leading-none pt-0.5 cursor-pointer week-{{ m_idx }}-{{ w_idx }}"
+                           onmouseenter="this.closest('.month-card').querySelectorAll('.week-{{ m_idx }}-{{ w_idx }}').forEach(e => e.classList.add('year-wn-highlight'))"
+                           onmouseleave="this.closest('.month-card').querySelectorAll('.week-{{ m_idx }}-{{ w_idx }}').forEach(e => e.classList.remove('year-wn-highlight'))">{{ wn }}</a>
                         {% for day in wrow.days %}
                             {% if day %}
                             {% set iso = day.isoformat() %}
@@ -593,7 +594,7 @@
                                hx-push-url="true"
                                hx-indicator="#cal-skeleton"
                                class="text-center leading-none py-0.5 rounded-sm cursor-pointer transition
-                                      week-{{ m_idx }}-{{ loop.parentloop.index }}
+                                      week-{{ m_idx }}-{{ w_idx }}
                                       {% if has %}text-indigo-400 font-medium{% else %}text-slate-600 hover:text-slate-400{% endif %}
                                       hover:bg-slate-800/40">{{ day.day }}</a>
                             {% else %}
