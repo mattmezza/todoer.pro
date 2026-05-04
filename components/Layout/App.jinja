@@ -105,11 +105,11 @@
                     var url = '/list/' + this.sid + (params.toString() ? '?' + params.toString() : '');
                     var el = document.getElementById('page-content');
                     var skel = document.getElementById('list-skeleton');
+                    if (el) el.style.display = 'none';
                     if (skel) skel.style.display = 'block';
-                    if (el) { el.style.opacity = '0.2'; el.style.pointerEvents = 'none'; }
                     htmx.ajax('GET', url, { target: '#page-content', swap: 'innerHTML' }).then(function() {
                         if (skel) skel.style.display = '';
-                        if (el) { el.style.opacity = ''; el.style.pointerEvents = ''; }
+                        if (el) el.style.display = '';
                     });
                 },
                 clearFilters: function() {
