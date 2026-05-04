@@ -14,9 +14,9 @@ from .routers import (
     attachments,
     auth,
     bookmarks,
+    calendar,
     comments,
     dashboard,
-    date,
     lists,
     nav,
     notifications,
@@ -176,6 +176,6 @@ app.include_router(
     dependencies=[Depends(get_current_active_user)],
 )
 app.include_router(
-    date.router,
+    calendar.router,
     dependencies=[Depends(get_current_active_user)],
 )
