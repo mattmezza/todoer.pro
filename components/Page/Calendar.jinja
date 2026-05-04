@@ -548,6 +548,7 @@
             {% if month_days %}
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {% for md in month_days %}
+                {% set m_idx = loop.index %}
                 {% set m_str = '%02d' % md.month %}
                 {% set year_str = focus_date.split('-')[0] %}
                 <div class="block p-3 rounded-xl border border-slate-800/50 bg-slate-900/30 group month-card">
@@ -579,9 +580,9 @@
                            hx-target="#main" hx-select="#main"
                            hx-push-url="true"
                            hx-indicator="#cal-skeleton"
-                           class="text-[7px] font-mono text-slate-700 hover:text-indigo-400 text-center leading-none pt-0.5 cursor-pointer week-{{ loop.parentloop.counter }}-{{ loop.index }}"
-                           onmouseenter="this.closest('.month-card').querySelectorAll('.week-{{ loop.parentloop.counter }}-{{ loop.index }}').forEach(e => e.classList.add('year-wn-highlight'))"
-                           onmouseleave="this.closest('.month-card').querySelectorAll('.week-{{ loop.parentloop.counter }}-{{ loop.index }}').forEach(e => e.classList.remove('year-wn-highlight'))">{{ wn }}</a>
+                           class="text-[7px] font-mono text-slate-700 hover:text-indigo-400 text-center leading-none pt-0.5 cursor-pointer week-{{ m_idx }}-{{ loop.index }}"
+                           onmouseenter="this.closest('.month-card').querySelectorAll('.week-{{ m_idx }}-{{ loop.index }}').forEach(e => e.classList.add('year-wn-highlight'))"
+                           onmouseleave="this.closest('.month-card').querySelectorAll('.week-{{ m_idx }}-{{ loop.index }}').forEach(e => e.classList.remove('year-wn-highlight'))">{{ wn }}</a>
                         {% for day in wrow.days %}
                             {% if day %}
                             {% set iso = day.isoformat() %}
@@ -592,7 +593,7 @@
                                hx-push-url="true"
                                hx-indicator="#cal-skeleton"
                                class="text-center leading-none py-0.5 rounded-sm cursor-pointer transition
-                                      week-{{ loop.parentloop.parentloop.counter }}-{{ loop.parentloop.index }}
+                                      week-{{ m_idx }}-{{ loop.parentloop.index }}
                                       {% if has %}text-indigo-400 font-medium{% else %}text-slate-600 hover:text-slate-400{% endif %}
                                       hover:bg-slate-800/40">{{ day.day }}</a>
                             {% else %}
