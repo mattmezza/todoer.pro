@@ -1,11 +1,11 @@
-{# def list, sort_by, filter_priority, filter_due, filter_tags, all_tags #}
+{# def list, sort_by='manual', filter_priority=None, filter_due=None, filter_tags=None, all_tags=[] #}
 <div
     class="mb-6 flex flex-wrap items-center gap-2"
-    x-data="{
-        sortBy: {{ sort_by | tojson if sort_by else "'manual'" }},
+    x-data='{
+        sortBy: {{ (sort_by if sort_by else 'manual') | tojson }},
         filterPriority: {{ filter_priority if filter_priority else 'null' }},
-        filterDue: {{ filter_due | tojson if filter_due else 'null' }},
-        filterTags: {{ filter_tags | tojson if filter_tags else '[]' }},
+        filterDue: {{ (filter_due if filter_due else none) | tojson }},
+        filterTags: {{ (filter_tags if filter_tags else []) | tojson }},
         tagDropdownOpen: false,
         dueDropdownOpen: false,
         sortDropdownOpen: false,
