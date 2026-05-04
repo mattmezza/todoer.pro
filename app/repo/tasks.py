@@ -1231,6 +1231,37 @@ class TaskForUser(LoggedInUserRepo):
         )
         return [dict(r._mapping) for r in rows]
 
+    async def by_date_range(
+        self, start_date: str, end_date: str
+    ) -> list[Mapping]:
+        """Fetch all unarchived tasks with due_date in [start_date, end_date]."""
+        rows = await self.db.fetch_all(
+            """
+            SELECT ta.uuid, ta.sid, ta.title, ta.descr, ta.priority,
+                   ta.due_date, ta.tags, ta.complete, ta.completed,
+                   ta.created,
+                   se.sid as section_sid, se.title as section_title,
+                   l.sid as list_sid, l.title as list_title, l.color as list_color,
+                   sp.sid as space_sid, sp.title as space_title
+            FROM tasks ta
+            JOIN sections se ON se.uuid = ta.section
+            JOIN lists l ON l.uuid = se.list
+            JOIN spaces sp ON sp.uuid = l.space
+            WHERE sp.creator = :creator
+                AND ta.archived = 0
+                AND ta.due_date IS NOT NULL
+                AND ta.due_date >= :start_date
+                AND ta.due_date <= :end_date
+            ORDER BY ta.due_date ASC, ta.priority ASC NULLS LAST, ta.complete ASC
+            """,
+            {
+                "creator": self.user["uuid"],
+                "start_date": start_date,
+                "end_date": end_date,
+            },
+        )
+        return [dict(r._mapping) for r in rows]
+
     async def all_tags_annotated(self) -> list[dict]:
         """Return all tags with counts."""
         rows = await self.db.fetch_all(
