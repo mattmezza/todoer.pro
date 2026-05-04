@@ -2,7 +2,7 @@
     user, spaces, view, focus_date, today, title, start_date, end_date,
     prev_date, next_date, prev_label, next_label,
     tasks, by_date, calendar_grid, months, prev_year, next_year,
-    weekdays, hours, total_tasks
+    weekdays, month_days, hours, total_tasks
 #}
 <Layout.App spaces={{spaces}} user={{user}} title={{"Calendar: " + title}}>
 <div class="py-6 px-4 md:px-8 lg:max-w-6xl lg:mx-auto">
@@ -50,6 +50,22 @@
             <div class="space-y-2">
                 {% for _ in range(5) %}
                 <div class="h-14 bg-slate-900/30 rounded-lg"></div>
+                {% endfor %}
+            </div>
+            {% elif view == "year" %}
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {% for _ in range(12) %}
+                <div class="p-3 rounded-xl border border-slate-800/30 bg-slate-900/20">
+                    <div class="h-4 w-16 bg-slate-700/30 rounded mb-3"></div>
+                    <div class="grid grid-cols-7 gap-0.5">
+                        {% for _ in range(7) %}
+                        <div class="h-2 bg-slate-700/10 rounded"></div>
+                        {% endfor %}
+                        {% for _ in range(35) %}
+                        <div class="flex items-center justify-center"><span class="block w-1.5 h-1.5 rounded-full bg-slate-800"></span></div>
+                        {% endfor %}
+                    </div>
+                </div>
                 {% endfor %}
             </div>
             {% endif %}
@@ -104,6 +120,15 @@
                        class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
                        {% if view == 'weekend' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                         Week End
+                    </a>
+                    <a href="/calendar?view=year&amp;date={{ focus_date }}"
+                       hx-get="/calendar?view=year&amp;date={{ focus_date }}"
+                       hx-target="#main" hx-select="#main"
+                       hx-push-url="true"
+                       hx-indicator="#cal-skeleton"
+                       class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
+                       {% if view == 'year' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        Year
                     </a>
                     <a href="/calendar?view=day&amp;date={{ focus_date }}"
                        hx-get="/calendar?view=day&amp;date={{ focus_date }}"
@@ -160,7 +185,15 @@
 
         <!-- ==================== MONTH VIEW ==================== -->
         {% if view == "month" %}
-        <div class="mb-8">
+        <div class="mb-8"
+             x-data="{}"
+             @wheel.prevent="
+                 if (Math.abs($event.deltaY) < 20) return;
+                 let url = $event.deltaY > 0
+                     ? '/calendar?view=month&amp;date={{ next_date }}'
+                     : '/calendar?view=month&amp;date={{ prev_date }}';
+                 htmx.ajax('GET', url, {target: '#main', select: '#main', pushUrl: true, indicator: '#cal-skeleton'});
+             ">
             {% if months %}
             <div class="flex items-center gap-2 mb-4 text-xs">
                 <a href="/calendar?view=month&amp;date={{ prev_year }}-{{ focus_date.split('-')[1] }}-01"
@@ -476,6 +509,48 @@
                 </svg>
                 <p class="text-slate-500 font-medium">No tasks due on this day</p>
                 <p class="text-sm text-slate-600 mt-1">Tasks with a due date will appear here</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- ==================== YEAR VIEW ==================== -->
+        {% elif view == "year" %}
+        <div class="mb-8">
+            {% if month_days %}
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {% for md in month_days %}
+                {% set m_str = '%02d' % md.month %}
+                <a href="/calendar?view=month&amp;date={{ focus_date.split('-')[0] }}-{{ m_str }}-01"
+                   hx-get="/calendar?view=month&amp;date={{ focus_date.split('-')[0] }}-{{ m_str }}-01"
+                   hx-target="#main" hx-select="#main"
+                   hx-push-url="true"
+                   hx-indicator="#cal-skeleton"
+                   class="block p-3 rounded-xl border border-slate-800/50 bg-slate-900/30 hover:bg-slate-800/40 hover:border-slate-700 transition cursor-pointer group">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-semibold text-slate-300 group-hover:text-white transition-colors">{{ md.label_full }}</span>
+                        {% if md.total_tasks > 0 %}
+                        <span class="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400">{{ md.total_tasks }}</span>
+                        {% endif %}
+                    </div>
+                    {% set first_dow = md.first.weekday() %}
+                    {% set days_in_month = md.last.day %}
+                    <div class="grid grid-cols-7 gap-0.5">
+                        {% for wd in ["M","T","W","T","F","S","S"] %}
+                        <span class="text-[7px] text-slate-700 text-center">{{ wd }}</span>
+                        {% endfor %}
+                        {% for _ in range(first_dow) %}
+                        <div></div>
+                        {% endfor %}
+                        {% for d in range(1, days_in_month + 1) %}
+                        {% set has = d in md.days_with_tasks %}
+                        <div class="flex items-center justify-center">
+                            <span class="block w-1.5 h-1.5 rounded-full
+                                {% if has %}bg-indigo-400{% else %}bg-slate-800{% endif %}"></span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </a>
+                {% endfor %}
             </div>
             {% endif %}
         </div>
