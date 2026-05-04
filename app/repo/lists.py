@@ -241,31 +241,6 @@ class ListForUser(LoggedInUserRepo):
         )
         return dict(li._mapping) if li is not None else None
 
-    async def update_settings_by_sid(
-        self,
-        sid: str,
-        default_view: str,
-        show_completed: bool,
-    ) -> Mapping | None:
-        li = await self.db.fetch_one(
-            """
-            UPDATE lists
-                SET default_view = :default_view,
-                    show_completed = :show_completed,
-                    updated = CURRENT_TIMESTAMP
-                WHERE sid = :sid
-                AND creator = :creator
-            RETURNING *
-            """,
-            {
-                "sid": sid,
-                "default_view": default_view,
-                "show_completed": 1 if show_completed else 0,
-                "creator": self.user["uuid"],
-            },
-        )
-        return dict(li._mapping) if li is not None else None
-
     async def insert(
         self,
         color: str | None,

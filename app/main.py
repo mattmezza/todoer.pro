@@ -13,6 +13,7 @@ from .routers import (
     ai,
     attachments,
     auth,
+    board,
     bookmarks,
     calendar,
     comments,
@@ -122,6 +123,10 @@ app.include_router(
 )
 app.include_router(
     lists.router,
+    dependencies=[Depends(get_current_active_user)],
+)
+app.include_router(
+    board.router,
     dependencies=[Depends(get_current_active_user)],
 )
 app.include_router(
