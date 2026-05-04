@@ -178,7 +178,7 @@
 .form-select,
 .form-checkbox,
 .form-radio {
-    @apply bg-white dark:bg-transparent border focus:ring-0 focus:ring-offset-0 dark:disabled:bg-slate-700/30 dark:disabled:border-slate-700 dark:disabled:hover:border-slate-700;
+    @apply bg-white dark:bg-transparent border-0 focus:ring-0 focus:ring-offset-0 dark:disabled:bg-slate-700/30 dark:disabled:border-slate-700 dark:disabled:hover:border-slate-700;
 }
 
 .form-input,
