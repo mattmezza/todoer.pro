@@ -135,7 +135,13 @@ async def view(
         all_tags=all_tags,
     )
     is_htmx = req.headers.get("hx-request") == "true"
-    tpl_name = "Page.ListContent" if is_htmx else "Page.List"
+    import datetime
+    data["today"] = datetime.date.today().isoformat()
+    default_view = li.get("default_view", "list")
+    if default_view == "board":
+        tpl_name = "Page.BoardContent" if is_htmx else "Page.Board"
+    else:
+        tpl_name = "Page.ListContent" if is_htmx else "Page.List"
     tpl._current_request.set(req)
     return HTMLResponse(render(tpl_name, **data))
 
@@ -265,7 +271,6 @@ async def update_settings(
     sid: str,
     default_view: Annotated[str, Form()] = "board",
     show_completed: Annotated[bool, Form()] = False,
-    sort_by: Annotated[str, Form()] = "manual",
     user: Mapping = Depends(get_current_active_user),
     db: RepoDB = Depends(repo_db),
 ):
@@ -276,13 +281,12 @@ async def update_settings(
             sid,
             default_view=default_view,
             show_completed=show_completed,
-            sort_by=sort_by,
         )
     ).or_404(f"List #{sid} not found.")
     return (
         {"list": li},
         200,
-        {"HX-Trigger": f"list-update, list-{sid}-update"},
+        {"HX-Trigger": f"list-update, list-{sid}-update, list-{sid}-settings-update"},
     )
 
 

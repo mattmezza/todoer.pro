@@ -246,14 +246,12 @@ class ListForUser(LoggedInUserRepo):
         sid: str,
         default_view: str,
         show_completed: bool,
-        sort_by: str,
     ) -> Mapping | None:
         li = await self.db.fetch_one(
             """
             UPDATE lists
                 SET default_view = :default_view,
                     show_completed = :show_completed,
-                    sort_by = :sort_by,
                     updated = CURRENT_TIMESTAMP
                 WHERE sid = :sid
                 AND creator = :creator
@@ -263,7 +261,6 @@ class ListForUser(LoggedInUserRepo):
                 "sid": sid,
                 "default_view": default_view,
                 "show_completed": 1 if show_completed else 0,
-                "sort_by": sort_by,
                 "creator": self.user["uuid"],
             },
         )
