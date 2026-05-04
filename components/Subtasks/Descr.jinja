@@ -1,6 +1,6 @@
 {# def subtask #}
 <div class="mt-4 md:mt-0">
-    <div class="page-descr-display cursor-pointer rounded text-sm min-h-[3lh] w-full prose dark:prose-white prose-xs md:prose-base lg:prose-lg" _="on click hide me then show the next <form /> then select() on the next <textarea />">
+    <div class="page-descr-display cursor-pointer rounded text-sm min-h-[3lh] w-full prose dark:prose-invert prose-xs md:prose-base lg:prose-lg" _="on click hide me then show the next <form /> then select() on the next <textarea />">
     {% if subtask.descr %}
         {{ subtask.descr|markdown|safe }}
     {% else %}
