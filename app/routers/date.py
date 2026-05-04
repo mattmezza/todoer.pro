@@ -145,19 +145,17 @@ async def date_view(
     # Calendar grid for month view
     calendar_grid = None
     months = []
+    prev_year = focus.year - 1
+    next_year = focus.year + 1
     if view == "month":
         calendar_grid = _build_calendar_grid(start, end)
-        # Build month navigation
-        for offset in range(-2, 3):
-            m = focus.month + offset
-            y = focus.year
-            while m < 1:
-                m += 12
-                y -= 1
-            while m > 12:
-                m -= 12
-                y += 1
-            months.append({"year": y, "month": m, "label": MONTHS_FULL[m][:3]})
+        # Build all 12 months for the current year
+        for m in range(1, 13):
+            months.append({
+                "year": focus.year,
+                "month": m,
+                "label": MONTHS_FULL[m][:3],
+            })
 
     # Week column headers
     weekdays = []
@@ -190,6 +188,8 @@ async def date_view(
         "by_date": dict(by_date),
         "calendar_grid": calendar_grid,
         "months": months,
+        "prev_year": prev_year,
+        "next_year": next_year,
         "weekdays": weekdays,
         "hours": hours,
         "total_tasks": len(tasks),
