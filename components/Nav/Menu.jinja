@@ -15,15 +15,11 @@
                 <ul class="mt-3 text-sm font-semibold">
                     <Nav.Links.Item href="/dashboard">Home</Nav.Links.Item>
                     <Nav.Links.Item href="/inbox">Inbox</Nav.Links.Item>
+                    <Nav.Links.Item href="/priority">Priority</Nav.Links.Item>
                 </ul>
             </div>
             <div
                 hx-get="/nav/bookmarks"
-                hx-trigger="load"
-                hx-swap="innerHTML"
-            ></div>
-            <div
-                hx-get="/nav/priority-counts"
                 hx-trigger="load"
                 hx-swap="innerHTML"
             ></div>

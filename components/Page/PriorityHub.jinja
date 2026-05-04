@@ -1,0 +1,50 @@
+{# def user, spaces, counts #}
+<Layout.App spaces={{spaces}} user={{user}} title="Priority">
+<div class="py-6 px-4 md:px-8 lg:max-w-4xl lg:mx-auto">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold flex items-center gap-3">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-8 h-8 text-slate-400">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.5 2.75a.75.75 0 0 0-1.5 0v14.5a.75.75 0 0 0 1.5 0v-4.392l1.657-.348a6.449 6.449 0 0 1 4.271.572 7.948 7.948 0 0 0 5.965.524l2.078-.64A.75.75 0 0 0 18 12.25v-8.5a.75.75 0 0 0-.904-.734l-2.38.501a7.25 7.25 0 0 1-4.186-.363l-.502-.2a8.75 8.75 0 0 0-5.053-.439l-1.475.31V2.75Z" />
+            </svg>
+            <span>Priority</span>
+        </h1>
+        <p class="text-sm text-slate-500 mt-1">View tasks by priority level</p>
+    </div>
+
+    {% set levels = [
+        (1, "P1", "red", "Critical — must be done today"),
+        (2, "P2", "orange", "Important — should be done soon"),
+        (3, "P3", "yellow", "Nice to have — when there's time"),
+        (4, "P4", "blue", "Low priority — sometime, maybe never"),
+    ] %}
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {% for level, label, color, descr in levels %}
+        {% set count = counts.get(level, 0) %}
+        <a href="/priority/{{ level }}"
+           class="block p-6 rounded-xl border border-slate-800 bg-slate-900/50 hover:bg-slate-800/50 hover:border-slate-700 transition-all group active:scale-[0.98]">
+            <div class="flex items-center justify-between mb-3">
+                <span class="inline-flex items-center justify-center w-10 h-10 rounded-lg
+                    {% if color == 'red' %}bg-red-500/20 text-red-400
+                    {% elif color == 'orange' %}bg-orange-500/20 text-orange-400
+                    {% elif color == 'yellow' %}bg-yellow-500/20 text-yellow-400
+                    {% elif color == 'blue' %}bg-blue-500/20 text-blue-400
+                    {% endif %}">
+                    {{ label }}
+                </span>
+                <span class="text-2xl font-bold
+                    {% if color == 'red' %}text-red-400
+                    {% elif color == 'orange' %}text-orange-400
+                    {% elif color == 'yellow' %}text-yellow-400
+                    {% elif color == 'blue' %}text-blue-400
+                    {% endif %}">{{ count }}</span>
+            </div>
+            <p class="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">{{ descr }}</p>
+        </a>
+        {% endfor %}
+    </div>
+
+    {% set total = counts.values()|sum %}
+    <p class="text-center text-xs text-slate-600 mt-6">{{ total }} task{% if total != 1 %}s{% endif %} across all priorities</p>
+</div>
+</Layout.App>
