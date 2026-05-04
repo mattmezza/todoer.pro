@@ -85,6 +85,15 @@
             <div class="flex items-center gap-2">
                 <!-- View switcher -->
                 <div class="flex bg-slate-800/50 rounded-lg p-0.5 text-xs font-medium gap-0.5">
+                    <a href="/calendar?view=year&amp;date={{ focus_date }}"
+                       hx-get="/calendar?view=year&amp;date={{ focus_date }}"
+                       hx-target="#main" hx-select="#main"
+                       hx-push-url="true"
+                       hx-indicator="#cal-skeleton"
+                       class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
+                       {% if view == 'year' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        Year
+                    </a>
                     <a href="/calendar?view=month&amp;date={{ focus_date }}"
                        hx-get="/calendar?view=month&amp;date={{ focus_date }}"
                        hx-target="#main" hx-select="#main"
@@ -120,15 +129,6 @@
                        class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
                        {% if view == 'weekend' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                         Week End
-                    </a>
-                    <a href="/calendar?view=year&amp;date={{ focus_date }}"
-                       hx-get="/calendar?view=year&amp;date={{ focus_date }}"
-                       hx-target="#main" hx-select="#main"
-                       hx-push-url="true"
-                       hx-indicator="#cal-skeleton"
-                       class="px-2.5 py-1.5 rounded-md transition whitespace-nowrap cursor-pointer
-                       {% if view == 'year' %}bg-indigo-600 text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
-                        Year
                     </a>
                     <a href="/calendar?view=day&amp;date={{ focus_date }}"
                        hx-get="/calendar?view=day&amp;date={{ focus_date }}"
@@ -185,14 +185,23 @@
 
         <!-- ==================== MONTH VIEW ==================== -->
         {% if view == "month" %}
+        <!-- Hidden links for scroll-wheel HTMX nav -->
+        <a id="cal-prev" href="/calendar?view=month&amp;date={{ prev_date }}"
+           hx-get="/calendar?view=month&amp;date={{ prev_date }}"
+           hx-target="#main" hx-select="#main"
+           hx-push-url="true" hx-indicator="#cal-skeleton"
+           class="hidden"></a>
+        <a id="cal-next" href="/calendar?view=month&amp;date={{ next_date }}"
+           hx-get="/calendar?view=month&amp;date={{ next_date }}"
+           hx-target="#main" hx-select="#main"
+           hx-push-url="true" hx-indicator="#cal-skeleton"
+           class="hidden"></a>
         <div class="mb-8"
              x-data="{}"
-             @wheel.window="
+             @wheel.prevent="
                  if (Math.abs($event.deltaY) < 40) return;
-                 let url = $event.deltaY > 0
-                     ? '/calendar?view=month&amp;date={{ next_date }}'
-                     : '/calendar?view=month&amp;date={{ prev_date }}';
-                 window.location.href = url;
+                 let link = document.getElementById($event.deltaY > 0 ? 'cal-next' : 'cal-prev');
+                 if (link) link.click();
              ">
             {% if months %}
             <div class="flex items-center gap-2 mb-4 text-xs">
