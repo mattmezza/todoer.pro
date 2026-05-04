@@ -136,6 +136,39 @@ async def date_view(
         next_date = _fmt_date(start + timedelta(days=7))
         prev_label = "Prev weekend"
         next_label = "Next weekend"
+    elif view == "year":
+        start = focus.replace(month=1, day=1)
+        end = focus.replace(month=12, day=31)
+        tasks = await urepo.tasks().by_date_range(_fmt_date(start), _fmt_date(end))
+        title = str(focus.year)
+        prev_date = _fmt_date(focus.replace(year=focus.year - 1, month=1, day=1))
+        next_date = _fmt_date(focus.replace(year=focus.year + 1, month=1, day=1))
+        prev_label = str(focus.year - 1)
+        next_label = str(focus.year + 1)
+        # Build per-month day sets for the mini-calendar indicators
+        month_days = []
+        for m in range(1, 13):
+            m_first = start.replace(month=m)
+            if m == 12:
+                m_last = start.replace(year=start.year + 1, month=1, day=1) - timedelta(days=1)
+            else:
+                m_last = start.replace(month=m + 1, day=1) - timedelta(days=1)
+            days_with_tasks = set()
+            for t in tasks:
+                td = t["due_date"]
+                if td:
+                    d = date.fromisoformat(td)
+                    if d.month == m:
+                        days_with_tasks.add(d.day)
+            month_days.append({
+                "month": m,
+                "label": MONTHS_FULL[m][:3],
+                "label_full": MONTHS_FULL[m],
+                "first": m_first,
+                "last": m_last,
+                "days_with_tasks": sorted(days_with_tasks),
+                "total_tasks": sum(1 for t in tasks if t["due_date"] and date.fromisoformat(t["due_date"]).month == m),
+            })
     else:  # month
         start, end = _month_bounds(focus)
         tasks = await urepo.tasks().by_date_range(_fmt_date(start), _fmt_date(end))
@@ -199,6 +232,7 @@ async def date_view(
         "prev_year": prev_year,
         "next_year": next_year,
         "weekdays": weekdays,
+        "month_days": month_days if view == "year" else None,
         "hours": hours,
         "total_tasks": len(tasks),
     }
