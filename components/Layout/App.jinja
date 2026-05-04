@@ -75,51 +75,49 @@
     <KeyboardShortcuts />
     <script src="//unpkg.com/alpinejs"></script>
     <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('filterBar', (opts) => ({
-                sid: opts.sid,
-                sortBy: opts.sortBy || 'manual',
-                filterPriority: opts.filterPriority,
-                filterDue: opts.filterDue || null,
-                filterTags: opts.filterTags || [],
-                tagDropdownOpen: false,
-                dueDropdownOpen: false,
-                sortDropdownOpen: false,
-                selectedTag(tag) {
-                    return this.filterTags.includes(tag);
-                },
-                toggleTag(tag) {
-                    const idx = this.filterTags.indexOf(tag);
-                    if (idx === -1) {
-                        this.filterTags.push(tag);
-                    } else {
-                        this.filterTags.splice(idx, 1);
-                    }
-                },
-                applyFilters() {
-                    const params = new URLSearchParams();
-                    if (this.sortBy && this.sortBy !== 'manual') params.set('sort_by', this.sortBy);
-                    if (this.filterPriority) params.set('priority', this.filterPriority);
-                    if (this.filterDue) params.set('due', this.filterDue);
-                    if (this.filterTags.length) params.set('tags', this.filterTags.join(','));
-                    const url = '/list/' + this.sid + (params.toString() ? '?' + params.toString() : '');
-                    htmx.ajax('GET', url, { target: '#page-content', swap: 'innerHTML' });
-                },
-                clearFilters() {
-                    this.sortBy = 'manual';
-                    this.filterPriority = null;
-                    this.filterDue = null;
-                    this.filterTags = [];
-                    this.applyFilters();
-                },
-                hasActiveFilters() {
-                    return this.sortBy !== 'manual'
-                        || this.filterPriority
-                        || this.filterDue
-                        || this.filterTags.length > 0;
+        Alpine.data('filterBar', (opts) => ({
+            sid: opts.sid,
+            sortBy: opts.sortBy || 'manual',
+            filterPriority: opts.filterPriority,
+            filterDue: opts.filterDue || null,
+            filterTags: opts.filterTags || [],
+            tagDropdownOpen: false,
+            dueDropdownOpen: false,
+            sortDropdownOpen: false,
+            selectedTag(tag) {
+                return this.filterTags.includes(tag);
+            },
+            toggleTag(tag) {
+                const idx = this.filterTags.indexOf(tag);
+                if (idx === -1) {
+                    this.filterTags.push(tag);
+                } else {
+                    this.filterTags.splice(idx, 1);
                 }
-            }));
-        });
+            },
+            applyFilters() {
+                const params = new URLSearchParams();
+                if (this.sortBy && this.sortBy !== 'manual') params.set('sort_by', this.sortBy);
+                if (this.filterPriority) params.set('priority', this.filterPriority);
+                if (this.filterDue) params.set('due', this.filterDue);
+                if (this.filterTags.length) params.set('tags', this.filterTags.join(','));
+                const url = '/list/' + this.sid + (params.toString() ? '?' + params.toString() : '');
+                htmx.ajax('GET', url, { target: '#page-content', swap: 'innerHTML' });
+            },
+            clearFilters() {
+                this.sortBy = 'manual';
+                this.filterPriority = null;
+                this.filterDue = null;
+                this.filterTags = [];
+                this.applyFilters();
+            },
+            hasActiveFilters() {
+                return this.sortBy !== 'manual'
+                    || this.filterPriority
+                    || this.filterDue
+                    || this.filterTags.length > 0;
+            }
+        }));
     </script>
     <script src="//unpkg.com/htmx.org@1.9.5/dist/htmx.min.js"></script>
     <script src="//unpkg.com/hyperscript.org@0.9.11"></script>
