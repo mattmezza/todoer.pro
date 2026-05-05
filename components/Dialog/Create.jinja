@@ -1,6 +1,6 @@
 {# def title, subtitle, action, hidden_vals={} #}
 <dialog
-    class="backdrop:bg-black/50 backdrop:backdrop-blur-sm dark:text-zinc-50 w-full sm:w-11/12 md:w-1/2 bg-white dark:bg-zinc-950 shadow-lg rounded">
+    class="backdrop:bg-black/50 backdrop:backdrop-blur-sm dark:text-zinc-50 w-full sm:w-11/12 md:w-1/2 bg-white dark:bg-zinc-950 shadow-lg rounded my-auto">
     <form
         hx-post="{{ action }}"
         {{ attrs.render() }}
