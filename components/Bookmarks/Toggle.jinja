@@ -3,6 +3,7 @@
     class="cursor-pointer transition active:scale-95 hover:text-yellow-400 {{ 'text-yellow-400' if bookmarked else 'text-slate-500' }}"
     hx-post="/bookmarks"
     hx-vals='{"entity_type": "{{ entity_type }}", "entity_uuid": "{{ entity_uuid }}"}'
+    hx-target="this"
     hx-swap="outerHTML"
     title="{{ 'Remove bookmark' if bookmarked else 'Add bookmark' }}"
 >
