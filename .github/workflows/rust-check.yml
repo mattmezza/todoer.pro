@@ -73,7 +73,7 @@ jobs:
             echo 'Development server did not become healthy within the 20-second polling budget.' >&2
             exit 1
           fi
-          target/debug/todoer --json list >/dev/null
+          python3 scripts/rebuild-cli-check.py
           if command -v uv >/dev/null; then
             uv run --no-project scripts/rebuild-mcp-check.py
           else

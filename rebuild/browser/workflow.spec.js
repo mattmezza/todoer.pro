@@ -6,6 +6,7 @@ async function signin(page) {
   await page.goto('/signin');
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
   await expect(page.locator('h1')).toHaveText('#Groceries');
+  await page.waitForFunction(() => document.body.dataset.ready === 'true');
 }
 test('capture, optimistic completion, edit conflict and draft retention', async ({
   page,
@@ -250,5 +251,111 @@ test('durable capture survives an actual browser restart', async ({
     proxy.closeAllConnections();
     await new Promise((resolve) => proxy.close(resolve));
     await rm(profile, { recursive: true, force: true });
+  }
+});
+
+test('inline rename keeps a concurrent draft and checks its revision', async ({
+  page,
+  request,
+}) => {
+  const response = await request.post('/api/v1/capture', {
+    headers: { ...auth, 'Idempotency-Key': crypto.randomUUID() },
+    data: { list_id: 'groceries', tasks: [{ title: `Inline ${crypto.randomUUID()}` }] },
+  });
+  const [task] = await response.json();
+  await signin(page);
+  const row = page.locator(`.task[data-id="${task.id}"]`);
+  await row.locator('summary').click();
+  await row.getByRole('button', { name: 'Rename inline' }).click();
+  await row.getByRole('textbox', { name: 'Task title' }).fill('Unsaved inline draft');
+  const result = await request.patch(`/api/v1/tasks/${task.id}`, {
+    headers: auth,
+    data: { revision: task.revision, title: 'Concurrent inline update' },
+  });
+  expect(result.status()).toBe(200);
+  await page.waitForTimeout(2500);
+  await expect(row.getByRole('textbox', { name: 'Task title' })).toHaveValue(
+    'Unsaved inline draft',
+  );
+  await page.reload();
+  await expect(row.getByRole('textbox', { name: 'Task title' })).toHaveValue(
+    'Unsaved inline draft',
+  );
+  await row.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#notice')).toContainText('stale revision');
+  await row.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(row.locator('.task-title')).toHaveText('Concurrent inline update');
+  await row.locator('summary').click();
+  await row.getByRole('button', { name: 'Rename inline' }).click();
+  await row.getByRole('textbox', { name: 'Task title' }).fill('Inline saved');
+  await row.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('#notice')).toContainText('Title saved');
+  await expect(row.locator('.task-title')).toHaveText('Inline saved');
+});
+
+test('delayed inline opening and another task save cannot replace the draft', async ({
+  page,
+  request,
+}) => {
+  const response = await request.post('/api/v1/capture', {
+    headers: { ...auth, 'Idempotency-Key': crypto.randomUUID() },
+    data: {
+      list_id: 'groceries',
+      tasks: [
+        { title: `Draft race ${crypto.randomUUID()}` },
+        { title: `Other editor ${crypto.randomUUID()}` },
+      ],
+    },
+  });
+  const [a, b] = await response.json();
+  await signin(page);
+  const row = page.locator(`.task[data-id="${a.id}"]`);
+  await page.route(`**/api/v1/tasks/${a.id}/subtree`, async (route) => {
+    const response = await route.fetch();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await route.fulfill({ response });
+  });
+  await row.locator('summary').click();
+  await row.getByRole('button', { name: 'Rename inline' }).click();
+  await page.evaluate(() => window.htmx.trigger('#task-list', 'tasks-refresh'));
+  await row.locator('[data-action="rename"]').evaluate((button) => button.click());
+  await expect(row.locator('.inline-editor')).toHaveCount(1);
+  await row
+    .getByRole('textbox', { name: 'Task title' })
+    .fill('Draft survives another task edit');
+  await page.unroute(`**/api/v1/tasks/${a.id}/subtree`);
+  await page.locator(`.task[data-id="${b.id}"] .task-title`).click();
+  await page.locator('#edit-title').fill('Other task saved');
+  await page.locator('#edit-form button[type=submit]').click();
+  await expect(page.locator('#notice')).toContainText('Changes saved');
+  await expect(row.getByRole('textbox', { name: 'Task title' })).toHaveValue(
+    'Draft survives another task edit',
+  );
+  await page.route(`**/api/v1/tasks/${a.id}`, async (route) => {
+    const response = await route.fetch();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await route.fulfill({ response });
+  });
+  await row.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(row.getByRole('textbox', { name: 'Task title' })).toBeDisabled();
+  await expect(row.getByRole('button', { name: 'Cancel', exact: true })).toBeDisabled();
+  await expect(page.locator('#notice')).toContainText('Title saved');
+  await expect(row.locator('.task-title')).toHaveText('Draft survives another task edit');
+});
+
+test('quick capture has a real native form fallback before scripts load', async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  try {
+    await page.goto('http://127.0.0.1:8092/signin');
+    await page.getByRole('button', { name: 'Enter development workspace' }).click();
+    const title = `Native capture ${crypto.randomUUID()}`;
+    await page.locator('#capture-title').fill(title);
+    await page.locator('#capture-form button').click();
+    await expect(page.locator('.task-title').filter({ hasText: title })).toHaveCount(1);
+  } finally {
+    await context.close();
   }
 });

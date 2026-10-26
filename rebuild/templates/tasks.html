@@ -2,7 +2,7 @@
 <article class="task {% if task.complete %}is-complete{% endif %} {% if task.parent_id.is_some() %}is-child{% endif %}" data-id="{{ task.id }}" data-revision="{{ task.revision }}" data-complete="{{ task.complete }}">
 <button class="completion" aria-label="{% if task.complete %}Reopen{% else %}Complete{% endif %} {{ task.title }}" aria-pressed="{{ task.complete }}">{% if task.complete %}<span aria-hidden="true">✓</span>{% endif %}</button>
 <div class="task-content"><button class="task-title" data-action="edit">{{ task.title }}</button>{% if !task.description.is_empty() %}<div class="task-description markdown">{{ task.description|markdown|safe }}</div>{% endif %}<span class="task-ref">%{{ task.reference }}</span></div>
-<button class="task-menu" data-action="edit" aria-label="Edit {{ task.title }}">···</button>
+<details class="task-actions"><summary class="task-menu" aria-label="Actions for {{ task.title }}">···</summary><div class="menu-items"><button type="button" data-action="rename">Rename inline</button><button type="button" data-action="edit">Open details</button></div></details>
 </article>
 {% endfor %}
 {% if tasks.is_empty() %}<div class="empty"><span aria-hidden="true">◯</span><h2>A clear starting point.</h2><p>Add your first task below.</p></div>{% endif %}

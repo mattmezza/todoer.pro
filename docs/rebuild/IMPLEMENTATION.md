@@ -49,3 +49,27 @@ was altered. Personal data/screenshots must remain under ignored `.local/`.
 - https://docs.rs/askama/latest/askama/ (0.16.1)
 - https://tailwindcss.com/docs/installation/tailwind-cli (compiled CLI)
 - https://modelcontextprotocol.io/specification/2025-11-25 (published protocol target; verify SDK support before implementation)
+
+## Implemented increments (2026-10-26)
+
+- [x] Read-only legacy copy running; synthetic desktop/phone reference screens in ignored `.local/rebuild/`.
+- [x] Shared Rust operations, versioned transactional migrations, independent SQLite WAL database; legacy schema rejected before writes.
+- [x] List/task HTML slice, task detail URLs, nested checklists, completion rules, subtree move with access-change acknowledgement.
+- [x] REST, Rust CLI, twelve direct application-layer MCP tools, accurate OpenAPI and capabilities; official Python MCP SDK HTTP check.
+- [x] Atomic 1–100 capture, payload-bound retry keys, revision conflicts, current-permission history/search/replay checks.
+- [x] FTS5 Unicode token-prefix title/description search, completed filter, ID keyset pagination. No fuzzy matching claim.
+- [x] Task trash/restore groups, actor IDs (human/agent client attribution remains unfinished), single-edit compensating undo that refuses newer work.
+- [x] Sanitized CommonMark; safe image-free description display.
+- [x] SSE invalidation, open draft retention, session draft recovery, optimistic completion rollback, keyboard quick-add.
+- [x] Scoped recent-list cache and durable offline capture queue; manifest/icons; explicit worker update lifecycle.
+- [x] Development sessions with CSRF, cookie expiry/logout revocation, hashed development bearer credential; security response headers and content-free request logs.
+- [x] Local SQLite online backup/isolated restore with integrity/FK checks; synthetic restore integration.
+- [x] Private-runner branch/PR checks prepared, fork-job guard; not executed remotely.
+- [x] Synthetic 10,000-task performance probe and query-plan-backed subtree fix.
+
+These do **not** complete the grouped checklist above. In particular, production
+Google/session/agent authorization, full workspace/section/tag/reference/sharing
+models, scheduling, notifications, attachments/discussion, all planning screens,
+exports/legacy importer, OpenRouter, push, Litestream and production release
+remain unfinished. External credentials are not the reason these implementations
+are unfinished. Do not cut over or deploy this increment.

@@ -48,20 +48,24 @@ fn result<T: Serialize>(result: Result<T, ApiError>) -> CallToolResult {
     }
 }
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct Destination {
     destination: String,
 }
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct TaskId {
     id: String,
 }
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct CaptureInput {
     list_id: String,
     idempotency_key: String,
     tasks: Vec<TaskInput>,
 }
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct TaskInput {
     title: String,
     #[serde(default)]
@@ -70,6 +74,7 @@ struct TaskInput {
     parent_id: Option<String>,
 }
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct UpdateInput {
     id: String,
     revision: i64,
@@ -80,11 +85,13 @@ struct UpdateInput {
     complete_subtree: bool,
 }
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct MovePreviewInput {
     id: String,
     destination: String,
 }
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct MoveInput {
     id: String,
     destination: String,
@@ -93,6 +100,7 @@ struct MoveInput {
     acknowledge_access_change: bool,
 }
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct SearchInput {
     #[serde(default)]
     query: String,
@@ -106,17 +114,20 @@ fn default_limit() -> i64 {
     50
 }
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct ChangesInput {
     #[serde(default)]
     after: i64,
 }
 
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct TaskRevision {
     id: String,
     revision: i64,
 }
 #[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct UndoInput {
     seq: i64,
     revision: i64,

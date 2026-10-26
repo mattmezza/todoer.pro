@@ -584,3 +584,29 @@ async fn mcp_rejects_missing_token_and_untrusted_origin_before_tool_dispatch() {
     .await;
     assert!(history.as_array().unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn unsupported_capture_fields_are_rejected_without_silent_data_loss() {
+    let app = app();
+    let auth = bearer();
+    let (status, body) = request(&app, "POST", "/api/v1/capture", json!({
+        "list_id":"inbox", "tasks":[{"title":"Keep my scheduling intent", "planned_date":"2026-10-26"}]
+    }), &[("authorization", &auth), ("idempotency-key", "unsupported-date")]).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(body["error"]["code"], "invalid");
+    assert!(
+        body["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("unknown field")
+    );
+    let (_, tasks) = request(
+        &app,
+        "GET",
+        "/api/v1/lists/inbox/tasks",
+        Value::Null,
+        &[("authorization", &auth)],
+    )
+    .await;
+    assert!(tasks.as_array().unwrap().is_empty());
+}

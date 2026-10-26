@@ -13,9 +13,13 @@ const account = $('meta[name="account-id"]').content;
 setupPwa(account);
 const dialog = $('#task-editor');
 let editor = null;
+let editorBusy = false;
+let editorOpenSequence = 0;
 let cursor = 0;
 let busy = false;
 let pendingRefresh = false;
+const inlineEditors = new Map();
+let restoreTaskFocus = null;
 const draftKey = `todoer:dev:draft:${list}`;
 const input = $('#capture-title');
 input.value = sessionStorage.getItem(draftKey) || '';
@@ -50,6 +54,8 @@ async function api(path, method = 'GET', body, extra = {}) {
 }
 function draftActive() {
   return (
+    inlineEditors.size > 0 ||
+    Boolean($('#task-list details[open]')) ||
     dialog.open ||
     input.value.length > 0 ||
     busy ||
@@ -57,22 +63,51 @@ function draftActive() {
   );
 }
 function refresh(force = false) {
-  if (!force && draftActive()) {
+  if (inlineEditors.size || dialog.open || (!force && draftActive())) {
     pendingRefresh = true;
     $('#refresh-notice').hidden = false;
     return;
   }
   pendingRefresh = false;
   $('#refresh-notice').hidden = true;
+  const active = document.activeElement;
+  const focused = active.closest?.('.task');
+  restoreTaskFocus = focused
+    ? {
+        id: focused.dataset.id,
+        selector: active.matches('.completion')
+          ? '.completion'
+          : active.matches('.task-menu')
+            ? '.task-menu'
+            : '.task-title',
+      }
+    : null;
   window.htmx.trigger('#task-list', 'tasks-refresh');
 }
 $('#refresh-now').onclick = () => {
-  if (dialog.open) notice('Finish or close the task editor first.');
+  if (dialog.open || inlineEditors.size) notice('Finish or close the task editor first.');
   else refresh(true);
 };
+document.body.addEventListener('htmx:beforeSwap', (e) => {
+  if (e.detail.target?.id === 'task-list' && draftActive()) {
+    e.detail.shouldSwap = false;
+    pendingRefresh = true;
+    $('#refresh-notice').hidden = false;
+  }
+});
 document.body.addEventListener('htmx:afterSwap', (e) => {
   if (e.target.id === 'task-list')
     $('#task-count').textContent = $$('#task-list .task').length;
+  if (
+    e.target.id === 'task-list' &&
+    restoreTaskFocus &&
+    (document.activeElement === document.body ||
+      $('#task-list').contains(document.activeElement))
+  ) {
+    const row = $$('#task-list .task').find((r) => r.dataset.id === restoreTaskFocus.id);
+    row?.querySelector(restoreTaskFocus.selector)?.focus({ preventScroll: true });
+    restoreTaskFocus = null;
+  }
 });
 const $$ = (s) => [...document.querySelectorAll(s)];
 document.body.addEventListener('htmx:responseError', () =>
@@ -165,6 +200,7 @@ $('#capture-form').addEventListener('submit', async (e) => {
     busy = false;
     button.disabled = false;
     input.focus();
+    if (pendingRefresh) refresh();
   }
 });
 $('#retry-captures').onclick = replay;
@@ -206,7 +242,11 @@ $('#task-list').addEventListener('click', async (e) => {
     } finally {
       button.disabled = false;
     }
+  } else if (e.target.closest('[data-action="rename"]')) {
+    row.querySelector('details')?.removeAttribute('open');
+    await renameInline(row);
   } else if (e.target.closest('[data-action="edit"]')) {
+    row.querySelector('details')?.removeAttribute('open');
     await openTask(row.dataset.id);
   }
 });
@@ -224,6 +264,8 @@ function saveEditorDraft() {
 $('#edit-title').addEventListener('input', saveEditorDraft);
 $('#edit-description').addEventListener('input', saveEditorDraft);
 function closeEditor() {
+  if (editorBusy) return;
+  editorOpenSequence++;
   dialog.close();
   if (location.search.includes('task=')) {
     if (history.state?.todoerPanel) history.back();
@@ -240,28 +282,57 @@ dialog.addEventListener('cancel', (e) => {
 window.addEventListener('popstate', () => {
   const id = new URLSearchParams(location.search).get('task');
   if (id) openTask(id, false);
-  else if (dialog.open) dialog.close();
+  else {
+    editorOpenSequence++;
+    if (dialog.open) dialog.close();
+  }
 });
+function freezeEditor() {
+  editorBusy = true;
+  const controls = [...$('#edit-form').elements].map((el) => [el, el.disabled]);
+  for (const [el] of controls) el.disabled = true;
+  $('#edit-form').setAttribute('aria-busy', 'true');
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    for (const [el, disabled] of controls) el.disabled = disabled;
+    editorBusy = false;
+    $('#edit-form').removeAttribute('aria-busy');
+  };
+}
+function settleEditorRoute() {
+  const id = new URLSearchParams(location.search).get('task');
+  if (id && (!dialog.open || editor?.id !== id)) openTask(id, false);
+}
 $('#edit-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  if (!editor) return;
-  const button = e.target.querySelector('button[type="submit"]');
-  button.disabled = true;
+  if (!editor || editorBusy) return;
+  const task = { ...editor };
+  const title = $('#edit-title').value;
+  const description = $('#edit-description').value;
+  const release = freezeEditor();
+  let closed = false;
   try {
-    await api(`/tasks/${editor.id}`, 'PATCH', {
-      revision: editor.revision,
-      title: $('#edit-title').value,
-      description: $('#edit-description').value,
+    await api(`/tasks/${task.id}`, 'PATCH', {
+      revision: task.revision,
+      title,
+      description,
     });
-    sessionStorage.removeItem(`todoer:dev:edit:${editor.id}`);
-    closeEditor();
+    sessionStorage.removeItem(`todoer:dev:edit:${task.id}`);
+    release();
+    if (dialog.open && editor?.id === task.id) {
+      closeEditor();
+      closed = true;
+    }
     notice('Changes saved.');
     refresh(true);
   } catch (err) {
     $('#edit-error').textContent =
       `${err.message}. Your draft is preserved. Close to review the latest task; copy your draft before discarding it.`;
   } finally {
-    button.disabled = false;
+    release();
+    if (!closed) settleEditorRoute();
   }
 });
 $('#logout').onclick = async () => {
@@ -329,26 +400,39 @@ if ('EventSource' in window) {
 const taskId = new URLSearchParams(location.search).get('task');
 if (taskId) openTask(taskId, false);
 $('#trash-task').onclick = async () => {
-  if (!editor) return;
+  if (!editor || editorBusy) return;
   if (
     !confirm(
       'Move this task and its entire checklist to trash? Unsaved edits stay in your draft.',
     )
   )
     return;
+  const task = { ...editor };
+  const release = freezeEditor();
+  let closed = false;
   try {
-    await api(`/tasks/${editor.id}/trash`, 'POST', { revision: editor.revision });
-    closeEditor();
+    await api(`/tasks/${task.id}/trash`, 'POST', { revision: task.revision });
+    release();
+    if (dialog.open && editor?.id === task.id) {
+      closeEditor();
+      closed = true;
+    }
     notice('Task moved to trash. Restore it from Trash.');
     refresh(true);
   } catch (err) {
     $('#edit-error').textContent = err.message;
+  } finally {
+    release();
+    if (!closed) settleEditorRoute();
   }
 };
 
 async function openTask(id, push = true) {
+  if (editorBusy) return;
+  const sequence = ++editorOpenSequence;
   try {
     const tasks = await api(`/tasks/${id}/subtree`);
+    if (sequence !== editorOpenSequence) return;
     editor = tasks.find((t) => t.id === id || t.reference === id) || tasks[0];
     if (!editor) throw new Error('Task not found');
     $('#edit-title').value = editor.title;
@@ -440,9 +524,11 @@ $('#add-subtask').onclick = async () => {
       { list_id: editor.list_id, tasks: [{ title, parent_id: parent, description: '' }] },
       { 'Idempotency-Key': childCapture.key },
     );
-    $('#subtask-title').value = '';
+    if (editor?.id === parent && $('#subtask-title').value.trim() === title)
+      $('#subtask-title').value = '';
     childCapture = null;
-    renderChildren(await api(`/tasks/${parent}/subtree`));
+    const children = await api(`/tasks/${parent}/subtree`);
+    if (editor?.id === parent) renderChildren(children);
     pendingRefresh = true;
   } catch (err) {
     $('#edit-error').textContent = err.message;
@@ -458,7 +544,7 @@ $('#subtask-title').addEventListener('keydown', (e) => {
 });
 
 $('#move-task').onclick = async () => {
-  if (!editor) return;
+  if (!editor || editorBusy) return;
   if (
     $('#edit-title').value !== editor.title ||
     $('#edit-description').value !== editor.description
@@ -471,9 +557,12 @@ $('#move-task').onclick = async () => {
     $('#edit-error').textContent = 'Choose a different destination list.';
     return;
   }
+  const task = { ...editor };
+  const release = freezeEditor();
+  let closed = false;
   try {
     const preview = await api(
-      `/tasks/${editor.id}/move-preview?destination=${encodeURIComponent(destination)}`,
+      `/tasks/${task.id}/move-preview?destination=${encodeURIComponent(destination)}`,
     );
     let acknowledge_access_change = false;
     if (preview.audience_broadens) {
@@ -482,15 +571,117 @@ $('#move-task').onclick = async () => {
       );
       if (!acknowledge_access_change) return;
     }
-    await api(`/tasks/${editor.id}/move`, 'POST', {
+    await api(`/tasks/${task.id}/move`, 'POST', {
       destination,
-      revision: editor.revision,
+      revision: task.revision,
       acknowledge_access_change,
     });
-    closeEditor();
+    release();
+    if (dialog.open && editor?.id === task.id) {
+      closeEditor();
+      closed = true;
+    }
     notice('Task and checklist moved. IDs and references are preserved.');
     refresh(true);
   } catch (err) {
     $('#edit-error').textContent = err.message;
+  } finally {
+    release();
+    if (!closed) settleEditorRoute();
   }
 };
+
+async function renameInline(row, snapshot) {
+  const id = row.dataset.id;
+  if (inlineEditors.has(id)) return;
+  inlineEditors.set(id, null);
+  try {
+    const task = snapshot || (await api(`/tasks/${id}/subtree`)).find((t) => t.id === id);
+    if (!task) {
+      inlineEditors.delete(id);
+      return;
+    }
+    if (!row.isConnected) row = $$('#task-list .task').find((r) => r.dataset.id === id);
+    if (!row) {
+      inlineEditors.delete(id);
+      return;
+    }
+    const display = row.querySelector('.task-title');
+    const form = document.createElement('form');
+    form.className = 'inline-editor';
+    const input = document.createElement('input');
+    input.value = task.title;
+    input.required = true;
+    input.maxLength = 500;
+    input.setAttribute('aria-label', 'Task title');
+    const save = document.createElement('button');
+    save.type = 'submit';
+    save.textContent = 'Save';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = 'Cancel';
+    const key = `todoer:dev:inline:${id}`;
+    const stash = () =>
+      sessionStorage.setItem(key, JSON.stringify({ ...task, title: input.value }));
+    input.oninput = stash;
+    inlineEditors.set(id, form);
+    display.hidden = true;
+    form.append(input, save, cancel);
+    display.before(form);
+    const close = () => {
+      sessionStorage.removeItem(key);
+      form.remove();
+      display.hidden = false;
+      inlineEditors.delete(id);
+      display.focus();
+      if (pendingRefresh) refresh();
+    };
+    cancel.onclick = close;
+    input.onkeydown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        close();
+      }
+    };
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      save.disabled = true;
+      input.disabled = true;
+      cancel.disabled = true;
+      form.setAttribute('aria-busy', 'true');
+      try {
+        const result = await api(`/tasks/${id}`, 'PATCH', {
+          revision: task.revision,
+          title: input.value,
+        });
+        display.textContent = result.title;
+        row.dataset.revision = result.revision;
+        close();
+        notice('Title saved.');
+      } catch (err) {
+        stash();
+        notice(`${err.message}. Your inline draft is preserved.`, true);
+      } finally {
+        save.disabled = false;
+        input.disabled = false;
+        cancel.disabled = false;
+        form.removeAttribute('aria-busy');
+      }
+    };
+    input.focus();
+    input.select();
+  } catch (err) {
+    if (inlineEditors.get(id) === null) inlineEditors.delete(id);
+    notice(err.message, true);
+  }
+}
+for (const row of $$('#task-list .task')) {
+  const saved = sessionStorage.getItem(`todoer:dev:inline:${row.dataset.id}`);
+  if (saved) {
+    try {
+      renameInline(row, JSON.parse(saved));
+    } catch {}
+  }
+}
+
+document.body.dataset.ready = 'true';

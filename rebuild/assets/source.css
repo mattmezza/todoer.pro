@@ -162,7 +162,7 @@ aside {
 .local-badge {
   font-size: 9px;
   letter-spacing: 1.4px;
-  color: #718096;
+  color: var(--muted);
 }
 .sidebar-bottom p {
   margin-top: 12px;
@@ -349,7 +349,7 @@ kbd {
 }
 .task-ref {
   display: block;
-  color: #667085;
+  color: var(--muted);
   font:
     10px ui-monospace,
     monospace;
@@ -399,7 +399,7 @@ kbd {
   padding: 0 12px;
 }
 .capture-hint {
-  color: #667085;
+  color: var(--muted);
   font-size: 11px;
   margin-top: 4px;
   margin-left: 28px;
@@ -414,7 +414,7 @@ kbd {
   margin-top: 110px;
   padding-top: 18px;
   font-size: 10px;
-  color: #667085;
+  color: var(--muted);
 }
 .mobile-header {
   display: none;
@@ -878,4 +878,57 @@ dialog h2 {
 }
 .markdown pre {
   white-space: pre-wrap;
+}
+.task-actions {
+  position: relative;
+}
+.task-actions summary {
+  list-style: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.task-actions summary::-webkit-details-marker {
+  display: none;
+}
+.menu-items {
+  position: absolute;
+  right: 0;
+  top: 34px;
+  z-index: 15;
+  min-width: 150px;
+  padding: 5px;
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 10px 30px #0004;
+}
+.menu-items button {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.menu-items button:hover {
+  background: var(--hover);
+}
+.inline-editor {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.inline-editor input {
+  flex: 1;
+  min-width: 100px;
+  font-size: 15px;
+  padding: 6px 9px;
+}
+.inline-editor button {
+  font-size: 11px;
+  color: var(--accent);
+  min-height: 44px;
+  min-width: 44px;
 }

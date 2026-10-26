@@ -101,10 +101,24 @@
             "description": "Request body exceeds 128 KiB"
           },
           "422": {
-            "description": "Malformed or incompatible JSON input (Axum rejection; not the domain error envelope)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "415": {
-            "description": "Unsupported request content type (Axum rejection)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -191,10 +205,24 @@
             "description": "Request body exceeds 128 KiB"
           },
           "422": {
-            "description": "Malformed or incompatible JSON input (Axum rejection; not the domain error envelope)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "415": {
-            "description": "Unsupported request content type (Axum rejection)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -291,10 +319,24 @@
             "description": "Request body exceeds 128 KiB"
           },
           "422": {
-            "description": "Malformed or incompatible JSON input (Axum rejection; not the domain error envelope)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "415": {
-            "description": "Unsupported request content type (Axum rejection)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -410,10 +452,24 @@
             "description": "Request body exceeds 128 KiB"
           },
           "422": {
-            "description": "Malformed or incompatible JSON input (Axum rejection; not the domain error envelope)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "415": {
-            "description": "Unsupported request content type (Axum rejection)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -530,10 +586,24 @@
             "description": "Request body exceeds 128 KiB"
           },
           "422": {
-            "description": "Malformed or incompatible JSON input (Axum rejection; not the domain error envelope)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "415": {
-            "description": "Unsupported request content type (Axum rejection)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -627,10 +697,24 @@
             "description": "Request body exceeds 128 KiB"
           },
           "422": {
-            "description": "Malformed or incompatible JSON input (Axum rejection; not the domain error envelope)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "415": {
-            "description": "Unsupported request content type (Axum rejection)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -732,10 +816,24 @@
             "description": "Request body exceeds 128 KiB"
           },
           "422": {
-            "description": "Malformed or incompatible JSON input (Axum rejection; not the domain error envelope)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "415": {
-            "description": "Unsupported request content type (Axum rejection)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -852,10 +950,24 @@
             "description": "Request body exceeds 128 KiB"
           },
           "422": {
-            "description": "Malformed or incompatible JSON input (Axum rejection; not the domain error envelope)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "415": {
-            "description": "Unsupported request content type (Axum rejection)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -992,10 +1104,24 @@
             "description": "Request body exceeds 128 KiB"
           },
           "422": {
-            "description": "Malformed or incompatible JSON input (Axum rejection; not the domain error envelope)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "415": {
-            "description": "Unsupported request content type (Axum rejection)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1095,10 +1221,24 @@
             "description": "Request body exceeds 128 KiB"
           },
           "422": {
-            "description": "Malformed or incompatible JSON input (Axum rejection; not the domain error envelope)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "415": {
-            "description": "Unsupported request content type (Axum rejection)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -1182,10 +1322,24 @@
             "description": "Request body exceeds 128 KiB"
           },
           "422": {
-            "description": "Malformed or incompatible JSON input (Axum rejection; not the domain error envelope)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "415": {
-            "description": "Unsupported request content type (Axum rejection)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1298,10 +1452,24 @@
             "description": "Request body exceeds 128 KiB"
           },
           "422": {
-            "description": "Malformed or incompatible JSON input (Axum rejection; not the domain error envelope)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "415": {
-            "description": "Unsupported request content type (Axum rejection)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1415,10 +1583,24 @@
             "description": "Request body exceeds 128 KiB"
           },
           "422": {
-            "description": "Malformed or incompatible JSON input (Axum rejection; not the domain error envelope)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "415": {
-            "description": "Unsupported request content type (Axum rejection)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -1533,10 +1715,24 @@
             "description": "Request body exceeds 128 KiB"
           },
           "422": {
-            "description": "Malformed or incompatible JSON input (Axum rejection; not the domain error envelope)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "415": {
-            "description": "Unsupported request content type (Axum rejection)"
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -1546,10 +1742,10 @@
         "summary": "Development SSE change invalidation with live session rechecks",
         "security": [
           {
-            "bearerAuth": []
+            "developmentBearer": []
           },
           {
-            "cookieAuth": []
+            "developmentCookie": []
           }
         ],
         "parameters": [
@@ -1697,7 +1893,8 @@
         },
         "required": [
           "title"
-        ]
+        ],
+        "additionalProperties": false
       },
       "Capture": {
         "type": "object",
@@ -1717,7 +1914,8 @@
         "required": [
           "list_id",
           "tasks"
-        ]
+        ],
+        "additionalProperties": false
       },
       "Change": {
         "type": "object",
@@ -1752,7 +1950,8 @@
         },
         "required": [
           "revision"
-        ]
+        ],
+        "additionalProperties": false
       },
       "Revision": {
         "type": "object",
@@ -1764,7 +1963,8 @@
         },
         "required": [
           "revision"
-        ]
+        ],
+        "additionalProperties": false
       },
       "Move": {
         "type": "object",
@@ -1784,7 +1984,8 @@
         "required": [
           "destination",
           "revision"
-        ]
+        ],
+        "additionalProperties": false
       },
       "MovePreview": {
         "type": "object",

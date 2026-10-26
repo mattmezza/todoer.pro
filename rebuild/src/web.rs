@@ -136,6 +136,7 @@ pub fn router(state: AppState) -> Router {
         .route("/sw.js", get(service_worker))
         .route("/signin", get(signin).post(login))
         .route("/logout", post(logout))
+        .route("/capture", post(capture_form))
         .route("/lists/{id}", get(page))
         .route(
             "/health",
@@ -182,6 +183,7 @@ async fn signin(State(s): State<AppState>) -> Html<String> {
     ))
 }
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Login {
     csrf: String,
 }
@@ -258,6 +260,7 @@ struct ListPage {
     list: List,
     tasks: Vec<Task>,
     csrf: String,
+    capture_key: String,
 }
 #[derive(Template)]
 #[template(path = "tasks.html")]
@@ -284,6 +287,7 @@ async fn page(
         list,
         tasks,
         csrf: s.csrf.clone(),
+        capture_key: uuid::Uuid::new_v4().to_string(),
     }
     .render()
     .map_err(|_| {
@@ -332,7 +336,7 @@ async fn tasks(
 async fn capture(
     State(s): State<AppState>,
     h: HeaderMap,
-    Json(c): Json<Capture>,
+    Input(c): Input<Capture>,
 ) -> Result<Json<Vec<Task>>, ApiError> {
     s.auth(&h, true)?;
     let key = h
@@ -351,7 +355,7 @@ async fn update(
     State(s): State<AppState>,
     h: HeaderMap,
     Path(id): Path<String>,
-    Json(c): Json<Change>,
+    Input(c): Input<Change>,
 ) -> Result<Json<Task>, ApiError> {
     s.auth(&h, true)?;
     Ok(Json(s.run(move |db| db.update("dev", &id, c)).await?))
@@ -365,6 +369,7 @@ async fn subtree(
     Ok(Json(s.run(move |db| db.subtree("dev", &id)).await?))
 }
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Move {
     destination: String,
     revision: i64,
@@ -375,7 +380,7 @@ async fn move_task(
     State(s): State<AppState>,
     h: HeaderMap,
     Path(id): Path<String>,
-    Json(c): Json<Move>,
+    Input(c): Input<Move>,
 ) -> Result<Json<Task>, ApiError> {
     s.auth(&h, true)?;
     Ok(Json(
@@ -392,6 +397,7 @@ async fn move_task(
     ))
 }
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Since {
     #[serde(default)]
     after: i64,
@@ -406,6 +412,7 @@ async fn changes(
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SearchQuery {
     #[serde(default)]
     query: String,
@@ -439,6 +446,7 @@ async fn search(
     ))
 }
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct PreviewQuery {
     destination: String,
 }
@@ -491,6 +499,7 @@ mod filters {
     }
 }
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Revision {
     revision: i64,
 }
@@ -502,7 +511,7 @@ async fn trash_task(
     State(s): State<AppState>,
     h: HeaderMap,
     Path(id): Path<String>,
-    Json(c): Json<Revision>,
+    Input(c): Input<Revision>,
 ) -> Result<Json<Task>, ApiError> {
     s.auth(&h, true)?;
     Ok(Json(
@@ -513,7 +522,7 @@ async fn restore_task(
     State(s): State<AppState>,
     h: HeaderMap,
     Path(id): Path<String>,
-    Json(c): Json<Revision>,
+    Input(c): Input<Revision>,
 ) -> Result<Json<Task>, ApiError> {
     s.auth(&h, true)?;
     Ok(Json(
@@ -524,7 +533,7 @@ async fn undo(
     State(s): State<AppState>,
     h: HeaderMap,
     Path(seq): Path<i64>,
-    Json(c): Json<Revision>,
+    Input(c): Input<Revision>,
 ) -> Result<Json<Task>, ApiError> {
     s.auth(&h, true)?;
     Ok(Json(
@@ -751,4 +760,63 @@ async fn ready(State(s): State<AppState>) -> Result<Json<Value>, ApiError> {
     }
     s.run(|db| db.lists("dev")).await?;
     Ok(Json(json!({"ready":true,"mode":"development-only"})))
+}
+
+struct Input<T>(T);
+impl<S, T> axum::extract::FromRequest<S> for Input<T>
+where
+    S: Send + Sync,
+    T: serde::de::DeserializeOwned,
+{
+    type Rejection = ApiError;
+    async fn from_request(req: axum::extract::Request, state: &S) -> Result<Self, Self::Rejection> {
+        let Json(value) = Json::<T>::from_request(req, state)
+            .await
+            .map_err(|error| ApiError(error.status(), "invalid", error.body_text()))?;
+        Ok(Self(value))
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CaptureForm {
+    csrf: String,
+    title: String,
+    list_id: String,
+    key: String,
+}
+async fn capture_form(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Form(f): Form<CaptureForm>,
+) -> Result<Redirect, ApiError> {
+    s.auth(&h, false)?;
+    if f.csrf != s.csrf
+        || h.get(header::ORIGIN)
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|o| o != s.origin)
+    {
+        return Err(ApiError(
+            StatusCode::FORBIDDEN,
+            "csrf",
+            "Invalid capture request".into(),
+        ));
+    }
+    let list = f.list_id.clone();
+    s.run(move |db| {
+        db.capture(
+            "dev",
+            &f.key,
+            Capture {
+                list_id: f.list_id,
+                tasks: vec![crate::core::NewTask {
+                    title: f.title,
+                    description: String::new(),
+                    parent_id: None,
+                }],
+            },
+        )
+    })
+    .await?;
+    Ok(Redirect::to(&format!("/lists/{list}")))
 }
