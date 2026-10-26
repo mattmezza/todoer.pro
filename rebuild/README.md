@@ -20,7 +20,7 @@ cargo run --locked --bin todoer -- capture --list groceries --key grocery-reques
 
 Open http://127.0.0.1:8092/signin. Development sign-in accesses synthetic lists,
 not the old account. The listener is loopback-only. Without explicit dev auth,
-startup fails closed. A new random session is generated on each process start.
+startup fails closed. Browser sessions use random opaque cookies, a 12-hour lifetime and server-side logout revocation. Process restart revokes them.
 The development token hash is held in memory; production scoped/revocable tokens
 and Google login are not delivered. Do not expose this server through a proxy.
 
@@ -48,11 +48,32 @@ remain in SQLite. Do not delete the old application or its storage.
 - Title/description prefix search uses FTS5, Unicode tokenization, literal quoted
   terms, completed filters and stable ID pagination. No typo/fuzzy matching.
 - Live permission checks on reads/writes, replay, search and change history.
-- Polling change feed; open task drafts are preserved, stale saves conflict,
+- SSE change notifications with cursor reconnect (polling fallback); open task drafts are preserved, stale saves conflict,
   draft text survives page reload within the browser session. No full-page live
-  replacement while drafting. Persistent offline capture is still unfinished.
+  replacement while drafting. Capture is saved durably on-device, survives browser restart and replays with its original idempotency key. See [PWA behavior](../docs/rebuild/pwa.md).
 - Light/dark media themes, phone navigation, keyboard quick-add, 44px controls.
 
-Descriptions currently display escaped plain text. Markdown/reference parsing,
+Descriptions render sanitized CommonMark; scripts, unsafe URL schemes and images are removed. Stable entity reference parsing,
 most planning screens, production sharing/auth, attachments, notifications,
-recurrence, exports/import/recovery and production delivery remain unfinished.
+recurrence, exports/import, S3/Litestream recovery and production delivery remain unfinished. Local SQLite backup/restore is available; see [recovery](../docs/rebuild/local-recovery.md).
+
+## API and agent skill
+
+OpenAPI: `/api/v1/openapi.json`; capabilities: `/api/v1/capabilities` (authenticated).
+[REST contract](../docs/rebuild/rest.md), [agent workflow](../docs/rebuild/agent-workflow.md).
+The official Python SDK check is `uv run --no-project scripts/rebuild-mcp-check.py`
+with `TODOER_TOKEN` exported. This tests the development HTTP transport, not the
+unfinished MCP OAuth flow or ChatGPT/Claude remote connectors.
+
+The installable skill is [skills/todoer-agent](../skills/todoer-agent/SKILL.md).
+To install without overwriting an existing skill:
+
+```sh
+todoer_skill_root="${CODEX_HOME:-$HOME/.codex}/skills"
+mkdir -p "$todoer_skill_root"
+test ! -e "$todoer_skill_root/todoer-agent" && cp -R skills/todoer-agent "$todoer_skill_root/"
+```
+
+No production release image, cutover or remote publication has occurred. The
+existing legacy release workflow still builds Python. Rust checks are prepared
+for a private runner; [runner setup and trust](../docs/rebuild/ci.md) are documented.

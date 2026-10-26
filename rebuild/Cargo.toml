@@ -20,7 +20,13 @@ clap = { version = "4", features = ["derive", "env"] }
 
 rmcp = { version = "=3.7.0", features = ["transport-streamable-http-server"] }
 schemars = "1"
+pulldown-cmark = "=0.13.5"
+ammonia = "=4.2.4"
+futures-util = "0.3"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+
+[build-dependencies]
+sha2 = "0.10"

@@ -17,19 +17,25 @@ use tower_http::services::ServeDir;
 pub struct AppState {
     store: Arc<Mutex<Store>>,
     token_hash: [u8; 32],
-    session: String,
+    sessions: Arc<Mutex<std::collections::HashMap<[u8; 32], std::time::Instant>>>,
     csrf: String,
     origin: String,
+    stopping: Arc<std::sync::atomic::AtomicBool>,
 }
 impl AppState {
     pub fn new(store: Arc<Mutex<Store>>, token: String, origin: String) -> Self {
         Self {
             store,
             token_hash: Sha256::digest(token.as_bytes()).into(),
-            session: uuid::Uuid::new_v4().to_string(),
+            sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
             csrf: uuid::Uuid::new_v4().to_string(),
             origin,
+            stopping: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
+    }
+    pub fn request_shutdown(&self) {
+        self.stopping
+            .store(true, std::sync::atomic::Ordering::SeqCst);
     }
     fn auth(&self, h: &HeaderMap, write: bool) -> Result<&'static str, ApiError> {
         if let Some(token) = h
@@ -46,13 +52,16 @@ impl AppState {
                 return Ok("dev");
             }
         }
-        let cookie_ok = h
-            .get(header::COOKIE)
-            .and_then(|v| v.to_str().ok())
-            .is_some_and(|s| {
-                s.split(';')
-                    .any(|c| c.trim() == format!("todoer_dev={}", self.session))
-            });
+        let cookie_ok = session_cookie(h).is_some_and(|value| {
+            let hash: [u8; 32] = Sha256::digest(value.as_bytes()).into();
+            self.sessions
+                .lock()
+                .ok()
+                .and_then(|sessions| sessions.get(&hash).copied())
+                .is_some_and(|created| {
+                    created.elapsed() < std::time::Duration::from_secs(12 * 60 * 60)
+                })
+        });
         if cookie_ok {
             if write && h.get("x-csrf-token").and_then(|v| v.to_str().ok()) != Some(&self.csrf) {
                 return Err(ApiError(
@@ -124,6 +133,7 @@ impl IntoResponse for ApiError {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(home))
+        .route("/sw.js", get(service_worker))
         .route("/signin", get(signin).post(login))
         .route("/logout", post(logout))
         .route("/lists/{id}", get(page))
@@ -131,6 +141,7 @@ pub fn router(state: AppState) -> Router {
             "/health",
             get(|| async { Json(json!({"status":"ok","mode":"development-only"})) }),
         )
+        .route("/ready", get(ready))
         .route("/api/v1/lists", get(lists))
         .route("/api/v1/lists/{id}/tasks", get(tasks))
         .route("/api/v1/capture", post(capture))
@@ -140,6 +151,16 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/tasks/{id}/subtree", get(subtree))
         .route("/api/v1/tasks/{id}/move", post(move_task))
         .route("/api/v1/changes", get(changes))
+        .route("/api/v1/events", get(events))
+        .route("/api/v1/trash", get(trash_tasks))
+        .route("/api/v1/tasks/{id}/trash", post(trash_task))
+        .route("/api/v1/tasks/{id}/restore", post(restore_task))
+        .route("/api/v1/history/{seq}/undo", post(undo))
+        .route("/api/v1/capabilities", get(capabilities))
+        .route("/api/v1/openapi.json", get(openapi))
+        .route("/search", get(search_page))
+        .route("/trash", get(trash_page))
+        .route("/activity", get(activity_page))
         .route("/fragments/lists/{id}/tasks", get(task_fragment))
         .nest_service("/assets", ServeDir::new("rebuild/assets"))
         .nest_service("/legacy-assets", ServeDir::new("public"))
@@ -149,6 +170,7 @@ pub fn router(state: AppState) -> Router {
             crate::mcp::router(state.clone())
                 .layer(axum::middleware::from_fn_with_state(state, mcp_auth)),
         )
+        .layer(axum::middleware::from_fn(response_security))
 }
 async fn home() -> Redirect {
     Redirect::to("/lists/groceries")
@@ -179,12 +201,33 @@ async fn login(
             "Invalid sign-in request".into(),
         ));
     }
+    let session = uuid::Uuid::new_v4().to_string();
+    let hash: [u8; 32] = Sha256::digest(session.as_bytes()).into();
+    {
+        let mut sessions = s.sessions.lock().map_err(|_| {
+            ApiError(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "session",
+                "Session unavailable".into(),
+            )
+        })?;
+        sessions
+            .retain(|_, created| created.elapsed() < std::time::Duration::from_secs(12 * 60 * 60));
+        if sessions.len() >= 1000 {
+            return Err(ApiError(
+                StatusCode::TOO_MANY_REQUESTS,
+                "session_limit",
+                "Too many development sessions".into(),
+            ));
+        }
+        sessions.insert(hash, std::time::Instant::now());
+    }
     let mut r = Redirect::to("/lists/groceries").into_response();
     r.headers_mut().insert(
         header::SET_COOKIE,
         format!(
-            "todoer_dev={}; HttpOnly; SameSite=Strict; Path=/",
-            s.session
+            "todoer_dev={}; Max-Age=43200; HttpOnly; SameSite=Strict; Path=/",
+            session
         )
         .parse()
         .unwrap(),
@@ -193,6 +236,12 @@ async fn login(
 }
 async fn logout(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
     s.auth(&h, true)?;
+    if let Some(value) = session_cookie(&h) {
+        let hash: [u8; 32] = Sha256::digest(value.as_bytes()).into();
+        if let Ok(mut sessions) = s.sessions.lock() {
+            sessions.remove(&hash);
+        }
+    }
     let mut r = Redirect::to("/signin").into_response();
     r.headers_mut().insert(
         header::SET_COOKIE,
@@ -244,7 +293,14 @@ async fn page(
             "Render failed".into(),
         )
     })?;
-    Ok(([(header::CACHE_CONTROL, "no-store")], Html(html)).into_response())
+    Ok((
+        [
+            (header::CACHE_CONTROL, "no-store"),
+            (header::HeaderName::from_static("x-todoer-account"), "dev"),
+        ],
+        Html(html),
+    )
+        .into_response())
 }
 async fn task_fragment(
     State(s): State<AppState>,
@@ -426,4 +482,273 @@ async fn mcp_auth(
         Ok(_) => next.run(req).await,
         Err(e) => e.into_response(),
     }
+}
+
+mod filters {
+    #[askama::filter_fn]
+    pub fn markdown(s: &str, _values: &dyn askama::Values) -> askama::Result<String> {
+        Ok(crate::markdown::render(s))
+    }
+}
+#[derive(Deserialize)]
+struct Revision {
+    revision: i64,
+}
+async fn trash_tasks(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Vec<Task>>, ApiError> {
+    s.auth(&h, false)?;
+    Ok(Json(s.run(|db| db.trash_tasks("dev")).await?))
+}
+async fn trash_task(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+    Json(c): Json<Revision>,
+) -> Result<Json<Task>, ApiError> {
+    s.auth(&h, true)?;
+    Ok(Json(
+        s.run(move |db| db.trash("dev", &id, c.revision)).await?,
+    ))
+}
+async fn restore_task(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+    Json(c): Json<Revision>,
+) -> Result<Json<Task>, ApiError> {
+    s.auth(&h, true)?;
+    Ok(Json(
+        s.run(move |db| db.restore("dev", &id, c.revision)).await?,
+    ))
+}
+async fn undo(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(seq): Path<i64>,
+    Json(c): Json<Revision>,
+) -> Result<Json<Task>, ApiError> {
+    s.auth(&h, true)?;
+    Ok(Json(
+        s.run(move |db| db.undo_update("dev", seq, c.revision))
+            .await?,
+    ))
+}
+async fn capabilities(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Value>, ApiError> {
+    s.auth(&h, false)?;
+    Ok(Json(
+        json!({"version":"0.1.0-dev","mode":"development-only","interfaces":["rest","cli","mcp-development"],"operations":["lists.read","tasks.read","capture","tasks.update","subtree.read","subtree.move","move.preview","search","changes","trash","restore","undo.update"],"limits":{"capture_batch":100,"search_limit":100,"changes_page":1000,"title_characters":500,"description_bytes":100000},"search":{"matching":"unicode-token-prefix","fuzzy":false,"sort":"id"},"production_auth":false}),
+    ))
+}
+async fn openapi() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "application/json")],
+        include_str!("../openapi.json"),
+    )
+}
+#[derive(Template)]
+#[template(path = "review.html")]
+struct ReviewPage {
+    title: String,
+    mode: String,
+    query: String,
+    csrf: String,
+    tasks: Vec<Task>,
+    events: Vec<Activity>,
+}
+struct Activity {
+    seq: i64,
+    kind: String,
+    actor: String,
+    task: Task,
+    can_undo: bool,
+}
+async fn search_page(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Query(q): Query<SearchQuery>,
+) -> Result<Response, ApiError> {
+    if s.auth(&h, false).is_err() {
+        return Ok(Redirect::to("/signin").into_response());
+    }
+    let query = q.query.clone();
+    let tasks = s
+        .run(move |db| {
+            db.search(
+                "dev",
+                &q.query,
+                q.list.as_deref(),
+                q.complete,
+                q.limit,
+                q.after.as_deref(),
+            )
+        })
+        .await?;
+    render_review(ReviewPage {
+        title: "Search".into(),
+        mode: "search".into(),
+        query,
+        csrf: s.csrf,
+        tasks,
+        events: vec![],
+    })
+}
+async fn trash_page(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
+    if s.auth(&h, false).is_err() {
+        return Ok(Redirect::to("/signin").into_response());
+    }
+    let tasks = s.run(|db| db.trash_tasks("dev")).await?;
+    render_review(ReviewPage {
+        title: "Trash".into(),
+        mode: "trash".into(),
+        query: String::new(),
+        csrf: s.csrf,
+        tasks,
+        events: vec![],
+    })
+}
+async fn activity_page(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
+    if s.auth(&h, false).is_err() {
+        return Ok(Redirect::to("/signin").into_response());
+    }
+    let values = s.run(|db| db.changes("dev", 0)).await?;
+    let events = values
+        .into_iter()
+        .rev()
+        .filter_map(|v| {
+            Some(Activity {
+                seq: v["seq"].as_i64()?,
+                kind: v["kind"].as_str()?.to_owned(),
+                actor: v["actor"].as_str().unwrap_or("legacy-unknown").to_owned(),
+                task: serde_json::from_value(v["task"].clone()).ok()?,
+                can_undo: v["kind"] == "update",
+            })
+        })
+        .collect();
+    render_review(ReviewPage {
+        title: "Activity".into(),
+        mode: "activity".into(),
+        query: String::new(),
+        csrf: s.csrf,
+        tasks: vec![],
+        events,
+    })
+}
+fn render_review(p: ReviewPage) -> Result<Response, ApiError> {
+    Ok((
+        [(header::CACHE_CONTROL, "no-store")],
+        Html(p.render().map_err(|_| {
+            ApiError(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "template",
+                "Render failed".into(),
+            )
+        })?),
+    )
+        .into_response())
+}
+
+fn session_cookie(h: &HeaderMap) -> Option<&str> {
+    h.get(header::COOKIE)?
+        .to_str()
+        .ok()?
+        .split(';')
+        .find_map(|cookie| cookie.trim().strip_prefix("todoer_dev="))
+}
+async fn response_security(req: axum::extract::Request, next: axum::middleware::Next) -> Response {
+    let started = std::time::Instant::now();
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let method = req.method().to_string();
+    let mut res = next.run(req).await;
+    res.headers_mut()
+        .insert("x-request-id", request_id.parse().unwrap());
+    eprintln!(
+        "{}",
+        json!({"event":"http","request_id":request_id,"method":method,"status":res.status().as_u16(),"duration_ms":started.elapsed().as_millis()})
+    );
+    res.headers_mut()
+        .insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
+    res.headers_mut()
+        .insert("x-content-type-options", "nosniff".parse().unwrap());
+    res.headers_mut()
+        .insert("referrer-policy", "same-origin".parse().unwrap());
+    res.headers_mut().insert("content-security-policy","default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'".parse().unwrap());
+    res
+}
+
+async fn service_worker() -> impl IntoResponse {
+    (
+        [
+            (header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (
+                header::HeaderName::from_static("service-worker-allowed"),
+                "/",
+            ),
+        ],
+        include_str!("../assets/sw.js").replace("__TODOER_BUILD__", env!("TODOER_ASSET_VERSION")),
+    )
+}
+
+async fn events(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Query(q): Query<Since>,
+) -> Result<impl IntoResponse, ApiError> {
+    s.auth(&h, false)?;
+    let last = h
+        .get("last-event-id")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(q.after)
+        .max(0);
+    let stream = futures_util::stream::unfold(
+        (s, h, last, false),
+        |(s, h, mut cursor, ended)| async move {
+            if ended || s.stopping.load(std::sync::atomic::Ordering::SeqCst) {
+                return None;
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            if s.auth(&h, false).is_err() {
+                return Some((
+                    Ok::<_, std::convert::Infallible>(
+                        axum::response::sse::Event::default()
+                            .event("session-expired")
+                            .data("{}"),
+                    ),
+                    (s, h, cursor, true),
+                ));
+            }
+            let values = s.run(move |db| db.changes("dev", cursor)).await;
+            let data = match values {
+                Ok(changes) => {
+                    for v in &changes {
+                        cursor = cursor.max(v["seq"].as_i64().unwrap_or(cursor));
+                    }
+                    json!({"cursor":cursor,"count":changes.len()})
+                }
+                Err(_) => json!({"resync":true}),
+            };
+            Some((
+                Ok(axum::response::sse::Event::default()
+                    .event("changes")
+                    .id(cursor.to_string())
+                    .data(data.to_string())),
+                (s, h, cursor, false),
+            ))
+        },
+    );
+    Ok((
+        [(header::HeaderName::from_static("x-accel-buffering"), "no")],
+        axum::response::Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default()),
+    ))
+}
+
+async fn ready(State(s): State<AppState>) -> Result<Json<Value>, ApiError> {
+    if s.stopping.load(std::sync::atomic::Ordering::SeqCst) {
+        return Err(ApiError(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "stopping",
+            "Shutting down".into(),
+        ));
+    }
+    s.run(|db| db.lists("dev")).await?;
+    Ok(Json(json!({"ready":true,"mode":"development-only"})))
 }
