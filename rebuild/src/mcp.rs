@@ -51,7 +51,34 @@ fn result<T: Serialize>(result: Result<T, ApiError>) -> CallToolResult {
 #[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct Destination {
-    destination: String,
+    destination: Option<String>,
+    preference_key: Option<String>,
+    #[serde(default)]
+    fallback_inbox: bool,
+}
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct DestinationPreferenceInput {
+    key: Option<String>,
+    list_id: Option<String>,
+}
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct PreviewChangesInput {
+    #[schemars(schema_with = "bulk_operations_schema")]
+    operations: Vec<serde_json::Value>,
+}
+fn bulk_operations_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    let document: serde_json::Value =
+        serde_json::from_str(include_str!("../openapi.json")).expect("valid checked-in OpenAPI");
+    schemars::Schema::try_from(json!({"type":"array","minItems":1,"maxItems":50,"items":document["components"]["schemas"]["BulkOperation"].clone()})).expect("bulk schema is an object")
+}
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ApplyChangesInput {
+    preview_id: String,
+    expected_hash: String,
+    idempotency_key: String,
 }
 #[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -155,7 +182,7 @@ impl TodoerMcp {
 #[tool_router]
 impl TodoerMcp {
     #[tool(
-        description = "Resolve an accessible list by exact title or ID. Fails on ambiguity; use a returned ID for writes."
+        description = "Resolve an accessible exact list ID/title, or an explicit saved preference_key with optional inbox fallback. Returns top-level id/title on success; missing/ambiguous results are tool errors with accessible choices."
     )]
     async fn resolve_destination(
         &self,
@@ -166,21 +193,85 @@ impl TodoerMcp {
             Ok(actor) => actor,
             Err(error) => return result::<()>(Err(error)),
         };
+        match self.state.run(move|db|db.resolve_destination(&actor,p.destination.as_deref(),p.preference_key.as_deref(),p.fallback_inbox)).await {
+            Ok(resolved) if resolved.status=="resolved" => {
+                let destination=resolved.destination.expect("resolved destination");
+                result::<serde_json::Value>(Ok(json!({"id":destination.id,"title":destination.title,"status":"resolved"})))
+            }
+            Ok(resolved) => CallToolResult::error(vec![ContentBlock::text(json!({"error":{"code":resolved.status,"message":"Choose an explicit accessible destination ID"},"choices":resolved.choices,"has_more":resolved.has_more}).to_string())]),
+            Err(error)=>result::<()>(Err(error)),
+        }
+    }
+    #[tool(
+        description = "Review 1–50 typed operations without saving business changes. Returns an actor-bound ten-minute preview/hash and compact before/after states. Use apply_changes only after reviewing; no create or completion operations."
+    )]
+    async fn preview_changes(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<PreviewChangesInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
         result(
             self.state
                 .run(move |db| {
-                    let matches: Vec<_> = db
-                        .lists(&actor)?
-                        .into_iter()
-                        .filter(|list| list.id == p.destination || list.title == p.destination)
-                        .collect();
-                    match matches.len() {
-                        0 => Err(Error::NotFound),
-                        1 => Ok(matches.into_iter().next().unwrap()),
-                        _ => Err(Error::Conflict(
-                            "Ambiguous destination; use an exact list ID".into(),
-                        )),
+                    let operations = serde_json::from_value(serde_json::Value::Array(p.operations))
+                        .map_err(|_| {
+                            Error::Invalid(
+                                "invalid typed bulk operations; consult the tool schema".into(),
+                            )
+                        })?;
+                    db.bulk_preview(&actor, operations)
+                })
+                .await,
+        )
+    }
+    #[tool(
+        description = "Atomically apply a reviewed server-stored preview using its exact preview_id/hash and a retry-safe idempotency_key. Live authorization, task/list state and audience changes are rechecked. Stale or expired previews require a new review."
+    )]
+    async fn apply_changes(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<ApplyChangesInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
+        result(
+            self.state
+                .run(move |db| {
+                    db.bulk_apply(&actor, &p.preview_id, &p.expected_hash, &p.idempotency_key)
+                })
+                .await,
+        )
+    }
+    #[tool(
+        description = "Read accessible saved destination preferences with no arguments, or save one by supplying both key and list_id. Requires current write access to the saved list; never stores a guessed destination or conversation state."
+    )]
+    async fn configure_destination(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<DestinationPreferenceInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
+        result(
+            self.state
+                .run(move |db| match (p.key, p.list_id) {
+                    (None, None) => serde_json::to_value(db.destination_preferences(&actor)?)
+                        .map_err(|_| Error::Invalid("cannot encode preferences".into())),
+                    (Some(key), Some(id)) => {
+                        serde_json::to_value(db.set_destination_preference(&actor, &key, &id)?)
+                            .map_err(|_| Error::Invalid("cannot encode preference".into()))
                     }
+                    _ => Err(Error::Invalid(
+                        "provide both key and list_id, or neither to read preferences".into(),
+                    )),
                 })
                 .await,
         )

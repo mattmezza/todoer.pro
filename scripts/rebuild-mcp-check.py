@@ -55,6 +55,9 @@ async def main():
                     "trash_task",
                     "restore_task",
                     "undo_update",
+                    "preview_changes",
+                    "apply_changes",
+                    "configure_destination",
                 }
                 assert (
                     required <= names
@@ -131,8 +134,80 @@ async def main():
                     {"id": trashed["id"], "revision": trashed["revision"]},
                 )
                 assert restored["id"] == created[0]["id"]
+                await tool(
+                    session,
+                    "configure_destination",
+                    {"key": "mcp-sdk-capture", "list_id": "inbox"},
+                )
+                saved = await tool(
+                    session,
+                    "resolve_destination",
+                    {"preference_key": "mcp-sdk-capture"},
+                )
+                assert saved["id"] == "inbox"
+                assert any(
+                    p["key"] == "mcp-sdk-capture"
+                    for p in await tool(session, "configure_destination", {})
+                )
+                operations = [
+                    {
+                        "op": "update",
+                        "id": restored["id"],
+                        "revision": restored["revision"],
+                        "title": "Reviewed MCP SDK change",
+                    }
+                ]
+                plan = await tool(
+                    session, "preview_changes", {"operations": operations}
+                )
+                assert (
+                    await tool(session, "read_subtree", {"id": restored["id"]})
+                )[0]["title"] == restored["title"]
+                rejected = await session.call_tool(
+                    "apply_changes",
+                    {
+                        "preview_id": plan["preview_id"],
+                        "expected_hash": "mismatched",
+                        "idempotency_key": "sdk-invalid",
+                    },
+                )
+                assert rejected.is_error
+                apply = {
+                    "preview_id": plan["preview_id"],
+                    "expected_hash": plan["expected_hash"],
+                    "idempotency_key": f"sdk-apply-{uuid.uuid4()}",
+                }
+                applied = await tool(session, "apply_changes", apply)
+                assert applied == await tool(session, "apply_changes", apply)
+                final = (
+                    await tool(session, "read_subtree", {"id": restored["id"]})
+                )[0]
+                assert final["title"] == "Reviewed MCP SDK change"
+                failed = await session.call_tool(
+                    "preview_changes",
+                    {
+                        "operations": [
+                            {
+                                "op": "update",
+                                "id": final["id"],
+                                "revision": final["revision"],
+                                "title": "Must roll back",
+                            },
+                            {
+                                "op": "update",
+                                "id": final["id"],
+                                "revision": 999999,
+                                "title": "Stale",
+                            },
+                        ]
+                    },
+                )
+                assert failed.is_error
+                assert (
+                    await tool(session, "read_subtree", {"id": final["id"]})
+                )[0]["title"] == final["title"]
                 print(
-                    f"MCP SDK check passed: initialize, {len(names)} tools, resolve, capture/retry, subtree, edit, undo, trash, restore"
+                    f"MCP SDK check passed: initialize, {len(names)} tools, resolve, capture/retry, subtree, edit, undo, trash, restore, saved destination, bulk preview/apply/retry/rollback"
                 )
     return 0
 
