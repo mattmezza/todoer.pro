@@ -120,25 +120,36 @@ fn descendants(c: &Connection, id: &str) -> Result<Vec<Task>, Error> {
     let rows = q.query_map([id], task_row)?;
     Ok(rows.collect::<Result<_, _>>()?)
 }
-fn event(c: &Connection, t: &Task, kind: &str) -> Result<(), Error> {
-    let value = serde_json::json!({"kind":kind,"task":t});
+fn event(
+    c: &Connection,
+    t: &Task,
+    kind: &str,
+    actor: &str,
+    before: Option<&Task>,
+) -> Result<(), Error> {
+    let value = serde_json::json!({"kind":kind,"task":t,"actor":actor});
     c.execute(
-        "INSERT INTO history(list_id,event) VALUES(?1,?2)",
-        params![t.list_id, value.to_string()],
+        "INSERT INTO history(list_id,event,actor,before_event) VALUES(?1,?2,?3,?4)",
+        params![
+            t.list_id,
+            value.to_string(),
+            actor,
+            before.map(|t| serde_json::to_string(t).expect("serialize task"))
+        ],
     )?;
     Ok(())
 }
-fn reopen(c: &Connection, id: &str) -> Result<(), Error> {
+fn reopen(c: &Connection, id: &str, actor: &str) -> Result<(), Error> {
     let mut parent = task(c, id)?.parent_id;
     while let Some(id) = parent {
         let p = task(c, &id)?;
-        parent = p.parent_id;
+        parent = p.parent_id.clone();
         if p.complete {
             c.execute(
                 "UPDATE tasks SET complete=0,revision=revision+1 WHERE id=?1",
                 [&id],
             )?;
-            event(c, &task(c, &id)?, "update")?;
+            event(c, &task(c, &id)?, "update", actor, Some(&p))?;
         }
     }
     Ok(())
@@ -177,6 +188,7 @@ impl Store {
         for (version, sql) in [
             (1, include_str!("../migrations/001.sql")),
             (2, include_str!("../migrations/002.sql")),
+            (3, include_str!("../migrations/003.sql")),
         ] {
             let applied: bool = tx.query_row(
                 "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=?1)",
@@ -342,8 +354,8 @@ impl Store {
             };
             tx.execute("INSERT INTO tasks(id,reference,list_id,parent_id,title,description,position) VALUES(?1,?2,?3,?4,?5,?6,?7)",params![id,reference,request.list_id,n.parent_id,n.title.trim(),n.description,position])?;
             let t = task(&tx, &id)?;
-            reopen(&tx, &id)?;
-            event(&tx, &t, "create")?;
+            reopen(&tx, &id, actor)?;
+            event(&tx, &t, "create", actor, None)?;
             result.push(t);
         }
         tx.execute(
@@ -390,7 +402,7 @@ impl Store {
                         "UPDATE tasks SET complete=1,revision=revision+1 WHERE id=?1",
                         [&child.id],
                     )?;
-                    event(&tx, &task(&tx, &child.id)?, "update")?;
+                    event(&tx, &task(&tx, &child.id)?, "update", actor, Some(&child))?;
                 }
             }
         }
@@ -404,12 +416,72 @@ impl Store {
             ],
         )?;
         if change.complete == Some(false) {
-            reopen(&tx, &t.id)?
+            reopen(&tx, &t.id, actor)?
         }
         let updated = task(&tx, &t.id)?;
-        event(&tx, &updated, "update")?;
+        event(&tx, &updated, "update", actor, Some(&t))?;
         tx.commit()?;
         Ok(updated)
+    }
+    /// Compensate one update event, never a whole cascade or a newer edit.
+    pub fn undo_update(&mut self, actor: &str, seq: i64, revision: i64) -> Result<Task, Error> {
+        let tx = self
+            .conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let (encoded, original_actor, before): (String, String, Option<String>) = tx
+            .query_row(
+                "SELECT event,actor,before_event FROM history WHERE seq=?1",
+                [seq],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()?
+            .ok_or(Error::NotFound)?;
+        let value: serde_json::Value =
+            serde_json::from_str(&encoded).map_err(|e| Error::Invalid(e.to_string()))?;
+        let recorded: Task = serde_json::from_value(value["task"].clone())
+            .map_err(|e| Error::Invalid(e.to_string()))?;
+        let current = task(&tx, &recorded.id)?;
+        access(&tx, actor, &current.list_id)?;
+        if original_actor != actor {
+            return Err(Error::Forbidden);
+        }
+        if value["kind"] != "update" || before.is_none() {
+            return Err(Error::Invalid(
+                "only individual task update events can be undone".into(),
+            ));
+        }
+        if current.revision != revision || current.revision != recorded.revision {
+            return Err(Error::Conflict(
+                "task changed after this event; undo would overwrite newer work".into(),
+            ));
+        }
+        let previous: Task =
+            serde_json::from_str(&before.unwrap()).map_err(|e| Error::Invalid(e.to_string()))?;
+        if previous.complete
+            && descendants(&tx, &current.id)?
+                .iter()
+                .any(|t| t.id != current.id && !t.complete)
+        {
+            return Err(Error::Conflict(
+                "undo would complete a task with unfinished descendants".into(),
+            ));
+        }
+        tx.execute(
+            "UPDATE tasks SET title=?1,description=?2,complete=?3,revision=revision+1 WHERE id=?4",
+            params![
+                previous.title,
+                previous.description,
+                previous.complete,
+                current.id
+            ],
+        )?;
+        if !previous.complete {
+            reopen(&tx, &current.id, actor)?;
+        }
+        let result = task(&tx, &current.id)?;
+        event(&tx, &result, "undo", actor, Some(&current))?;
+        tx.commit()?;
+        Ok(result)
     }
     pub fn trash_tasks(&self, actor: &str) -> Result<Vec<Task>, Error> {
         let cols = COLS
@@ -431,7 +503,7 @@ impl Store {
         }
         for t in descendants(&tx, &root.id)? {
             tx.execute("UPDATE tasks SET deleted_at=CURRENT_TIMESTAMP,delete_group=?1,revision=revision+1 WHERE id=?2",params![root.id,t.id])?;
-            event(&tx, &raw_task(&tx, &t.id)?, "trash")?;
+            event(&tx, &raw_task(&tx, &t.id)?, "trash", actor, Some(&t))?;
         }
         let result = raw_task(&tx, &root.id)?;
         tx.commit()?;
@@ -474,11 +546,11 @@ impl Store {
         for t in members {
             access(&tx, actor, &t.list_id)?;
             tx.execute("UPDATE tasks SET deleted_at=NULL,delete_group=NULL,revision=revision+1 WHERE id=?1",[&t.id])?;
-            event(&tx, &raw_task(&tx, &t.id)?, "restore")?;
+            event(&tx, &raw_task(&tx, &t.id)?, "restore", actor, Some(&t))?;
         }
         // Restoring an unfinished child must reopen completed ancestors.
         if !root.complete {
-            reopen(&tx, &root.id)?;
+            reopen(&tx, &root.id, actor)?;
         }
         let result = task(&tx, &root.id)?;
         tx.commit()?;
@@ -537,8 +609,8 @@ impl Store {
             pos += 1;
             tx.execute("UPDATE tasks SET list_id=?1,parent_id=CASE WHEN id=?2 THEN NULL ELSE parent_id END,position=?3,revision=revision+1 WHERE id=?4",params![destination,t.id,pos,child.id])?;
             let moved = raw_task(&tx, &child.id)?;
-            event(&tx, &child, "move_out")?;
-            event(&tx, &moved, "move")?;
+            event(&tx, &child, "move_out", actor, None)?;
+            event(&tx, &moved, "move", actor, Some(&child))?;
         }
         let moved = task(&tx, &t.id)?;
         tx.commit()?;
@@ -1049,7 +1121,7 @@ mod tests {
                 .conn
                 .query_row("SELECT COUNT(*) FROM schema_migrations", [], |r| r.get(0))
                 .unwrap();
-            assert_eq!(count, 2);
+            assert_eq!(count, 3);
         }
         {
             let s = Store::open(path.to_str().unwrap()).unwrap();
@@ -1079,5 +1151,113 @@ mod tests {
         assert_eq!(child.list_id, "groceries");
         s.restore("dev", &child.id, child.revision).unwrap();
         assert_eq!(s.subtree("dev", &root.id).unwrap().len(), 2);
+    }
+    fn update_seq(s: &Store, id: &str) -> i64 {
+        s.changes("dev", 0)
+            .unwrap()
+            .into_iter()
+            .rev()
+            .find(|v| v["kind"] == "update" && v["task"]["id"] == id)
+            .unwrap()["seq"]
+            .as_i64()
+            .unwrap()
+    }
+    #[test]
+    fn undo_compensates_own_edit_and_refuses_newer_edits_or_access_loss() {
+        let mut s = db();
+        let root = capture(&mut s, "root", None);
+        let edited = s
+            .update(
+                "dev",
+                &root.id,
+                Change {
+                    revision: 1,
+                    title: Some("Changed".into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let seq = update_seq(&s, &root.id);
+        s.conn
+            .execute("INSERT INTO memberships VALUES('inbox','other')", [])
+            .unwrap();
+        assert!(matches!(
+            s.undo_update("other", seq, edited.revision),
+            Err(Error::Forbidden)
+        ));
+        let restored = s.undo_update("dev", seq, edited.revision).unwrap();
+        assert_eq!(restored.title, root.title);
+        assert_eq!(restored.revision, 3);
+        assert!(matches!(
+            s.undo_update("dev", seq, 3),
+            Err(Error::Conflict(_))
+        ));
+        let edited = s
+            .update(
+                "dev",
+                &root.id,
+                Change {
+                    revision: 3,
+                    title: Some("Newer".into()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert!(matches!(
+            s.undo_update("dev", seq, edited.revision),
+            Err(Error::Conflict(_))
+        ));
+        assert_eq!(s.tasks("dev", "inbox").unwrap()[0].title, "Newer");
+        let seq = update_seq(&s, &root.id);
+        s.conn
+            .execute(
+                "DELETE FROM memberships WHERE user_id='dev' AND list_id='inbox'",
+                [],
+            )
+            .unwrap();
+        assert!(matches!(
+            s.undo_update("dev", seq, edited.revision),
+            Err(Error::Forbidden)
+        ));
+    }
+    #[test]
+    fn undo_completion_reopens_ancestors_and_guards_unfinished_children() {
+        let mut s = db();
+        let root = capture(&mut s, "root", None);
+        let child = capture(&mut s, "child", Some(root.id.clone()));
+        s.update(
+            "dev",
+            &root.id,
+            Change {
+                revision: 1,
+                complete: Some(true),
+                complete_subtree: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let child_seq = update_seq(&s, &child.id);
+        let child = s.undo_update("dev", child_seq, 2).unwrap();
+        assert!(!child.complete);
+        let root = s
+            .subtree("dev", &root.id)
+            .unwrap()
+            .into_iter()
+            .find(|t| t.id == root.id)
+            .unwrap();
+        assert!(!root.complete);
+        let reopened_seq = update_seq(&s, &root.id);
+        assert!(matches!(
+            s.undo_update("dev", reopened_seq, root.revision),
+            Err(Error::Conflict(_))
+        ));
+        assert!(
+            !s.tasks("dev", "inbox")
+                .unwrap()
+                .into_iter()
+                .find(|t| t.id == root.id)
+                .unwrap()
+                .complete
+        );
     }
 }
