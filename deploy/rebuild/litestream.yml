@@ -1,0 +1,25 @@
+# Litestream 0.5.17. This process has ONLY replication credentials.
+# Attachment storage uses separate credentials in the application container.
+logging:
+  type: json
+  stderr: true
+shutdown-sync-timeout: 25s
+retention:
+  enabled: true
+snapshot:
+  interval: 24h
+  retention: 720h
+l0-retention: 24h
+verify-compaction: true
+dbs:
+  - path: ${TODOER_RUST_DB}
+    busy-timeout: 5s
+    replica:
+      type: s3
+      endpoint: ${TODOER_REPLICA_ENDPOINT}
+      region: ${TODOER_REPLICA_REGION}
+      bucket: ${TODOER_REPLICA_BUCKET}
+      path: ${TODOER_REPLICA_PREFIX}
+      access-key-id: ${TODOER_REPLICA_ACCESS_KEY_ID}
+      secret-access-key: ${TODOER_REPLICA_SECRET_ACCESS_KEY}
+      sync-interval: 5s
