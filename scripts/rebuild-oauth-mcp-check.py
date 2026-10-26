@@ -27,7 +27,6 @@ from mcp.client.auth import OAuthClientProvider
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared.auth import AuthorizationCodeResult, OAuthClientMetadata
 
-
 PHASE = "configuration"
 
 
@@ -62,9 +61,14 @@ class HiddenFields(HTMLParser):
 
 def loopback_origin(url):
     parsed = urlsplit(url)
-    assert parsed.scheme == "http" and not parsed.username and not parsed.password
+    assert (
+        parsed.scheme == "http" and not parsed.username and not parsed.password
+    )
     assert not parsed.fragment and parsed.hostname
-    assert parsed.hostname == "localhost" or ipaddress.ip_address(parsed.hostname).is_loopback
+    assert (
+        parsed.hostname == "localhost"
+        or ipaddress.ip_address(parsed.hostname).is_loopback
+    )
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
@@ -91,27 +95,46 @@ async def main():
         PHASE = "browser-consent"
         assert loopback_origin(authorization_url) == origin
         assert urlsplit(authorization_url).path == "/oauth/authorize"
-        async with httpx2.AsyncClient(headers={"Cookie": cookie}, follow_redirects=False, timeout=30) as browser:
+        async with httpx2.AsyncClient(
+            headers={"Cookie": cookie}, follow_redirects=False, timeout=30
+        ) as browser:
             page = await browser.get(authorization_url)
             assert page.status_code == 200, "Consent page did not render"
             fields = HiddenFields()
             fields.feed(page.text)
-            assert fields.fields.get("csrf") == csrf, "Consent CSRF did not match fixture"
-            assert fields.fields.get("request_id"), "Consent request ID missing"
+            assert (
+                fields.fields.get("csrf") == csrf
+            ), "Consent CSRF did not match fixture"
+            assert fields.fields.get(
+                "request_id"
+            ), "Consent request ID missing"
             approved = await browser.post(
                 f"{origin}/oauth/approve",
                 headers={"Origin": origin},
-                data={"request_id": fields.fields["request_id"], "csrf": csrf,
-                      "read": "yes", "write": "yes", "list_inbox": "yes", "action": "allow"},
+                data={
+                    "request_id": fields.fields["request_id"],
+                    "csrf": csrf,
+                    "read": "yes",
+                    "write": "yes",
+                    "list_inbox": "yes",
+                    "action": "allow",
+                },
             )
-            assert approved.status_code in (302, 303), "Consent approval failed"
+            assert approved.status_code in (
+                302,
+                303,
+            ), "Consent approval failed"
             location = approved.headers["location"]
             callback = urlsplit(location)
-            assert f"{callback.scheme}://{callback.netloc}{callback.path}" == callback_uri
+            assert (
+                f"{callback.scheme}://{callback.netloc}{callback.path}"
+                == callback_uri
+            )
             query = parse_qs(callback.query)
             assert "error" not in query
             callback_result = AuthorizationCodeResult(
-                code=query["code"][0], state=query.get("state", [None])[0],
+                code=query["code"][0],
+                state=query.get("state", [None])[0],
                 iss=query.get("iss", [None])[0],
             )
             consent_calls += 1
@@ -123,20 +146,33 @@ async def main():
     provider = OAuthClientProvider(
         server_url=url,
         client_metadata=OAuthClientMetadata(
-            client_name="Todoer isolated SDK OAuth check", redirect_uris=[callback_uri],
-            token_endpoint_auth_method="none", grant_types=["authorization_code", "refresh_token"],
-            response_types=["code"], scope="tasks:read tasks:write", application_type="native",
+            client_name="Todoer isolated SDK OAuth check",
+            redirect_uris=[callback_uri],
+            token_endpoint_auth_method="none",
+            grant_types=["authorization_code", "refresh_token"],
+            response_types=["code"],
+            scope="tasks:read tasks:write",
+            application_type="native",
         ),
-        storage=storage, redirect_handler=redirect_handler, callback_handler=callback_handler,
+        storage=storage,
+        redirect_handler=redirect_handler,
+        callback_handler=callback_handler,
     )
-    async with httpx2.AsyncClient(auth=provider, follow_redirects=False, timeout=30) as client:
+    async with httpx2.AsyncClient(
+        auth=provider, follow_redirects=False, timeout=30
+    ) as client:
         async with streamable_http_client(url, http_client=client) as streams:
             async with ClientSession(*streams) as session:
                 PHASE = "SDK-initialize-and-OAuth"
                 await session.initialize()
                 PHASE = "tool-list"
                 tools = await session.list_tools()
-                assert {"resolve_destination", "capture", "read_subtree", "search"} <= {tool.name for tool in tools.tools}
+                assert {
+                    "resolve_destination",
+                    "capture",
+                    "read_subtree",
+                    "search",
+                } <= {tool.name for tool in tools.tools}
 
                 async def call(name, arguments):
                     global PHASE
@@ -145,18 +181,69 @@ async def main():
                     assert not response.is_error, f"Tool failed: {name}"
                     return tool_json(response)
 
-                resolved = await call("resolve_destination", {"destination": "inbox"})
+                resolved = await call(
+                    "resolve_destination", {"destination": "inbox"}
+                )
                 assert resolved["id"] == "inbox"
-                payload = {"list_id": "inbox", "idempotency_key": f"oauth-sdk-{uuid.uuid4()}",
-                           "tasks": [{"title": "Synthetic OAuth SDK check", "description": "", "parent_id": None}]}
+                payload = {
+                    "list_id": "inbox",
+                    "idempotency_key": f"oauth-sdk-{uuid.uuid4()}",
+                    "tasks": [
+                        {
+                            "title": "Synthetic OAuth SDK check",
+                            "description": "",
+                            "parent_id": None,
+                        }
+                    ],
+                }
                 captured = await call("capture", payload)
                 repeated = await call("capture", payload)
                 assert len(captured) == 1 and repeated == captured
                 subtree = await call("read_subtree", {"id": captured[0]["id"]})
                 assert subtree[0]["id"] == captured[0]["id"]
+                await call(
+                    "configure_destination",
+                    {"key": "oauth-sdk-inbox", "list_id": "inbox"},
+                )
+                assert (
+                    await call(
+                        "resolve_destination",
+                        {"preference_key": "oauth-sdk-inbox"},
+                    )
+                )["id"] == "inbox"
+                plan = await call(
+                    "preview_changes",
+                    {
+                        "operations": [
+                            {
+                                "op": "update",
+                                "id": captured[0]["id"],
+                                "revision": captured[0]["revision"],
+                                "title": "Reviewed OAuth SDK change",
+                            }
+                        ]
+                    },
+                )
+                assert (await call("read_subtree", {"id": captured[0]["id"]}))[
+                    0
+                ]["title"] == captured[0]["title"]
+                apply = {
+                    "preview_id": plan["preview_id"],
+                    "expected_hash": plan["expected_hash"],
+                    "idempotency_key": f"oauth-sdk-apply-{uuid.uuid4()}",
+                }
+                applied = await call("apply_changes", apply)
+                assert applied == await call("apply_changes", apply)
+                assert (await call("read_subtree", {"id": captured[0]["id"]}))[
+                    0
+                ]["title"] == "Reviewed OAuth SDK change"
                 PHASE = "scope-denial"
-                denied = await session.call_tool("search", {"list": "groceries"})
-                assert denied.is_error, "List outside consent unexpectedly accessible"
+                denied = await session.call_tool(
+                    "search", {"list": "groceries"}
+                )
+                assert (
+                    denied.is_error
+                ), "List outside consent unexpectedly accessible"
                 assert tool_json(denied)["error"]["code"] == "forbidden"
                 assert consent_calls == 1 and storage.tokens and storage.client
                 assert storage.tokens.refresh_token, "Refresh token not issued"
@@ -168,10 +255,16 @@ async def main():
                     provider.context.token_expiry_time = time.time() - 60
                     await call("search", {"list": "inbox"})
                     assert storage.tokens.refresh_token != previous_refresh
-                    assert consent_calls == 1, "Refresh unexpectedly required consent again"
+                    assert (
+                        consent_calls == 1
+                    ), "Refresh unexpectedly required consent again"
                 if os.environ.get("TODOER_TEST_REFRESH") == "1":
-                    print("OAuth MCP SDK refresh passed: replacement refresh token stored; browser consent unchanged")
-                print("OAuth MCP SDK check passed: discovery, registration, PKCE consent, token exchange, tools, capture retry, subtree, list-scope denial")
+                    print(
+                        "OAuth MCP SDK refresh passed: replacement refresh token stored; browser consent unchanged"
+                    )
+                print(
+                    "OAuth MCP SDK check passed: discovery, registration, PKCE consent, token exchange, tools, capture retry, subtree, saved destination, bulk preview/apply/retry, list-scope denial"
+                )
     return 0
 
 
@@ -180,5 +273,8 @@ if __name__ == "__main__":
         sys.exit(asyncio.run(main()))
     except Exception as error:
         # SDK and HTTP exceptions can carry credentials or authorization codes.
-        print(f"OAuth MCP SDK check failed during {PHASE} ({type(error).__name__}); inspect the isolated test fixture", file=sys.stderr)
+        print(
+            f"OAuth MCP SDK check failed during {PHASE} ({type(error).__name__}); inspect the isolated test fixture",
+            file=sys.stderr,
+        )
         sys.exit(1)

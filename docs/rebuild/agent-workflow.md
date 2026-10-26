@@ -4,7 +4,7 @@ The Rust rebuild provides the `todoer` CLI as a REST client. Run it from the rep
 
 Set `TODOER_TOKEN` to your configured Todoer bearer credential. `TODOER_URL` defaults to `http://127.0.0.1:8092`; `--url` overrides it. Keep tokens out of shell history and source control. The CLI does not print the token.
 
-The current server token adapter is development-only. It is not a production authentication or self-hosting authentication solution. Development MCP is available at `/mcp`; production OAuth discovery is unfinished. The CLI examples use REST directly.
+The development token adapter is restricted to explicit development mode. With configured production authentication, create a REST credential in browser Settings; the CLI uses that credential and does not manage browser sessions. MCP at `/mcp` supports the implemented OAuth flow, tested with the official Python SDK against an isolated provider fixture. This is not a claim of compatibility with every remote connector. The CLI examples use REST directly.
 
 ```sh
 todoer list
@@ -38,7 +38,7 @@ The CLI calls `/api/v1/search`, `/api/v1/lists`, `/api/v1/lists/{id}/tasks`, `/a
 
 The official Python MCP SDK check is available as `uv run --no-project scripts/rebuild-mcp-check.py`. It pins `mcp==2.3.0` with inline script metadata, leaving project dependencies unchanged. Set `TODOER_TOKEN` and optionally `TODOER_MCP_URL` (default `http://127.0.0.1:8092/mcp`) before running it against the development server. The check initializes a real HTTP MCP session, lists the tools, resolves the inbox, retries an identical capture, and reads the resulting subtree. Each run creates one synthetic inbox task with a fresh idempotency key.
 
-Verified against the local synthetic development server: initialization, all twelve tool registrations, destination resolution, identical capture retry, subtree read, edit, guarded undo, trash and restore passed. SDK 2.3.0 currently logs `Session termination failed: 202` when this rmcp transport acknowledges session cleanup; the request assertions complete and the check exits successfully.
+The check requires the implemented tool subset, including bulk preview/apply and saved destinations. It exercises initialization, destination resolution, identical capture retry, subtree read, edit, guarded undo, trash, restore, destination preferences, bulk dry-run, guarded apply, retry, and rollback. SDK 2.3.0 currently logs `Session termination failed: 202` when this rmcp transport acknowledges session cleanup; the request assertions complete and the check exits successfully.
 
 
 Implemented recovery commands: `todoer trash-list`, `todoer trash TASK_ID --revision N`,
@@ -47,3 +47,27 @@ Implemented recovery commands: `todoer trash-list`, `todoer trash TASK_ID --revi
 HTTP and the official Python MCP client against an isolated running server. It
 creates synthetic tasks; never run verification scripts against a personal or
 production account.
+
+
+Saved destinations make repeated agent requests explicit without conversation state:
+
+```sh
+todoer destination set capture LIST_ID
+todoer destination resolve --preference-key capture
+todoer destination resolve --fallback-inbox
+todoer destination search --prefix Work --limit 20
+todoer destination preferences
+```
+
+An explicit destination takes precedence over preferences. Exact duplicate titles return accessible choices; select an ID before writing. A missing explicit destination never silently falls back. Preferences are filtered against current access.
+
+Bulk writes use a server-stored preview with a ten-minute expiry. Review its before/after states and access changes, then apply its exact hash:
+
+```sh
+todoer --json bulk preview --body '{"operations":[{"op":"update","id":"TASK_ID","revision":1,"title":"Reviewed title"}]}'
+todoer --json bulk apply PREVIEW_ID --hash EXPECTED_HASH --key UNIQUE_RETRY_KEY
+```
+
+At most 50 operations and 500 affected task states fit one preview. Supported operations are title/description update, move, trash, restore, existing tags, section assignment, and same-list reparenting. Completion and entity creation use their individual APIs. Existing tag names must already exist in the task's destination scope. Preview runs the common operations and rolls them back; apply rechecks current revisions, permissions, and metadata and commits all operations together. Reuse the apply key only for the same preview and hash. A later failure rolls back earlier operations.
+
+The compact MCP tools are `preview_changes`, `apply_changes`, `resolve_destination`, and `configure_destination`, alongside the existing task tools. Each tool rechecks the current request credential. The OAuth SDK fixture check in `scripts/rebuild-oauth-mcp-check.py` is test-only: it requires an isolated loopback server and synthetic browser session inputs supplied by the Rust integration harness. It exercises discovery, registration, PKCE, consent, token exchange, scoped tools, saved destinations, bulk retry, and optional token refresh without logging credentials.

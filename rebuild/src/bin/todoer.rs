@@ -38,6 +38,16 @@ enum Command {
     },
     /// Explain how to obtain a REST credential without copying browser cookies.
     AuthInfo,
+    /// Review and atomically apply bounded, server-stored changes.
+    Bulk {
+        #[command(subcommand)]
+        command: BulkCommand,
+    },
+    /// Resolve exact destinations and manage explicit accessible defaults.
+    Destination {
+        #[command(subcommand)]
+        command: DestinationCommand,
+    },
     Tasks {
         list: String,
     },
@@ -213,6 +223,90 @@ enum SectionCommand {
         body: String,
     },
 }
+#[derive(Subcommand)]
+enum BulkCommand {
+    Preview {
+        #[arg(long)]
+        body: String,
+    },
+    Apply {
+        preview_id: String,
+        #[arg(long)]
+        hash: String,
+        #[arg(long)]
+        key: String,
+    },
+}
+#[derive(Subcommand)]
+enum DestinationCommand {
+    Resolve {
+        #[arg(long)]
+        destination: Option<String>,
+        #[arg(long)]
+        preference_key: Option<String>,
+        #[arg(long)]
+        fallback_inbox: bool,
+    },
+    Preferences,
+    Set {
+        key: String,
+        list: String,
+    },
+    Search {
+        #[arg(long, default_value = "")]
+        prefix: String,
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+    },
+}
+fn bulk_request(command: BulkCommand) -> Result<RequestSpec, (i32, String)> {
+    match command {
+        BulkCommand::Preview { body } => write_request(Method::POST, "/bulk/preview".into(), body),
+        BulkCommand::Apply {
+            preview_id,
+            hash,
+            key,
+        } => Ok((
+            Method::POST,
+            "/bulk/apply".into(),
+            Some(json!({"preview_id":preview_id,"expected_hash":hash,"idempotency_key":key})),
+            None,
+        )),
+    }
+}
+fn destination_request(
+    command: DestinationCommand,
+    query: &mut Vec<(String, String)>,
+) -> RequestSpec {
+    match command {
+        DestinationCommand::Resolve {
+            destination,
+            preference_key,
+            fallback_inbox,
+        } => {
+            if let Some(value) = destination {
+                query.push(("destination".into(), value));
+            }
+            if let Some(value) = preference_key {
+                query.push(("default_key".into(), value));
+            }
+            query.push(("fallback_inbox".into(), fallback_inbox.to_string()));
+            read_request("/destinations/resolve".into())
+        }
+        DestinationCommand::Preferences => read_request("/destinations/preferences".into()),
+        DestinationCommand::Set { key, list } => (
+            Method::POST,
+            "/destinations/preferences".into(),
+            Some(json!({"key":key,"list_id":list})),
+            None,
+        ),
+        DestinationCommand::Search { prefix, limit } => {
+            query.push(("prefix".into(), prefix));
+            query.push(("limit".into(), limit.to_string()));
+            read_request("/destinations/search".into())
+        }
+    }
+}
 type RequestSpec = (Method, String, Option<Value>, Option<String>);
 fn read_request(path: String) -> RequestSpec {
     (Method::GET, path, None, None)
@@ -338,6 +432,8 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         Command::Lists { command } => list_request(command)?,
         Command::Sections { command } => section_request(command)?,
         Command::AuthInfo => unreachable!("handled before request construction"),
+        Command::Bulk { command } => bulk_request(command)?,
+        Command::Destination { command } => destination_request(command, &mut query_pairs),
         Command::List => (Method::GET, "/lists".into(), None, None),
         Command::Tasks { list } => (
             Method::GET,
