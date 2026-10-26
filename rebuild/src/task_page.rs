@@ -21,6 +21,8 @@ struct Child {
 struct TaskPage {
     sidebar: Sidebar,
     task: Task,
+    public_reference: String,
+    change_cursor: i64,
     description_html: String,
     crumbs: Vec<Crumb>,
     children: Vec<Child>,
@@ -178,7 +180,14 @@ async fn page(
                 &task.description,
             )?;
             let sidebar = build_sidebar(db, &a, &task.list_id, csrf.clone())?;
+            let public_reference = crate::defaults::public_id(&db.conn, "task", &task.id)?;
+            let change_cursor = db.conn.query_row(
+                "SELECT COALESCE(MAX(h.seq),0) FROM history h JOIN actor_list_access a ON a.list_id=h.list_id WHERE a.actor_id=?1",
+                [&a], |row| row.get(0),
+            )?;
             Ok(TaskPage {
+                change_cursor,
+                public_reference,
                 sidebar,
                 task,
                 description_html,

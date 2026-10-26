@@ -9,6 +9,7 @@ use axum::{
     routing::{delete, put},
 };
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 fn objects(s: &AppState) -> Result<Arc<ObjectStorage>, ApiError> {
     s.storage.clone().ok_or(ApiError(
         StatusCode::SERVICE_UNAVAILABLE,
@@ -319,6 +320,9 @@ struct FileView {
     can_delete: bool,
 }
 struct CommentView {
+    author_name: String,
+    author_initial: String,
+    avatar_url: String,
     body_html: String,
     record: Comment,
     files: Vec<FileView>,
@@ -355,6 +359,14 @@ async fn fragment(
                 Some(last) if !db.comments(&actor, &id, last.seq, 1)?.is_empty() => Some(last.seq),
                 _ => None,
             };
+            // One bounded author lookup for the authorized discussion, never one query per row.
+            let mut authors=std::collections::HashMap::new();
+            let mut statement=db.conn.prepare("SELECT DISTINCT u.id,u.name,(SELECT email FROM auth_identities i WHERE i.user_id=u.id ORDER BY issuer,subject LIMIT 1) FROM users u JOIN comments c ON c.author_id=u.id WHERE c.task_id=?1")?;
+            for row in statement.query_map([&id],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,Option<String>>(2)?)))? {
+                let (id,name,email)=row?;
+                let avatar=email.filter(|e|!e.trim().is_empty()).map(|email|format!("https://www.gravatar.com/avatar/{:x}?s=64&d=404",Sha256::digest(email.trim().to_lowercase().as_bytes()))).unwrap_or_default();
+                authors.insert(id,(name,avatar));
+            }
             let comments = records
                 .into_iter()
                 .map(|record| {
@@ -371,7 +383,10 @@ async fn fragment(
                         &record.id,
                         &record.body,
                     )?;
+                    let (author_name,avatar_url)=authors.get(&record.author_id).cloned().unwrap_or_else(||("Member".into(),String::new()));
+                    let author_initial=author_name.chars().next().unwrap_or('?').to_uppercase().collect();
                     Ok(CommentView {
+                        author_name,author_initial,avatar_url,
                         body_html,
                         record,
                         files,

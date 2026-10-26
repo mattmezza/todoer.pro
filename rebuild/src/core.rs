@@ -244,6 +244,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
         include_str!("../migrations/023_workspace_lifecycle.sql"),
     ),
     (24, include_str!("../migrations/024_capture_defaults.sql")),
+    (25, include_str!("../migrations/025_scoped_activity.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {

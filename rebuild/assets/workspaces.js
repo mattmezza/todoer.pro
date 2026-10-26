@@ -5,7 +5,7 @@ document.addEventListener('click', (event) => {
   const row = button.closest('[data-workspace]'),
     action = button.dataset.workspaceAction;
   const dialog = document.createElement('dialog');
-  dialog.className = 'quick-dialog';
+  dialog.className = 'quick-dialog confirmation-dialog';
   const heading = document.createElement('h2');
   heading.textContent =
     action === 'delete'
@@ -26,7 +26,7 @@ document.addEventListener('click', (event) => {
   cancel.textContent = 'Cancel';
   cancel.onclick = () => dialog.close();
   submit.type = 'submit';
-  submit.className = 'primary';
+  submit.className = action === 'restore' ? 'primary' : 'primary destructive';
   submit.textContent =
     action === 'delete' ? 'Continue' : action === 'archive' ? 'Archive' : 'Restore';
   error.setAttribute('role', 'alert');
@@ -36,7 +36,10 @@ document.addEventListener('click', (event) => {
   input.autocomplete = 'off';
   input.hidden = true;
   let stage = 0;
-  form.append(input, cancel, submit, error);
+  const actions = document.createElement('div');
+  actions.className = 'confirmation-actions';
+  actions.append(cancel, submit);
+  form.append(input, actions, error);
   dialog.append(heading, text, form);
   document.body.append(dialog);
   dialog.addEventListener('close', () => dialog.remove());
@@ -81,4 +84,30 @@ document.addEventListener('click', (event) => {
   };
 });
 
+const createDialog = document.querySelector('#workspace-create-dialog');
+document.addEventListener('click', (event) => {
+  if (event.target.closest('[data-workspace-create-open]') && createDialog) {
+    event.preventDefault();
+    createDialog.showModal();
+    createDialog.querySelector('[name=title]').focus();
+  }
+  if (event.target.closest('[data-workspace-create-close]')) createDialog?.close();
+});
 document.body.dataset.workspacesReady = 'true';
+
+for (const button of document.querySelectorAll('[data-workspace-action]')) {
+  const action = button.dataset.workspaceAction;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  svg.classList.add('ui-icon');
+  svg.setAttribute('aria-hidden', 'true');
+  use.setAttribute('href', `/assets/icons.svg#${action === 'archive' ? 'archive-box' : action === 'restore' ? 'arrow-uturn-left' : 'trash'}`);
+  svg.append(use);
+  button.prepend(svg);
+}
+document.addEventListener('click', (event) => {
+  const row = event.target.closest('.workspace-row[data-workspace]');
+  if (!row || event.target.closest('a,button,input,select,textarea,summary') ||
+      window.getSelection()?.toString() || event.button !== 0) return;
+  row.querySelector('.workspace-row-title')?.click();
+});

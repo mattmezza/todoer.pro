@@ -1,9 +1,42 @@
+import { toast } from './toast.js';
+import { confirmAction } from './confirm.js';
 import { openListSettings } from './list-settings.js';
 import { previewTaskMove } from './task-page.js';
 export function mountListUi({ api, notice, listId }) {
   const canWrite = document.body.dataset.canWrite === 'true';
   const edit = document.querySelector('[data-list-edit]');
   const sectionCreate = document.querySelector('[data-section-create]');
+  if (edit && !edit.querySelector('[name="color"]')) {
+    const heading = document.createElement('div');
+    heading.className = 'list-edit-heading';
+    const picker = document.createElement('input');
+    picker.type = 'color';
+    picker.name = 'color';
+    picker.className = 'list-edit-color';
+    picker.setAttribute('aria-label', 'List color');
+    const swatch = document.querySelector('[data-list-display] .entity-color');
+    const rgb = swatch && getComputedStyle(swatch).backgroundColor.match(/\d+/g);
+    picker.value = document.body.dataset.listColor || (rgb?.length >= 3
+      ? '#' + rgb.slice(0, 3).map((part) => Number(part).toString(16).padStart(2, '0')).join('')
+      : '#3b82f6');
+    const title = edit.querySelector('[name="title"]');
+    title.before(heading);
+    heading.append(picker, title);
+  }
+  const completedCheck = document.querySelector('#show-completed');
+  function updateCompletedLabel() {
+    for (const button of document.querySelectorAll('[data-toggle-completed]')) {
+      const icon = button.querySelector('svg');
+      button.replaceChildren();
+      if (icon) button.append(icon);
+      button.append(document.createTextNode(
+        completedCheck.checked ? 'Hide completed' : 'Show completed',
+      ));
+      button.setAttribute('aria-pressed', String(completedCheck.checked));
+    }
+  }
+  completedCheck?.addEventListener('change', updateCompletedLabel);
+  if (completedCheck) updateCompletedLabel();
   const closeMenus = () =>
     document
       .querySelectorAll('.entity-menu[open],.task-actions[open]')
@@ -69,7 +102,7 @@ export function mountListUi({ api, notice, listId }) {
     if (ref) {
       try {
         await navigator.clipboard.writeText(ref.dataset.copyReference);
-        notice('Reference copied.');
+        toast('Reference copied.');
       } catch {
         notice('Could not copy reference.', true);
       }
@@ -77,7 +110,7 @@ export function mountListUi({ api, notice, listId }) {
     if (event.target.closest('[data-copy-link]')) {
       try {
         await navigator.clipboard.writeText(location.origin + `/lists/${listId}`);
-        notice('Permalink copied.');
+        toast('Permalink copied.');
       } catch {
         notice('Copy this page address from your browser.', true);
       }
@@ -86,7 +119,7 @@ export function mountListUi({ api, notice, listId }) {
     if (
       event.target.closest('[data-list-archive]') &&
       canWrite &&
-      confirm('Archive this list? Its tasks and history are preserved.')
+      (await confirmAction('Archive this list? Its tasks and history are preserved.'))
     ) {
       try {
         await api(`/lists/${listId}`, 'PATCH', {
@@ -130,6 +163,7 @@ export function mountListUi({ api, notice, listId }) {
       revision: Number(edit.dataset.revision),
       title: data.get('title'),
       description: data.get('description'),
+      color: data.get('color'),
     });
   });
   sectionCreate?.addEventListener('submit', async (event) => {
