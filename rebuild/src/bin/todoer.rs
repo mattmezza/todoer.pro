@@ -21,6 +21,23 @@ struct Args {
 #[derive(Subcommand)]
 enum Command {
     List,
+    /// Workspace administration. JSON write bodies require current revisions.
+    Workspace {
+        #[command(subcommand)]
+        command: WorkspaceCommand,
+    },
+    /// List details, creation, sharing and access administration.
+    Lists {
+        #[command(subcommand)]
+        command: ListCommand,
+    },
+    /// List section administration.
+    Sections {
+        #[command(subcommand)]
+        command: SectionCommand,
+    },
+    /// Explain how to obtain a REST credential without copying browser cookies.
+    AuthInfo,
     Tasks {
         list: String,
     },
@@ -105,6 +122,183 @@ enum Command {
     },
 }
 
+/// --body is a JSON object matching the REST schema; revision and explicit
+/// access-change acknowledgement remain visible in every write request.
+#[derive(Subcommand)]
+enum WorkspaceCommand {
+    All,
+    Get {
+        id: String,
+    },
+    Create {
+        #[arg(long)]
+        body: String,
+    },
+    Edit {
+        id: String,
+        #[arg(long)]
+        body: String,
+    },
+    Members {
+        id: String,
+    },
+    Grant {
+        id: String,
+        #[arg(long)]
+        body: String,
+    },
+    Revoke {
+        id: String,
+        #[arg(long)]
+        body: String,
+    },
+    Reorder {
+        id: String,
+        #[arg(long)]
+        body: String,
+    },
+}
+#[derive(Subcommand)]
+enum ListCommand {
+    All,
+    Get {
+        id: String,
+    },
+    Create {
+        #[arg(long)]
+        body: String,
+    },
+    Edit {
+        id: String,
+        #[arg(long)]
+        body: String,
+    },
+    Sharing {
+        id: String,
+    },
+    Access {
+        id: String,
+        #[arg(long)]
+        body: String,
+    },
+    Grant {
+        id: String,
+        #[arg(long)]
+        body: String,
+    },
+    Revoke {
+        id: String,
+        #[arg(long)]
+        body: String,
+    },
+}
+#[derive(Subcommand)]
+enum SectionCommand {
+    All {
+        list: String,
+    },
+    Create {
+        list: String,
+        #[arg(long)]
+        body: String,
+    },
+    Edit {
+        id: String,
+        #[arg(long)]
+        body: String,
+    },
+    Reorder {
+        list: String,
+        #[arg(long)]
+        body: String,
+    },
+}
+type RequestSpec = (Method, String, Option<Value>, Option<String>);
+fn read_request(path: String) -> RequestSpec {
+    (Method::GET, path, None, None)
+}
+fn write_request(method: Method, path: String, body: String) -> Result<RequestSpec, (i32, String)> {
+    let value: Value =
+        serde_json::from_str(&body).map_err(|_| (2, "--body must contain valid JSON".into()))?;
+    if !value.is_object() {
+        return Err((2, "--body must be a JSON object".into()));
+    }
+    Ok((method, path, Some(value), None))
+}
+fn workspace_request(command: WorkspaceCommand) -> Result<RequestSpec, (i32, String)> {
+    Ok(match command {
+        WorkspaceCommand::All => read_request("/workspaces".into()),
+        WorkspaceCommand::Get { id } => read_request(format!("/workspaces/{}", segment(&id))),
+        WorkspaceCommand::Create { body } => {
+            write_request(Method::POST, "/workspaces".into(), body)?
+        }
+        WorkspaceCommand::Edit { id, body } => {
+            write_request(Method::PATCH, format!("/workspaces/{}", segment(&id)), body)?
+        }
+        WorkspaceCommand::Members { id } => {
+            read_request(format!("/workspaces/{}/members", segment(&id)))
+        }
+        WorkspaceCommand::Grant { id, body } => write_request(
+            Method::POST,
+            format!("/workspaces/{}/members", segment(&id)),
+            body,
+        )?,
+        WorkspaceCommand::Revoke { id, body } => write_request(
+            Method::POST,
+            format!("/workspaces/{}/members/revoke", segment(&id)),
+            body,
+        )?,
+        WorkspaceCommand::Reorder { id, body } => write_request(
+            Method::POST,
+            format!("/workspaces/{}/lists/reorder", segment(&id)),
+            body,
+        )?,
+    })
+}
+fn list_request(command: ListCommand) -> Result<RequestSpec, (i32, String)> {
+    Ok(match command {
+        ListCommand::All => read_request("/lists".into()),
+        ListCommand::Get { id } => read_request(format!("/lists/{}", segment(&id))),
+        ListCommand::Create { body } => write_request(Method::POST, "/lists".into(), body)?,
+        ListCommand::Edit { id, body } => {
+            write_request(Method::PATCH, format!("/lists/{}", segment(&id)), body)?
+        }
+        ListCommand::Sharing { id } => read_request(format!("/lists/{}/sharing", segment(&id))),
+        ListCommand::Access { id, body } => write_request(
+            Method::POST,
+            format!("/lists/{}/access", segment(&id)),
+            body,
+        )?,
+        ListCommand::Grant { id, body } => write_request(
+            Method::POST,
+            format!("/lists/{}/grants", segment(&id)),
+            body,
+        )?,
+        ListCommand::Revoke { id, body } => write_request(
+            Method::POST,
+            format!("/lists/{}/grants/revoke", segment(&id)),
+            body,
+        )?,
+    })
+}
+fn section_request(command: SectionCommand) -> Result<RequestSpec, (i32, String)> {
+    Ok(match command {
+        SectionCommand::All { list } => read_request(format!("/lists/{}/sections", segment(&list))),
+        SectionCommand::Create { list, body } => write_request(
+            Method::POST,
+            format!("/lists/{}/sections", segment(&list)),
+            body,
+        )?,
+        SectionCommand::Edit { id, body } => {
+            write_request(Method::PATCH, format!("/sections/{}", segment(&id)), body)?
+        }
+        SectionCommand::Reorder { list, body } => write_request(
+            Method::POST,
+            format!("/lists/{}/sections/reorder", segment(&list)),
+            body,
+        )?,
+    })
+}
 fn segment(value: &str) -> String {
     // Encode user-provided identifiers as a single URL path segment.
     value
@@ -129,8 +323,21 @@ async fn main() {
 }
 
 async fn run(args: Args) -> Result<(), (i32, String)> {
+    if matches!(&args.command, Command::AuthInfo) {
+        let info = json!({"authentication":"REST bearer credential", "settings":"/settings", "instructions":"Sign in using the browser, create a REST credential with the required permissions and lists in /settings, and set TODOER_TOKEN. Browser-only credential issuance and revocation remain in Settings."});
+        if args.json {
+            println!("{info}");
+        } else {
+            println!("{}", info["instructions"].as_str().unwrap());
+        }
+        return Ok(());
+    }
     let mut query_pairs: Vec<(String, String)> = Vec::new();
     let (method, path, body, key) = match args.command {
+        Command::Workspace { command } => workspace_request(command)?,
+        Command::Lists { command } => list_request(command)?,
+        Command::Sections { command } => section_request(command)?,
+        Command::AuthInfo => unreachable!("handled before request construction"),
         Command::List => (Method::GET, "/lists".into(), None, None),
         Command::Tasks { list } => (
             Method::GET,
@@ -255,11 +462,6 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         Command::Capabilities => (Method::GET, "/capabilities".into(), None, None),
         Command::Changes { after } => (Method::GET, format!("/changes?after={after}"), None, None),
     };
-    let token =
-        std::env::var("TODOER_TOKEN").map_err(|_| (3, "TODOER_TOKEN must be set".into()))?;
-    if token.trim().is_empty() {
-        return Err((3, "TODOER_TOKEN must not be empty".into()));
-    }
     // Do not forward the bearer credential across redirects.
     let client = Client::builder()
         .redirect(reqwest::redirect::Policy::none())
@@ -271,6 +473,10 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
     if !query_pairs.is_empty() {
         url.query_pairs_mut().extend_pairs(query_pairs);
     }
+    let token = std::env::var("TODOER_TOKEN")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or((3, "TODOER_TOKEN must be set and nonempty".into()))?;
     let mut request = client.request(method, url).bearer_auth(token);
     if let Some(body) = body {
         request = request.json(&body);
@@ -302,7 +508,13 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             parsed.pointer("/error/message").and_then(Value::as_str),
         ) {
             (Some(code), Some(message)) => format!("{code}: {message}"),
-            _ => format!("server returned HTTP {}", status.as_u16()),
+            _ => match (
+                parsed.get("error").and_then(Value::as_str),
+                parsed.get("error_description").and_then(Value::as_str),
+            ) {
+                (Some(code), Some(message)) => format!("{code}: {message}"),
+                _ => format!("server returned HTTP {}", status.as_u16()),
+            },
         };
         return Err((exit, message));
     }

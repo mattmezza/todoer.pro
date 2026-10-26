@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Todoer isolated rebuild REST API",
+    "title": "Todoer rebuild REST and authorization API",
     "version": "0.1.0",
-    "description": "Development-only synthetic workspace. Static bearer adapter and development cookie session are not production authentication. No production OAuth contract is implied."
+    "description": "Implemented rebuild interfaces. Production configuration supports verified Google browser identity, live sessions, and scoped credentials. Development mode remains an explicit synthetic loopback adapter. Local OAuth SDK interoperability does not establish universal connector compatibility or production deployment readiness."
   },
   "servers": [
     {
@@ -11,6 +11,12 @@
     }
   ],
   "security": [
+    {
+      "restBearer": []
+    },
+    {
+      "browserSession": []
+    },
     {
       "developmentBearer": []
     },
@@ -121,6 +127,60 @@
             }
           }
         }
+      },
+      "post": {
+        "operationId": "createList",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/List"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateList"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/v1/lists/{id}/tasks": {
@@ -1781,20 +1841,1912 @@
           }
         }
       }
+    },
+    "/api/v1/workspaces": {
+      "get": {
+        "operationId": "listWorkspaces",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Workspace"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createWorkspace",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/workspaces/{id}": {
+      "get": {
+        "operationId": "readWorkspace",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "updateWorkspace",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceChange"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{id}/members": {
+      "get": {
+        "operationId": "listWorkspaceMembers",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkspaceMember"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Workspace owner only. Scoped credentials must also carry suitable administration permission."
+      },
+      "post": {
+        "operationId": "grantWorkspaceMember",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberGrant"
+              }
+            }
+          }
+        },
+        "description": "Owner only. Known user IDs; access broadening requires explicit acknowledgement."
+      }
+    },
+    "/api/v1/workspaces/{id}/members/revoke": {
+      "post": {
+        "operationId": "revokeWorkspaceMember",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeGrant"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{id}/lists/reorder": {
+      "post": {
+        "operationId": "reorderWorkspaceLists",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Reorder"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lists/{id}": {
+      "get": {
+        "operationId": "readListDetails",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "updateList",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/List"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListChange"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lists/{id}/sharing": {
+      "get": {
+        "operationId": "readListSharing",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sharing"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Workspace owners can inspect direct grants; guests do not learn parent workspace membership."
+      }
+    },
+    "/api/v1/lists/{id}/access": {
+      "post": {
+        "operationId": "changeListAccess",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/List"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessChange"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lists/{id}/grants": {
+      "post": {
+        "operationId": "grantListAccess",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/List"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectGrant"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lists/{id}/grants/revoke": {
+      "post": {
+        "operationId": "revokeListAccess",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/List"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeGrant"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lists/{id}/sections": {
+      "get": {
+        "operationId": "listSections",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Section"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createSection",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Section"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SectionInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lists/{id}/sections/reorder": {
+      "post": {
+        "operationId": "reorderSections",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/List"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Reorder"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sections/{id}": {
+      "patch": {
+        "operationId": "updateSection",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Section"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SectionChange"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/credentials": {
+      "get": {
+        "operationId": "listCredentials",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentMetadata"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          },
+          "503": {
+            "description": "Production authentication is not configured or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "browserSession": []
+          }
+        ],
+        "description": "Browser session only; bearer requests are rejected. Tokens are never returned by listing."
+      },
+      "post": {
+        "operationId": "issueCredential",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentGrant"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          },
+          "503": {
+            "description": "Production authentication is not configured or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialInput"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "browserSession": []
+          }
+        ],
+        "description": "Browser session and CSRF required; bearer requests are rejected. Select permissions and either explicit list IDs or all_lists=true. New credential appears once.",
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/credentials/{id}/revoke": {
+      "post": {
+        "operationId": "revokeCredential",
+        "responses": {
+          "204": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          },
+          "503": {
+            "description": "Production authentication is not configured or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "browserSession": []
+          }
+        ],
+        "description": "Browser session and CSRF required; bearer requests are rejected."
+      }
+    },
+    "/oauth/register": {
+      "post": {
+        "operationId": "registerOAuthClient",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthClient"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision or policy conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Production authentication is not configured or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthRegistration"
+              }
+            }
+          }
+        },
+        "security": [],
+        "description": "Public authorization-code clients only. Standard metadata extensions are tolerated; unsupported authentication methods are rejected."
+      }
+    },
+    "/oauth/token": {
+      "post": {
+        "operationId": "exchangeOAuthToken",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/x-www-form-urlencoded": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthTokens"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision or policy conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Production authentication is not configured or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthTokenInput"
+              }
+            }
+          }
+        },
+        "security": [],
+        "description": "Authorization code requires original redirect_uri and S256 code_verifier. Refresh rotates the refresh token. Resource must match the consented MCP resource; scope changes are rejected."
+      }
+    },
+    "/oauth/revoke": {
+      "post": {
+        "operationId": "revokeOAuthToken",
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision or policy conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Production authentication is not configured or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthRevocation"
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/.well-known/oauth-authorization-server": {
+      "get": {
+        "operationId": "oauthServerMetadata",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "security": []
+      }
+    },
+    "/.well-known/oauth-protected-resource": {
+      "get": {
+        "operationId": "oauthResourceMetadata",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "security": []
+      }
+    },
+    "/.well-known/oauth-protected-resource/mcp": {
+      "get": {
+        "operationId": "oauthMcpResourceMetadata",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "security": []
+      }
+    },
+    "/auth/google": {
+      "get": {
+        "operationId": "beginGoogleLogin",
+        "security": [],
+        "description": "Browser redirect endpoint. Google identity verification and browser-bound state/nonce/PKCE are handled server-side. No synthetic Google identity is accepted by production routes.",
+        "responses": {
+          "303": {
+            "description": "Browser redirect"
+          },
+          "400": {
+            "description": "Invalid callback"
+          },
+          "401": {
+            "description": "Login required or invalid"
+          },
+          "403": {
+            "description": "Identity not permitted"
+          }
+        }
+      }
+    },
+    "/auth/google/callback": {
+      "get": {
+        "operationId": "completeGoogleLogin",
+        "security": [],
+        "description": "Browser redirect endpoint. Google identity verification and browser-bound state/nonce/PKCE are handled server-side. No synthetic Google identity is accepted by production routes.",
+        "responses": {
+          "303": {
+            "description": "Browser redirect"
+          },
+          "400": {
+            "description": "Invalid callback"
+          },
+          "401": {
+            "description": "Login required or invalid"
+          },
+          "403": {
+            "description": "Identity not permitted"
+          }
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/openapi.json": {
+      "get": {
+        "operationId": "readOpenApi",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Access denied"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Revision or policy conflict"
+          },
+          "422": {
+            "description": "Input rejected"
+          }
+        },
+        "security": []
+      }
+    },
+    "/oauth/authorize": {
+      "get": {
+        "operationId": "reviewOAuthAuthorization",
+        "security": [],
+        "description": "Render browser consent, or a sign-in link when no session exists. Supply request_id to resume, otherwise all authorization-code parameters are required. Consent does not itself grant access.",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "response_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "redirect_uri",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resource",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code_challenge",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code_challenge_method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Browser review or sign-in HTML",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid authorization request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Production authentication is not configured or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/oauth/approve": {
+      "post": {
+        "operationId": "approveOAuthConsent",
+        "security": [
+          {
+            "browserSession": []
+          }
+        ],
+        "description": "Browser-only approval or denial with exact session CSRF and trusted Origin. Redirects to the registered callback; code/state remain in the browser redirect. Bearer credentials cannot approve consent.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/OAuthConsent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "303": {
+            "description": "Registered callback redirect"
+          },
+          "400": {
+            "description": "Invalid consent selection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign in required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CSRF, origin or permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Production authentication is not configured or unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "securitySchemes": {
+      "restBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Revocable credential scoped to the canonical /api/v1 audience, permissions and selected lists. TODOER_TOKEN supplies it to the CLI."
+      },
+      "browserSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "todoer_session",
+        "description": "Google-authenticated browser session. Writes require matching X-CSRF-Token and origin checks."
+      },
       "developmentBearer": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Development static token from TODOER_TOKEN; identity is the synthetic dev user."
+        "description": "Explicit isolated development mode only: static synthetic-user token."
       },
       "developmentCookie": {
         "type": "apiKey",
         "in": "cookie",
         "name": "todoer_dev",
-        "description": "Development browser session from /signin. Writes additionally require X-CSRF-Token."
+        "description": "Explicit isolated development mode only; writes require X-CSRF-Token."
       }
     },
     "schemas": {
@@ -2140,9 +4092,790 @@
           },
           "production_auth": {
             "type": "boolean",
-            "const": false
+            "description": "True when verified Google/session/scoped-credential configuration is active; false for the isolated development adapter."
           }
         }
+      },
+      "Workspace": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "description": {
+            "type": "string",
+            "default": ""
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "revision"
+        ]
+      },
+      "WorkspaceInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "description": {
+            "type": "string",
+            "default": ""
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceChange": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceMember": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "editor",
+              "viewer"
+            ]
+          }
+        },
+        "required": [
+          "user_id",
+          "role"
+        ]
+      },
+      "WorkspaceList": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/List"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "workspace_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "restricted": {
+                "type": "boolean"
+              },
+              "position": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "archived": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "workspace_id",
+              "restricted",
+              "position",
+              "archived"
+            ]
+          }
+        ]
+      },
+      "CreateList": {
+        "type": "object",
+        "properties": {
+          "workspace_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "description": {
+            "type": "string",
+            "default": ""
+          },
+          "restricted": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "workspace_id",
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "ListChange": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "archived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "Section": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "list_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "description": {
+            "type": "string",
+            "default": ""
+          },
+          "position": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "id",
+          "list_id",
+          "title",
+          "description",
+          "position",
+          "revision"
+        ]
+      },
+      "SectionInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "description": {
+            "type": "string",
+            "default": ""
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "SectionChange": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "MemberGrant": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "editor",
+              "viewer"
+            ]
+          },
+          "acknowledge_access_change": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "revision",
+          "user_id",
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "DirectGrant": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "editor",
+              "viewer"
+            ]
+          },
+          "acknowledge_access_change": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "revision",
+          "user_id",
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "RevokeGrant": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "user_id"
+        ],
+        "additionalProperties": false
+      },
+      "AccessChange": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "restricted": {
+            "type": "boolean"
+          },
+          "acknowledge_access_change": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "revision",
+          "restricted"
+        ],
+        "additionalProperties": false
+      },
+      "Reorder": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "revision",
+          "ids"
+        ],
+        "additionalProperties": false
+      },
+      "Sharing": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "$ref": "#/components/schemas/WorkspaceList"
+          },
+          "direct_grants": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "user_id": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "editor",
+                    "viewer"
+                  ]
+                }
+              },
+              "required": [
+                "user_id",
+                "role"
+              ]
+            }
+          }
+        },
+        "required": [
+          "list",
+          "direct_grants"
+        ]
+      },
+      "Permission": {
+        "type": "string",
+        "enum": [
+          "read",
+          "write",
+          "admin"
+        ]
+      },
+      "AgentMetadata": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "audience": {
+            "type": "string"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            }
+          },
+          "list_ids": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workspace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expires_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "audience",
+          "permissions",
+          "list_ids",
+          "workspace",
+          "expires_at",
+          "revoked"
+        ]
+      },
+      "AgentGrant": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string",
+            "description": "Shown once; store privately."
+          },
+          "expires_at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "id",
+          "token",
+          "expires_at"
+        ]
+      },
+      "CredentialInput": {
+        "type": "object",
+        "properties": {
+          "audience": {
+            "type": "string",
+            "enum": [
+              "rest",
+              "mcp"
+            ]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            }
+          },
+          "list_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "all_lists": {
+            "type": "boolean",
+            "default": false
+          },
+          "ttl_secs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 1,
+                "maximum": 7776000,
+                "default": 2592000
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "audience",
+          "permissions"
+        ],
+        "additionalProperties": false
+      },
+      "OAuthError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "error_description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error",
+          "error_description"
+        ]
+      },
+      "OAuthRegistration": {
+        "type": "object",
+        "properties": {
+          "client_name": {
+            "type": "string"
+          },
+          "redirect_uris": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "token_endpoint_auth_method": {
+            "type": "string",
+            "enum": [
+              "none"
+            ]
+          },
+          "grant_types": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "authorization_code",
+                "refresh_token"
+              ]
+            }
+          },
+          "response_types": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "code"
+              ]
+            }
+          }
+        },
+        "required": [
+          "client_name",
+          "redirect_uris"
+        ]
+      },
+      "OAuthClient": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/OAuthRegistration"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "client_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "client_id"
+            ]
+          }
+        ]
+      },
+      "OAuthTokenInput": {
+        "type": "object",
+        "properties": {
+          "grant_type": {
+            "type": "string",
+            "enum": [
+              "authorization_code",
+              "refresh_token"
+            ]
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "redirect_uri": {
+            "type": "string"
+          },
+          "code_verifier": {
+            "type": "string"
+          },
+          "resource": {
+            "type": "string"
+          },
+          "refresh_token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "grant_type",
+          "client_id",
+          "resource"
+        ]
+      },
+      "OAuthTokens": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string",
+            "enum": [
+              "Bearer"
+            ]
+          },
+          "expires_in": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "refresh_token": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in",
+          "refresh_token",
+          "scope"
+        ]
+      },
+      "OAuthRevocation": {
+        "type": "object",
+        "properties": {
+          "client_id": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "token"
+        ]
+      },
+      "OAuthConsent": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string"
+          },
+          "csrf": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "deny"
+            ]
+          },
+          "read": {
+            "type": "string",
+            "enum": [
+              "yes"
+            ]
+          },
+          "write": {
+            "type": "string",
+            "enum": [
+              "yes"
+            ]
+          },
+          "allow_all": {
+            "type": "string",
+            "enum": [
+              "yes"
+            ]
+          }
+        },
+        "required": [
+          "request_id",
+          "csrf",
+          "action"
+        ],
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Select list_<LIST_ID>=yes for each consented list, or explicitly allow_all=yes. Permission checkboxes use value yes."
       }
     }
   }
