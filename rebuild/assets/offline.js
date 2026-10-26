@@ -99,3 +99,13 @@ export async function replayCaptures(scope, send) {
   }
   return { sent, pending: (await listPending(scope)).length, errors };
 }
+export async function discardCapture(scope, key) {
+  validScope(scope);
+  await transact('readwrite', store => {
+    const id = `${scope}:${key}`;
+    const request = store.get(id);
+    request.onsuccess = () => {
+      if (request.result?.scope === scope && request.result.key === key) store.delete(id);
+    };
+  });
+}
