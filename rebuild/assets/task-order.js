@@ -27,7 +27,7 @@ export function mountTaskOrdering({
       control.disabled = !canWrite || busy;
       if (!canWrite) control.hidden = true;
       if (control.hasAttribute('data-order-handle')) {
-        control.hidden = !canWrite || !desktop.matches;
+        control.hidden = !canWrite;
         control.draggable = canWrite && desktop.matches && !busy;
       }
     }
@@ -212,6 +212,74 @@ export function mountTaskOrdering({
     drag = null;
     if (!busy) clearMarkers();
   }
+  // Pointer capture supports touch without taking over normal list scrolling.
+  // Only the dedicated grip starts a drag; up/down menu actions stay available.
+  let pointerDrag = null;
+  function pointerDown(event) {
+    const handle = event.target.closest('[data-touch-order]');
+    if (!handle || !canWrite || busy || blocked()) return;
+    const row = handle.closest('.task[data-id]');
+    if (!row) return;
+    event.preventDefault();
+    handle.setPointerCapture(event.pointerId);
+    const pending = snapshot();
+    pending.catch(() => {});
+    pointerDrag = {
+      row,
+      handle,
+      pending,
+      target: null,
+      after: false,
+      startY: event.clientY,
+    };
+    row.dataset.orderDragging = 'true';
+  }
+  function pointerMove(event) {
+    if (!pointerDrag) return;
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest('.task[data-id]');
+    if (
+      !target ||
+      !container.contains(target) ||
+      target === pointerDrag.row ||
+      target.dataset.parentId !== pointerDrag.row.dataset.parentId ||
+      target.closest('.task-section') !== pointerDrag.row.closest('.task-section')
+    )
+      return;
+    clearMarkers();
+    pointerDrag.row.dataset.orderDragging = 'true';
+    const rect = target.getBoundingClientRect();
+    pointerDrag.after = event.clientY > rect.top + rect.height / 2;
+    pointerDrag.target = target;
+    target.dataset.orderDrop = pointerDrag.after ? 'after' : 'before';
+    if (event.clientY < 80) window.scrollBy(0, -14);
+    else if (event.clientY > innerHeight - 100) window.scrollBy(0, 14);
+  }
+  function pointerUp() {
+    const current = pointerDrag;
+    pointerDrag = null;
+    if (!current) return;
+    clearMarkers();
+    if (!current.target) return;
+    run(async () => {
+      const state = await current.pending;
+      const { task, ids } = siblings(state, current.row.dataset.id, current.row);
+      const order = ids.filter((id) => id !== task.id),
+        index = order.indexOf(current.target.dataset.id);
+      if (index < 0) throw Error('The destination changed. Reload and try again.');
+      order.splice(index + (current.after ? 1 : 0), 0, task.id);
+      await commit(state, task, order);
+    });
+  }
+  function pointerCancel() {
+    pointerDrag = null;
+    clearMarkers();
+  }
+  container.addEventListener('pointerdown', pointerDown);
+  container.addEventListener('pointermove', pointerMove);
+  container.addEventListener('pointerup', pointerUp);
+  container.addEventListener('pointercancel', pointerCancel);
   configure();
   const observer = new MutationObserver(configure);
   observer.observe(container, { childList: true, subtree: true });
@@ -226,6 +294,10 @@ export function mountTaskOrdering({
     drag = null;
     clearMarkers();
     observer.disconnect();
+    container.removeEventListener('pointerdown', pointerDown);
+    container.removeEventListener('pointermove', pointerMove);
+    container.removeEventListener('pointerup', pointerUp);
+    container.removeEventListener('pointercancel', pointerCancel);
     desktop.removeEventListener('change', configure);
     container.removeEventListener('click', click);
     container.removeEventListener('dragstart', dragStart);

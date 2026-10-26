@@ -1,3 +1,10 @@
+#[path = "section_move_web.rs"]
+mod section_move_http;
+#[path = "sidebar_ui.rs"]
+mod sidebar_ui;
+#[path = "task_page.rs"]
+mod task_page;
+use sidebar_ui::{Sidebar, build_sidebar};
 #[path = "agent_features.rs"]
 pub(crate) mod agent_features;
 #[path = "agent_web.rs"]
@@ -10,6 +17,8 @@ mod browser_auth;
 mod discussion_http;
 #[path = "invitation_web.rs"]
 mod invitation_http;
+#[path = "jobs_web.rs"]
+mod jobs_http;
 #[path = "list_move_web.rs"]
 mod list_move_http;
 #[path = "navigation_web.rs"]
@@ -211,7 +220,6 @@ pub fn router(state: AppState) -> Router {
         .route("/logout", post(logout))
         .route("/capture", get(capture_page).post(capture_form))
         .route("/lists/{id}", get(page))
-        .route("/tasks/{id}", get(task_link))
         .route("/health", get(|| async { Json(json!({"status":"ok"})) }))
         .route("/ready", get(ready))
         .route("/api/v1/lists", get(lists))
@@ -253,6 +261,9 @@ pub fn router(state: AppState) -> Router {
         .merge(structured_search::routes())
         .merge(statistics_http::routes())
         .merge(assist_http::routes())
+        .merge(jobs_http::routes())
+        .merge(task_page::routes())
+        .merge(section_move_http::routes())
         .merge(taxonomy_http::routes())
         .merge(transfer_http::routes())
         .merge(discussion_http::routes())
@@ -422,15 +433,18 @@ async fn logout(State(s): State<AppState>, h: HeaderMap) -> Result<Response, Api
 #[derive(Template)]
 #[template(path = "list.html")]
 struct ListPage {
+    change_cursor: i64,
+    reference: String,
+    sidebar: Sidebar,
+    slug: String,
     lists: Vec<List>,
     list: List,
-    tasks: Vec<RenderedTask>,
-    favorites: Vec<crate::navigation::Favorite>,
+    groups: Vec<TaskGroup>,
+    task_count: usize,
     color: String,
     csrf: String,
     capture_key: String,
     account_id: String,
-    development: bool,
     can_write: bool,
 }
 struct RenderedTask {
@@ -501,39 +515,98 @@ fn rendered_tasks(db: &Store, actor: &str, list: &str) -> Result<Vec<RenderedTas
 #[derive(Template)]
 #[template(path = "tasks.html")]
 struct TaskRows {
-    tasks: Vec<RenderedTask>,
+    groups: Vec<TaskGroup>,
     can_write: bool,
+}
+struct TaskGroup {
+    progress: usize,
+    completed: usize,
+    total: usize,
+    id: String,
+    title: String,
+    slug: String,
+    description_html: String,
+    revision: i64,
+    tasks: Vec<RenderedTask>,
+}
+fn grouped_rows(db: &Store, actor: &str, list: &str) -> Result<(Vec<TaskGroup>, usize), Error> {
+    let tasks = rendered_tasks(db, actor, list)?;
+    let count = tasks.len();
+    let slugs = db.entity_slugs(actor)?;
+    let mut groups = vec![TaskGroup {
+        progress: 0,
+        completed: 0,
+        total: 0,
+        id: String::new(),
+        title: String::new(),
+        slug: String::new(),
+        description_html: String::new(),
+        revision: 0,
+        tasks: vec![],
+    }];
+    for section in db.sections(actor, list)? {
+        let description_html = crate::markdown::render(&section.description);
+        groups.push(TaskGroup {
+            progress: 0,
+            completed: 0,
+            total: 0,
+            slug: slugs
+                .sections
+                .get(&section.id)
+                .cloned()
+                .unwrap_or_else(|| section.title.clone()),
+            id: section.id,
+            title: section.title,
+            description_html,
+            revision: section.revision,
+            tasks: vec![],
+        });
+    }
+    let mut locations = std::collections::HashMap::<String, String>::new();
+    let mut q=db.conn.prepare("SELECT t.id,l.section_id FROM task_locations l JOIN tasks t ON t.id=l.task_id WHERE t.list_id=?1 AND t.deleted_at IS NULL")?;
+    for row in q.query_map([list], |r| {
+        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+    })? {
+        let (id, section) = row?;
+        locations.insert(id, section);
+    }
+    for task in tasks {
+        let section = locations.get(&task.id).cloned().or_else(|| {
+            task.parent_id
+                .as_ref()
+                .and_then(|p| locations.get(p).cloned())
+        });
+        if let Some(section) = &section {
+            locations.insert(task.id.clone(), section.clone());
+        }
+        let index = section
+            .and_then(|id| groups.iter().position(|g| g.id == id))
+            .unwrap_or(0);
+        groups[index].tasks.push(task);
+    }
+    for group in &mut groups {
+        let parents = group
+            .tasks
+            .iter()
+            .filter_map(|t| t.parent_id.clone())
+            .collect::<std::collections::HashSet<_>>();
+        let leaves = group
+            .tasks
+            .iter()
+            .filter(|t| !parents.contains(&t.id))
+            .collect::<Vec<_>>();
+        group.total = leaves.len();
+        group.completed = leaves.iter().filter(|t| t.complete).count();
+        group.progress = (group.completed * 100)
+            .checked_div(group.total)
+            .unwrap_or(0);
+    }
+    Ok((groups, count))
 }
 #[derive(Deserialize, Default)]
 struct ListQuery {
     task: Option<String>,
     section: Option<String>,
-}
-async fn task_link(
-    State(s): State<AppState>,
-    h: HeaderMap,
-    Path(id): Path<String>,
-) -> Result<Redirect, ApiError> {
-    let actor = match s.auth(&h, false) {
-        Ok(actor) => actor,
-        Err(_) if !h.contains_key(header::AUTHORIZATION) => {
-            let next: String = encode_query(&format!("/tasks/{id}"));
-            return Ok(Redirect::to(&format!("/signin?next={next}")));
-        }
-        Err(error) => return Err(error),
-    };
-    let task = s
-        .run(move |db| {
-            db.subtree(&actor, &id)?
-                .into_iter()
-                .find(|t| t.id == id || t.reference == id)
-                .ok_or(Error::NotFound)
-        })
-        .await?;
-    Ok(Redirect::to(&format!(
-        "/lists/{}?task={}",
-        task.list_id, task.id
-    )))
 }
 async fn page(
     State(s): State<AppState>,
@@ -554,11 +627,7 @@ async fn page(
                     .ok_or(Error::NotFound)
             })
             .await?;
-        if task.list_id != id {
-            return Ok(
-                Redirect::to(&format!("/lists/{}?task={}", task.list_id, task.id)).into_response(),
-            );
-        }
+        return Ok(Redirect::to(&format!("/tasks/{}", task.id)).into_response());
     }
     let _section = q.section;
     let account_id = actor.clone();
@@ -569,25 +638,47 @@ async fn page(
         "not_found",
         "List not found".into(),
     ))?;
-    let (tasks, can_write, favorites, color) = s
+    let sidebar_actor = actor.clone();
+    let sidebar_id = id.clone();
+    let sidebar_csrf = s.csrf_for(&h);
+    let sidebar = s
+        .run(move |db| build_sidebar(db, &sidebar_actor, &sidebar_id, sidebar_csrf))
+        .await?;
+    let slug = sidebar
+        .lists
+        .iter()
+        .find(|item| item.id == list.id)
+        .map(|item| item.slug.clone())
+        .unwrap_or_else(|| list.title.clone());
+    let (groups, task_count, can_write, color, change_cursor) = s
         .run(move |db| {
+            let (groups, count) = grouped_rows(db, &actor, &id)?;
             Ok((
-                rendered_tasks(db, &actor, &id)?,
+                groups,
+                count,
                 db.list_permission(&actor, &id)? >= 2,
-                db.favorites(&actor)?,
                 db.list_color(&actor, &id)?.unwrap_or_else(|| "blue".into()),
+                db.conn.query_row("SELECT COALESCE(MAX(h.seq),0) FROM history h JOIN actor_list_access a ON a.list_id=h.list_id WHERE a.actor_id=?1",[&actor],|r|r.get::<_,i64>(0))?,
             ))
         })
         .await?;
+    let reference_actor = account_id.clone();
+    let reference_list = list.id.clone();
+    let reference = s
+        .run(move |db| db.list_reference(&reference_actor, &reference_list))
+        .await?;
     let html = ListPage {
-        favorites,
+        change_cursor,
+        reference,
+        sidebar,
+        slug,
         color,
         lists,
         list,
-        tasks,
+        groups,
+        task_count,
         csrf: s.csrf_for(&h),
         account_id: account_id.clone(),
-        development: s.production.is_none(),
         can_write,
         capture_key: uuid::Uuid::new_v4().to_string(),
     }
@@ -641,15 +732,15 @@ async fn task_fragment(
     Path(id): Path<String>,
 ) -> Result<Html<String>, ApiError> {
     let actor = s.auth(&h, false)?;
-    let (tasks, can_write) = s
+    let (groups, can_write) = s
         .run(move |db| {
             Ok((
-                rendered_tasks(db, &actor, &id)?,
+                grouped_rows(db, &actor, &id)?.0,
                 db.list_permission(&actor, &id)? >= 2,
             ))
         })
         .await?;
-    Ok(Html(TaskRows { tasks, can_write }.render().map_err(
+    Ok(Html(TaskRows { groups, can_write }.render().map_err(
         |_| {
             ApiError(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -671,10 +762,18 @@ async fn tasks(
     let actor = s.auth(&h, false)?;
     Ok(Json(s.run(move |db| db.tasks(&actor, &id)).await?))
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CaptureAt {
+    list_id: String,
+    tasks: Vec<crate::core::NewTask>,
+    #[serde(default)]
+    section_id: Option<String>,
+}
 async fn capture(
     State(s): State<AppState>,
     h: HeaderMap,
-    Input(c): Input<Capture>,
+    Input(c): Input<CaptureAt>,
 ) -> Result<Json<Vec<Task>>, ApiError> {
     let actor = s.auth(&h, true)?;
     let key = h
@@ -687,7 +786,20 @@ async fn capture(
             "Idempotency-Key required (1–200 characters)".into(),
         ))?
         .to_owned();
-    Ok(Json(s.run(move |db| db.capture(&actor, &key, c)).await?))
+    Ok(Json(
+        s.run(move |db| {
+            db.capture_at(
+                &actor,
+                &key,
+                Capture {
+                    list_id: c.list_id,
+                    tasks: c.tasks,
+                },
+                c.section_id,
+            )
+        })
+        .await?,
+    ))
 }
 async fn update(
     State(s): State<AppState>,
@@ -1174,7 +1286,7 @@ async fn response_security(req: axum::extract::Request, next: axum::middleware::
     res.headers_mut()
         .entry("referrer-policy")
         .or_insert("same-origin".parse().unwrap());
-    res.headers_mut().insert("content-security-policy","default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'".parse().unwrap());
+    res.headers_mut().insert("content-security-policy","default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://www.gravatar.com https://gravatar.com https://secure.gravatar.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'".parse().unwrap());
     res
 }
 
@@ -1256,7 +1368,16 @@ async fn events(
                     for v in &changes {
                         cursor = cursor.max(v["seq"].as_i64().unwrap_or(cursor));
                     }
-                    json!({"cursor":cursor,"count":changes.len()})
+                    let count = changes
+                        .iter()
+                        .filter(|v| {
+                            list.as_ref().is_none_or(|id| {
+                                v["task"]["list_id"].as_str() == Some(id.as_str())
+                                    || v["source_list_id"].as_str() == Some(id.as_str())
+                            })
+                        })
+                        .count();
+                    json!({"cursor":cursor,"count":count})
                 }
                 Err(_) => json!({"resync":true}),
             };

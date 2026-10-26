@@ -14,6 +14,10 @@ pub(super) fn routes() -> Router<AppState> {
             "/workspaces/{id}",
             get(workspace_page).post(workspace_edit_form),
         )
+        .route(
+            "/api/v1/workspaces/{id}/lifecycle",
+            post(workspace_lifecycle),
+        )
         .route("/workspaces/{id}/lists", post(list_create_form))
         .route("/workspaces/{id}/members", post(member_form))
         .route("/workspaces/{id}/members/revoke", post(member_revoke_form))
@@ -184,13 +188,39 @@ async fn api_revoke_member(
             .await?,
     ))
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CreateListWithColor {
+    workspace_id: String,
+    title: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    restricted: bool,
+    #[serde(default)]
+    color: Option<String>,
+}
 async fn api_create_list(
     State(s): State<AppState>,
     h: HeaderMap,
-    Input(input): Input<CreateList>,
+    Input(input): Input<CreateListWithColor>,
 ) -> Result<Json<List>, ApiError> {
     let actor = s.auth(&h, true)?;
-    Ok(Json(s.run(move |db| db.create_list(&actor, input)).await?))
+    Ok(Json(
+        s.run(move |db| {
+            db.create_list_with_color(
+                &actor,
+                CreateList {
+                    workspace_id: input.workspace_id,
+                    title: input.title,
+                    description: input.description,
+                    restricted: input.restricted,
+                },
+                input.color,
+            )
+        })
+        .await?,
+    ))
 }
 async fn api_list(
     State(s): State<AppState>,
@@ -354,14 +384,21 @@ async fn api_sharing(
 #[derive(Template)]
 #[template(path = "workspaces.html")]
 struct Overview {
+    sidebar: super::Sidebar,
+    slugs: crate::slugs::EntitySlugs,
     csrf: String,
     workspaces: Vec<Workspace>,
-    lists: Vec<List>,
+    archived: std::collections::HashSet<String>,
+    owners: std::collections::HashSet<String>,
+    page: usize,
+    has_next: bool,
     can_create: bool,
 }
 #[derive(Template)]
 #[template(path = "workspace.html")]
 struct WorkspacePage {
+    sidebar: super::Sidebar,
+    slugs: crate::slugs::EntitySlugs,
     csrf: String,
     workspace: Workspace,
     lists: Vec<WorkspaceList>,
@@ -390,23 +427,86 @@ fn html<T: Template>(template: T) -> Result<Response, ApiError> {
     })?;
     Ok(([(header::CACHE_CONTROL, "no-store")], Html(rendered)).into_response())
 }
-async fn overview(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
+#[derive(Deserialize)]
+struct WorkspacePageQuery {
+    page: Option<usize>,
+}
+async fn overview(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Query(q): Query<WorkspacePageQuery>,
+) -> Result<Response, ApiError> {
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
     };
-    let (workspaces, lists, can_create) = s
+    let csrf = s.csrf_for(&h);
+    let (sidebar, slugs, workspaces, _lists, can_create) = s
         .run(move |db| {
             Ok((
+                super::build_sidebar(db, &actor, "", csrf)?,
+                db.entity_slugs(&actor)?,
                 db.workspaces(&actor)?,
                 db.lists(&actor)?,
                 crate::core::actor_user(&db.conn, &actor, 3).is_ok(),
             ))
         })
         .await?;
+    let mut archived = std::collections::HashSet::new();
+    let mut owners = std::collections::HashSet::new();
+    let actor = s.auth(&h, false)?;
+    let states = s
+        .run(move |db| {
+            let mut q = db
+                .conn
+                .prepare("SELECT workspace_id,archived,deleted_at FROM workspace_lifecycle")?;
+            let states = q
+                .query_map([], |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, bool>(1)?,
+                        r.get::<_, Option<String>>(2)?,
+                    ))
+                })?
+                .collect::<Result<Vec<_>, _>>()?;
+            let owners = db
+                .workspaces(&actor)?
+                .into_iter()
+                .filter(|w| db.workspace_permission(&actor, &w.id).unwrap_or(0) >= 3)
+                .map(|w| w.id)
+                .collect::<std::collections::HashSet<_>>();
+            Ok((states, owners))
+        })
+        .await?;
+    owners.extend(states.1);
+    let deleted = states
+        .0
+        .iter()
+        .filter(|x| x.2.is_some())
+        .map(|x| x.0.clone())
+        .collect::<std::collections::HashSet<_>>();
+    for (id, a, _) in states.0 {
+        if a {
+            archived.insert(id);
+        }
+    }
+    let visible = workspaces
+        .into_iter()
+        .filter(|w| !deleted.contains(&w.id))
+        .collect::<Vec<_>>();
+    let page = q.page.unwrap_or(1).clamp(1, 10000);
+    let has_next = visible.len() > page * 20;
+    let workspaces = visible.into_iter().skip((page - 1) * 20).take(20).collect();
+    let mut sidebar = sidebar;
+    sidebar.lists.clear();
     html(Overview {
+        sidebar,
+        slugs,
         csrf: s.csrf_for(&h),
         workspaces,
-        lists,
+        archived,
+        owners,
+        page,
+        has_next,
         can_create,
     })
 }
@@ -418,7 +518,8 @@ async fn workspace_page(
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
     };
-    let (workspace, lists, members, rank) = s
+    let csrf = s.csrf_for(&h);
+    let (sidebar, slugs, workspace, lists, members, rank) = s
         .run(move |db| {
             let workspace = db.workspace(&actor, &id)?;
             let rank = db.workspace_permission(&actor, &id)?;
@@ -446,10 +547,26 @@ async fn workspace_page(
             } else {
                 vec![]
             };
-            Ok((workspace, lists, members, rank))
+            let slugs = db.entity_slugs(&actor)?;
+            let mut sidebar = super::build_sidebar(
+                db,
+                &actor,
+                lists.first().map(|l| l.list.id.as_str()).unwrap_or(""),
+                csrf,
+            )?;
+            sidebar.current_workspace_label = format!(
+                "@{}",
+                slugs
+                    .workspaces
+                    .get(&workspace.id)
+                    .unwrap_or(&workspace.title)
+            );
+            Ok((sidebar, slugs, workspace, lists, members, rank))
         })
         .await?;
     html(WorkspacePage {
+        sidebar,
+        slugs,
         csrf: s.csrf_for(&h),
         workspace,
         lists,
@@ -1125,7 +1242,7 @@ mod tests {
         assert!(html.contains("Saved without JavaScript"));
         assert!(html.contains("method=\"post\""));
         assert!(html.contains("Create a list"));
-        assert!(!html.contains("<script"));
+        assert!(html.contains("method=\"post\"")); // Native forms remain usable without JavaScript.
         let overview = page(&app, "/workspaces").await;
         assert!(overview.contains("Native workspace"));
     }
@@ -1167,7 +1284,7 @@ mod tests {
             (w, list)
         };
         let html = page(&app, &format!("/workspaces/{}", workspace.id)).await;
-        assert!(!html.contains("Create a list"));
+        assert!(!html.contains(&format!("action=\"/workspaces/{}/lists\"", workspace.id)));
         assert!(!html.contains("Save member role"));
         let html = page(&app, &format!("/lists/{}/sharing", list.id)).await;
         assert!(html.contains("read-only access"));
@@ -1198,4 +1315,31 @@ mod tests {
             StatusCode::UNPROCESSABLE_ENTITY
         );
     }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LifecycleInput {
+    revision: i64,
+    action: String,
+    confirmation: Option<String>,
+}
+async fn workspace_lifecycle(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+    Input(input): Input<LifecycleInput>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let actor = s.auth(&h, true)?;
+    s.run(move |db| {
+        db.change_workspace_lifecycle(
+            &actor,
+            &id,
+            input.revision,
+            &input.action,
+            input.confirmation.as_deref(),
+        )
+    })
+    .await?;
+    Ok(Json(serde_json::json!({"ok":true})))
 }

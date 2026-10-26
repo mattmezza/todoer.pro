@@ -214,7 +214,15 @@ async fn statistics(
     Ok(Json(s.run(move |db| db.weekly_statistics(&a, &from)).await?).into_response())
 }
 fn page(title: &str, body: String, timezone: &str) -> Response {
-    Html(format!("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>{} · Todoer</title><link rel=\"stylesheet\" href=\"/assets/app.css\"><main><nav><a href=\"/\">Lists</a> · <a href=\"/today\">Today</a> · <a href=\"/upcoming\">Upcoming</a> · <a href=\"/recurring\">Recurring</a> · <a href=\"/statistics\">Weekly statistics</a> · <a href=\"/settings\">Settings</a> · <a href=\"/notifications\">Notifications</a></nav><h1>{}</h1><p>Timezone: {}</p>{}</main></html>",esc(title),esc(title),esc(timezone),body)).into_response()
+    Html(format!("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>{} · Todoer</title><link rel=\"stylesheet\" href=\"/assets/app.css\"><body class=\"planning-page\"><main><nav><a href=\"/\">Lists</a> · <a href=\"/today\">Today</a> · <a href=\"/upcoming\">Upcoming</a> · <a href=\"/recurring\">Recurring</a> · <a href=\"/statistics\">Weekly statistics</a> · <a href=\"/settings\">Settings</a> · <a href=\"/notifications\">Notifications</a></nav><h1>{}</h1><p>Timezone: {}</p>{}</main></body></html>",esc(title),esc(title),esc(timezone),body)).into_response()
+}
+#[derive(Template)]
+#[template(path = "planning.html")]
+struct PlanningPage {
+    sidebar: super::Sidebar,
+    title: String,
+    timezone: String,
+    body: String,
 }
 async fn calendar(s: AppState, h: HeaderMap, upcoming: bool) -> Result<Response, ApiError> {
     let a = s.auth(&h, false)?;
@@ -235,14 +243,15 @@ async fn calendar(s: AppState, h: HeaderMap, upcoming: bool) -> Result<Response,
     } else {
         today
     };
+    let sidebar_actor = a.clone();
     let rows = s
         .run(move |db| db.planning_tasks(&a, &from.to_string(), &to.to_string()))
         .await?;
-    let mut body = String::from("<ul>");
+    let mut body = String::new();
     for row in rows {
         body.push_str(&format!(
-            "<li><a href=\"/lists/{}\">{}</a> <small>{}</small>{}</li>",
-            esc(&row.task.list_id),
+            "<article class=\"task planning-task\"><a class=\"planning-completion\" href=\"/tasks/{}\" aria-label=\"Open task\"></a><div class=\"task-content\"><a class=\"task-title\" href=\"/tasks/{0}\">{}</a><p class=\"muted\">{}</p>{}</div></article>",
+            esc(&row.task.id),
             esc(&row.task.title),
             esc(&row.dates.join(", ")),
             row.schedule
@@ -252,16 +261,23 @@ async fn calendar(s: AppState, h: HeaderMap, upcoming: bool) -> Result<Response,
                 .unwrap_or_default()
         ));
     }
-    body.push_str("</ul><p>Date-only values stay on their entered date. Timed values are shown in your selected timezone.</p>");
-    Ok(page(
-        if upcoming {
-            "Upcoming · next 14 days"
-        } else {
-            "Today and overdue · last year"
-        },
+    if body.is_empty() {
+        body.push_str("<p class=\"muted\">Nothing planned here yet.</p>");
+    }
+    let csrf = s.csrf_for(&h);
+    let sidebar = s
+        .run(move |db| super::build_sidebar(db, &sidebar_actor, "", csrf))
+        .await?;
+    let template = PlanningPage {
+        sidebar,
+        title: if upcoming { "Upcoming" } else { "Today" }.into(),
+        timezone: prefs.timezone,
         body,
-        &prefs.timezone,
-    ))
+    };
+    let rendered = template
+        .render()
+        .map_err(|_| Error::Invalid("Could not render planning page".into()))?;
+    Ok(Html(rendered).into_response())
 }
 async fn today(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
     calendar(s, h, false).await
@@ -353,7 +369,7 @@ async fn notification_page(State(s): State<AppState>, h: HeaderMap) -> Result<Re
         ));
     }
     let body = format!(
-        "<form method=\"post\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><label>IANA timezone <input name=\"timezone\" value=\"{}\" required></label><p><label><input type=\"checkbox\" name=\"email_opt_in\" {}>Email reminders and digests to my verified sign-in email</label></p><label>Quiet hours start <input type=\"time\" name=\"quiet_start\" value=\"{}\"></label><label>Quiet hours end <input type=\"time\" name=\"quiet_end\" value=\"{}\"></label><p>Equal quiet-hour times mute all hours. Leave both blank to disable quiet hours.</p><p><label><input type=\"checkbox\" name=\"daily_opt_in\" {}>Daily email summary</label><label><input type=\"checkbox\" name=\"push_daily_opt_in\" {}>Daily push summary</label><input type=\"time\" name=\"daily_time\" value=\"{}\"></p><p><label><input type=\"checkbox\" name=\"weekly_opt_in\" {}>Weekly email summary</label><label><input type=\"checkbox\" name=\"push_weekly_opt_in\" {}>Weekly push summary</label><label>Weekday (Monday=1)<input type=\"number\" name=\"weekly_day\" min=\"1\" max=\"7\" value=\"{}\"></label><input type=\"time\" name=\"weekly_time\" value=\"{}\"></p><fieldset><legend>Mute notifications from these lists</legend>{}</fieldset><button>Save notification preferences</button></form><p>Email requires configured SMTP. Push requires configured VAPID and an enabled, signed-in device. <a href=\"/settings/devices\">Manage push devices</a>. Email and push opt-ins are independent; both use the times above.</p>",
+        "<form method=\"post\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><label>IANA timezone <input name=\"timezone\" value=\"{}\" required></label><p><label><input type=\"checkbox\" name=\"email_opt_in\" {}>Email reminders and digests to my verified sign-in email</label></p><label>Quiet hours start <input type=\"time\" name=\"quiet_start\" value=\"{}\"></label><label>Quiet hours end <input type=\"time\" name=\"quiet_end\" value=\"{}\"></label><p>Equal quiet-hour times mute all hours. Leave both blank to disable quiet hours.</p><p><label><input type=\"checkbox\" name=\"daily_opt_in\" {}>Daily email summary</label><label><input type=\"checkbox\" name=\"push_daily_opt_in\" {}>Daily push summary</label><input type=\"time\" name=\"daily_time\" value=\"{}\"></p><p><label><input type=\"checkbox\" name=\"weekly_opt_in\" {}>Weekly email summary</label><label><input type=\"checkbox\" name=\"push_weekly_opt_in\" {}>Weekly push summary</label><label>Weekday (Monday=1)<input type=\"number\" name=\"weekly_day\" min=\"1\" max=\"7\" value=\"{}\"></label><input type=\"time\" name=\"weekly_time\" value=\"{}\"></p><fieldset><legend>Mute notifications from these lists</legend>{}</fieldset><button class=\"primary\">Save notification preferences</button></form><p>Email requires configured SMTP. Push requires configured VAPID and an enabled, signed-in device. <a href=\"/settings/devices\">Manage push devices</a>. Email and push opt-ins are independent; both use the times above.</p>",
         esc(&s.csrf_for(&h)),
         esc(&prefs.timezone),
         if prefs.email_opt_in { "checked" } else { "" },

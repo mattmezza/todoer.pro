@@ -1,17 +1,17 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Workspaces · Todoer</title><link rel="stylesheet" href="/assets/app.css"></head>
+<head><meta name="account-id" content="{{ sidebar.account_id }}"><meta name="csrf-token" content="{{ csrf }}"><script type="module" src="/assets/site.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Workspaces · Todoer</title><link rel="stylesheet" href="/assets/app.css"></head>
 <body class="workspace-management">
 <a class="skip" href="#main">Skip to workspaces</a>
-<header class="mobile-header"><a class="brand" href="/">todoer<span>.pro</span></a><a class="nav-link" href="/workspaces">Workspaces</a><a class="nav-link" href="/capture" aria-label="Add a task">+ Add</a></header>
-<aside aria-label="Navigation"><a class="brand" href="/">todoer<span>.pro</span></a><nav class="review-nav"><a class="nav-link" href="/">Tasks</a><a class="nav-link active" href="/workspaces">Workspaces</a><a class="nav-link" href="/search">Search</a><a class="nav-link" href="/activity">Activity</a></nav></aside>
+{% include "mobile-nav.html" %}
+{% include "sidebar.html" %}
 <main id="main" class="workspace-main">
-<header class="workspace-header"><div class="breadcrumbs"><a href="/">Todoer</a><span>/</span><span>Workspaces</span></div><h1>Workspaces</h1><p class="workspace-intro muted">Separate your projects, work and personal lists.</p></header>
+<header class="workspace-header"><h1>Workspaces</h1><p class="workspace-intro muted">Separate your projects, work and personal lists.</p></header>
 <section aria-label="Your workspaces" class="workspace-rows">
 {% for workspace in workspaces %}
-<article class="workspace-row">
-<div class="workspace-row-content"><h2><a class="workspace-row-title font-mono inline-flex min-h-11 items-center" href="/workspaces/{{ workspace.id }}"><span aria-hidden="true">@</span>{{ workspace.title }}</a></h2>{% if !workspace.description.is_empty() %}<div class="workspace-row-description markdown">{{ workspace.description|markdown|safe }}</div>{% endif %}</div>
-<a class="nav-link min-h-11" href="/workspaces/{{ workspace.id }}" aria-label="Open {{ workspace.title }}">Open <span aria-hidden="true">↗</span></a>
+<article class="workspace-row" data-workspace="{{ workspace.id }}" data-title="{{ workspace.title }}" data-revision="{{ workspace.revision }}">
+<div class="workspace-row-content"><h2><a class="workspace-row-title font-mono inline-flex min-h-11 items-center" href="/workspaces/{{ workspace.id }}" aria-label="{{ workspace.title }}"><span aria-hidden="true">@</span>{{ slugs.workspaces.get(workspace.id).unwrap_or(workspace.title) }}</a></h2>{% if !workspace.description.is_empty() %}<div class="workspace-row-description markdown">{{ workspace.description|markdown|safe }}</div>{% endif %}</div>
+<div class="workspace-row-actions">{% if archived.contains(workspace.id) %}<span class="muted">Archived</span>{% endif %}{% if owners.contains(workspace.id) %}<button type="button" data-workspace-action="{% if archived.contains(workspace.id) %}restore{% else %}archive{% endif %}">{% if archived.contains(workspace.id) %}Restore{% else %}Archive{% endif %}</button>{% if archived.contains(workspace.id) %}<button type="button" class="danger" data-workspace-action="delete">Delete…</button>{% endif %}{% endif %}</div>
 </article>
 {% endfor %}
 {% if workspaces.is_empty() %}<p class="muted">You have no workspace memberships. Directly shared lists remain available below.</p>{% endif %}
@@ -21,7 +21,5 @@
 <form class="workspace-form grid gap-3" method="post" action="/workspaces"><input type="hidden" name="csrf" value="{{ csrf }}"><label for="workspace-title">Name</label><input id="workspace-title" name="title" required maxlength="500" autocomplete="off" placeholder="Workspace name"><label for="workspace-description">Description</label><textarea id="workspace-description" name="description" rows="3" maxlength="100000" placeholder="What belongs here?"></textarea><button class="primary justify-self-start" type="submit">Create workspace</button></form>
 <p class="muted">You become its first owner. Each list can inherit workspace access or stay restricted.</p></section>
 {% endif %}
-<section class="workspace-section" aria-labelledby="lists-heading"><h2 id="lists-heading">All accessible lists</h2><p class="muted">Your workspace lists and direct shares, including lists outside a workspace.</p>
-<div class="workspace-rows">{% for list in lists %}<article class="workspace-row"><a class="workspace-row-title font-mono inline-flex min-h-11 items-center" href="/lists/{{ list.id }}">#{{ list.title }}</a><a class="nav-link min-h-11" href="/lists/{{ list.id }}/sharing">Settings</a></article>{% endfor %}</div>
-{% if lists.is_empty() %}<p class="muted">No lists are available yet. Create a workspace, then add a list.</p>{% endif %}</section>
-</main></body></html>
+<nav aria-label="Workspace pages" class="pagination">{% if page > 1 %}<a href="?page={{ page - 1 }}">Previous</a>{% endif %}<span>Page {{ page }}</span>{% if has_next %}<a href="?page={{ page + 1 }}">Next</a>{% endif %}</nav>
+</main><script type="module" src="/assets/workspaces.js"></script>{% include "list-create-modal.html" %}</body></html>
