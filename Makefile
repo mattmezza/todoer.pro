@@ -65,3 +65,7 @@ rust-backup: ## verified new local backup; pass source=... destination=... (neve
 	python3 scripts/rebuild-backup.py backup "$(source)" "$(destination)"
 rust-restore: ## restore and verify into a new path; pass source=... destination=...
 	python3 scripts/rebuild-backup.py restore "$(source)" "$(destination)"
+
+.PHONY: rust-replication-check
+rust-replication-check: ## real isolated Litestream/S3 restore; pass litestream=/absolute/path
+	python3 scripts/rebuild-litestream-check.py --litestream "$(litestream)"
