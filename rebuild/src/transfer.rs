@@ -80,6 +80,8 @@ const BUSINESS: &[&str] = &[
     "notification_preferences",
     "favorites",
     "agent_destination_preferences",
+    "stats_observation_lists",
+    "stats_overdue_items",
     "reference_sources",
     "reference_edges",
     "transfer_sources",
@@ -357,6 +359,36 @@ impl Store {
                 ),
             );
         }
+        tables.insert(
+            "stats_observation_lists".into(),
+            selected(
+                rows(
+                    &self.conn,
+                    "stats_observation_lists",
+                    "WHERE user_id=?1",
+                    &[&user],
+                )?,
+                "list_id",
+                &list_ids,
+            ),
+        );
+        tables.insert(
+            "stats_overdue_items".into(),
+            selected(
+                selected(
+                    rows(
+                        &self.conn,
+                        "stats_overdue_items",
+                        "WHERE user_id=?1",
+                        &[&user],
+                    )?,
+                    "list_id",
+                    &list_ids,
+                ),
+                "task_id",
+                &task_ids,
+            ),
+        );
         let mut archives = Vec::new();
         for row in rows(&self.conn, "transfer_legacy_records", "", &[])? {
             let kind = row["destination_table"].as_str().unwrap_or("");
@@ -1956,6 +1988,71 @@ mod tests {
                 .unwrap();
         }
         (path.clone(), read_legacy(&path).unwrap())
+    }
+    #[test]
+    fn account_export_preserves_empty_workspaces_preferences_and_real_observations() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let empty = db
+            .create_workspace(
+                "dev",
+                crate::workspace::WorkspaceInput {
+                    title: "Empty workspace".into(),
+                    description: "Preserve me".into(),
+                },
+            )
+            .unwrap();
+        db.set_favorite(
+            "dev",
+            crate::navigation::FavoriteInput {
+                kind: "workspace".into(),
+                id: empty.id.clone(),
+                favorite: true,
+            },
+        )
+        .unwrap();
+        db.set_destination_preference("dev", "inbox", "inbox")
+            .unwrap();
+        db.record_stats_observations(chrono::Utc::now().timestamp())
+            .unwrap();
+        let bundle = db.export_bundle("dev", ExportScope::Account).unwrap();
+        assert!(
+            bundle.tables["workspaces"]
+                .iter()
+                .any(|w| w["id"] == empty.id)
+        );
+        assert_eq!(bundle.tables["favorites"].len(), 1);
+        assert_eq!(bundle.tables["agent_destination_preferences"].len(), 1);
+        assert!(!bundle.tables["stats_observation_lists"].is_empty());
+        let mut target = Store::memory().unwrap();
+        target
+            .conn
+            .execute(
+                "INSERT INTO users(id,name) VALUES('restored','Restored synthetic user')",
+                [],
+            )
+            .unwrap();
+        let mapping = IdentityMap {
+            users: std::collections::BTreeMap::from([("dev".into(), "restored".into())]),
+        };
+        import_bundle(&mut target, &bundle, &mapping, true).unwrap();
+        assert_eq!(target.favorites("restored").unwrap()[0].id, empty.id);
+        assert_eq!(
+            target.destination_preferences("restored").unwrap()[0].key,
+            "inbox"
+        );
+        let observations: i64 = target
+            .conn
+            .query_row(
+                "SELECT count(*) FROM stats_observation_lists WHERE user_id='restored'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            observations as usize,
+            bundle.tables["stats_observation_lists"].len()
+        );
     }
     #[test]
     fn exports_filter_inaccessible_tasks_before_rendering() {
