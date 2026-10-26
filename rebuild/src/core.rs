@@ -238,6 +238,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (20, include_str!("../migrations/020_subtree.sql")),
     (21, include_str!("../migrations/021_push_digests.sql")),
     (22, include_str!("../migrations/022_slugs.sql")),
+    (
+        23,
+        include_str!("../migrations/023_workspace_lifecycle.sql"),
+    ),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {

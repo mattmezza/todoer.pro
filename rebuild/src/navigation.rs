@@ -17,6 +17,42 @@ pub struct FavoriteInput {
     pub favorite: bool,
 }
 impl Store {
+    pub fn list_reference(&self, actor: &str, id: &str) -> Result<String, Error> {
+        access_rank(&self.conn, actor, id, 1)?;
+        if let Some(reference) = self
+            .conn
+            .query_row(
+                "SELECT reference FROM list_references WHERE list_id=?1",
+                [id],
+                |r| r.get(0),
+            )
+            .optional()?
+        {
+            return Ok(reference);
+        }
+        // Persist once, retry on a short-reference collision; names/moves never alter it.
+        loop {
+            let reference = uuid::Uuid::new_v4().simple().to_string()[..7].to_string();
+            if self.conn.execute(
+                "INSERT OR IGNORE INTO list_references(list_id,reference) VALUES(?1,?2)",
+                params![id, reference],
+            )? == 1
+            {
+                return Ok(reference);
+            }
+            if let Some(reference) = self
+                .conn
+                .query_row(
+                    "SELECT reference FROM list_references WHERE list_id=?1",
+                    [id],
+                    |r| r.get(0),
+                )
+                .optional()?
+            {
+                return Ok(reference);
+            }
+        }
+    }
     pub fn favorites(&self, actor: &str) -> Result<Vec<Favorite>, Error> {
         let (user, _) = actor_identity(&self.conn, actor)?;
         let mut statement=self.conn.prepare("SELECT f.target_kind,f.target_id,CASE f.target_kind WHEN 'list' THEN l.title ELSE w.title END FROM favorites f LEFT JOIN lists l ON f.target_kind='list' AND l.id=f.target_id LEFT JOIN workspaces w ON f.target_kind='workspace' AND w.id=f.target_id WHERE f.user_id=?1 AND (f.target_kind='list' AND EXISTS(SELECT 1 FROM actor_list_access a WHERE a.actor_id=?2 AND a.list_id=f.target_id AND a.rank>=1) OR f.target_kind='workspace' AND EXISTS(SELECT 1 FROM actor_workspace_access a WHERE a.actor_id=?2 AND a.workspace_id=f.target_id AND a.rank>=1)) ORDER BY f.created_at,f.target_kind,f.target_id")?;
@@ -70,7 +106,11 @@ impl Store {
     pub fn list_color(&self, actor: &str, id: &str) -> Result<Option<String>, Error> {
         access_rank(&self.conn, actor, id, 1)?;
         self.conn
-            .query_row("SELECT color FROM lists WHERE id=?1", [id], |r| r.get(0))
+            .query_row(
+                "SELECT COALESCE(color_hex,color) FROM lists WHERE id=?1",
+                [id],
+                |r| r.get(0),
+            )
             .optional()?
             .ok_or(Error::NotFound)
     }
@@ -83,13 +123,16 @@ impl Store {
     ) -> Result<crate::core::List, Error> {
         if color.as_ref().is_some_and(|c| {
             !["blue", "green", "amber", "red", "violet", "pink", "gray"].contains(&c.as_str())
+                && !(c.len() == 7
+                    && c.starts_with('#')
+                    && c[1..].bytes().all(|b| b.is_ascii_hexdigit()))
         }) {
             return Err(Error::Invalid("Unknown list color".into()));
         }
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         access_rank(&tx, actor, id, 2)?;
         if tx.execute(
-            "UPDATE lists SET color=?1,revision=revision+1 WHERE id=?2 AND revision=?3",
+            "UPDATE lists SET color=CASE WHEN substr(?1,1,1)='#' THEN NULL ELSE ?1 END,color_hex=CASE WHEN substr(?1,1,1)='#' THEN ?1 ELSE NULL END,revision=revision+1 WHERE id=?2 AND revision=?3",
             params![color, id, revision],
         )? != 1
         {
