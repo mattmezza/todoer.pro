@@ -143,7 +143,7 @@ document.addEventListener('click', (event) => {
     event.preventDefault();
     document.querySelector('.account-menu')?.removeAttribute('open');
     const form = listDialog.querySelector('form');
-    if (!form.elements.workspace_id.options.length) {
+    if (!form.elements.workspace_id.value) {
       location.assign('/workspaces');
       return;
     }

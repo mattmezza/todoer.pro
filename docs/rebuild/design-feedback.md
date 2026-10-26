@@ -70,3 +70,28 @@ also needs the final OpenAPI/CLI/MCP parity review. Deleted workspace data is
 retained in owner account exports and database recovery; a dedicated in-app
 workspace-trash recovery screen remains unfinished. No production cutover,
 permanent purge, push, or deployment was performed.
+
+Task-detail follow-up: contextual actions now use a fixed icon column with a
+10px gap; reference/permalink confirmations use a temporary bottom toast.
+Empty checklist progress is omitted. The subtask trigger hides while its form
+is open and returns on Cancel/Escape. Comment composition has a shared aligned
+action row and grows with its content, including restored drafts. Deferred live
+discussion refresh stays silent while drafts are active, preserving typed text.
+The move dialog uses the body typeface, a top-right close control and spaced
+icon/button labels. Access review and revision checks remain in place.
+
+The new-list modal now takes the active workspace as a hidden destination;
+without a workspace context it navigates to workspace management. It presents
+a compact native colour picker next to the list name, 16px field text and
+labels, and a plain action row without the footer separator. Compact creation
+and move dialogs override the legacy full-screen mobile dialog height.
+
+Follow-up verification: native build passed; the new composer/context/modal
+regression passed in Chromium and Firefox against an isolated database copy
+(`.local/rebuild/task-polish-browser.log`, 2 tests). Additional read-only checks
+at 390px and 1440px exercised both browsers, subtask cancel, comment autogrowth
+and Escape, contextual icons, and the move dialog with no JavaScript errors.
+Phone screenshots of move and list creation were visually reviewed. Evidence
+is under `.local/rebuild/task-polish-*` and `list-dialog-*` (ignored). This is
+viewport simulation, not physical-device verification. The normal local 8092
+server was rebuilt and restarted; production and original data were untouched.

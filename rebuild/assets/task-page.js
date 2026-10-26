@@ -109,6 +109,15 @@ if (root) {
     const target = get('[data-task-notice]');
     target.textContent = message;
     target.classList.toggle('error', error);
+    if (!error && /copied\.$/.test(message)) {
+      target.classList.add('copy-toast');
+      setTimeout(() => {
+        if (target.textContent === message) {
+          target.textContent = '';
+          target.classList.remove('copy-toast');
+        }
+      }, 2500);
+    } else target.classList.remove('copy-toast');
   }
   function read(key) {
     try {
@@ -367,7 +376,7 @@ if (root) {
       ? nextCursor
         ? `${[...children.values()].filter((item) => item.complete).length}/${children.size} loaded items complete; load remaining items for leaf progress`
         : `${counts[0]}/${counts[1]} leaf items complete`
-      : 'No checklist items yet';
+      : '';
     get('[data-load-more]').hidden = !nextCursor;
   }
   async function loadChildren(cursor = null) {
@@ -674,6 +683,11 @@ if (root) {
     };
     store(childKey, childDraft);
   }
+  get('[data-child-cancel]').addEventListener('click', () => {
+    rememberChild();
+    get('[data-child-composer]').open = false;
+    get('[data-child-composer] > summary').focus();
+  });
   childForm.addEventListener('input', rememberChild);
   childForm.addEventListener('submit', async (event) => {
     event.preventDefault();
