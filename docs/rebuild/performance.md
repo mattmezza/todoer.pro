@@ -44,6 +44,18 @@ test ten_thousand_tasks_with_descriptions_and_nested_subtrees ... ok
 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.18s
 ```
 
-`cargo test --manifest-path rebuild/Cargo.toml --lib` also passed all 15 tests, including permission, subtree completion/move, soft deletion/restoration, and migration behavior.
+At the initial performance increment, `cargo test --manifest-path rebuild/Cargo.toml --lib` also passed its then-current 15 tests, including permission, subtree completion/move, soft deletion/restoration, and migration behavior.
 
-This does **not** establish full performance acceptance. `Store::tasks()` materializes the entire list, and the current UI does not virtualize that list. The server shares one SQLite connection behind a mutex, serializing core operations; concurrent request behavior and contention are unmeasured. This fixture covers five levels but not adversarial depth, giant sibling sets, many lists, large text bodies, attachment bytes, or comments (comments are not yet in the rebuild schema). It does not measure process memory, release builds, persistent WAL/checkpoint behavior, backup/restore, import performance, browser layout, mobile devices, or end-to-end latency. Future acceptance requires those separately, with explicit product latency and memory budgets.
+This does **not** establish full performance acceptance. `Store::tasks()` materializes the entire list, and the current UI does not virtualize that list. The server shares one SQLite connection behind a mutex, serializing core operations; concurrent request behavior and contention are unmeasured. This fixture covers five levels but not adversarial depth, giant sibling sets, many lists, large text bodies, attachment bytes, or comment workloads. Comments and attachments were added to the schema after these measurements; their presence does not make this earlier fixture a measurement of those features. It does not measure process memory, release builds, persistent WAL/checkpoint behavior, backup/restore, import performance, browser layout, mobile devices, or end-to-end latency. Future acceptance requires those separately, with explicit product latency and memory budgets.
+
+## Scope after later integration
+
+The output above is a historical 2026-10-26 before/after diagnostic, not a fresh
+benchmark of the expanded application. Later code adds bounded projected subtree
+reads and migration 020 child-order/history-watermark indexes. Those are distinct
+from this original `Store::subtree`/`tasks_parent` correction; the original timings
+must not be attributed to the later indexes. Authentication, comments, files,
+structured multi-entity search, recurrence, statistics and assistance need their
+own representative workloads. No additional performance run was made during the
+runbook correction. The serialized-connection, full-list rendering and unmeasured
+concurrency/memory/persistent-storage limits above remain acceptance work.
