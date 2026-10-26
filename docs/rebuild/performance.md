@@ -138,3 +138,58 @@ presented as an acceptable mobile interaction. Browser memory, DOM/layout time,
 release profile and high concurrent load remain separate acceptance measurements.
 These results establish reproducible correctness and practical local limits, not
 production latency or memory SLOs.
+
+### Optional actual Chromium phone probe
+
+The harness now snapshots the supplied executable into its private fixture output
+before starting any process, so a concurrent rebuild cannot change the binary used
+for the restart phase. `--profile debug|release` records the caller's build choice;
+it does not infer optimization from a filename. Optional `--browser` invokes
+`scripts/rebuild-http-performance-browser.cjs` with the repository's installed
+Playwright Chromium. Install the repository Node dependencies and Playwright
+Chromium first; no browser is downloaded by this harness.
+
+```sh
+python3 scripts/rebuild-http-performance.py \
+  --binary target/debug/todoer-server --profile debug --repetitions 3 --browser \
+  --output .local/rebuild/http-performance-phone-20261026
+```
+
+This independent completed run used debug binary SHA-256
+`6bfcdde3f611f476ae6f192acd8ba1a52e0cd8c798945e5336b42d286d473512`,
+Chromium 141.0.7390.37, a 390×844 phone viewport, mobile/touch emulation and dark
+mode. Service workers were blocked to measure the running server rather than an
+offline cache. It uses a fresh cookie-authenticated browser, actual JS execution,
+actual DOM/layout, two animation frames after application-ready, and viewport
+screenshots saved with the synthetic output. Browser navigation samples are one
+per list; these are not percentiles or repeatable SLO estimates.
+
+| Browser measurement | 100-task list | 1,000-task stress list |
+| --- | ---: | ---: |
+| Actual task rows | 100 | 1,000 |
+| DOM elements | 2,026 | 16,426 |
+| Navigation response end, ms | 128.7 | 1,322.5 |
+| DOMContentLoaded end, ms | 263.8 | 2,003.3 |
+| Application ready plus two frames, ms | 364.401 | 2,229.713 |
+| Document/viewport width, px | 390 / 390 | 390 / 390 |
+
+Both lists passed overflow checks and actual task menu/open-editor/close-editor
+interactions. The stress list also passed complete/reopen actions with successful
+HTTP responses and expected UI state (296.356 ms combined in this run). There
+were zero uncaught JavaScript errors. Menu/editor action timings include
+Playwright actionability waits and API-driven dialog content; they are recorded
+in JSON as diagnostics rather than treated as direct input-latency measurements.
+The browser's optional `performance.memory` counter is reported only as a raw
+compatibility field: its quantized value is **not** a measurement of total
+browser/process memory and is not used for acceptance.
+
+This run repeated HTTP/CAS/WAL/restart checks successfully. In it the human won
+the CAS race (200/409, revision 2), confirming neither winner is assumed. The
+three-sample debug structured-prefix median was 1,350.969 ms and the cursor median
+1,417.707 ms; the stress HTML remained 2,047,878 bytes. Variation from the earlier
+seven-sample run reinforces why these measurements are diagnostics rather than
+comparative production claims. The browser result makes the unvirtualized large
+list cost visible: roughly 2.2 seconds to ready with over 16,000 elements on this
+development machine. Emulated viewport/touch does not emulate a physical phone's
+CPU, memory, battery or network. No CPU throttling, real mobile hardware, release
+profile or production TLS measurement is claimed here.
