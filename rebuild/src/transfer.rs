@@ -1567,6 +1567,11 @@ pub async fn export_zip(
     ] {
         for row in data(&bundle, table) {
             let id = string(&row, "id")?;
+            if table == "legacy_attachment_refs"
+                && data(&bundle, "attachments").iter().any(|a| a["id"] == id)
+            {
+                continue;
+            }
             let canonical = uuid::Uuid::parse_str(id)
                 .map_err(|_| invalid("attachment ID is not a safe UUID"))?
                 .to_string();
@@ -1680,6 +1685,15 @@ pub fn verify_zip(path: &Path) -> Result<ZipManifest> {
     if manifest.version != 1 || manifest.format != "todoer-zip-manifest" {
         return Err(invalid("unsupported ZIP manifest"));
     }
+    if manifest.entries.len() > 10000
+        || manifest
+            .entries
+            .iter()
+            .try_fold(0u64, |sum, e| sum.checked_add(e.size))
+            .is_none_or(|sum| sum > 512 * 1024 * 1024)
+    {
+        return Err(invalid("archive exceeds total restore bounds"));
+    }
     let mut seen = BTreeSet::new();
     for entry in &manifest.entries {
         if entry.path.starts_with('/')
@@ -1714,6 +1728,188 @@ pub fn verify_zip(path: &Path) -> Result<ZipManifest> {
         return Err(invalid("ZIP contains undeclared entries"));
     }
     Ok(manifest)
+}
+/// Fully validated archive metadata and immutable upload plans. No object keys
+/// supplied by an archive are used as destination storage paths.
+fn zip_restore_plan(
+    path: &Path,
+) -> Result<(ExportBundle, Vec<(String, crate::discussion::UploadIntent)>)> {
+    let manifest = verify_zip(path)?;
+    let mut archive =
+        zip::ZipArchive::new(std::fs::File::open(path)?).map_err(|_| invalid("invalid ZIP"))?;
+    let mut business = Vec::new();
+    archive
+        .by_name("business.json")
+        .map_err(|_| invalid("missing business JSON"))?
+        .take(100 * 1024 * 1024 + 1)
+        .read_to_end(&mut business)?;
+    if business.len() > 100 * 1024 * 1024 {
+        return Err(invalid("business JSON too large"));
+    }
+    let mut bundle: ExportBundle =
+        serde_json::from_slice(&business).map_err(|_| invalid("invalid business JSON"))?;
+    let namespace = hash(&json!(&bundle));
+    let mut plans = Vec::new();
+    let mut expected = BTreeSet::from(["business.json".to_string()]);
+    for (table, prefix) in [
+        ("attachments", "attachments"),
+        ("legacy_attachment_refs", "legacy-attachments"),
+    ] {
+        for mut row in data(&bundle, table) {
+            let id = string(&row, "id")?.to_owned();
+            if table == "legacy_attachment_refs"
+                && let Some(native) = data(&bundle, "attachments")
+                    .into_iter()
+                    .find(|a| a["id"] == id)
+            {
+                // Legacy metadata remains an archive after promotion, while the
+                // single native object supplies the bytes on subsequent exports.
+                if native["task_id"] != row["task_id"] || native["size"] != row["size"] {
+                    return Err(invalid("legacy/native attachment metadata mismatch"));
+                }
+                continue;
+            }
+            if uuid::Uuid::parse_str(&id)
+                .map_err(|_| invalid("invalid attachment UUID"))?
+                .to_string()
+                != id
+            {
+                return Err(invalid("noncanonical attachment UUID"));
+            }
+            let entry_path = format!("{prefix}/{id}.bin");
+            if !expected.insert(entry_path.clone()) {
+                return Err(invalid("duplicate attachment"));
+            }
+            let entry = manifest
+                .entries
+                .iter()
+                .find(|e| e.path == entry_path)
+                .ok_or_else(|| invalid("attachment bytes missing"))?;
+            if entry.size > crate::discussion::MAX_ATTACHMENT_BYTES
+                || row["size"].as_u64() != Some(entry.size)
+            {
+                return Err(invalid("attachment size mismatch or limit exceeded"));
+            }
+            if table == "attachments" && row["sha256"] != entry.sha256 {
+                return Err(invalid("attachment digest differs from metadata"));
+            }
+            let digest = Sha256::digest(format!("{namespace}:{id}"));
+            let mut uuid_bytes = [0u8; 16];
+            uuid_bytes.copy_from_slice(&digest[..16]);
+            uuid_bytes[6] = (uuid_bytes[6] & 15) | 64;
+            uuid_bytes[8] = (uuid_bytes[8] & 63) | 128;
+            let intent_id = if table == "attachments" {
+                string(&row, "intent_id")?.to_owned()
+            } else {
+                uuid::Uuid::from_bytes(uuid_bytes).to_string()
+            };
+            let staging = format!("staging/restore-{namespace}/{id}");
+            let object = format!("objects/restore-{namespace}/{id}");
+            let creator = if table == "attachments" {
+                string(&row, "creator_id")?.to_owned()
+            } else {
+                bundle.exported_for.clone()
+            };
+            let filename = string(&row, "filename")?.to_owned();
+            let task = string(&row, "task_id")?.to_owned();
+            let comment = row["comment_id"].as_str().map(str::to_owned);
+            let intent = crate::discussion::UploadIntent {
+                id: intent_id.clone(),
+                task_id: task.clone(),
+                comment_id: comment.clone(),
+                filename: filename.clone(),
+                size: entry.size,
+                sha256: entry.sha256.clone(),
+                revision: 1,
+                expires_at: chrono::Utc::now().timestamp() + 3600,
+                finalized: false,
+                staging_key: staging.clone(),
+                object_key: object.clone(),
+                creator_id: creator.clone(),
+            };
+            if table == "attachments" {
+                row["object_key"] = object.clone().into();
+                let target = bundle
+                    .tables
+                    .get_mut("attachments")
+                    .unwrap()
+                    .iter_mut()
+                    .find(|r| r["id"] == id)
+                    .unwrap();
+                *target = row;
+                let target = bundle
+                    .tables
+                    .get_mut("upload_intents")
+                    .and_then(|v| v.iter_mut().find(|r| r["id"] == intent_id))
+                    .ok_or_else(|| invalid("attachment upload metadata missing"))?;
+                target["object_key"] = object.into();
+                target["staging_key"] = staging.into();
+            } else {
+                bundle.tables.entry("upload_intents".into()).or_default().push(json!({"id":intent_id,"task_id":task,"comment_id":comment,"creator_id":creator,"client_id":null,"filename":filename,"size":entry.size,"sha256":entry.sha256,"staging_key":staging,"object_key":object,"revision":1,"created_at":0,"expires_at":0,"finalized_at":0}));
+                bundle.tables.entry("attachments".into()).or_default().push(json!({"id":id,"intent_id":intent.id,"task_id":task,"comment_id":comment,"creator_id":creator,"filename":filename,"size":entry.size,"sha256":entry.sha256,"object_key":intent.object_key,"revision":1,"created_at":0,"deleted_at":null}));
+            }
+            plans.push((entry_path, intent));
+        }
+    }
+    if manifest.entries.len() != expected.len()
+        || manifest.entries.iter().any(|e| !expected.contains(&e.path))
+    {
+        return Err(invalid("archive contains unattached object data"));
+    }
+    Ok((bundle, plans))
+}
+pub fn validated_zip_bundle(path: &Path) -> Result<ExportBundle> {
+    Ok(zip_restore_plan(path)?.0)
+}
+/// Verify all archive bytes and dry-run metadata before uploading. Every S3 write
+/// is conditional and checksummed. The database commits only after all promotion
+/// checks succeed; interrupted uploads may leave unreachable immutable objects.
+pub async fn restore_zip(
+    store: Arc<Mutex<Store>>,
+    path: &Path,
+    mapping: &IdentityMap,
+    storage: Option<&ObjectStorage>,
+    apply: bool,
+) -> Result<TransferReport> {
+    let (bundle, plans) = zip_restore_plan(path)?;
+    let dry = import_bundle(
+        &mut *store.lock().map_err(|_| invalid("database lock failed"))?,
+        &bundle,
+        mapping,
+        false,
+    )?;
+    if !apply {
+        return Ok(dry);
+    }
+    let provider = if plans.is_empty() {
+        None
+    } else {
+        Some(storage.ok_or_else(|| invalid("private object storage is required for ZIP restore"))?)
+    };
+    for (entry, intent) in plans {
+        let mut archive =
+            zip::ZipArchive::new(std::fs::File::open(path)?).map_err(|_| invalid("invalid ZIP"))?;
+        let mut bytes = Vec::new();
+        archive
+            .by_name(&entry)
+            .map_err(|_| invalid("missing attachment bytes"))?
+            .take(intent.size + 1)
+            .read_to_end(&mut bytes)?;
+        let provider = provider.unwrap();
+        provider
+            .put_intent(&intent, bytes)
+            .await
+            .map_err(|_| invalid("immutable attachment staging failed; metadata not committed"))?;
+        provider.verify_and_promote(&intent).await.map_err(|_| {
+            invalid("attachment promotion verification failed; metadata not committed")
+        })?;
+    }
+    import_bundle(
+        &mut *store.lock().map_err(|_| invalid("database lock failed"))?,
+        &bundle,
+        mapping,
+        true,
+    )
 }
 #[cfg(test)]
 mod tests {
@@ -1873,6 +2069,177 @@ mod tests {
             Err(TransferError::Conflict(_))
         ));
         std::fs::remove_file(path).unwrap();
+    }
+    #[tokio::test]
+    async fn zip_roundtrip_promotes_immutable_objects_before_metadata() {
+        use axum::{
+            Router,
+            body::Bytes,
+            extract::{Path as AxumPath, State},
+            http::{HeaderMap, Method, StatusCode},
+            response::IntoResponse,
+            routing::any,
+        };
+        type Objects = Arc<Mutex<BTreeMap<String, Vec<u8>>>>;
+        async fn object(
+            State(objects): State<Objects>,
+            AxumPath(path): AxumPath<String>,
+            method: Method,
+            headers: HeaderMap,
+            bytes: Bytes,
+        ) -> axum::response::Response {
+            let mut objects = objects.lock().unwrap();
+            if method == Method::PUT {
+                assert_eq!(headers.get("if-none-match").unwrap(), "*");
+                if objects.contains_key(&path) {
+                    return StatusCode::PRECONDITION_FAILED.into_response();
+                }
+                objects.insert(path, bytes.to_vec());
+                return StatusCode::OK.into_response();
+            }
+            let Some(bytes) = objects.get(&path) else {
+                return StatusCode::NOT_FOUND.into_response();
+            };
+            (
+                [("content-length", bytes.len().to_string())],
+                if method == Method::HEAD {
+                    Vec::new()
+                } else {
+                    bytes.clone()
+                },
+            )
+                .into_response()
+        }
+        let id = "00000000-0000-4000-8000-000000000010";
+        let bytes = b"synthetic restored attachment".to_vec();
+        let objects = Arc::new(Mutex::new(BTreeMap::from([(
+            format!("files/{id}"),
+            bytes.clone(),
+        )])));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let app = Router::new()
+            .route("/{*path}", any(object))
+            .with_state(objects.clone());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let (source_path, _) = fixture();
+        Connection::open(&source_path).unwrap().execute("INSERT INTO attachments(uuid,sid,task,fname,mime,size,created) VALUES(?1,'blobzip',?2,'synthetic.txt','text/plain',?3,'2026-10-01 00:00:00')",params![id,TASK,bytes.len() as i64]).unwrap();
+        let source = read_legacy(&source_path).unwrap();
+        let mut original = Store::memory().unwrap();
+        import_legacy(&mut original, &source, &IdentityMap::default(), true, false).unwrap();
+        let legacy = crate::object_storage::LegacyBlobSource::new(
+            crate::object_storage::LegacyStorageConfig {
+                endpoint: format!("http://{address}"),
+                bucket: "files".into(),
+                region: "us-east-1".into(),
+                prefix: String::new(),
+                access_key_id: "synthetic".into(),
+                secret_access_key: "synthetic".into(),
+            },
+        )
+        .unwrap();
+        let storage = ObjectStorage::new(crate::object_storage::S3Config {
+            endpoint: format!("http://{address}"),
+            bucket: "files".into(),
+            region: "us-east-1".into(),
+            prefix: "destination".into(),
+            access_key_id: "synthetic".into(),
+            secret_access_key: "synthetic".into(),
+        })
+        .unwrap();
+        let zip =
+            std::env::temp_dir().join(format!("todoer-roundtrip-{}.zip", uuid::Uuid::new_v4()));
+        export_zip(
+            Arc::new(Mutex::new(original)),
+            format!("legacy:{USER}"),
+            ExportScope::Account,
+            None,
+            Some(&legacy),
+            &zip,
+        )
+        .await
+        .unwrap();
+        let mut destination = Store::memory().unwrap();
+        destination.seed_dev().unwrap();
+        let destination = Arc::new(Mutex::new(destination));
+        let mapping = IdentityMap {
+            users: BTreeMap::from([(format!("legacy:{USER}"), "dev".into())]),
+        };
+        restore_zip(destination.clone(), &zip, &mapping, None, false)
+            .await
+            .unwrap();
+        assert!(
+            restore_zip(destination.clone(), &zip, &mapping, None, true)
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            destination
+                .lock()
+                .unwrap()
+                .conn
+                .query_row("SELECT COUNT(*) FROM attachments", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        restore_zip(destination.clone(), &zip, &mapping, Some(&storage), true)
+            .await
+            .unwrap();
+        let attachment = destination.lock().unwrap().attachment("dev", id).unwrap();
+        assert_eq!(storage.get(&attachment).await.unwrap(), bytes);
+        let again =
+            std::env::temp_dir().join(format!("todoer-reexport-{}.zip", uuid::Uuid::new_v4()));
+        let reexport = export_zip(
+            destination.clone(),
+            "dev".into(),
+            ExportScope::Account,
+            Some(&storage),
+            None,
+            &again,
+        )
+        .await
+        .unwrap();
+        assert_eq!(reexport.entries.len(), 2);
+        let checked = validated_zip_bundle(&again).unwrap();
+        assert_eq!(
+            data(&checked, "legacy_attachment_refs")[0]["mime"],
+            "text/plain"
+        );
+        std::fs::remove_file(again).unwrap();
+        let object_count = objects.lock().unwrap().len();
+        restore_zip(destination.clone(), &zip, &mapping, Some(&storage), true)
+            .await
+            .unwrap();
+        assert_eq!(objects.lock().unwrap().len(), object_count);
+        assert!(attachment.object_key.starts_with("objects/restore-"));
+        let final_key = format!("files/destination/{}", attachment.object_key);
+        objects
+            .lock()
+            .unwrap()
+            .insert(final_key.clone(), b"corrupt".to_vec());
+        let mut clean = Store::memory().unwrap();
+        clean.seed_dev().unwrap();
+        let clean = Arc::new(Mutex::new(clean));
+        assert!(
+            restore_zip(clean.clone(), &zip, &mapping, Some(&storage), true)
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            clean
+                .lock()
+                .unwrap()
+                .conn
+                .query_row("SELECT COUNT(*) FROM attachments", [], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        assert_eq!(objects.lock().unwrap()[&final_key], b"corrupt");
+        std::fs::remove_file(zip).unwrap();
+        std::fs::remove_file(source_path).unwrap();
+        server.abort();
     }
     #[tokio::test]
     async fn empty_attachment_zip_is_private_complete_and_checksummed() {
