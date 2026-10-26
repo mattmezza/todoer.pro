@@ -35,7 +35,7 @@ pub(super) fn routes() -> Router<AppState> {
         .route("/today", get(today))
         .route("/upcoming", get(upcoming))
         .route("/recurring", get(recurring))
-        .route("/statistics", get(statistics_page))
+        .route("/statistics", get(|| async { Redirect::to("/review") }))
 }
 async fn schedule(
     State(s): State<AppState>,
@@ -331,38 +331,6 @@ async fn series_state_form(
     .await?;
     Ok(Redirect::to("/recurring").into_response())
 }
-async fn statistics_page(
-    State(s): State<AppState>,
-    h: HeaderMap,
-    Query(q): Query<Range>,
-) -> Result<Response, ApiError> {
-    let a = s.auth(&h, false)?;
-    let actor = a.clone();
-    let prefs = s.run(move |db| db.notification_preferences(&actor)).await?;
-    let tz: chrono_tz::Tz = prefs
-        .timezone
-        .parse()
-        .map_err(|_| Error::Invalid("Invalid timezone".into()))?;
-    let today = Utc::now().with_timezone(&tz).date_naive();
-    let from = q.from.unwrap_or_else(|| {
-        (today - Duration::days(today.weekday().num_days_from_monday().into())).to_string()
-    });
-    let stats = s.run(move |db| db.weekly_statistics(&a, &from)).await?;
-    Ok(page(
-        "Weekly statistics",
-        format!(
-            "<form><label>Week starts <input name=\"from\" type=\"date\" value=\"{}\"></label><button>View week</button></form><p>{} through {}</p><p>{} completion transitions; {} scheduled open tasks.</p><p>{}</p>",
-            esc(&stats.from),
-            esc(&stats.from),
-            esc(&stats.to),
-            stats.completed_transitions,
-            stats.scheduled_open,
-            esc(&stats.history_timestamp_note)
-        ),
-        &stats.timezone,
-    ))
-}
-
 async fn notification_page(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
     if h.contains_key(header::AUTHORIZATION) {
         return Err(Error::Forbidden.into());
@@ -385,15 +353,25 @@ async fn notification_page(State(s): State<AppState>, h: HeaderMap) -> Result<Re
         ));
     }
     let body = format!(
-        "<form method=\"post\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><label>IANA timezone <input name=\"timezone\" value=\"{}\" required></label><p><label><input type=\"checkbox\" name=\"email_opt_in\" {}>Email reminders and digests to my verified sign-in email</label></p><label>Quiet hours start <input type=\"time\" name=\"quiet_start\" value=\"{}\"></label><label>Quiet hours end <input type=\"time\" name=\"quiet_end\" value=\"{}\"></label><p>Equal quiet-hour times mute all hours. Leave both blank to disable quiet hours.</p><p><label><input type=\"checkbox\" name=\"daily_opt_in\" {}>Daily summary</label><input type=\"time\" name=\"daily_time\" value=\"{}\"></p><p><label><input type=\"checkbox\" name=\"weekly_opt_in\" {}>Weekly summary</label><label>Weekday (Monday=1)<input type=\"number\" name=\"weekly_day\" min=\"1\" max=\"7\" value=\"{}\"></label><input type=\"time\" name=\"weekly_time\" value=\"{}\"></p><fieldset><legend>Mute notifications from these lists</legend>{}</fieldset><button>Save notification preferences</button></form><p>Delivery requires the server's SMTP worker to be configured. Push delivery is not available.</p>",
+        "<form method=\"post\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><label>IANA timezone <input name=\"timezone\" value=\"{}\" required></label><p><label><input type=\"checkbox\" name=\"email_opt_in\" {}>Email reminders and digests to my verified sign-in email</label></p><label>Quiet hours start <input type=\"time\" name=\"quiet_start\" value=\"{}\"></label><label>Quiet hours end <input type=\"time\" name=\"quiet_end\" value=\"{}\"></label><p>Equal quiet-hour times mute all hours. Leave both blank to disable quiet hours.</p><p><label><input type=\"checkbox\" name=\"daily_opt_in\" {}>Daily email summary</label><label><input type=\"checkbox\" name=\"push_daily_opt_in\" {}>Daily push summary</label><input type=\"time\" name=\"daily_time\" value=\"{}\"></p><p><label><input type=\"checkbox\" name=\"weekly_opt_in\" {}>Weekly email summary</label><label><input type=\"checkbox\" name=\"push_weekly_opt_in\" {}>Weekly push summary</label><label>Weekday (Monday=1)<input type=\"number\" name=\"weekly_day\" min=\"1\" max=\"7\" value=\"{}\"></label><input type=\"time\" name=\"weekly_time\" value=\"{}\"></p><fieldset><legend>Mute notifications from these lists</legend>{}</fieldset><button>Save notification preferences</button></form><p>Email requires configured SMTP. Push requires configured VAPID and an enabled, signed-in device. <a href=\"/settings/devices\">Manage push devices</a>. Email and push opt-ins are independent; both use the times above.</p>",
         esc(&s.csrf_for(&h)),
         esc(&prefs.timezone),
         if prefs.email_opt_in { "checked" } else { "" },
         esc(prefs.quiet_start.as_deref().unwrap_or("")),
         esc(prefs.quiet_end.as_deref().unwrap_or("")),
         if prefs.daily_opt_in { "checked" } else { "" },
+        if prefs.push_daily_opt_in {
+            "checked"
+        } else {
+            ""
+        },
         esc(&prefs.daily_time),
         if prefs.weekly_opt_in { "checked" } else { "" },
+        if prefs.push_weekly_opt_in {
+            "checked"
+        } else {
+            ""
+        },
         prefs.weekly_day,
         esc(&prefs.weekly_time),
         mutes
@@ -427,6 +405,8 @@ async fn notification_form(
         quiet_start: nonempty("quiet_start"),
         quiet_end: nonempty("quiet_end"),
         daily_opt_in: form.contains_key("daily_opt_in"),
+        push_daily_opt_in: form.contains_key("push_daily_opt_in"),
+        push_weekly_opt_in: form.contains_key("push_weekly_opt_in"),
         daily_time: field("daily_time"),
         weekly_opt_in: form.contains_key("weekly_opt_in"),
         weekly_day: field("weekly_day")
