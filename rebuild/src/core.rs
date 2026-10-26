@@ -162,7 +162,15 @@ impl Store {
         if path != ":memory:" {
             conn.pragma_update(None, "journal_mode", "WAL")?;
         }
+        let has_search: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='tasks_fts' AND type='table')",
+            [],
+            |r| r.get(0),
+        )?;
         conn.execute_batch(include_str!("../migrations/001.sql"))?;
+        if !has_search {
+            conn.execute("INSERT INTO tasks_fts(tasks_fts) VALUES('rebuild')", [])?;
+        }
         Ok(Self { conn })
     }
     pub fn memory() -> Result<Self, Error> {
@@ -183,6 +191,52 @@ impl Store {
             })
         })?
         .collect::<Result<_, _>>()?)
+    }
+    /// Search literal whitespace-separated prefixes; punctuation never becomes FTS syntax.
+    pub fn search(
+        &self,
+        actor: &str,
+        query: &str,
+        list: Option<&str>,
+        complete: Option<bool>,
+        limit: i64,
+        after: Option<&str>,
+    ) -> Result<Vec<Task>, Error> {
+        if !(1..=100).contains(&limit) {
+            return Err(Error::Invalid("limit must be between 1 and 100".into()));
+        }
+        if query.len() > 4000 {
+            return Err(Error::Invalid("search query too long".into()));
+        }
+        if let Some(list) = list {
+            access(&self.conn, actor, list)?;
+        }
+        let expression = query
+            .split_whitespace()
+            .map(|token| format!("\"{}\"*", token.replace('"', "\"\"")))
+            .collect::<Vec<_>>()
+            .join(" AND ");
+        let columns = COLS
+            .split(',')
+            .map(|col| format!("t.{col}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = format!(
+            "SELECT {columns} FROM tasks t JOIN memberships m ON m.list_id=t.list_id WHERE m.user_id=?1 AND (?2 IS NULL OR t.list_id=?2) AND (?3 IS NULL OR t.complete=?3) AND (?4 IS NULL OR t.id>?4) {} ORDER BY t.id LIMIT ?6",
+            if expression.is_empty() {
+                ""
+            } else {
+                "AND t.rowid IN (SELECT rowid FROM tasks_fts WHERE tasks_fts MATCH ?5)"
+            }
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        // Bind ?5 even for an empty query: numbered ?6 reserves its slot.
+        Ok(stmt
+            .query_map(
+                params![actor, list, complete, after, expression, limit],
+                task_row,
+            )?
+            .collect::<Result<_, _>>()?)
     }
     pub fn tasks(&self, actor: &str, list: &str) -> Result<Vec<Task>, Error> {
         access(&self.conn, actor, list)?;
@@ -712,5 +766,113 @@ mod tests {
             assert_eq!(count, 1);
         }
         std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn search_is_literal_authorized_filtered_and_paginated() {
+        let mut s = db();
+        for (actor, list, key, title) in [
+            ("dev", "inbox", "a", "Überraschung 東京"),
+            ("dev", "inbox", "b", "Überblick"),
+            ("other", "private", "c", "Überraschung secret"),
+        ] {
+            s.capture(
+                actor,
+                key,
+                Capture {
+                    list_id: list.into(),
+                    tasks: vec![NewTask {
+                        title: title.into(),
+                        parent_id: None,
+                        description: "café description".into(),
+                    }],
+                },
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            s.search("dev", "Über", None, None, 100, None)
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(
+            s.search("dev", "東", None, None, 100, None).unwrap().len(),
+            1
+        );
+        assert_eq!(
+            s.search("dev", "café", None, None, 100, None)
+                .unwrap()
+                .len(),
+            2
+        );
+        assert!(matches!(
+            s.search("dev", "", Some("private"), None, 100, None),
+            Err(Error::Forbidden)
+        ));
+        for query in [
+            "OR",
+            "NEAR(foo)",
+            "\"",
+            "*",
+            "foo:bar",
+            "-",
+            "()",
+            "foo OR bar",
+        ] {
+            assert!(
+                s.search("dev", query, None, None, 100, None).is_ok(),
+                "literal query {query}"
+            );
+        }
+        let first = s.search("dev", "", None, None, 1, None).unwrap().remove(0);
+        let second = s
+            .search("dev", "", None, None, 1, Some(&first.id))
+            .unwrap()
+            .remove(0);
+        assert!(first.id < second.id);
+        assert!(
+            s.search("dev", "", None, None, 1, Some(&second.id))
+                .unwrap()
+                .is_empty()
+        );
+        s.update(
+            "dev",
+            &first.id,
+            Change {
+                revision: 1,
+                complete: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            s.search("dev", "Über", None, Some(true), 100, None)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            s.search("dev", "Über", None, Some(false), 100, None)
+                .unwrap()
+                .len(),
+            1
+        );
+        s.update(
+            "dev",
+            &second.id,
+            Change {
+                revision: 1,
+                title: Some("Renamed".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            s.search("dev", "Über", None, None, 100, None)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(s.search("dev", "", None, None, 101, None).is_err());
     }
 }

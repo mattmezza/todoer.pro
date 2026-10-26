@@ -7,3 +7,14 @@ CREATE INDEX IF NOT EXISTS tasks_parent ON tasks(parent_id);
 CREATE INDEX IF NOT EXISTS tasks_list ON tasks(list_id,position);
 CREATE TABLE IF NOT EXISTS idempotency(actor TEXT NOT NULL,key TEXT NOT NULL,payload TEXT NOT NULL,response TEXT NOT NULL,PRIMARY KEY(actor,key));
 CREATE TABLE IF NOT EXISTS history(seq INTEGER PRIMARY KEY AUTOINCREMENT,list_id TEXT NOT NULL REFERENCES lists(id),event TEXT NOT NULL);
+CREATE VIRTUAL TABLE IF NOT EXISTS tasks_fts USING fts5(title,description,content='tasks',content_rowid='rowid');
+CREATE TRIGGER IF NOT EXISTS tasks_fts_insert AFTER INSERT ON tasks BEGIN
+ INSERT INTO tasks_fts(rowid,title,description) VALUES(new.rowid,new.title,new.description);
+END;
+CREATE TRIGGER IF NOT EXISTS tasks_fts_delete AFTER DELETE ON tasks BEGIN
+ INSERT INTO tasks_fts(tasks_fts,rowid,title,description) VALUES('delete',old.rowid,old.title,old.description);
+END;
+CREATE TRIGGER IF NOT EXISTS tasks_fts_update AFTER UPDATE OF title,description ON tasks BEGIN
+ INSERT INTO tasks_fts(tasks_fts,rowid,title,description) VALUES('delete',old.rowid,old.title,old.description);
+ INSERT INTO tasks_fts(rowid,title,description) VALUES(new.rowid,new.title,new.description);
+END;
