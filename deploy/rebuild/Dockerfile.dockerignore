@@ -8,6 +8,7 @@
 rebuild/**
 !rebuild/Cargo.toml
 !rebuild/build.rs
+!rebuild/openapi.json
 !rebuild/src
 !rebuild/src/**
 !rebuild/templates

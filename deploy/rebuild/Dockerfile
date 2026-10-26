@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y pkg-config libs
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
-COPY rebuild/Cargo.toml rebuild/build.rs rebuild/
+COPY rebuild/Cargo.toml rebuild/build.rs rebuild/openapi.json rebuild/
 COPY rebuild/src rebuild/src
 COPY rebuild/templates rebuild/templates
 COPY rebuild/migrations rebuild/migrations
@@ -31,9 +31,9 @@ WORKDIR /app
 COPY --from=build /build/target/release/todoer-server /build/target/release/todoer /build/target/release/todoer-migrate /usr/local/bin/
 COPY --from=assets /build/rebuild/assets /app/rebuild/assets
 COPY public/favicon.png public/icon512_rounded.png public/icon512_maskable.png /app/public/
-ENV TODOER_DEV_AUTH=0 TODOER_RUST_DB=/data/todoer.db TODOER_RUST_BIND=0.0.0.0 TODOER_RUST_PORT=8092
+ENV TODOER_RUST_DB=/data/todoer.db TODOER_RUST_BIND=0.0.0.0 TODOER_RUST_PORT=8092
 USER 10001:10001
 EXPOSE 8092
 STOPSIGNAL SIGTERM
-HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 CMD curl --fail --silent --max-time 2 http://127.0.0.1:8092/health || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 CMD curl --fail --silent --max-time 2 http://127.0.0.1:8092/ready || exit 1
 ENTRYPOINT ["todoer-server"]

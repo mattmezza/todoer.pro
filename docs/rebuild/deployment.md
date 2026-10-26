@@ -1,14 +1,35 @@
 # Isolated Rust deployment and release
 
 This deployment is separate from the existing Python application. It does not
-mount, upgrade or replace a legacy database. No deployment has been performed.
-The image build and container startup are **not verified locally**: Docker Compose
-5.6.0 is available here, but the Docker daemon/socket and Buildx plugin are absent. The Compose model
-has been rendered with synthetic credentials and checked for service isolation;
-locked debug and optimized native Cargo builds and release-policy tests pass.
+mount, upgrade or replace a legacy database. No production deployment or registry
+push has been performed.
+
+On 2026-10-26 the owner enabled Docker 29.9.0 on this x86_64 host. A checksum-verified
+Buildx 0.38.1 plugin was placed only in ignored task-local configuration. The
+multi-stage image built successfully for **linux/amd64**, including Rust tests and
+optimized binaries. An actual isolated Compose acceptance check passed with
+production authentication, non-root user/read-only root, REST capture retry and
+revision conflicts, CLI requests and Litestream S3 replication/restoration of the
+latest committed transactions. It used synthetic users and credentials, its own
+randomly named network/volume and a loopback Moto fixture; those Compose resources
+were removed after the check. No other CPU architecture or production provider is
+claimed tested.
+
 Official actionlint 1.7.12 validates the workflow; Moby patternmatcher 0.6.1
-validates the build-context allowlist. Run the container
-acceptance checks below on a host with Docker before production use.
+validates the build-context allowlist. Native release and release-policy checks
+also pass. New feature increments must rebuild the image and repeat acceptance:
+
+```sh
+python scripts/rebuild-container-check.py --image todoer-rebuild:local-verified
+```
+
+This check requires an already-built local image, Docker Compose and isolated Moto
+S3 on `127.0.0.1:8937`. It creates only random test resources, forwards S3 traffic
+through a private Docker bridge address, and removes its containers/network/volume.
+The Compose configuration uses separate application and replication environment
+files. The test never reads the old application database or uses real Google keys.
+The Google public discovery endpoint is contacted at startup; tenant login/device
+acceptance remains a separate external check.
 
 ## Image and assets
 
