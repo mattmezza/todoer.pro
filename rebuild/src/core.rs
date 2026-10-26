@@ -73,7 +73,7 @@ fn task_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
     })
 }
 const COLS: &str = "id,reference,list_id,parent_id,title,description,complete,revision,position";
-fn task(c: &Connection, id: &str) -> Result<Task, Error> {
+fn raw_task(c: &Connection, id: &str) -> Result<Task, Error> {
     c.query_row(
         &format!("SELECT {COLS} FROM tasks WHERE id=?1 OR reference=?1"),
         [id],
@@ -81,6 +81,15 @@ fn task(c: &Connection, id: &str) -> Result<Task, Error> {
     )
     .optional()?
     .ok_or(Error::NotFound)
+}
+fn task(c: &Connection, id: &str) -> Result<Task, Error> {
+    let t = raw_task(c, id)?;
+    let deleted: bool = c.query_row(
+        "SELECT deleted_at IS NOT NULL FROM tasks WHERE id=?1",
+        [&t.id],
+        |r| r.get(0),
+    )?;
+    if deleted { Err(Error::NotFound) } else { Ok(t) }
 }
 fn access(c: &Connection, actor: &str, list: &str) -> Result<(), Error> {
     if !c.query_row(
@@ -107,7 +116,7 @@ fn title(s: &str) -> Result<(), Error> {
     }
 }
 fn descendants(c: &Connection, id: &str) -> Result<Vec<Task>, Error> {
-    let mut q=c.prepare(&format!("WITH RECURSIVE tree(id) AS (SELECT id FROM tasks WHERE id=?1 UNION ALL SELECT t.id FROM tasks t JOIN tree ON t.parent_id=tree.id) SELECT {COLS} FROM tasks WHERE id IN tree ORDER BY position,id"))?;
+    let mut q=c.prepare(&format!("WITH RECURSIVE tree(id) AS (SELECT id FROM tasks WHERE id=?1 AND deleted_at IS NULL UNION ALL SELECT t.id FROM tasks t JOIN tree ON t.parent_id=tree.id WHERE t.deleted_at IS NULL) SELECT {COLS} FROM tasks WHERE id IN tree ORDER BY position,id"))?;
     let rows = q.query_map([id], task_row)?;
     Ok(rows.collect::<Result<_, _>>()?)
 }
@@ -151,7 +160,7 @@ fn audience_change(
 }
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {
-        let conn = Connection::open(path)?;
+        let mut conn = Connection::open(path)?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         let legacy: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='spaces') OR EXISTS(SELECT 1 FROM pragma_table_info('users') WHERE name='uuid')", [], |r| r.get(0))?;
         if legacy {
@@ -162,15 +171,30 @@ impl Store {
         if path != ":memory:" {
             conn.pragma_update(None, "journal_mode", "WAL")?;
         }
-        let has_search: bool = conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='tasks_fts' AND type='table')",
-            [],
-            |r| r.get(0),
-        )?;
-        conn.execute_batch(include_str!("../migrations/001.sql"))?;
-        if !has_search {
-            conn.execute("INSERT INTO tasks_fts(tasks_fts) VALUES('rebuild')", [])?;
+        conn.pragma_update(None, "foreign_keys", true)?;
+        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        tx.execute_batch("CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")?;
+        for (version, sql) in [
+            (1, include_str!("../migrations/001.sql")),
+            (2, include_str!("../migrations/002.sql")),
+        ] {
+            let applied: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=?1)",
+                [version],
+                |r| r.get(0),
+            )?;
+            if !applied {
+                tx.execute_batch(sql)?;
+                if version == 1 {
+                    tx.execute("INSERT INTO tasks_fts(tasks_fts) VALUES('rebuild')", [])?;
+                }
+                tx.execute(
+                    "INSERT INTO schema_migrations(version) VALUES(?1)",
+                    [version],
+                )?;
+            }
         }
+        tx.commit()?;
         Ok(Self { conn })
     }
     pub fn memory() -> Result<Self, Error> {
@@ -222,7 +246,7 @@ impl Store {
             .collect::<Vec<_>>()
             .join(",");
         let sql = format!(
-            "SELECT {columns} FROM tasks t JOIN memberships m ON m.list_id=t.list_id WHERE m.user_id=?1 AND (?2 IS NULL OR t.list_id=?2) AND (?3 IS NULL OR t.complete=?3) AND (?4 IS NULL OR t.id>?4) {} ORDER BY t.id LIMIT ?6",
+            "SELECT {columns} FROM tasks t JOIN memberships m ON m.list_id=t.list_id WHERE m.user_id=?1 AND t.deleted_at IS NULL AND (?2 IS NULL OR t.list_id=?2) AND (?3 IS NULL OR t.complete=?3) AND (?4 IS NULL OR t.id>?4) {} ORDER BY t.id LIMIT ?6",
             if expression.is_empty() {
                 ""
             } else {
@@ -241,7 +265,7 @@ impl Store {
     pub fn tasks(&self, actor: &str, list: &str) -> Result<Vec<Task>, Error> {
         access(&self.conn, actor, list)?;
         let mut q = self.conn.prepare(&format!(
-            "SELECT {COLS} FROM tasks WHERE list_id=?1 ORDER BY position,id"
+            "SELECT {COLS} FROM tasks WHERE list_id=?1 AND deleted_at IS NULL ORDER BY position,id"
         ))?;
         Ok(q.query_map([list], task_row)?.collect::<Result<_, _>>()?)
     }
@@ -387,6 +411,79 @@ impl Store {
         tx.commit()?;
         Ok(updated)
     }
+    pub fn trash_tasks(&self, actor: &str) -> Result<Vec<Task>, Error> {
+        let cols = COLS
+            .split(',')
+            .map(|col| format!("t.{col}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let mut q = self.conn.prepare(&format!("SELECT {cols} FROM tasks t JOIN memberships m ON m.list_id=t.list_id WHERE m.user_id=?1 AND t.deleted_at IS NOT NULL ORDER BY t.id"))?;
+        Ok(q.query_map([actor], task_row)?.collect::<Result<_, _>>()?)
+    }
+    pub fn trash(&mut self, actor: &str, id: &str, revision: i64) -> Result<Task, Error> {
+        let tx = self
+            .conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let root = task(&tx, id)?;
+        access(&tx, actor, &root.list_id)?;
+        if root.revision != revision {
+            return Err(Error::Conflict("stale revision".into()));
+        }
+        for t in descendants(&tx, &root.id)? {
+            tx.execute("UPDATE tasks SET deleted_at=CURRENT_TIMESTAMP,delete_group=?1,revision=revision+1 WHERE id=?2",params![root.id,t.id])?;
+            event(&tx, &raw_task(&tx, &t.id)?, "trash")?;
+        }
+        let result = raw_task(&tx, &root.id)?;
+        tx.commit()?;
+        Ok(result)
+    }
+    pub fn restore(&mut self, actor: &str, id: &str, revision: i64) -> Result<Task, Error> {
+        let tx = self
+            .conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let root = raw_task(&tx, id)?;
+        access(&tx, actor, &root.list_id)?;
+        if root.revision != revision {
+            return Err(Error::Conflict("stale revision".into()));
+        }
+        let group: Option<String> = tx
+            .query_row(
+                "SELECT delete_group FROM tasks WHERE id=?1 AND deleted_at IS NOT NULL",
+                [&root.id],
+                |r| r.get(0),
+            )
+            .optional()?
+            .flatten();
+        if group.as_deref() != Some(root.id.as_str()) {
+            return Err(Error::Conflict(
+                "restore the root of this trash operation".into(),
+            ));
+        }
+        if let Some(ref parent) = root.parent_id {
+            if task(&tx, parent).is_err() {
+                return Err(Error::Conflict("restore the parent first".into()));
+            }
+        }
+        let members = {
+            let mut q = tx.prepare(&format!(
+                "SELECT {COLS} FROM tasks WHERE delete_group=?1 AND deleted_at IS NOT NULL"
+            ))?;
+            q.query_map([&root.id], task_row)?
+                .collect::<Result<Vec<_>, _>>()?
+        };
+        for t in members {
+            access(&tx, actor, &t.list_id)?;
+            tx.execute("UPDATE tasks SET deleted_at=NULL,delete_group=NULL,revision=revision+1 WHERE id=?1",[&t.id])?;
+            event(&tx, &raw_task(&tx, &t.id)?, "restore")?;
+        }
+        // Restoring an unfinished child must reopen completed ancestors.
+        if !root.complete {
+            reopen(&tx, &root.id)?;
+        }
+        let result = task(&tx, &root.id)?;
+        tx.commit()?;
+        Ok(result)
+    }
     pub fn move_preview(
         &self,
         actor: &str,
@@ -430,10 +527,16 @@ impl Store {
             [destination],
             |r| r.get(0),
         )?;
-        for child in descendants(&tx, &t.id)? {
+        // Hidden descendants travel too, preserving parent/list invariants for a later restore.
+        let moving = {
+            let mut q = tx.prepare(&format!("WITH RECURSIVE tree(id) AS (SELECT id FROM tasks WHERE id=?1 UNION ALL SELECT child.id FROM tasks child JOIN tree ON child.parent_id=tree.id) SELECT {COLS} FROM tasks WHERE id IN tree ORDER BY position,id"))?;
+            q.query_map([&t.id], task_row)?
+                .collect::<Result<Vec<_>, _>>()?
+        };
+        for child in moving {
             pos += 1;
             tx.execute("UPDATE tasks SET list_id=?1,parent_id=CASE WHEN id=?2 THEN NULL ELSE parent_id END,position=?3,revision=revision+1 WHERE id=?4",params![destination,t.id,pos,child.id])?;
-            let moved = task(&tx, &child.id)?;
+            let moved = raw_task(&tx, &child.id)?;
             event(&tx, &child, "move_out")?;
             event(&tx, &moved, "move")?;
         }
@@ -874,5 +977,107 @@ mod tests {
             1
         );
         assert!(s.search("dev", "", None, None, 101, None).is_err());
+    }
+    #[test]
+    fn trash_restore_groups_are_atomic_and_authorized() {
+        let mut s = db();
+        let root = capture(&mut s, "root", None);
+        let child = capture(&mut s, "child", Some(root.id.clone()));
+        let independent = capture(&mut s, "independent", Some(root.id.clone()));
+        let independent = s.trash("dev", &independent.id, 1).unwrap();
+        assert!(matches!(
+            s.trash("other", &root.id, 1),
+            Err(Error::Forbidden)
+        ));
+        assert!(matches!(
+            s.trash("dev", &root.id, 9),
+            Err(Error::Conflict(_))
+        ));
+        let root = s.trash("dev", &root.id, 1).unwrap();
+        assert!(s.tasks("dev", "inbox").unwrap().is_empty());
+        assert!(
+            s.search("dev", "Task", None, None, 100, None)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(matches!(s.subtree("dev", &root.id), Err(Error::NotFound)));
+        assert_eq!(s.trash_tasks("dev").unwrap().len(), 3);
+        assert!(s.trash_tasks("other").unwrap().is_empty());
+        assert!(
+            s.restore("dev", &independent.id, independent.revision)
+                .is_err()
+        );
+        assert!(matches!(
+            s.restore("other", &root.id, root.revision),
+            Err(Error::Forbidden)
+        ));
+        assert!(matches!(
+            s.restore("dev", &root.id, 1),
+            Err(Error::Conflict(_))
+        ));
+        s.restore("dev", &root.id, root.revision).unwrap();
+        assert_eq!(s.subtree("dev", &root.id).unwrap().len(), 2);
+        assert_eq!(s.trash_tasks("dev").unwrap().len(), 1);
+        s.restore("dev", &independent.id, independent.revision)
+            .unwrap();
+        assert_eq!(s.subtree("dev", &root.id).unwrap().len(), 3);
+        assert!(
+            s.tasks("dev", "inbox")
+                .unwrap()
+                .iter()
+                .any(|t| t.id == child.id)
+        );
+    }
+    #[test]
+    fn migrations_run_once_and_upgrade_synthetic_database() {
+        let path = std::env::temp_dir().join(format!("todoer-migrate-{}.db", Uuid::new_v4()));
+        {
+            let c = Connection::open(&path).unwrap();
+            c.execute_batch(include_str!("../migrations/001.sql"))
+                .unwrap();
+            c.execute_batch("INSERT INTO users VALUES('dev','alice');INSERT INTO lists(id,title) VALUES('inbox','Inbox');INSERT INTO memberships VALUES('inbox','dev');INSERT INTO tasks(id,reference,list_id,title,position) VALUES('one','T-one','inbox','Existing task',1);").unwrap();
+        }
+        {
+            let s = Store::open(path.to_str().unwrap()).unwrap();
+            assert_eq!(
+                s.search("dev", "Existing", None, None, 100, None)
+                    .unwrap()
+                    .len(),
+                1
+            );
+            let count: i64 = s
+                .conn
+                .query_row("SELECT COUNT(*) FROM schema_migrations", [], |r| r.get(0))
+                .unwrap();
+            assert_eq!(count, 2);
+        }
+        {
+            let s = Store::open(path.to_str().unwrap()).unwrap();
+            assert_eq!(s.tasks("dev", "inbox").unwrap().len(), 1);
+            let mode: String = s
+                .conn
+                .pragma_query_value(None, "journal_mode", |r| r.get(0))
+                .unwrap();
+            assert_eq!(mode, "wal");
+        }
+        std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn hidden_descendants_move_with_parent_for_safe_restore() {
+        let mut s = db();
+        let root = capture(&mut s, "root", None);
+        let child = capture(&mut s, "child", Some(root.id.clone()));
+        let child = s.trash("dev", &child.id, 1).unwrap();
+        s.move_subtree("dev", &root.id, "groceries", 1, false)
+            .unwrap();
+        let child = s
+            .trash_tasks("dev")
+            .unwrap()
+            .into_iter()
+            .find(|t| t.id == child.id)
+            .unwrap();
+        assert_eq!(child.list_id, "groceries");
+        s.restore("dev", &child.id, child.revision).unwrap();
+        assert_eq!(s.subtree("dev", &root.id).unwrap().len(), 2);
     }
 }
