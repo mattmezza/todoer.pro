@@ -116,7 +116,9 @@ fn title(s: &str) -> Result<(), Error> {
     }
 }
 fn descendants(c: &Connection, id: &str) -> Result<Vec<Task>, Error> {
-    let mut q=c.prepare(&format!("WITH RECURSIVE tree(id) AS (SELECT id FROM tasks WHERE id=?1 AND deleted_at IS NULL UNION ALL SELECT t.id FROM tasks t JOIN tree ON t.parent_id=tree.id WHERE t.deleted_at IS NULL) SELECT {COLS} FROM tasks WHERE id IN tree ORDER BY position,id"))?;
+    // The deleted_at index otherwise makes SQLite scan every live task for
+    // each recursive step. Parent lookup keeps traversal bounded to children.
+    let mut q=c.prepare(&format!("WITH RECURSIVE tree(id) AS (SELECT id FROM tasks WHERE id=?1 AND deleted_at IS NULL UNION ALL SELECT t.id FROM tasks t INDEXED BY tasks_parent JOIN tree ON t.parent_id=tree.id WHERE t.deleted_at IS NULL) SELECT {COLS} FROM tasks WHERE id IN tree ORDER BY position,id"))?;
     let rows = q.query_map([id], task_row)?;
     Ok(rows.collect::<Result<_, _>>()?)
 }
