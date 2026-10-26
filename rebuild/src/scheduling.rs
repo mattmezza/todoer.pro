@@ -1,4 +1,4 @@
-//! Date-only planning, zoned due times, leaf-task recurrence and durable intents.
+//! Date-only planning, zoned due times, checklist recurrence and durable intents.
 //! User-entered ambiguous/nonexistent local times are rejected. Generated dates
 //! skip DST gaps and use the earlier instant for overlaps; wall time is retained.
 use crate::core::{Error, Store, Task, access_rank, event, raw_task, task};
@@ -361,6 +361,198 @@ fn next_due(
         "next recurrence lies beyond bounded 100-year horizon",
     ))
 }
+const MAX_RECURRENCE_TASKS: usize = 500;
+/// Parent-first, live-only checklist snapshot, bounded before any generation.
+fn checklist(c: &Connection, root: &Task) -> Result<Vec<Task>, Error> {
+    let ids = {
+        let mut q = c.prepare("WITH RECURSIVE tree(id,depth) AS (SELECT id,0 FROM tasks WHERE id=?1 AND deleted_at IS NULL UNION ALL SELECT child.id,tree.depth+1 FROM tasks child INDEXED BY tasks_parent JOIN tree ON child.parent_id=tree.id WHERE child.deleted_at IS NULL AND tree.depth<500) SELECT tree.id FROM tree JOIN tasks t ON t.id=tree.id ORDER BY depth,t.position,tree.id LIMIT 501")?;
+        q.query_map([&root.id], |r| r.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?
+    };
+    if ids.len() > MAX_RECURRENCE_TASKS {
+        return Err(invalid(
+            "recurring checklist exceeds 500 live tasks; split or stop the series",
+        ));
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    let mut tasks = Vec::with_capacity(ids.len());
+    for id in ids {
+        if !seen.insert(id.clone()) {
+            return Err(invalid("recurring checklist contains a cycle"));
+        }
+        let t = task(c, &id)?;
+        if t.list_id != root.list_id {
+            return Err(invalid("recurring checklist crosses list boundaries"));
+        }
+        if id != root.id
+            && c.query_row(
+                "SELECT EXISTS(SELECT 1 FROM recurrence_occurrences o JOIN recurrence_series s ON s.id=o.series_id WHERE o.task_id=?1 AND s.state!='stopped')",
+                [&id],
+                |r| r.get::<_, bool>(0),
+            )?
+        {
+            return Err(Error::Conflict(
+                "nested recurrence series cannot belong to one checklist occurrence".into(),
+            ));
+        }
+        tasks.push(t);
+    }
+    Ok(tasks)
+}
+/// Core invokes this before cascading completion; the explicit flag belongs to
+/// the user's command, so it cannot be inferred by the completion event hook.
+pub(crate) fn validate_recurrence_completion(
+    c: &Connection,
+    id: &str,
+    complete_subtree: bool,
+) -> Result<(), Error> {
+    let recurring:bool=c.query_row("SELECT EXISTS(SELECT 1 FROM recurrence_occurrences o JOIN recurrence_series s ON s.id=o.series_id WHERE o.task_id=?1 AND s.state!='stopped')",[id],|r|r.get(0))?;
+    if recurring {
+        let tree = checklist(c, &task(c, id)?)?;
+        if tree.len() > 1 && !complete_subtree {
+            return Err(Error::Conflict(
+                "completing a recurring checklist requires complete_subtree=true".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+fn fresh_task_identity(c: &Connection) -> Result<(String, String), Error> {
+    loop {
+        let id = Uuid::new_v4().to_string();
+        let reference = format!("T-{}", &id[..8]);
+        if !c.query_row(
+            "SELECT EXISTS(SELECT 1 FROM tasks WHERE id=?1 OR reference=?2)",
+            params![id, reference],
+            |r| r.get::<_, bool>(0),
+        )? {
+            return Ok((id, reference));
+        }
+    }
+}
+fn shifted(moment: &Moment, days: i64, seconds: i64) -> Result<Moment, Error> {
+    Ok(match moment {
+        Moment::Date { date: value } => Moment::Date {
+            date: date(value)?
+                .checked_add_signed(Duration::days(days))
+                .ok_or_else(|| invalid("recurring date overflow"))?
+                .format("%Y-%m-%d")
+                .to_string(),
+        },
+        Moment::Timed { timezone, .. } => {
+            let at = resolved(moment)?
+                .checked_add(seconds)
+                .ok_or_else(|| invalid("recurring timestamp overflow"))?;
+            let local = Utc
+                .timestamp_opt(at, 0)
+                .single()
+                .ok_or_else(|| invalid("recurring timestamp overflow"))?
+                .with_timezone(&zone(timezone)?);
+            Moment::Timed {
+                local: stamp(local.naive_local()),
+                timezone: timezone.clone(),
+            }
+        }
+    })
+}
+fn clone_checklist(
+    c: &Connection,
+    actor: &str,
+    series: &Series,
+    previous: &Task,
+    next: NaiveDateTime,
+    last_due: &str,
+) -> Result<Task, Error> {
+    let originals = checklist(c, previous)?;
+    let old_anchor = state(c, previous)?
+        .schedule
+        .due
+        .as_ref()
+        .and_then(|moment| resolved(moment).ok())
+        .unwrap_or(
+            generated_instant(zone(&series.spec.timezone)?, local(last_due)?)
+                .ok_or_else(|| invalid("invalid old recurrence anchor"))?,
+        );
+    let new_anchor = generated_instant(zone(&series.spec.timezone)?, next)
+        .ok_or_else(|| invalid("invalid recurrence anchor"))?;
+    let seconds = new_anchor
+        .checked_sub(old_anchor)
+        .ok_or_else(|| invalid("recurring offset overflow"))?;
+    let days = (next.date() - local(last_due)?.date()).num_days();
+    let recipient: String = c.query_row(
+        "SELECT actor FROM recurrence_series WHERE id=?1",
+        [&series.id],
+        |r| r.get(0),
+    )?;
+    let mut mapped = std::collections::BTreeMap::<String, String>::new();
+    let mut generated = Vec::new();
+    let mut position: i64 = c.query_row(
+        "SELECT COALESCE(MAX(position),0) FROM tasks WHERE list_id=?1",
+        [&previous.list_id],
+        |r| r.get(0),
+    )?;
+    for original in &originals {
+        let (id, reference) = fresh_task_identity(c)?;
+        let parent = if original.id == previous.id {
+            None
+        } else {
+            Some(
+                mapped
+                    .get(
+                        original
+                            .parent_id
+                            .as_deref()
+                            .ok_or_else(|| invalid("checklist child has no parent"))?,
+                    )
+                    .ok_or_else(|| invalid("checklist parent missing"))?
+                    .clone(),
+            )
+        };
+        position = position
+            .checked_add(1)
+            .ok_or_else(|| invalid("task position overflow"))?;
+        c.execute("INSERT INTO tasks(id,reference,list_id,parent_id,title,description,position) VALUES(?1,?2,?3,?4,?5,?6,?7)",params![id,reference,previous.list_id,parent,original.title,original.description,position])?;
+        c.execute("INSERT INTO task_tags(task_id,tag_id) SELECT ?1,tag_id FROM task_tags WHERE task_id=?2",params![id,original.id])?;
+        c.execute("INSERT INTO task_locations(task_id,section_id) SELECT ?1,l.section_id FROM task_locations l JOIN sections s ON s.id=l.section_id WHERE l.task_id=?2 AND s.list_id=?3",params![id,original.id,previous.list_id])?;
+        let new = task(c, &id)?;
+        let schedule = state(c, original)?;
+        if original.id == previous.id || schedule.schedule_revision > 0 {
+            let mut schedule = schedule.schedule;
+            schedule.planned = schedule
+                .planned
+                .as_ref()
+                .map(|m| shifted(m, days, seconds))
+                .transpose()?;
+            schedule.due = if original.id == previous.id {
+                Some(Moment::Timed {
+                    local: stamp(next),
+                    timezone: series.spec.timezone.clone(),
+                })
+            } else {
+                schedule
+                    .due
+                    .as_ref()
+                    .map(|m| shifted(m, days, seconds))
+                    .transpose()?
+            };
+            for reminder in &mut schedule.reminders {
+                reminder.at = shifted(&reminder.at, days, seconds)?;
+            }
+            write_schedule(c, &recipient, &new, &schedule)?;
+        }
+        mapped.insert(original.id.clone(), id);
+        generated.push(new);
+    }
+    // All nodes exist before reference indexing. History is new creation history;
+    // original comments, attachments and prior edits stay with the old occurrence.
+    for new in &generated {
+        event(c, new, "recurrence-create", actor, None)?;
+    }
+    generated
+        .into_iter()
+        .next()
+        .ok_or_else(|| invalid("empty recurring checklist"))
+}
 fn advance(c: &Connection, actor: &str, id: &str, previous: &Task, now: i64) -> Result<(), Error> {
     let series = series_row(c, id)?;
     if series.state != SeriesState::Active {
@@ -389,68 +581,12 @@ fn advance(c: &Connection, actor: &str, id: &str, previous: &Task, now: i64) -> 
     };
     access_rank(c, actor, &previous.list_id, 2)?;
     task(c, &previous.id)?;
-    let child: bool = c.query_row(
-        "SELECT EXISTS(SELECT 1 FROM tasks WHERE parent_id=?1)",
-        [&previous.id],
-        |r| r.get(0),
-    )?;
-    if child {
-        return Err(Error::Conflict(
-            "recurring task has children; stop the series before completing it".into(),
-        ));
-    }
-    let (id_task, reference) = loop {
-        let id = Uuid::new_v4().to_string();
-        let reference = format!("T-{}", &id[..8]);
-        let used: bool = c.query_row(
-            "SELECT EXISTS(SELECT 1 FROM tasks WHERE id=?1 OR reference=?2)",
-            params![id, reference],
-            |r| r.get(0),
-        )?;
-        if !used {
-            break (id, reference);
-        }
-    };
-    let position: i64 = c.query_row(
-        "SELECT COALESCE(MAX(position),0)+1 FROM tasks WHERE list_id=?1",
-        [&previous.list_id],
-        |r| r.get(0),
-    )?;
-    c.execute("INSERT INTO tasks(id,reference,list_id,title,description,position) VALUES(?1,?2,?3,?4,?5,?6)",params![id_task,reference,previous.list_id,previous.title,previous.description,position])?;
-    let new = task(c, &id_task)?;
-    let mut schedule = state(c, previous)?.schedule;
-    let previous_due = schedule.due.as_ref().and_then(|m| resolved(m).ok());
-    let new_at =
-        generated_instant(zone(&series.spec.timezone)?, next).expect("generated time resolved");
-    for reminder in &mut schedule.reminders {
-        if let Some(old) = previous_due {
-            let delta = resolved(&reminder.at)? - old;
-            let at = chrono::DateTime::from_timestamp(new_at + delta, 0)
-                .ok_or_else(|| invalid("reminder date overflow"))?
-                .with_timezone(&zone(&series.spec.timezone)?);
-            reminder.at = Moment::Timed {
-                local: stamp(at.naive_local()),
-                timezone: series.spec.timezone.clone(),
-            };
-        }
-    }
-    schedule.due = Some(Moment::Timed {
-        local: stamp(next),
-        timezone: series.spec.timezone.clone(),
-    });
-    // Generated overlap chooses earlier instant; do not run user-input validation here.
-    let original_recipient: String = c.query_row(
-        "SELECT actor FROM recurrence_series WHERE id=?1",
-        [id],
-        |r| r.get(0),
-    )?;
-    write_schedule(c, &original_recipient, &new, &schedule)?;
+    let new = clone_checklist(c, actor, &series, previous, next, &last_due)?;
     c.execute("INSERT INTO recurrence_occurrences(series_id,ordinal,task_id,due_local) VALUES(?1,?2,?3,?4)",params![id,series.emitted+1,new.id,stamp(next)])?;
     c.execute(
         "UPDATE recurrence_series SET emitted=emitted+1,revision=revision+1 WHERE id=?1",
         [id],
     )?;
-    event(c, &new, "recurrence-create", actor, None)?;
     Ok(())
 }
 impl Store {
@@ -488,16 +624,10 @@ impl Store {
         recurrence_valid(&spec)?;
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let before = checked(&tx, actor, id, 2, Some(revision))?;
-        let child: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM tasks WHERE parent_id=?1)",
-            [&before.id],
-            |r| r.get(0),
-        )?;
-        if before.complete || before.parent_id.is_some() || child {
-            return Err(invalid(
-                "recurrence currently supports unfinished root leaf tasks only",
-            ));
+        if before.complete || before.parent_id.is_some() {
+            return Err(invalid("recurrence requires an unfinished root task"));
         }
+        checklist(&tx, &before)?;
         let existing: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM recurrence_occurrences WHERE task_id=?1)",
             [&before.id],
@@ -596,6 +726,17 @@ impl Store {
             "UPDATE recurrence_occurrences SET status='skipped' WHERE task_id=?1",
             [&before.id],
         )?;
+        for child in checklist(&tx, &before)?
+            .into_iter()
+            .filter(|t| t.id != before.id && !t.complete)
+        {
+            tx.execute(
+                "UPDATE tasks SET complete=1,revision=revision+1 WHERE id=?1",
+                [&child.id],
+            )?;
+            let after = task(&tx, &child.id)?;
+            event(&tx, &after, "recurrence-skip", actor, Some(&child))?;
+        }
         tx.execute(
             "UPDATE tasks SET complete=1,revision=revision+1 WHERE id=?1",
             [&before.id],
@@ -617,6 +758,15 @@ pub(crate) fn after_task_update(
     after: &Task,
     now: i64,
 ) -> Result<(), Error> {
+    if before.parent_id != after.parent_id && after.parent_id.is_some() {
+        let active:bool=c.query_row("SELECT EXISTS(SELECT 1 FROM recurrence_occurrences o JOIN recurrence_series s ON s.id=o.series_id WHERE o.task_id=?1 AND s.state!='stopped')",[&after.id],|r|r.get(0))?;
+        if active {
+            return Err(Error::Conflict(
+                "recurring occurrences must stay subtree roots; stop the series before reparenting"
+                    .into(),
+            ));
+        }
+    }
     if before.complete == after.complete {
         return Ok(());
     }
@@ -646,8 +796,13 @@ pub(crate) fn after_task_update(
             cancel(c, &after.id)?;
             return Ok(());
         }
-        let schedule = state(c, after)?.schedule;
-        write_schedule(c, actor, after, &schedule)?;
+        let historical_child:bool=c.query_row("WITH RECURSIVE ancestors(id,depth) AS (SELECT parent_id,1 FROM tasks WHERE id=?1 AND parent_id IS NOT NULL UNION ALL SELECT t.parent_id,a.depth+1 FROM tasks t JOIN ancestors a ON t.id=a.id WHERE t.parent_id IS NOT NULL AND a.depth<500) SELECT EXISTS(SELECT 1 FROM ancestors a JOIN recurrence_occurrences o ON o.task_id=a.id WHERE o.status!='pending')",[&after.id],|r|r.get(0))?;
+        if historical_child {
+            cancel(c, &after.id)?;
+        } else {
+            let schedule = state(c, after)?.schedule;
+            write_schedule(c, actor, after, &schedule)?;
+        }
     }
     Ok(())
 }
@@ -829,6 +984,360 @@ mod tests {
     }
     fn unix(value: &str) -> i64 {
         timed(&moment(value)).unwrap()
+    }
+    fn child(s: &mut Store, parent: &str, title: &str) -> Task {
+        s.capture(
+            "dev",
+            &Uuid::new_v4().to_string(),
+            Capture {
+                list_id: "inbox".into(),
+                tasks: vec![NewTask {
+                    title: title.into(),
+                    description: format!("{title} description"),
+                    parent_id: Some(parent.into()),
+                }],
+            },
+        )
+        .unwrap()
+        .remove(0)
+    }
+    #[test]
+    fn recurring_nested_checklist_preserves_metadata_and_history_across_dst_and_move() {
+        let mut s = db();
+        let root = new_task(&mut s);
+        let first = child(&mut s, &root.id, "First child");
+        let grandchild = child(&mut s, &first.id, "Nested child");
+        let sibling = child(&mut s, &root.id, "Second child");
+        s.conn.execute("INSERT INTO sections(id,list_id,title,position) VALUES('checklist-section','inbox','Checklist section',0)",[]).unwrap();
+        let current = task(&s.conn, &root.id).unwrap();
+        s.set_section(
+            "dev",
+            &root.id,
+            current.revision,
+            Some("checklist-section".into()),
+        )
+        .unwrap();
+        let current = task(&s.conn, &first.id).unwrap();
+        s.set_task_tags(
+            "dev",
+            &first.id,
+            current.revision,
+            vec![crate::taxonomy::TagSelector::Name("Checklist".into())],
+        )
+        .unwrap();
+        let current = task(&s.conn, &first.id).unwrap();
+        s.set_schedule(
+            "dev",
+            &first.id,
+            current.revision,
+            Schedule {
+                planned: Some(Moment::Date {
+                    date: "2026-03-28".into(),
+                }),
+                due: Some(moment("2026-03-28T08:00:00")),
+                priority: Some(1),
+                reminders: vec![Reminder {
+                    channel: Channel::Email,
+                    at: moment("2026-03-28T07:30:00"),
+                }],
+            },
+        )
+        .unwrap();
+        s.create_comment(
+            "dev",
+            &first.id,
+            "checklist-comment",
+            crate::discussion::NewComment {
+                body: "Historical discussion".into(),
+            },
+        )
+        .unwrap();
+        let current = task(&s.conn, &root.id).unwrap();
+        let series = s
+            .start_series("dev", &root.id, current.revision, spec())
+            .unwrap();
+        let paused = s
+            .set_series_state(
+                "dev",
+                &series.id,
+                series.revision,
+                SeriesState::Paused,
+                unix("2026-03-28T10:00:00"),
+            )
+            .unwrap();
+        let current = task(&s.conn, &first.id).unwrap();
+        s.update(
+            "dev",
+            &first.id,
+            Change {
+                revision: current.revision,
+                complete: Some(true),
+                complete_subtree: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let current = task(&s.conn, &sibling.id).unwrap();
+        s.update(
+            "dev",
+            &sibling.id,
+            Change {
+                revision: current.revision,
+                complete: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let current = task(&s.conn, &root.id).unwrap();
+        assert!(
+            s.update(
+                "dev",
+                &root.id,
+                Change {
+                    revision: current.revision,
+                    complete: Some(true),
+                    ..Default::default()
+                }
+            )
+            .is_err()
+        );
+        s.update(
+            "dev",
+            &root.id,
+            Change {
+                revision: current.revision,
+                complete: Some(true),
+                complete_subtree: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(s.occurrences("dev", &series.id).unwrap().len(), 1);
+        s.set_series_state(
+            "dev",
+            &series.id,
+            paused.revision,
+            SeriesState::Active,
+            unix("2026-03-28T10:00:00"),
+        )
+        .unwrap();
+        let occurrences = s.occurrences("dev", &series.id).unwrap();
+        assert_eq!(occurrences.len(), 2);
+        assert_eq!(occurrences[1].due_local, "2026-03-29T09:00:00");
+        let next = s.subtree("dev", &occurrences[1].task_id).unwrap();
+        assert_eq!(next.len(), 4);
+        assert!(next.iter().all(|t| !t.complete));
+        let first_copy = next.iter().find(|t| t.title == first.title).unwrap();
+        let nested_copy = next.iter().find(|t| t.title == grandchild.title).unwrap();
+        assert_eq!(
+            first_copy.parent_id.as_deref(),
+            Some(occurrences[1].task_id.as_str())
+        );
+        assert_eq!(
+            nested_copy.parent_id.as_deref(),
+            Some(first_copy.id.as_str())
+        );
+        assert_eq!(first_copy.description, first.description);
+        for old in [&root, &first, &grandchild, &sibling] {
+            assert!(
+                next.iter()
+                    .all(|new| new.id != old.id && new.reference != old.reference)
+            );
+        }
+        assert!(
+            next.iter()
+                .all(|t| s.task_section("dev", &t.id).unwrap().as_deref()
+                    == Some("checklist-section"))
+        );
+        assert_eq!(
+            s.task_tags("dev", &first_copy.id).unwrap()[0].name,
+            "Checklist"
+        );
+        let shifted = s.get_schedule("dev", &first_copy.id).unwrap().schedule;
+        assert_eq!(shifted.priority, Some(1));
+        assert_eq!(
+            shifted.planned,
+            Some(Moment::Date {
+                date: "2026-03-29".into()
+            })
+        );
+        assert_eq!(shifted.due, Some(moment("2026-03-29T08:00:00")));
+        assert_eq!(shifted.reminders[0].at, moment("2026-03-29T07:30:00"));
+        assert_eq!(s.comments("dev", &first.id, 0, 10).unwrap().len(), 1);
+        assert!(s.comments("dev", &first_copy.id, 0, 10).unwrap().is_empty());
+        assert_eq!(s.conn.query_row("SELECT COUNT(*) FROM history WHERE json_extract(event,'$.kind')='recurrence-create'",[],|r|r.get::<_,i64>(0)).unwrap(),4);
+        let old_nested = task(&s.conn, &grandchild.id).unwrap();
+        s.update(
+            "dev",
+            &old_nested.id,
+            Change {
+                revision: old_nested.revision,
+                complete: Some(false),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(s.occurrences("dev", &series.id).unwrap().len(), 2);
+        assert_eq!(
+            s.conn
+                .query_row(
+                    "SELECT COUNT(*) FROM reminder_outbox WHERE task_id=?1 AND status='pending'",
+                    [&first.id],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap(),
+            0
+        );
+        let next_root = task(&s.conn, &occurrences[1].task_id).unwrap();
+        let moved = s
+            .move_subtree("dev", &next_root.id, "groceries", next_root.revision, false)
+            .unwrap();
+        assert!(
+            s.update(
+                "other",
+                &moved.id,
+                Change {
+                    revision: moved.revision,
+                    complete: Some(true),
+                    complete_subtree: true,
+                    ..Default::default()
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            s.update(
+                "dev",
+                &moved.id,
+                Change {
+                    revision: next_root.revision,
+                    complete: Some(true),
+                    complete_subtree: true,
+                    ..Default::default()
+                }
+            )
+            .is_err()
+        );
+        s.update(
+            "dev",
+            &moved.id,
+            Change {
+                revision: moved.revision,
+                complete: Some(true),
+                complete_subtree: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let occurrences = s.occurrences("dev", &series.id).unwrap();
+        assert_eq!(occurrences.len(), 3);
+        let last = s.subtree("dev", &occurrences[2].task_id).unwrap();
+        assert_eq!(last.len(), 4);
+        assert!(last.iter().all(|t| t.list_id == "groceries" && !t.complete));
+        assert!(
+            last.iter()
+                .all(|t| s.task_section("dev", &t.id).unwrap().is_none())
+        );
+        assert_eq!(
+            s.task_tags(
+                "dev",
+                &last.iter().find(|t| t.title == first.title).unwrap().id
+            )
+            .unwrap()[0]
+                .name,
+            "Checklist"
+        );
+    }
+    #[test]
+    fn checklist_skip_is_explicit_and_bounds_roll_back_completion() {
+        let mut s = db();
+        let root = new_task(&mut s);
+        let child = child(&mut s, &root.id, "Skip child");
+        let series = s
+            .start_series("dev", &root.id, root.revision, spec())
+            .unwrap();
+        s.skip_occurrence("dev", &root.id, 2, unix("2026-03-28T10:00:00"))
+            .unwrap();
+        assert!(task(&s.conn, &child.id).unwrap().complete);
+        assert_eq!(
+            s.occurrences("dev", &series.id).unwrap()[0].status,
+            "skipped"
+        );
+        assert_eq!(s.conn.query_row("SELECT COUNT(*) FROM history WHERE json_extract(event,'$.kind')='recurrence-skip'",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+        let mut bounded = db();
+        let root = new_task(&mut bounded);
+        for n in 0..500 {
+            bounded.conn.execute("INSERT INTO tasks(id,reference,list_id,parent_id,title,position) VALUES(?1,?1,'inbox',?2,'Bounded child',?3)",params![format!("bounded-{n}"),root.id,n]).unwrap();
+        }
+        assert!(bounded.start_series("dev", &root.id, 1, spec()).is_err());
+        bounded
+            .conn
+            .execute("DELETE FROM tasks WHERE id='bounded-499'", [])
+            .unwrap();
+        let series = bounded.start_series("dev", &root.id, 1, spec()).unwrap();
+        bounded.conn.execute("INSERT INTO tasks(id,reference,list_id,parent_id,title,position) VALUES('overflow','overflow','inbox',?1,'Overflow',500)",[&root.id]).unwrap();
+        assert!(
+            bounded
+                .update(
+                    "dev",
+                    &root.id,
+                    Change {
+                        revision: 2,
+                        complete: Some(true),
+                        complete_subtree: true,
+                        ..Default::default()
+                    }
+                )
+                .is_err()
+        );
+        assert!(!task(&bounded.conn, &root.id).unwrap().complete);
+        assert!(!task(&bounded.conn, "bounded-0").unwrap().complete);
+        assert_eq!(bounded.series("dev", &series.id).unwrap().emitted, 1);
+        bounded
+            .conn
+            .execute("DELETE FROM tasks WHERE id='overflow'", [])
+            .unwrap();
+        bounded
+            .update(
+                "dev",
+                &root.id,
+                Change {
+                    revision: 2,
+                    complete: Some(true),
+                    complete_subtree: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        let next = bounded.occurrences("dev", &series.id).unwrap();
+        assert_eq!(next.len(), 2);
+        assert_eq!(bounded.subtree("dev", &next[1].task_id).unwrap().len(), 500);
+    }
+    #[test]
+    fn occurrence_reparent_requires_stopping_the_series() {
+        let mut s = db();
+        let root = new_task(&mut s);
+        let parent = new_task(&mut s);
+        let series = s
+            .start_series("dev", &root.id, root.revision, spec())
+            .unwrap();
+        assert!(
+            s.reparent_subtree("dev", &root.id, Some(parent.id.clone()), 2)
+                .is_err()
+        );
+        assert!(task(&s.conn, &root.id).unwrap().parent_id.is_none());
+        s.set_series_state(
+            "dev",
+            &series.id,
+            series.revision,
+            SeriesState::Stopped,
+            unix("2026-03-28T10:00:00"),
+        )
+        .unwrap();
+        s.reparent_subtree("dev", &root.id, Some(parent.id.clone()), 2)
+            .unwrap();
+        s.start_series("dev", &parent.id, parent.revision, spec())
+            .unwrap();
     }
     #[test]
     fn unrelated_schedule_edits_preserve_delivery_intents_and_do_not_replay_sent() {
