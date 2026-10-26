@@ -1,0 +1,15 @@
+# Rust development checks
+
+The `Rust development checks` GitHub Actions workflow is prepared for pushes, same-repository pull requests, and manual runs. It has not been executed in GitHub Actions as part of this change. The existing legacy Docker publishing workflow remains separate.
+
+Configure repository variable `TODOER_RUNNER_LABELS` as a JSON array of labels for a private self-hosted runner, for example `["self-hosted","linux","todoer-private"]`. Its default is `["self-hosted","todoer-private"]`. The job-level condition rejects fork pull requests before runner allocation. The workflow uses `pull_request`, not a privileged pull-request-target trigger. Only trusted repository contributors should be able to push code that this private runner executes.
+
+The runner needs Bash, Git, Make, curl, a compatible stable Rust toolchain with rustfmt and Clippy, Node.js/npm, C build tooling for bundled SQLite, network access to package registries, and Playwright's Chromium/Firefox host libraries. Install those host packages when provisioning the runner; the workflow downloads browser binaries without privileged host-package installation. `uv` is optional and enables the official Python MCP SDK check. Check the repository's locked dependencies and Rust edition when provisioning toolchain versions.
+
+Checks run `npm ci`, `make rust-check` (assets, formatting, Clippy with warnings denied, tests, and a debug build), then Chromium and Firefox browser tests with one worker. WebKit is excluded because the development host lacked its required system libraries; this workflow does not establish WebKit compatibility. A runner provisioned with WebKit dependencies can run that project separately.
+
+Browser, CLI, and optional MCP checks share a loopback-only server on port 8092 with a new synthetic SQLite database under `RUNNER_TEMP`. Port 8092 must be free. The development-only fixture token is public test data, not a deployment credential. The server starts only for the checks and a shell trap terminates it and removes the temporary database. The workflow neither accesses the legacy database nor requests production secrets.
+
+Permissions are limited to `contents: read`; checkout does not persist its credentials. There are no image-publishing, release, or deployment steps. The prepared workflow is a development validation gate. Rust production release remains blocked by production authentication, migration/cutover validation, and the other outstanding acceptance work; passing it does not authorize deployment.
+
+GitHub documents [job conditions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif) and [self-hosted runner labels](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/use-in-a-workflow). Checkout's [official usage documentation](https://github.com/actions/checkout/blob/main/README.md) documents `persist-credentials: false`; this workflow follows the repository's existing checkout v4 convention.
