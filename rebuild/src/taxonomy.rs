@@ -1267,6 +1267,36 @@ mod tests {
         ));
     }
     #[test]
+    fn same_parent_reparent_invalidates_sibling_order_snapshot() {
+        let mut db = db();
+        let a = new_task(&mut db, "inbox", "A", None, "");
+        let b = new_task(&mut db, "inbox", "B", None, "");
+        let revision = db
+            .lists("dev")
+            .unwrap()
+            .into_iter()
+            .find(|l| l.id == "inbox")
+            .unwrap()
+            .revision;
+        let moved = db.reparent_subtree("dev", &a.id, None, a.revision).unwrap();
+        assert!(moved.position > b.position);
+        assert!(matches!(
+            db.reorder_siblings(
+                "dev",
+                "inbox",
+                None,
+                revision,
+                vec![a.id.clone(), b.id.clone()]
+            ),
+            Err(Error::Conflict(_))
+        ));
+        let current = db.tasks("dev", "inbox").unwrap();
+        assert_eq!(
+            current.iter().map(|t| t.id.as_str()).collect::<Vec<_>>(),
+            vec![b.id.as_str(), a.id.as_str()]
+        );
+    }
+    #[test]
     fn moves_remap_tag_scope_and_clear_section_without_losing_names() {
         let mut db = db();
         let t = new_task(&mut db, "inbox", "Move", None, "");
