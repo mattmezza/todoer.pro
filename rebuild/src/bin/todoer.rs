@@ -24,6 +24,18 @@ enum Command {
     Tasks {
         list: String,
     },
+    Search {
+        #[arg(long, default_value = "")]
+        query: String,
+        #[arg(long)]
+        list: Option<String>,
+        #[arg(long)]
+        complete: Option<bool>,
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+        #[arg(long)]
+        after: Option<String>,
+    },
     Capture {
         #[arg(long)]
         list: String,
@@ -62,6 +74,13 @@ enum Command {
         destination: String,
         #[arg(long)]
         revision: i64,
+        #[arg(long)]
+        acknowledge_access_change: bool,
+    },
+    MovePreview {
+        id: String,
+        #[arg(long)]
+        destination: String,
     },
     Changes {
         #[arg(long, default_value_t = 0)]
@@ -93,6 +112,7 @@ async fn main() {
 }
 
 async fn run(args: Args) -> Result<(), (i32, String)> {
+    let mut query_pairs: Vec<(String, String)> = Vec::new();
     let (method, path, body, key) = match args.command {
         Command::List => (Method::GET, "/lists".into(), None, None),
         Command::Tasks { list } => (
@@ -101,6 +121,26 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             None,
             None,
         ),
+        Command::Search {
+            query,
+            list,
+            complete,
+            limit,
+            after,
+        } => {
+            query_pairs.push(("query".into(), query));
+            query_pairs.push(("limit".into(), limit.to_string()));
+            if let Some(list) = list {
+                query_pairs.push(("list".into(), list));
+            }
+            if let Some(complete) = complete {
+                query_pairs.push(("complete".into(), complete.to_string()));
+            }
+            if let Some(after) = after {
+                query_pairs.push(("after".into(), after));
+            }
+            (Method::GET, "/search".into(), None, None)
+        }
         Command::Capture { list, key, titles } => (
             Method::POST,
             "/capture".into(),
@@ -158,12 +198,24 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             id,
             destination,
             revision,
+            acknowledge_access_change,
         } => (
             Method::POST,
             format!("/tasks/{}/move", segment(&id)),
-            Some(json!({"destination": destination, "revision": revision})),
+            Some(
+                json!({"destination": destination, "revision": revision, "acknowledge_access_change": acknowledge_access_change}),
+            ),
             None,
         ),
+        Command::MovePreview { id, destination } => {
+            query_pairs.push(("destination".into(), destination));
+            (
+                Method::GET,
+                format!("/tasks/{}/move-preview", segment(&id)),
+                None,
+                None,
+            )
+        }
         Command::Changes { after } => (Method::GET, format!("/changes?after={after}"), None, None),
     };
     let token =
@@ -177,12 +229,12 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|_| (1, "could not initialize HTTP client".into()))?;
-    let mut request = client
-        .request(
-            method,
-            format!("{}/api/v1{path}", args.url.trim_end_matches('/')),
-        )
-        .bearer_auth(token);
+    let mut url = reqwest::Url::parse(&format!("{}/api/v1{path}", args.url.trim_end_matches('/')))
+        .map_err(|_| (2, "invalid server URL".into()))?;
+    if !query_pairs.is_empty() {
+        url.query_pairs_mut().extend_pairs(query_pairs);
+    }
+    let mut request = client.request(method, url).bearer_auth(token);
     if let Some(body) = body {
         request = request.json(&body);
     }
