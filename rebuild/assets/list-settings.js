@@ -79,7 +79,23 @@ export async function openListSettings(listId, selected = 'details') {
           error?.error?.message || 'Could not save. Refresh settings and try again.',
         );
       }
+      const color = form.querySelector('[name=color]')?.value;
       await load();
+      if (color && /^#[0-9a-f]{6}$/i.test(color)) {
+        document.body.dataset.listColor = color;
+        document.body.style.setProperty('--list-color', color);
+        for (const badge of document.querySelectorAll(
+          `.entity-color,.list-navigation[href="/lists/${listId}"] .list-dot`,
+        )) {
+          badge.dataset.entityColor = color;
+          badge.style.backgroundColor = color;
+        }
+      }
+      const edit = document.querySelector('[data-list-edit]');
+      if (edit?.hidden) {
+        const revision = doc.querySelector('input[name=revision]')?.value;
+        if (revision) edit.dataset.revision = revision;
+      }
       status.textContent = 'Saved.';
     } catch (error) {
       status.textContent = error.message;

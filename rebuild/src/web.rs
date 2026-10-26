@@ -633,6 +633,16 @@ async fn page(
     let account_id = actor.clone();
     let list_actor = actor.clone();
     let lists = s.run(move |db| db.lists(&list_actor)).await?;
+    if !lists.iter().any(|l| l.id == id) {
+        let alias_actor = actor.clone();
+        let alias_id = id.clone();
+        let found = s
+            .run(move |db| db.resolve_destination(&alias_actor, Some(&alias_id), None, false))
+            .await?;
+        if let Some(destination) = found.destination {
+            return Ok(Redirect::to(&format!("/lists/{}", destination.id)).into_response());
+        }
+    }
     let list = lists.iter().find(|l| l.id == id).cloned().ok_or(ApiError(
         StatusCode::NOT_FOUND,
         "not_found",

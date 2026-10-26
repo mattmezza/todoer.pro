@@ -2569,3 +2569,25 @@ input[type='color'] {
 .task-page-checklist .section-heading:has([data-child-progress]:empty) {
   display: none;
 }
+.workspace-main,
+.workspace-row-content,
+.workspace-header {
+  min-width: 0;
+}
+.workspace-header h1,
+.workspace-row-title {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.workspace-menu-panel {
+  border: 0;
+}
+.reference-list-page .breadcrumbs,
+.dedicated-task-page .breadcrumbs {
+  font:
+    14px/1.5 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
