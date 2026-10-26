@@ -237,6 +237,107 @@ async def main():
                 assert (await call("read_subtree", {"id": captured[0]["id"]}))[
                     0
                 ]["title"] == "Reviewed OAuth SDK change"
+                current = (
+                    await call("read_subtree", {"id": captured[0]["id"]})
+                )[0]
+                tag = await call(
+                    "organize_tasks",
+                    {
+                        "action": {
+                            "op": "tag_create",
+                            "list_id": "inbox",
+                            "name": f"SDK-{uuid.uuid4().hex[:8]}",
+                        }
+                    },
+                )
+                current = await call(
+                    "organize_tasks",
+                    {
+                        "action": {
+                            "op": "tags_set",
+                            "id": current["id"],
+                            "revision": current["revision"],
+                            "tags": [{"id": tag["id"]}],
+                        }
+                    },
+                )
+                assigned = await call(
+                    "organize_tasks",
+                    {"action": {"op": "tags_get", "id": current["id"]}},
+                )
+                assert any(item["id"] == tag["id"] for item in assigned)
+                page = await call(
+                    "query",
+                    {
+                        "query": {
+                            "text": "SDK change",
+                            "list_id": "inbox",
+                            "entities": ["task"],
+                            "tag": tag["id"],
+                            "fields": ["title"],
+                        }
+                    },
+                )
+                assert (
+                    page["total"] == 1
+                    and page["hits"][0]["id"] == current["id"]
+                )
+                assert "snippet" not in page["hits"][0]
+                resolved_ref = await call(
+                    "references",
+                    {"action": {"op": "resolve", "reference": "#Inbox"}},
+                )
+                assert (
+                    len(resolved_ref["choices"]) == 1
+                    and resolved_ref["choices"][0]["id"] == "inbox"
+                )
+                current = await call(
+                    "update_task",
+                    {
+                        "id": current["id"],
+                        "revision": current["revision"],
+                        "description": "#Inbox with `#Inbox` literal",
+                    },
+                )
+                unresolved = await call(
+                    "references",
+                    {
+                        "action": {
+                            "op": "unresolved",
+                            "source_kind": "task",
+                            "source_id": current["id"],
+                        }
+                    },
+                )
+                assert unresolved == []
+                binding = await call(
+                    "references",
+                    {
+                        "action": {
+                            "op": "bind",
+                            "source_kind": "task",
+                            "source_id": current["id"],
+                            "revision": current["revision"],
+                            "occurrence": 0,
+                            "target_kind": "list",
+                            "target_id": "inbox",
+                        }
+                    },
+                )
+                assert binding["source_revision"] == current["revision"] + 1
+                backlinks = await call(
+                    "references",
+                    {
+                        "action": {
+                            "op": "backlinks",
+                            "target_kind": "list",
+                            "target_id": "inbox",
+                        }
+                    },
+                )
+                assert any(
+                    item["source_id"] == current["id"] for item in backlinks
+                )
                 PHASE = "scope-denial"
                 denied = await session.call_tool(
                     "search", {"list": "groceries"}
@@ -263,7 +364,7 @@ async def main():
                         "OAuth MCP SDK refresh passed: replacement refresh token stored; browser consent unchanged"
                     )
                 print(
-                    "OAuth MCP SDK check passed: discovery, registration, PKCE consent, token exchange, tools, capture retry, subtree, saved destination, bulk preview/apply/retry, list-scope denial"
+                    "OAuth MCP SDK check passed: discovery, registration, PKCE consent, token exchange, tools, capture retry, subtree, saved destination, bulk preview/apply/retry, tags, structured query, reference bind/backlinks, list-scope denial"
                 )
     return 0
 

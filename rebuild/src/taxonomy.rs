@@ -1,7 +1,7 @@
 //! Authorized task taxonomy, structural ordering and persistent entity references.
 use crate::core::{Error, Store, Task, access_rank, actor_identity, event, task};
 use pulldown_cmark::{CowStr, Event, Parser, Tag as MarkdownTag, TagEnd};
-use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
@@ -36,6 +36,7 @@ pub struct ReferenceResolution {
 pub struct Backlink {
     pub source_kind: String,
     pub source_id: String,
+    pub source_task_id: String,
 }
 #[derive(Debug)]
 struct Token {
@@ -99,7 +100,7 @@ fn cas_task(c: &Connection, old: &Task, revision: i64) -> Result<(), Error> {
     }
     Ok(())
 }
-fn location(c: &Connection, id: &str) -> Result<Option<String>, Error> {
+pub(crate) fn location(c: &Connection, id: &str) -> Result<Option<String>, Error> {
     Ok(c.query_row(
         "WITH RECURSIVE ancestors(id,parent_id,depth) AS (SELECT id,parent_id,0 FROM tasks WHERE id=?1 UNION ALL SELECT t.id,t.parent_id,a.depth+1 FROM tasks t JOIN ancestors a ON t.id=a.parent_id) SELECT l.section_id FROM ancestors a JOIN task_locations l ON l.task_id=a.id ORDER BY a.depth LIMIT 1",
         [id],
@@ -134,9 +135,7 @@ impl Store {
         if tags.len() > 50 {
             return Err(Error::Invalid("at most 50 tags per task".into()));
         }
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let old = task(&tx, id)?;
         access_rank(&tx, actor, &old.list_id, 2)?;
         let home = scope(&tx, &old.list_id)?;
@@ -173,9 +172,7 @@ impl Store {
         name: &str,
     ) -> Result<Tag, Error> {
         let (name, normalized) = normalized(name)?;
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let home: String = tx
             .query_row("SELECT scope FROM tags WHERE id=?1", [id], |r| r.get(0))
             .optional()?
@@ -218,9 +215,7 @@ impl Store {
         revision: i64,
         section: Option<String>,
     ) -> Result<Task, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let old = task(&tx, id)?;
         access_rank(&tx, actor, &old.list_id, 2)?;
         if old.parent_id.is_some() {
@@ -255,9 +250,7 @@ impl Store {
         parent: Option<String>,
         revision: i64,
     ) -> Result<Task, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let old = task(&tx, id)?;
         access_rank(&tx, actor, &old.list_id, 2)?;
         let ids = subtree_ids(&tx, &old.id)?;
@@ -331,9 +324,7 @@ impl Store {
         if ids.len() > 10000 {
             return Err(Error::Invalid("sibling order too large".into()));
         }
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         access_rank(&tx, actor, list, 2)?;
         let parent = if let Some(id) = parent {
             let resolved = task(&tx, &id)?;
@@ -1075,7 +1066,7 @@ impl Store {
             Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
         })? {
             let (kind, id) = row?;
-            if let Ok((_, raw)) = source_task(&self.conn, actor, &kind, &id, 1) {
+            if let Ok((source, raw)) = source_task(&self.conn, actor, &kind, &id, 1) {
                 let current: bool = self.conn.query_row("SELECT EXISTS(SELECT 1 FROM reference_sources WHERE source_kind=?1 AND source_id=?2 AND raw_hash=?3)",params![kind,id,digest(&raw)],|r|r.get(0))?;
                 if !current {
                     continue;
@@ -1083,6 +1074,7 @@ impl Store {
                 result.push(Backlink {
                     source_kind: kind,
                     source_id: id,
+                    source_task_id: source.id,
                 });
                 if result.len() == 100 {
                     break;
@@ -1398,6 +1390,288 @@ mod tests {
         assert_eq!(
             db.reference_autocomplete("dev", "#Dup", 1).unwrap().len(),
             1
+        );
+    }
+}
+
+/// Explicit reference binding changes the saved source revision, even when its text is unchanged.
+#[derive(Debug, Serialize)]
+pub struct ReferenceBinding {
+    pub source_revision: i64,
+    pub unresolved: Vec<ReferenceResolution>,
+}
+impl Store {
+    /// Unused workspace tags require workspace access. Direct list guests can
+    /// introduce names through set_task_tags, which immediately associates them.
+    pub fn create_tag(&mut self, actor: &str, list: &str, name: &str) -> Result<Tag, Error> {
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
+        access_rank(&tx, actor, list, 2)?;
+        let home = scope(&tx, list)?;
+        if let Some(workspace) = home.strip_prefix("workspace:") {
+            workspace_visible(&tx, actor, workspace, 2)?;
+        }
+        let tag = ensure_tag(&tx, &home, name)?;
+        tx.commit()?;
+        Ok(tag)
+    }
+    pub fn list_tags(
+        &self,
+        actor: &str,
+        list: &str,
+        prefix: &str,
+        limit: usize,
+    ) -> Result<Vec<Tag>, Error> {
+        access_rank(&self.conn, actor, list, 1)?;
+        if !(1..=100).contains(&limit) || prefix.chars().count() > 100 {
+            return Err(Error::Invalid(
+                "tag limit 1..100 and prefix at most 100 characters".into(),
+            ));
+        }
+        let home = scope(&self.conn, list)?;
+        let all = home
+            .strip_prefix("workspace:")
+            .is_none_or(|workspace| workspace_visible(&self.conn, actor, workspace, 1).is_ok());
+        let mut stmt=self.conn.prepare("SELECT g.id,g.name,g.revision FROM tags g WHERE g.scope=?1 AND substr(g.normalized_name,1,length(?2))=?2 AND (?3 OR EXISTS(SELECT 1 FROM task_tags tt JOIN tasks t ON t.id=tt.task_id WHERE tt.tag_id=g.id AND t.list_id=?4 AND t.deleted_at IS NULL)) ORDER BY g.normalized_name,g.id LIMIT ?5")?;
+        Ok(stmt
+            .query_map(
+                params![home, prefix.to_lowercase(), all, list, limit as i64],
+                tag_row,
+            )?
+            .collect::<Result<Vec<_>, _>>()?)
+    }
+    pub fn resolve_reference(
+        &self,
+        actor: &str,
+        input: &str,
+    ) -> Result<ReferenceResolution, Error> {
+        if input.chars().count() > 200 {
+            return Err(Error::Invalid("reference at most 200 characters".into()));
+        }
+        let input = input.trim();
+        let parsed = tokens(input);
+        if parsed.len() != 1 || parsed[0].raw != input {
+            return Err(Error::Invalid(
+                "provide exactly one @workspace, #list, $section, %task or +tag reference".into(),
+            ));
+        }
+        Ok(ReferenceResolution {
+            token: parsed[0].raw.clone(),
+            occurrence: 0,
+            choices: exact_matches(&self.conn, actor, &parsed[0])?,
+        })
+    }
+    pub fn source_unresolved_references(
+        &self,
+        actor: &str,
+        kind: &str,
+        id: &str,
+    ) -> Result<Vec<ReferenceResolution>, Error> {
+        let (source, raw) = source_task(&self.conn, actor, kind, id, 1)?;
+        let id = if kind == "task" {
+            source.id.as_str()
+        } else {
+            id
+        };
+        unresolved_references(&self.conn, actor, kind, id, &raw)
+    }
+    pub fn bind_reference(
+        &mut self,
+        actor: &str,
+        kind: &str,
+        id: &str,
+        revision: i64,
+        occurrence: usize,
+        target: (&str, &str),
+    ) -> Result<ReferenceBinding, Error> {
+        let (target_kind, target_id) = target;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
+        let (source, raw) = source_task(&tx, actor, kind, id, 2)?;
+        let source_id = if kind == "task" {
+            source.id.as_str()
+        } else {
+            id
+        };
+        let actual = if kind == "task" {
+            source.revision
+        } else {
+            let (revision, author): (i64, String) = tx.query_row(
+                "SELECT revision,author_id FROM comments WHERE id=?1",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )?;
+            crate::discussion::owner_or_author(&tx, actor, &source, &author)?;
+            revision
+        };
+        if actual != revision {
+            return Err(Error::Conflict("stale source revision".into()));
+        }
+        let parsed = tokens(&raw);
+        let token = parsed
+            .get(occurrence)
+            .ok_or_else(|| Error::Invalid("unknown reference occurrence".into()))?;
+        if token.kind != target_kind
+            || !exact_matches(&tx, actor, token)?
+                .iter()
+                .any(|c| c.id == target_id && c.kind == target_kind)
+        {
+            return Err(Error::Invalid(
+                "choose a currently accessible exact candidate for this occurrence".into(),
+            ));
+        }
+        // Indexing preserves all existing bindings when the saved text hash is unchanged.
+        index_references(&tx, actor, kind, source_id, &raw)?;
+        tx.execute("INSERT INTO reference_edges(source_kind,source_id,occurrence,target_kind,target_id,original_token) VALUES(?1,?2,?3,?4,?5,?6) ON CONFLICT(source_kind,source_id,occurrence) DO UPDATE SET target_kind=excluded.target_kind,target_id=excluded.target_id,original_token=excluded.original_token",params![kind,source_id,occurrence as i64,target_kind,target_id,token.raw])?;
+        if kind=="task" {cas_task(&tx,&source,revision)?;event(&tx,&task(&tx,&source.id)?,"references",actor,Some(&source))?;}else if tx.execute("UPDATE comments SET revision=revision+1,updated_at=unixepoch() WHERE id=?1 AND revision=?2",params![id,revision])?!=1{return Err(Error::Conflict("stale source revision".into()));}
+        let unresolved = unresolved_references(&tx, actor, kind, source_id, &raw)?;
+        tx.commit()?;
+        Ok(ReferenceBinding {
+            source_revision: revision + 1,
+            unresolved,
+        })
+    }
+}
+
+#[cfg(test)]
+mod adapter_contract_tests {
+    use super::*;
+    use crate::core::{Capture, NewTask};
+    fn db() -> Store {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        db
+    }
+    fn source(db: &mut Store, description: &str) -> Task {
+        db.capture(
+            "dev",
+            &Uuid::new_v4().to_string(),
+            Capture {
+                list_id: "inbox".into(),
+                tasks: vec![NewTask {
+                    title: "Reference source".into(),
+                    description: description.into(),
+                    parent_id: None,
+                }],
+            },
+        )
+        .unwrap()
+        .remove(0)
+    }
+    #[test]
+    fn explicit_binding_is_revision_guarded_preserves_other_edges_and_survives_rename() {
+        let mut db = db();
+        db.conn.execute_batch("INSERT INTO lists(id,title) VALUES('twin','Inbox');INSERT INTO memberships VALUES('twin','dev');").unwrap();
+        let source = source(&mut db, "#Inbox and #Groceries with `#Inbox` literal");
+        let unresolved = db
+            .source_unresolved_references("dev", "task", &source.reference)
+            .unwrap();
+        assert_eq!(unresolved.len(), 1);
+        assert_eq!(unresolved[0].choices.len(), 2);
+        let bound = db
+            .bind_reference("dev", "task", &source.reference, 1, 0, ("list", "inbox"))
+            .unwrap();
+        assert_eq!(bound.source_revision, 2);
+        assert!(bound.unresolved.is_empty());
+        assert!(matches!(
+            db.bind_reference("dev", "task", &source.id, 1, 0, ("list", "twin")),
+            Err(Error::Conflict(_))
+        ));
+        db.conn
+            .execute(
+                "UPDATE lists SET title='Renamed inbox' WHERE id='inbox'",
+                [],
+            )
+            .unwrap();
+        assert!(
+            db.source_unresolved_references("dev", "task", &source.id)
+                .unwrap()
+                .is_empty()
+        );
+        let html =
+            render_references(&db.conn, "dev", "task", &source.id, &source.description).unwrap();
+        assert!(html.contains("Renamed inbox"));
+        assert!(html.contains("<code>#Inbox</code>"));
+        assert_eq!(
+            db.reference_backlinks("dev", "list", "groceries")
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(
+            db.bind_reference("dev", "task", &source.id, 2, 0, ("list", "private"))
+                .is_err()
+        );
+    }
+    #[test]
+    fn comment_binding_updates_comment_revision_and_obeys_source_write_access() {
+        let mut db = db();
+        let task = source(&mut db, "");
+        db.conn.execute_batch("INSERT INTO lists(id,title) VALUES('twin','Inbox');INSERT INTO memberships VALUES('twin','dev');").unwrap();
+        db.conn.execute("INSERT INTO comments(id,task_id,author_id,body) VALUES('comment',?1,'dev','#Inbox')",[&task.id]).unwrap();
+        assert_eq!(
+            db.source_unresolved_references("dev", "comment", "comment")
+                .unwrap()[0]
+                .choices
+                .len(),
+            2
+        );
+        assert_eq!(
+            db.bind_reference("dev", "comment", "comment", 1, 0, ("list", "inbox"))
+                .unwrap()
+                .source_revision,
+            2
+        );
+        assert!(matches!(
+            db.bind_reference("dev", "comment", "comment", 1, 0, ("list", "twin")),
+            Err(Error::Conflict(_))
+        ));
+        db.conn
+            .execute("INSERT INTO memberships VALUES('inbox','other')", [])
+            .unwrap();
+        assert!(matches!(
+            db.bind_reference("other", "comment", "comment", 2, 0, ("list", "inbox")),
+            Err(Error::Forbidden)
+        ));
+        db.conn
+            .execute(
+                "INSERT INTO membership_roles VALUES('inbox','dev','viewer')",
+                [],
+            )
+            .unwrap();
+        assert!(matches!(
+            db.bind_reference("dev", "comment", "comment", 2, 0, ("list", "twin")),
+            Err(Error::Forbidden)
+        ));
+    }
+    #[test]
+    fn direct_guest_tag_registry_never_exposes_unused_workspace_metadata() {
+        let mut db = db();
+        db.conn.execute_batch("INSERT INTO workspaces(id,title) VALUES('w','Hidden workspace');INSERT INTO workspace_members VALUES('w','other','owner');UPDATE lists SET workspace_id='w' WHERE id='inbox';INSERT INTO tags(id,scope,name,normalized_name) VALUES('hidden','workspace:w','Hidden tag','hidden tag');").unwrap();
+        assert!(db.list_tags("dev", "inbox", "", 100).unwrap().is_empty());
+        assert!(matches!(
+            db.create_tag("dev", "inbox", "Standalone"),
+            Err(Error::Forbidden)
+        ));
+        let task = source(&mut db, "");
+        db.set_task_tags(
+            "dev",
+            &task.id,
+            1,
+            vec![TagSelector::Name("Assigned".into())],
+        )
+        .unwrap();
+        let tags = db.list_tags("dev", "inbox", "", 100).unwrap();
+        assert_eq!(tags.len(), 1);
+        assert_eq!(tags[0].name, "Assigned");
+        db.conn
+            .execute(
+                "INSERT INTO workspace_members VALUES('w','dev','editor')",
+                [],
+            )
+            .unwrap();
+        assert_eq!(db.list_tags("dev", "inbox", "", 100).unwrap().len(), 2);
+        assert_eq!(
+            db.create_tag("dev", "inbox", "Standalone").unwrap().name,
+            "Standalone"
         );
     }
 }

@@ -71,3 +71,35 @@ todoer --json bulk apply PREVIEW_ID --hash EXPECTED_HASH --key UNIQUE_RETRY_KEY
 At most 50 operations and 500 affected task states fit one preview. Supported operations are title/description update, move, trash, restore, existing tags, section assignment, and same-list reparenting. Completion and entity creation use their individual APIs. Existing tag names must already exist in the task's destination scope. Preview runs the common operations and rolls them back; apply rechecks current revisions, permissions, and metadata and commits all operations together. Reuse the apply key only for the same preview and hash. A later failure rolls back earlier operations.
 
 The compact MCP tools are `preview_changes`, `apply_changes`, `resolve_destination`, and `configure_destination`, alongside the existing task tools. Each tool rechecks the current request credential. The OAuth SDK fixture check in `scripts/rebuild-oauth-mcp-check.py` is test-only: it requires an isolated loopback server and synthetic browser session inputs supplied by the Rust integration harness. It exercises discovery, registration, PKCE, consent, token exchange, scoped tools, saved destinations, bulk retry, and optional token refresh without logging credentials.
+
+Structured search and organization use the common domain operations:
+
+```sh
+todoer --json query --text proposal --entity task --entity comment --status all --list LIST_ID --due-from 2026-10-26 --due-to 2026-10-30 --sort due --field title --field context
+todoer --json query --body '{"text":"proposal","entities":["task"],"fields":[],"limit":20}'
+todoer tags list LIST_ID --prefix urgent
+todoer tags create LIST_ID urgent
+todoer tags get TASK_ID
+todoer tags set TASK_ID --revision 1 --tag urgent --tag-id EXISTING_TAG_UUID
+todoer tags rename TAG_UUID --revision 1 'high priority'
+todoer task-section TASK_ID
+todoer task-section ROOT_TASK_ID --revision 2 --section SECTION_ID
+todoer task-section ROOT_TASK_ID --revision 3 --clear
+todoer reparent TASK_ID --revision 4 --parent PARENT_TASK_ID
+todoer reparent TASK_ID --revision 5
+todoer reorder LIST_ID --revision LIST_REVISION FIRST_TASK_ID SECOND_TASK_ID
+```
+
+`tags set` replaces the complete tag set; no `--tag` or `--tag-id` clears it. Names create missing tags atomically with assignment. Standalone workspace tag creation requires workspace editor access; direct list guests cannot list unused workspace tags. Section writes apply to roots and their descendants. Reparenting is same-list only, rejects cycles, and follows the new parent's section; omitting `--parent` creates a root. Sibling reorder requires every active sibling exactly once and the current **list** revision. Read current revisions after each write. The compact `organize --body` command accepts the OpenAPI `OrganizeAction` schema when scripting more involved actions.
+
+```sh
+todoer references resolve '#Inbox'
+todoer references autocomplete '%T-' --limit 20
+todoer references unresolved task TASK_ID
+todoer references bind task TASK_ID --revision TASK_REVISION --occurrence 0 --target-kind list --target-id CHOSEN_LIST_ID
+todoer references backlinks list LIST_ID
+```
+
+Resolve returns zero, one, or multiple accessible choices; choose explicitly when ambiguous. Occurrences come from the saved description/comment parser, excluding code and existing links. Binding requires the current source task/comment revision, increments it, and preserves other stable bindings. A target must still be an accessible exact candidate for the original token. Backlinks recheck both target and source access. These commands never expose another workspace's inaccessible candidates.
+
+MCP adds three compact tools: `query` takes the canonical structured query, `organize_tasks` takes an `action` discriminated by `op`, and `references` takes a reference action. Their complete schemas are returned by `list_tools` and share the checked-in OpenAPI schemas. The original `search` tool remains available for its older task-only contract. Query cursors bind filters, actor, access and index state: on `resync_required`, restart without a cursor. See [structured search](search.md) and [references](references.md) for limits and exact semantics.
