@@ -73,6 +73,39 @@ fn bulk_operations_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema
         serde_json::from_str(include_str!("../openapi.json")).expect("valid checked-in OpenAPI");
     schemars::Schema::try_from(json!({"type":"array","minItems":1,"maxItems":50,"items":document["components"]["schemas"]["BulkOperation"].clone()})).expect("bulk schema is an object")
 }
+fn api_schema(name: &str) -> schemars::Schema {
+    let document: serde_json::Value =
+        serde_json::from_str(include_str!("../openapi.json")).expect("valid checked-in OpenAPI");
+    schemars::Schema::try_from(document["components"]["schemas"][name].clone())
+        .expect("standalone API schema")
+}
+fn query_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    api_schema("StructuredQuery")
+}
+fn organize_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    api_schema("OrganizeAction")
+}
+fn reference_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    api_schema("ReferenceAction")
+}
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct QueryInput {
+    #[schemars(schema_with = "query_schema")]
+    query: serde_json::Value,
+}
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct OrganizeInput {
+    #[schemars(schema_with = "organize_schema")]
+    action: serde_json::Value,
+}
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ReferenceInput {
+    #[schemars(schema_with = "reference_schema")]
+    action: serde_json::Value,
+}
 #[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct ApplyChangesInput {
@@ -181,6 +214,75 @@ impl TodoerMcp {
 
 #[tool_router]
 impl TodoerMcp {
+    #[tool(
+        description = "Search authorized tasks, comments, attachment filenames, tags, sections, lists and workspaces with Unicode literal token prefixes. Structured filters include scope, status (default open), tags, dates in stored local timezone, priority and recurrence. Bounded projection and stable cursors; resync_required means restart. No fuzzy or semantic search."
+    )]
+    async fn query(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<QueryInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
+        result(
+            self.state
+                .run(move |db| {
+                    let query = serde_json::from_value(p.query).map_err(|_| {
+                        Error::Invalid("invalid structured query; consult schema".into())
+                    })?;
+                    db.query(&actor, &query)
+                })
+                .await,
+        )
+    }
+    #[tool(
+        description = "Read/create/rename tags, replace task tags, read/assign root sections, reparent within a list, or reorder every active sibling exactly once. Use action.op. Writes use task revisions, tag_rename uses tag revision, reorder uses list revision. Standalone workspace-tag create requires workspace editor; direct list guests may introduce names during authorized assignment. Multi-step edits can use reviewed bulk changes."
+    )]
+    async fn organize_tasks(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<OrganizeInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
+        result(
+            self.state
+                .run(move |db| {
+                    let action = serde_json::from_value(p.action).map_err(|_| {
+                        Error::Invalid("invalid organization action; consult schema".into())
+                    })?;
+                    crate::web::taxonomy_http::organize(db, &actor, action)
+                })
+                .await,
+        )
+    }
+    #[tool(
+        description = "Resolve exact @workspace/#list/$section/%task/+tag references, autocomplete accessible choices, review unresolved saved-source occurrences, explicitly bind a choice with current source revision, or read authorized backlinks. Resolve never chooses ambiguous candidates. Bind increments task/comment source revision and preserves other stable bindings. Code spans/blocks and existing links remain literal."
+    )]
+    async fn references(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<ReferenceInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
+        result(
+            self.state
+                .run(move |db| {
+                    let action = serde_json::from_value(p.action).map_err(|_| {
+                        Error::Invalid("invalid reference action; consult schema".into())
+                    })?;
+                    crate::web::taxonomy_http::references(db, &actor, action)
+                })
+                .await,
+        )
+    }
     #[tool(
         description = "Resolve an accessible exact list ID/title, or an explicit saved preference_key with optional inbox fallback. Returns top-level id/title on success; missing/ambiguous results are tool errors with accessible choices."
     )]

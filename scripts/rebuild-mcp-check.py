@@ -206,8 +206,118 @@ async def main():
                 assert (
                     await tool(session, "read_subtree", {"id": final["id"]})
                 )[0]["title"] == final["title"]
+                current = (
+                    await tool(session, "read_subtree", {"id": final["id"]})
+                )[0]
+                tag = await tool(
+                    session,
+                    "organize_tasks",
+                    {
+                        "action": {
+                            "op": "tag_create",
+                            "list_id": "inbox",
+                            "name": f"SDK-{uuid.uuid4().hex[:8]}",
+                        }
+                    },
+                )
+                current = await tool(
+                    session,
+                    "organize_tasks",
+                    {
+                        "action": {
+                            "op": "tags_set",
+                            "id": current["id"],
+                            "revision": current["revision"],
+                            "tags": [{"id": tag["id"]}],
+                        }
+                    },
+                )
+                assigned = await tool(
+                    session,
+                    "organize_tasks",
+                    {"action": {"op": "tags_get", "id": current["id"]}},
+                )
+                assert any(item["id"] == tag["id"] for item in assigned)
+                page = await tool(
+                    session,
+                    "query",
+                    {
+                        "query": {
+                            "text": "SDK change",
+                            "list_id": "inbox",
+                            "entities": ["task"],
+                            "tag": tag["id"],
+                            "fields": ["title"],
+                        }
+                    },
+                )
+                assert (
+                    page["total"] == 1
+                    and page["hits"][0]["id"] == current["id"]
+                )
+                assert "snippet" not in page["hits"][0]
+                resolved_ref = await tool(
+                    session,
+                    "references",
+                    {"action": {"op": "resolve", "reference": "#Inbox"}},
+                )
+                assert (
+                    len(resolved_ref["choices"]) == 1
+                    and resolved_ref["choices"][0]["id"] == "inbox"
+                )
+                current = await tool(
+                    session,
+                    "update_task",
+                    {
+                        "id": current["id"],
+                        "revision": current["revision"],
+                        "description": "#Inbox with `#Inbox` literal",
+                    },
+                )
+                unresolved = await tool(
+                    session,
+                    "references",
+                    {
+                        "action": {
+                            "op": "unresolved",
+                            "source_kind": "task",
+                            "source_id": current["id"],
+                        }
+                    },
+                )
+                assert unresolved == []
+                binding = await tool(
+                    session,
+                    "references",
+                    {
+                        "action": {
+                            "op": "bind",
+                            "source_kind": "task",
+                            "source_id": current["id"],
+                            "revision": current["revision"],
+                            "occurrence": 0,
+                            "target_kind": "list",
+                            "target_id": "inbox",
+                        }
+                    },
+                )
+                assert binding["source_revision"] == current["revision"] + 1
+                backlinks = await tool(
+                    session,
+                    "references",
+                    {
+                        "action": {
+                            "op": "backlinks",
+                            "target_kind": "list",
+                            "target_id": "inbox",
+                        }
+                    },
+                )
+                assert any(
+                    item["source_id"] == current["id"] for item in backlinks
+                )
                 print(
-                    f"MCP SDK check passed: initialize, {len(names)} tools, resolve, capture/retry, subtree, edit, undo, trash, restore, saved destination, bulk preview/apply/retry/rollback"
+                    f"MCP SDK check passed: initialize, {len(names)} tools, resolve, capture/retry, subtree, edit, undo, trash, restore, saved destination, bulk preview/apply/retry/rollback, tags, structured query, reference bind/backlinks"
                 )
     return 0
 

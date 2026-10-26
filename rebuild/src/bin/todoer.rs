@@ -48,6 +48,45 @@ enum Command {
         #[command(subcommand)]
         command: DestinationCommand,
     },
+    /// Structured authorized search, with explicit status, scope, dates and projection.
+    Query(Box<QueryArgs>),
+    /// Compact organization action JSON (see OpenAPI OrganizeAction).
+    Organize {
+        #[arg(long)]
+        body: String,
+    },
+    Tags {
+        #[command(subcommand)]
+        command: TagCommand,
+    },
+    TaskSection {
+        id: String,
+        #[arg(long)]
+        revision: Option<i64>,
+        #[arg(long)]
+        section: Option<String>,
+        #[arg(long)]
+        clear: bool,
+    },
+    Reparent {
+        id: String,
+        #[arg(long)]
+        revision: i64,
+        #[arg(long)]
+        parent: Option<String>,
+    },
+    Reorder {
+        list: String,
+        #[arg(long)]
+        revision: i64,
+        #[arg(long)]
+        parent: Option<String>,
+        ids: Vec<String>,
+    },
+    References {
+        #[command(subcommand)]
+        command: ReferenceCommand,
+    },
     Tasks {
         list: String,
     },
@@ -222,6 +261,193 @@ enum SectionCommand {
         #[arg(long)]
         body: String,
     },
+}
+#[derive(clap::Args)]
+struct QueryArgs {
+    /// Complete canonical JSON query; exclusive with filter flags.
+    #[arg(long, conflicts_with_all=["text","entity","workspace","list","section","tag","status","priority","planned_from","planned_to","due_from","due_to","recurrence","limit","cursor","sort","field"]) ]
+    body: Option<String>,
+    #[arg(long, default_value = "")]
+    text: String,
+    #[arg(long)]
+    entity: Vec<String>,
+    #[arg(long)]
+    workspace: Option<String>,
+    #[arg(long)]
+    list: Option<String>,
+    #[arg(long)]
+    section: Option<String>,
+    #[arg(long)]
+    tag: Option<String>,
+    #[arg(long, default_value = "open")]
+    status: String,
+    #[arg(long)]
+    priority: Option<u8>,
+    #[arg(long)]
+    planned_from: Option<String>,
+    #[arg(long)]
+    planned_to: Option<String>,
+    #[arg(long)]
+    due_from: Option<String>,
+    #[arg(long)]
+    due_to: Option<String>,
+    #[arg(long)]
+    recurrence: Option<String>,
+    #[arg(long, default_value_t = 50)]
+    limit: usize,
+    #[arg(long)]
+    cursor: Option<String>,
+    #[arg(long, default_value = "relevance")]
+    sort: String,
+    #[arg(long)]
+    field: Vec<String>,
+}
+#[derive(Subcommand)]
+enum TagCommand {
+    List {
+        list: String,
+        #[arg(long, default_value = "")]
+        prefix: String,
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+    },
+    Create {
+        list: String,
+        name: String,
+    },
+    Rename {
+        id: String,
+        #[arg(long)]
+        revision: i64,
+        name: String,
+    },
+    Get {
+        task: String,
+    },
+    Set {
+        task: String,
+        #[arg(long)]
+        revision: i64,
+        #[arg(long)]
+        tag: Vec<String>,
+        #[arg(long)]
+        tag_id: Vec<String>,
+    },
+}
+#[derive(Subcommand)]
+enum ReferenceCommand {
+    Resolve {
+        reference: String,
+    },
+    Autocomplete {
+        query: String,
+        #[arg(long, default_value_t = 20)]
+        limit: usize,
+    },
+    Unresolved {
+        kind: String,
+        id: String,
+    },
+    Bind {
+        kind: String,
+        id: String,
+        #[arg(long)]
+        revision: i64,
+        #[arg(long)]
+        occurrence: usize,
+        #[arg(long)]
+        target_kind: String,
+        #[arg(long)]
+        target_id: String,
+    },
+    Backlinks {
+        kind: String,
+        id: String,
+    },
+}
+fn query_request(q: QueryArgs) -> Result<RequestSpec, (i32, String)> {
+    if let Some(body) = q.body {
+        return write_request(Method::POST, "/query".into(), body);
+    }
+    let entities = if q.entity.is_empty() {
+        None
+    } else {
+        Some(q.entity)
+    };
+    let fields = if q.field.is_empty() {
+        None
+    } else {
+        Some(q.field)
+    };
+    Ok((
+        Method::POST,
+        "/query".into(),
+        Some(
+            json!({"text":q.text,"entities":entities,"workspace_id":q.workspace,"list_id":q.list,"section_id":q.section,"tag":q.tag,"status":q.status,"priority":q.priority,"planned_from":q.planned_from,"planned_to":q.planned_to,"due_from":q.due_from,"due_to":q.due_to,"recurrence":q.recurrence,"limit":q.limit,"cursor":q.cursor,"sort":q.sort,"fields":fields}),
+        ),
+        None,
+    ))
+}
+fn action_request(path: &str, body: Value) -> RequestSpec {
+    (Method::POST, path.into(), Some(body), None)
+}
+fn tag_request(command: TagCommand) -> RequestSpec {
+    action_request(
+        "/organize",
+        match command {
+            TagCommand::List {
+                list,
+                prefix,
+                limit,
+            } => json!({"op":"tag_list","list_id":list,"prefix":prefix,"limit":limit}),
+            TagCommand::Create { list, name } => {
+                json!({"op":"tag_create","list_id":list,"name":name})
+            }
+            TagCommand::Rename { id, revision, name } => {
+                json!({"op":"tag_rename","id":id,"revision":revision,"name":name})
+            }
+            TagCommand::Get { task } => json!({"op":"tags_get","id":task}),
+            TagCommand::Set {
+                task,
+                revision,
+                tag,
+                tag_id,
+            } => {
+                let mut tags: Vec<Value> = tag.into_iter().map(Value::String).collect();
+                tags.extend(tag_id.into_iter().map(|id| json!({"id":id})));
+                json!({"op":"tags_set","id":task,"revision":revision,"tags":tags})
+            }
+        },
+    )
+}
+fn reference_request(command: ReferenceCommand) -> RequestSpec {
+    action_request(
+        "/references",
+        match command {
+            ReferenceCommand::Resolve { reference } => {
+                json!({"op":"resolve","reference":reference})
+            }
+            ReferenceCommand::Autocomplete { query, limit } => {
+                json!({"op":"autocomplete","query":query,"limit":limit})
+            }
+            ReferenceCommand::Unresolved { kind, id } => {
+                json!({"op":"unresolved","source_kind":kind,"source_id":id})
+            }
+            ReferenceCommand::Bind {
+                kind,
+                id,
+                revision,
+                occurrence,
+                target_kind,
+                target_id,
+            } => {
+                json!({"op":"bind","source_kind":kind,"source_id":id,"revision":revision,"occurrence":occurrence,"target_kind":target_kind,"target_id":target_id})
+            }
+            ReferenceCommand::Backlinks { kind, id } => {
+                json!({"op":"backlinks","target_kind":kind,"target_id":id})
+            }
+        },
+    )
 }
 #[derive(Subcommand)]
 enum BulkCommand {
@@ -433,6 +659,54 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         Command::Sections { command } => section_request(command)?,
         Command::AuthInfo => unreachable!("handled before request construction"),
         Command::Bulk { command } => bulk_request(command)?,
+        Command::Query(q) => query_request(*q)?,
+        Command::Organize { body } => write_request(Method::POST, "/organize".into(), body)?,
+        Command::Tags { command } => tag_request(command),
+        Command::TaskSection {
+            id,
+            revision,
+            section,
+            clear,
+        } => {
+            if section.is_some() && clear {
+                return Err((2, "--section and --clear are mutually exclusive".into()));
+            }
+            if let Some(revision) = revision {
+                if section.is_none() && !clear {
+                    return Err((
+                        2,
+                        "set --section or --clear when supplying --revision".into(),
+                    ));
+                }
+                action_request(
+                    "/organize",
+                    json!({"op":"section_set","id":id,"revision":revision,"section_id":section}),
+                )
+            } else {
+                if section.is_some() || clear {
+                    return Err((2, "--revision is required when changing section".into()));
+                }
+                action_request("/organize", json!({"op":"section_get","id":id}))
+            }
+        }
+        Command::Reparent {
+            id,
+            revision,
+            parent,
+        } => action_request(
+            "/organize",
+            json!({"op":"reparent","id":id,"revision":revision,"parent_id":parent}),
+        ),
+        Command::Reorder {
+            list,
+            revision,
+            parent,
+            ids,
+        } => action_request(
+            "/organize",
+            json!({"op":"reorder","list_id":list,"revision":revision,"parent_id":parent,"ids":ids}),
+        ),
+        Command::References { command } => reference_request(command),
         Command::Destination { command } => destination_request(command, &mut query_pairs),
         Command::List => (Method::GET, "/lists".into(), None, None),
         Command::Tasks { list } => (
