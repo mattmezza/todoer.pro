@@ -1,14 +1,15 @@
-//! MCP transport for the isolated development workspace only.
-//! Authentication is applied by the caller before merging this router.
+//! MCP transport with live per-request bearer authorization.
+//! The caller also applies transport authentication before merging this router.
 use crate::{
     core::{Capture, Change, Error, NewTask},
     web::{ApiError, AppState},
 };
 use rmcp::{
-    ServerHandler,
+    RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{CallToolResult, ContentBlock, ServerCapabilities, ServerConfig},
     schemars::{self, JsonSchema},
+    service::RequestContext,
     tool, tool_handler, tool_router,
     transport::streamable_http_server::{
         StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
@@ -133,17 +134,43 @@ struct UndoInput {
     revision: i64,
 }
 
+impl TodoerMcp {
+    fn actor(&self, ctx: &RequestContext<RoleServer>) -> Result<String, ApiError> {
+        let parts = ctx
+            .extensions
+            .get::<axum::http::request::Parts>()
+            .ok_or_else(|| {
+                ApiError(
+                    axum::http::StatusCode::UNAUTHORIZED,
+                    "unauthorized",
+                    "MCP request authentication context required".into(),
+                )
+            })?;
+        // Recheck the credential on every invocation, including calls made over
+        // an already initialized session after revocation or expiry.
+        self.state.mcp_actor(&parts.headers)
+    }
+}
+
 #[tool_router]
 impl TodoerMcp {
     #[tool(
         description = "Resolve an accessible list by exact title or ID. Fails on ambiguity; use a returned ID for writes."
     )]
-    async fn resolve_destination(&self, Parameters(p): Parameters<Destination>) -> CallToolResult {
+    async fn resolve_destination(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<Destination>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
         result(
             self.state
                 .run(move |db| {
                     let matches: Vec<_> = db
-                        .lists("dev")?
+                        .lists(&actor)?
                         .into_iter()
                         .filter(|list| list.id == p.destination || list.title == p.destination)
                         .collect();
@@ -161,7 +188,15 @@ impl TodoerMcp {
     #[tool(
         description = "Capture a batch into an accessible list. Reuse an idempotency_key only for an identical retry; parent_id must identify a task in that list."
     )]
-    async fn capture(&self, Parameters(p): Parameters<CaptureInput>) -> CallToolResult {
+    async fn capture(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<CaptureInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
         result(
             self.state
                 .run(move |db| {
@@ -171,7 +206,7 @@ impl TodoerMcp {
                         ));
                     }
                     db.capture(
-                        "dev",
+                        &actor,
                         &p.idempotency_key,
                         Capture {
                             list_id: p.list_id,
@@ -193,18 +228,34 @@ impl TodoerMcp {
     #[tool(
         description = "Read a task and its descendants, including IDs, parent links and current revisions."
     )]
-    async fn read_subtree(&self, Parameters(p): Parameters<TaskId>) -> CallToolResult {
-        result(self.state.run(move |db| db.subtree("dev", &p.id)).await)
+    async fn read_subtree(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<TaskId>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
+        result(self.state.run(move |db| db.subtree(&actor, &p.id)).await)
     }
     #[tool(
         description = "Update a task using its current revision. Set complete_subtree explicitly to complete descendants. On conflict re-read before retrying."
     )]
-    async fn update_task(&self, Parameters(p): Parameters<UpdateInput>) -> CallToolResult {
+    async fn update_task(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<UpdateInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
         result(
             self.state
                 .run(move |db| {
                     db.update(
-                        "dev",
+                        &actor,
                         &p.id,
                         Change {
                             revision: p.revision,
@@ -221,22 +272,38 @@ impl TodoerMcp {
     #[tool(
         description = "Preview who gains access when moving a subtree to a destination list ID. Review before setting acknowledge_access_change on move_subtree."
     )]
-    async fn move_preview(&self, Parameters(p): Parameters<MovePreviewInput>) -> CallToolResult {
+    async fn move_preview(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<MovePreviewInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
         result(
             self.state
-                .run(move |db| db.move_preview("dev", &p.id, &p.destination))
+                .run(move |db| db.move_preview(&actor, &p.id, &p.destination))
                 .await,
         )
     }
     #[tool(
         description = "Move an entire subtree to a list ID using its current revision. A move that adds access requires explicit acknowledge_access_change=true after reviewing the audience change."
     )]
-    async fn move_subtree(&self, Parameters(p): Parameters<MoveInput>) -> CallToolResult {
+    async fn move_subtree(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<MoveInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
         result(
             self.state
                 .run(move |db| {
                     db.move_subtree(
-                        "dev",
+                        &actor,
                         &p.id,
                         &p.destination,
                         p.revision,
@@ -249,12 +316,20 @@ impl TodoerMcp {
     #[tool(
         description = "Search accessible tasks by text, optional list ID and completion status. Limit is 1–100 (default 50); pass the last task ID as after for the next page."
     )]
-    async fn search(&self, Parameters(p): Parameters<SearchInput>) -> CallToolResult {
+    async fn search(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<SearchInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
         result(
             self.state
                 .run(move |db| {
                     db.search(
-                        "dev",
+                        &actor,
                         &p.query,
                         p.list.as_deref(),
                         p.complete,
@@ -268,51 +343,87 @@ impl TodoerMcp {
     #[tool(
         description = "List accessible trashed tasks. Use current revisions and the original trash operation root when restoring."
     )]
-    async fn trash_tasks(&self) -> CallToolResult {
-        result(self.state.run(|db| db.trash_tasks("dev")).await)
+    async fn trash_tasks(&self, ctx: RequestContext<RoleServer>) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
+        result(self.state.run(move |db| db.trash_tasks(&actor)).await)
     }
     #[tool(
         description = "Trash a task and its active descendants atomically using the root current revision. This hides the subtree from active task reads and search."
     )]
-    async fn trash_task(&self, Parameters(p): Parameters<TaskRevision>) -> CallToolResult {
+    async fn trash_task(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<TaskRevision>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
         result(
             self.state
-                .run(move |db| db.trash("dev", &p.id, p.revision))
+                .run(move |db| db.trash(&actor, &p.id, p.revision))
                 .await,
         )
     }
     #[tool(
         description = "Restore a trashed subtree using the original trash operation root ID and its exact current revision. Independently trashed descendants remain separate; re-read on conflict."
     )]
-    async fn restore_task(&self, Parameters(p): Parameters<TaskRevision>) -> CallToolResult {
+    async fn restore_task(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<TaskRevision>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
         result(
             self.state
-                .run(move |db| db.restore("dev", &p.id, p.revision))
+                .run(move |db| db.restore(&actor, &p.id, p.revision))
                 .await,
         )
     }
     #[tool(
         description = "Compensate one eligible individual update event by sequence. Requires the original actor, current access, and the exact current task revision unchanged since that event. Never undoes a whole cascade or overwrites newer work."
     )]
-    async fn undo_update(&self, Parameters(p): Parameters<UndoInput>) -> CallToolResult {
+    async fn undo_update(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<UndoInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
         result(
             self.state
-                .run(move |db| db.undo_update("dev", p.seq, p.revision))
+                .run(move |db| db.undo_update(&actor, p.seq, p.revision))
                 .await,
         )
     }
     #[tool(
         description = "Read the accessible change feed after an event sequence number; default 0."
     )]
-    async fn changes(&self, Parameters(p): Parameters<ChangesInput>) -> CallToolResult {
-        result(self.state.run(move |db| db.changes("dev", p.after)).await)
+    async fn changes(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<ChangesInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
+        result(self.state.run(move |db| db.changes(&actor, p.after)).await)
     }
 }
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for TodoerMcp {
     fn get_info(&self) -> ServerConfig {
         let mut config = ServerConfig::new(ServerCapabilities::builder().enable_tools().build());
-        config.instructions = Some("Isolated development workspace only. Resolve list IDs before writes. Re-read on revision conflicts. Review access changes before acknowledging subtree moves.".into());
+        config.instructions = Some("Every tool checks the current authenticated actor and live credential. Resolve list IDs before writes. Re-read on revision conflicts. Review access changes before acknowledging subtree moves.".into());
         config
     }
 }
