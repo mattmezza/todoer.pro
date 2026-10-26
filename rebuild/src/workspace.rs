@@ -3,7 +3,7 @@
 use crate::core::{Error, List, Store};
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -269,6 +269,35 @@ fn exact_order(current: &[String], ordered: &[String]) -> Result<(), Error> {
     Ok(())
 }
 
+fn policy_audience(
+    c: &Connection,
+    workspace: Option<&str>,
+    list: Option<&str>,
+) -> Result<HashMap<(String, String), i64>, Error> {
+    let mut stmt = c.prepare("SELECT e.list_id,e.user_id,e.rank FROM effective_list_access e JOIN lists l ON l.id=e.list_id WHERE (?1 IS NULL OR l.workspace_id=?1) AND (?2 IS NULL OR e.list_id=?2)")?;
+    Ok(stmt
+        .query_map(params![workspace, list], |r| {
+            Ok(((r.get(0)?, r.get(1)?), r.get(2)?))
+        })?
+        .collect::<Result<_, _>>()?)
+}
+fn check_audience(
+    before: &HashMap<(String, String), i64>,
+    after: &HashMap<(String, String), i64>,
+    acknowledge: bool,
+) -> Result<(), Error> {
+    if !acknowledge
+        && after
+            .iter()
+            .any(|(key, rank)| *rank > before.get(key).copied().unwrap_or(0))
+    {
+        return Err(Error::Conflict(
+            "acknowledge access change before expanding list access".into(),
+        ));
+    }
+    Ok(())
+}
+
 impl Store {
     pub fn list_permission(&self, actor: &str, list: &str) -> Result<i64, Error> {
         list_raw(&self.conn, list)?;
@@ -371,6 +400,7 @@ impl Store {
         user: &str,
         role: WorkspaceRole,
         revision: i64,
+        acknowledge_access_change: bool,
     ) -> Result<Workspace, Error> {
         let tx = self
             .conn
@@ -379,7 +409,24 @@ impl Store {
         check_revision(workspace_raw(&tx, workspace)?.revision, revision)?;
         user_exists(&tx, user)?;
         preserve_owner(&tx, workspace, user, role == WorkspaceRole::Owner)?;
+        let before = policy_audience(&tx, Some(workspace), None)?;
+        let previous_role = workspace_rank(&tx, user, workspace)?;
         tx.execute("INSERT INTO workspace_members(workspace_id,user_id,role) VALUES(?1,?2,?3) ON CONFLICT(workspace_id,user_id) DO UPDATE SET role=excluded.role",params![workspace,user,role.value()])?;
+        let new_role = match role {
+            WorkspaceRole::Owner => 3,
+            WorkspaceRole::Editor => 2,
+            WorkspaceRole::Viewer => 1,
+        };
+        if new_role > previous_role && !acknowledge_access_change {
+            return Err(Error::Conflict(
+                "acknowledge access change before granting workspace access".into(),
+            ));
+        }
+        check_audience(
+            &before,
+            &policy_audience(&tx, Some(workspace), None)?,
+            acknowledge_access_change,
+        )?;
         let result = bump_workspace(&tx, workspace)?;
         tx.commit()?;
         Ok(result)
@@ -475,15 +522,22 @@ impl Store {
         id: &str,
         restricted: bool,
         revision: i64,
+        acknowledge_access_change: bool,
     ) -> Result<List, Error> {
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         list_owner(&tx, actor, id)?;
         check_revision(list_raw(&tx, id)?.revision, revision)?;
+        let before = policy_audience(&tx, None, Some(id))?;
         tx.execute(
             "UPDATE lists SET restricted=?2 WHERE id=?1",
             params![id, restricted],
+        )?;
+        check_audience(
+            &before,
+            &policy_audience(&tx, None, Some(id))?,
+            acknowledge_access_change,
         )?;
         let result = bump_list(&tx, id)?;
         tx.commit()?;
@@ -496,6 +550,7 @@ impl Store {
         user: &str,
         role: ListRole,
         revision: i64,
+        acknowledge_access_change: bool,
     ) -> Result<List, Error> {
         let tx = self
             .conn
@@ -503,11 +558,17 @@ impl Store {
         list_owner(&tx, actor, id)?;
         check_revision(list_raw(&tx, id)?.revision, revision)?;
         user_exists(&tx, user)?;
+        let before = policy_audience(&tx, None, Some(id))?;
         tx.execute(
             "INSERT OR IGNORE INTO memberships(list_id,user_id) VALUES(?1,?2)",
             params![id, user],
         )?;
         tx.execute("INSERT INTO membership_roles(list_id,user_id,role) VALUES(?1,?2,?3) ON CONFLICT(list_id,user_id) DO UPDATE SET role=excluded.role",params![id,user,role.value()])?;
+        check_audience(
+            &before,
+            &policy_audience(&tx, None, Some(id))?,
+            acknowledge_access_change,
+        )?;
         let result = bump_list(&tx, id)?;
         tx.commit()?;
         Ok(result)
@@ -748,7 +809,14 @@ mod tests {
         let mut db = db();
         let w = workspace(&mut db);
         let w = db
-            .set_workspace_member("dev", &w.id, "other", WorkspaceRole::Viewer, w.revision)
+            .set_workspace_member(
+                "dev",
+                &w.id,
+                "other",
+                WorkspaceRole::Viewer,
+                w.revision,
+                true,
+            )
             .unwrap();
         let inherited = list(&mut db, &w.id, false);
         let restricted = list(&mut db, &w.id, true);
@@ -773,6 +841,7 @@ mod tests {
                 "guest",
                 ListRole::Editor,
                 restricted.revision,
+                true,
             )
             .unwrap();
         assert_eq!(db.list_permission("guest", &restricted.id).unwrap(), 2);
@@ -815,22 +884,29 @@ mod tests {
             Err(Error::Conflict(_))
         ));
         assert!(matches!(
-            db.set_workspace_member("dev", &w.id, "dev", WorkspaceRole::Viewer, revision),
+            db.set_workspace_member("dev", &w.id, "dev", WorkspaceRole::Viewer, revision, true),
             Err(Error::Conflict(_))
         ));
         let w = db
-            .set_workspace_member("dev", &w.id, "other", WorkspaceRole::Editor, revision)
+            .set_workspace_member("dev", &w.id, "other", WorkspaceRole::Editor, revision, true)
             .unwrap();
         assert!(matches!(
-            db.grant_list("other", &l.id, "guest", ListRole::Viewer, l.revision),
+            db.grant_list("other", &l.id, "guest", ListRole::Viewer, l.revision, true),
             Err(Error::Forbidden)
         ));
         assert!(matches!(
-            db.set_list_restricted("other", &l.id, true, l.revision),
+            db.set_list_restricted("other", &l.id, true, l.revision, true),
             Err(Error::Forbidden)
         ));
         let w = db
-            .set_workspace_member("dev", &w.id, "other", WorkspaceRole::Owner, w.revision)
+            .set_workspace_member(
+                "dev",
+                &w.id,
+                "other",
+                WorkspaceRole::Owner,
+                w.revision,
+                true,
+            )
             .unwrap();
         db.remove_workspace_member("other", &w.id, "dev", w.revision)
             .unwrap();
@@ -913,14 +989,14 @@ mod tests {
         let l = list(&mut db, &w.id, false);
         let revision = db.workspace("dev", &w.id).unwrap().revision;
         let w = db
-            .set_workspace_member("dev", &w.id, "other", WorkspaceRole::Editor, revision)
+            .set_workspace_member("dev", &w.id, "other", WorkspaceRole::Editor, revision, true)
             .unwrap();
         let l = db
-            .grant_list("dev", &l.id, "other", ListRole::Viewer, l.revision)
+            .grant_list("dev", &l.id, "other", ListRole::Viewer, l.revision, true)
             .unwrap();
         assert_eq!(db.list_permission("other", &l.id).unwrap(), 2);
         let l = db
-            .set_list_restricted("dev", &l.id, true, l.revision)
+            .set_list_restricted("dev", &l.id, true, l.revision, true)
             .unwrap();
         assert_eq!(db.list_permission("other", &l.id).unwrap(), 1);
         db.remove_workspace_member("dev", &w.id, "other", w.revision)
@@ -933,7 +1009,7 @@ mod tests {
                 .all(|item| item.id != w.id)
         );
         assert!(matches!(
-            db.grant_list("dev", &l.id, "missing", ListRole::Viewer, l.revision),
+            db.grant_list("dev", &l.id, "missing", ListRole::Viewer, l.revision, true),
             Err(Error::NotFound)
         ));
         assert_eq!(
@@ -954,7 +1030,14 @@ mod tests {
         assert!(db.workspaces(credential).unwrap().is_empty());
         assert_eq!(db.list_info(credential, &a.id).unwrap().workspace_id, None);
         assert!(matches!(
-            db.grant_list(credential, &a.id, "guest", ListRole::Editor, a.revision),
+            db.grant_list(
+                credential,
+                &a.id,
+                "guest",
+                ListRole::Editor,
+                a.revision,
+                true
+            ),
             Err(Error::Forbidden)
         ));
         assert!(matches!(
@@ -991,6 +1074,56 @@ mod tests {
             .unwrap();
         assert_eq!(db.list_permission(credential, &a.id).unwrap(), 0);
         assert!(db.workspaces(credential).unwrap().is_empty());
+    }
+    #[test]
+    fn access_expansion_requires_consent_and_rolls_back_completely() {
+        let mut db = db();
+        let w = workspace(&mut db);
+        let l = list(&mut db, &w.id, true);
+        let revision = db.workspace("dev", &w.id).unwrap().revision;
+        assert!(matches!(
+            db.set_workspace_member(
+                "dev",
+                &w.id,
+                "other",
+                WorkspaceRole::Viewer,
+                revision,
+                false
+            ),
+            Err(Error::Conflict(_))
+        ));
+        assert_eq!(db.workspace_permission("other", &w.id).unwrap(), 0);
+        assert_eq!(db.workspace("dev", &w.id).unwrap().revision, revision);
+        db.set_workspace_member("dev", &w.id, "other", WorkspaceRole::Viewer, revision, true)
+            .unwrap();
+        assert!(matches!(
+            db.set_list_restricted("dev", &l.id, false, l.revision, false),
+            Err(Error::Conflict(_))
+        ));
+        assert!(db.list_info("dev", &l.id).unwrap().restricted);
+        assert_eq!(
+            db.list_info("dev", &l.id).unwrap().list.revision,
+            l.revision
+        );
+        let l = db
+            .grant_list("dev", &l.id, "guest", ListRole::Viewer, l.revision, true)
+            .unwrap();
+        assert!(matches!(
+            db.grant_list("dev", &l.id, "guest", ListRole::Editor, l.revision, false),
+            Err(Error::Conflict(_))
+        ));
+        assert_eq!(db.list_permission("guest", &l.id).unwrap(), 1);
+        assert_eq!(
+            db.list_info("dev", &l.id).unwrap().list.revision,
+            l.revision
+        );
+        // Narrowing an existing direct editor to viewer needs no broadening consent.
+        let l = db
+            .grant_list("dev", &l.id, "guest", ListRole::Editor, l.revision, true)
+            .unwrap();
+        db.grant_list("dev", &l.id, "guest", ListRole::Viewer, l.revision, false)
+            .unwrap();
+        assert_eq!(db.list_permission("guest", &l.id).unwrap(), 1);
     }
     #[test]
     fn input_fields_are_strict_and_invalid_content_is_rejected() {
