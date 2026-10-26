@@ -2466,5 +2466,19 @@ mod lifecycle_tests {
         )
         .unwrap();
         assert_eq!(db.list_reference("dev", "groceries").unwrap(), r);
+        assert_eq!(
+            db.resolve_destination("dev", Some(&format!("#{r}")), None, false)
+                .unwrap()
+                .destination
+                .unwrap()
+                .id,
+            "groceries"
+        );
+        assert_eq!(
+            db.resolve_destination("other", Some(&format!("#{r}")), None, false)
+                .unwrap()
+                .status,
+            "missing"
+        );
     }
 }

@@ -595,6 +595,14 @@ fn preference_key(key: &str) -> Result<(), Error> {
     Ok(())
 }
 fn destination(c: &Connection, actor: &str, id: &str) -> Result<Destination, Error> {
+    let reference_id: Option<String> = c
+        .query_row(
+            "SELECT list_id FROM list_references WHERE reference=?1",
+            [id.strip_prefix('#').unwrap_or(id)],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let id = reference_id.as_deref().unwrap_or(id);
     access_rank(c, actor, id, 1)?;
     c.query_row(
         "SELECT id,title FROM lists WHERE id=?1 AND archived=0",
