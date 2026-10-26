@@ -1,7 +1,7 @@
 {% for task in tasks %}
 <article class="task {% if task.complete %}is-complete{% endif %} {% if task.parent_id.is_some() %}is-child{% endif %}" data-id="{{ task.id }}" data-revision="{{ task.revision }}" data-complete="{{ task.complete }}">
 <button {% if !can_write %}disabled{% endif %} class="completion" aria-label="{% if task.complete %}Reopen{% else %}Complete{% endif %} {{ task.title }}" aria-pressed="{{ task.complete }}">{% if task.complete %}<span aria-hidden="true">✓</span>{% endif %}</button>
-<div class="task-content"><button class="task-title" data-action="edit">{{ task.title }}</button>{% if !task.description.is_empty() %}<div class="task-description markdown">{{ task.description|markdown|safe }}</div>{% endif %}<span class="task-ref">%{{ task.reference }}</span></div>
+<div class="task-content"><button class="task-title" data-action="edit">{{ task.title }}</button>{% if !task.description.is_empty() %}<div class="task-description markdown">{{ task.description_html|safe }}</div>{% endif %}<span class="task-ref">%{{ task.reference }}</span></div>
 <details class="task-actions"><summary class="task-menu" aria-label="Actions for {{ task.title }}">···</summary><div class="menu-items">{% if can_write %}<button type="button" data-action="rename">Rename inline</button>{% endif %}<button type="button" data-action="edit">Open details</button></div></details>
 </article>
 {% endfor %}

@@ -108,12 +108,50 @@ impl AuthStore {
         )?;
         Ok(())
     }
+    /// Replace deployment registration policy atomically; removed addresses must
+    /// not remain implicitly allowed after a configuration update.
+    pub fn replace_allowlist(&mut self, values: &[String]) -> Result<(), AuthError> {
+        let normalized = values
+            .iter()
+            .map(|v| email(v))
+            .collect::<Result<Vec<_>, _>>()?;
+        let tx = self.conn.transaction()?;
+        tx.execute("DELETE FROM auth_email_allowlist", [])?;
+        for address in normalized {
+            tx.execute(
+                "INSERT OR IGNORE INTO auth_email_allowlist(email) VALUES(?1)",
+                [address],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
     pub fn accept_identity(
         &mut self,
         issuer: &str,
         subject: &str,
         address: &str,
         email_verified: bool,
+    ) -> Result<Identity, AuthError> {
+        self.accept_identity_policy(issuer, subject, address, email_verified, false)
+    }
+    /// Only the verified Google callback may use this after validating a live,
+    /// email-bound invitation through the shared application operations.
+    pub(crate) fn accept_invited_identity(
+        &mut self,
+        issuer: &str,
+        subject: &str,
+        address: &str,
+    ) -> Result<Identity, AuthError> {
+        self.accept_identity_policy(issuer, subject, address, true, true)
+    }
+    fn accept_identity_policy(
+        &mut self,
+        issuer: &str,
+        subject: &str,
+        address: &str,
+        email_verified: bool,
+        invited: bool,
     ) -> Result<Identity, AuthError> {
         if issuer.is_empty() || subject.is_empty() || issuer.len() > 2048 || subject.len() > 2048 {
             return Err(AuthError::Invalid("issuer and subject are required".into()));
@@ -125,13 +163,17 @@ impl AuthStore {
         let tx = self
             .conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        if let Some(identity)=tx.query_row("SELECT u.id,u.name FROM auth_identities i JOIN users u ON u.id=i.user_id WHERE i.issuer=?1 AND i.subject=?2",params![issuer,subject],|r|Ok(Identity{id:r.get(0)?,name:r.get(1)?})).optional()?{return Ok(identity)}
+        if let Some(identity)=tx.query_row("SELECT u.id,u.name FROM auth_identities i JOIN users u ON u.id=i.user_id WHERE i.issuer=?1 AND i.subject=?2",params![issuer,subject],|r|Ok(Identity{id:r.get(0)?,name:r.get(1)?})).optional()?{
+            tx.execute("UPDATE auth_identities SET email=?1 WHERE issuer=?2 AND subject=?3",params![address,issuer,subject])?;
+            tx.commit()?;
+            return Ok(identity)
+        }
         let allowed: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM auth_email_allowlist WHERE email=?1)",
             [&address],
             |r| r.get(0),
         )?;
-        if !allowed {
+        if !allowed && !invited {
             return Err(AuthError::Forbidden);
         }
         let identity = Identity {
@@ -302,6 +344,42 @@ mod tests {
         let s = AuthStore::memory().unwrap();
         s.conn.execute_batch("CREATE TABLE users(id TEXT PRIMARY KEY,name TEXT NOT NULL);INSERT INTO users VALUES('alice','Alice');").unwrap();
         s
+    }
+    #[test]
+    fn deployment_allowlist_replacement_removes_old_registration_access() {
+        let mut db = store();
+        db.replace_allowlist(&["old@example.invalid".into()])
+            .unwrap();
+        db.replace_allowlist(&["new@example.invalid".into()])
+            .unwrap();
+        assert!(
+            db.accept_identity(
+                "https://accounts.google.com",
+                "old-subject",
+                "old@example.invalid",
+                true
+            )
+            .is_err()
+        );
+        assert!(
+            db.accept_identity(
+                "https://accounts.google.com",
+                "new-subject",
+                "new@example.invalid",
+                true
+            )
+            .is_ok()
+        );
+        assert!(db.replace_allowlist(&["invalid".into()]).is_err());
+        assert!(
+            db.accept_identity(
+                "https://accounts.google.com",
+                "another-new-subject",
+                "new@example.invalid",
+                true
+            )
+            .is_ok()
+        );
     }
     #[test]
     fn identities_are_stable_and_registration_is_closed() {

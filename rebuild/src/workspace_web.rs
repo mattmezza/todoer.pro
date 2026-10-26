@@ -372,6 +372,7 @@ struct WorkspacePage {
 #[derive(Template)]
 #[template(path = "sharing.html")]
 struct SharingPage {
+    color: String,
     csrf: String,
     info: WorkspaceList,
     sections: Vec<Section>,
@@ -465,7 +466,7 @@ async fn sharing_page(
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
     };
-    let (info, sections, grants, rank, owner) = s
+    let (info, sections, grants, rank, owner, color) = s
         .run(move |db| {
             let info = db.list_info(&actor, &id)?;
             let rank = db.list_permission(&actor, &id)?;
@@ -478,10 +479,18 @@ async fn sharing_page(
             } else {
                 vec![]
             };
-            Ok((info, db.sections(&actor, &id)?, grants, rank, owner))
+            Ok((
+                info,
+                db.sections(&actor, &id)?,
+                grants,
+                rank,
+                owner,
+                db.list_color(&actor, &id)?.unwrap_or_default(),
+            ))
         })
         .await?;
     html(SharingPage {
+        color,
         csrf: s.csrf_for(&h),
         info,
         sections,

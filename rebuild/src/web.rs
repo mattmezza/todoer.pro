@@ -1,13 +1,27 @@
+#[path = "agent_web.rs"]
+mod agent_http;
 #[path = "auth_web.rs"]
 mod browser_auth;
 #[path = "discussion_web.rs"]
 mod discussion_http;
+#[path = "invitation_web.rs"]
+mod invitation_http;
+#[path = "navigation_web.rs"]
+mod navigation_http;
 #[path = "oauth_web.rs"]
 mod oauth_http;
 #[path = "workspace_web.rs"]
 mod organization;
+#[path = "push_web.rs"]
+mod push_http;
 #[path = "scheduling_web.rs"]
 mod scheduling_http;
+#[path = "search_web.rs"]
+mod structured_search;
+#[path = "taxonomy_web.rs"]
+pub(crate) mod taxonomy_http;
+#[path = "transfer_web.rs"]
+mod transfer_http;
 use crate::core::{Capture, Change, Error, List, Store, Task};
 use askama::Template;
 use axum::{
@@ -28,6 +42,8 @@ pub struct AppState {
     store: Arc<Mutex<Store>>,
     production: Option<Arc<browser_auth::ProductionAuth>>,
     storage: Option<Arc<crate::object_storage::ObjectStorage>>,
+    invitations: Option<Arc<crate::invitations::InvitationSigner>>,
+    push: Option<Arc<crate::push::PushTransport>>,
     token_hash: [u8; 32],
     sessions: Arc<Mutex<std::collections::HashMap<[u8; 32], std::time::Instant>>>,
     csrf: String,
@@ -40,6 +56,8 @@ impl AppState {
             store,
             production: None,
             storage: None,
+            invitations: None,
+            push: None,
             token_hash: Sha256::digest(token.as_bytes()).into(),
             sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
             csrf: uuid::Uuid::new_v4().to_string(),
@@ -50,6 +68,19 @@ impl AppState {
     pub fn with_storage(mut self, storage: Option<crate::object_storage::ObjectStorage>) -> Self {
         self.storage = storage.map(Arc::new);
         self
+    }
+    pub fn with_invitations(mut self, signer: crate::invitations::InvitationSigner) -> Self {
+        self.invitations = Some(Arc::new(signer));
+        self
+    }
+    pub fn with_push(mut self, push: Option<crate::push::PushTransport>) -> Self {
+        self.push = push.map(Arc::new);
+        self
+    }
+    pub fn start_push_worker(&self) -> Option<tokio::task::JoinHandle<()>> {
+        self.push
+            .as_ref()
+            .map(|transport| push_http::start_push_worker(self.clone(), transport.as_ref().clone()))
     }
     pub fn request_shutdown(&self) {
         self.stopping
@@ -185,11 +216,22 @@ pub fn router(state: AppState) -> Router {
         .route("/trash", get(trash_page))
         .route("/activity", get(activity_page))
         .route("/fragments/lists/{id}/tasks", get(task_fragment))
+        .route(
+            "/fragments/tasks/{id}/description",
+            get(description_fragment),
+        )
         .nest_service("/assets", ServeDir::new("rebuild/assets"))
         .nest_service("/legacy-assets", ServeDir::new("public"))
         .layer(DefaultBodyLimit::max(128 * 1024))
         .merge(oauth_http::routes())
         .merge(organization::routes())
+        .merge(agent_http::routes())
+        .merge(invitation_http::routes())
+        .merge(navigation_http::routes())
+        .merge(push_http::routes())
+        .merge(structured_search::routes())
+        .merge(taxonomy_http::routes())
+        .merge(transfer_http::routes())
         .merge(discussion_http::routes())
         .merge(scheduling_http::routes())
         .with_state(state.clone())
@@ -211,12 +253,41 @@ async fn home(State(s): State<AppState>, h: HeaderMap) -> Result<Redirect, ApiEr
             .unwrap_or_else(|| "/signin".into()),
     ))
 }
-async fn signin(State(s): State<AppState>) -> Html<String> {
+fn encode_query(value: &str) -> String {
+    value
+        .bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || b"-._~".contains(&b) {
+                char::from(b).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect()
+}
+#[derive(Deserialize, Default)]
+struct SigninQuery {
+    next: Option<String>,
+}
+async fn signin(State(s): State<AppState>, Query(q): Query<SigninQuery>) -> Html<String> {
     if s.production.is_some() {
-        return Html(r#"<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in · Todoer</title><link rel="stylesheet" href="/assets/app.css"><main class="login"><a class="brand" href="/">todoer<span>.pro</span></a><h1>Your tasks, clearly.</h1><p>Sign in with an invited Google account.</p><a class="primary" href="/auth/google">Continue with Google</a></main></html>"#.into());
+        let next = q
+            .next
+            .as_deref()
+            .filter(|v| {
+                v.starts_with('/')
+                    && !v.starts_with("//")
+                    && !v.contains('\\')
+                    && !v.chars().any(char::is_control)
+            })
+            .unwrap_or("/");
+        let encoded: String = encode_query(next);
+        return Html(format!(
+            r#"<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in · Todoer</title><link rel="stylesheet" href="/assets/app.css"><main class="login"><a class="brand" href="/">todoer<span>.pro</span></a><h1>Your tasks, clearly.</h1><p>Sign in with an invited Google account.</p><a class="primary" href="/auth/google?next={encoded}">Continue with Google</a></main></html>"#
+        ));
     }
     Html(format!(
-        r#"<!doctype html><html lang="en"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign in · Todoer</title><link rel="stylesheet" href="/assets/app.css"><main class="login"><a class="brand" href="/">todoer<span>.pro</span></a><h1>Your day, with a little more clarity.</h1><p>This isolated rebuild uses synthetic data. Google sign-in is still being built.</p><form method="post" action="/signin"><input type="hidden" name="csrf" value="{}"><button class="primary">Enter development workspace</button></form><p class="muted">Local development only · no access to your existing account</p></main></html>"#,
+        r#"<!doctype html><html lang="en"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign in · Todoer</title><link rel="stylesheet" href="/assets/app.css"><main class="login"><a class="brand" href="/">todoer<span>.pro</span></a><h1>Your day, with a little more clarity.</h1><p>This isolated rebuild uses synthetic data. Sign in below to use the isolated development workspace.</p><form method="post" action="/signin"><input type="hidden" name="csrf" value="{}"><button class="primary">Enter development workspace</button></form><p class="muted">Local development only · no access to your existing account</p></main></html>"#,
         s.csrf
     ))
 }
@@ -330,17 +401,51 @@ async fn logout(State(s): State<AppState>, h: HeaderMap) -> Result<Response, Api
 struct ListPage {
     lists: Vec<List>,
     list: List,
-    tasks: Vec<Task>,
+    tasks: Vec<RenderedTask>,
+    favorites: Vec<crate::navigation::Favorite>,
+    color: String,
     csrf: String,
     capture_key: String,
     account_id: String,
     development: bool,
     can_write: bool,
 }
+struct RenderedTask {
+    task: Task,
+    description_html: String,
+}
+impl std::ops::Deref for RenderedTask {
+    type Target = Task;
+    fn deref(&self) -> &Task {
+        &self.task
+    }
+}
+fn rendered_tasks(db: &Store, actor: &str, list: &str) -> Result<Vec<RenderedTask>, Error> {
+    db.tasks(actor, list)?
+        .into_iter()
+        .map(|task| {
+            let description_html = if task.description.is_empty() {
+                String::new()
+            } else {
+                crate::taxonomy::render_references(
+                    &db.conn,
+                    actor,
+                    "task",
+                    &task.id,
+                    &task.description,
+                )?
+            };
+            Ok(RenderedTask {
+                task,
+                description_html,
+            })
+        })
+        .collect()
+}
 #[derive(Template)]
 #[template(path = "tasks.html")]
 struct TaskRows {
-    tasks: Vec<Task>,
+    tasks: Vec<RenderedTask>,
     can_write: bool,
 }
 #[derive(Deserialize, Default)]
@@ -353,7 +458,14 @@ async fn task_link(
     h: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Redirect, ApiError> {
-    let actor = s.auth(&h, false)?;
+    let actor = match s.auth(&h, false) {
+        Ok(actor) => actor,
+        Err(_) if !h.contains_key(header::AUTHORIZATION) => {
+            let next: String = encode_query(&format!("/tasks/{id}"));
+            return Ok(Redirect::to(&format!("/signin?next={next}")));
+        }
+        Err(error) => return Err(error),
+    };
     let task = s
         .run(move |db| {
             db.subtree(&actor, &id)?
@@ -401,15 +513,19 @@ async fn page(
         "not_found",
         "List not found".into(),
     ))?;
-    let (tasks, can_write) = s
+    let (tasks, can_write, favorites, color) = s
         .run(move |db| {
             Ok((
-                db.tasks(&actor, &id)?,
+                rendered_tasks(db, &actor, &id)?,
                 db.list_permission(&actor, &id)? >= 2,
+                db.favorites(&actor)?,
+                db.list_color(&actor, &id)?.unwrap_or_else(|| "blue".into()),
             ))
         })
         .await?;
     let html = ListPage {
+        favorites,
+        color,
         lists,
         list,
         tasks,
@@ -439,6 +555,30 @@ async fn page(
     )
         .into_response())
 }
+async fn description_fragment(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    let actor = s.auth(&h, false)?;
+    let html = s
+        .run(move |db| {
+            let task = db
+                .subtree(&actor, &id)?
+                .into_iter()
+                .find(|t| t.id == id || t.reference == id)
+                .ok_or(Error::NotFound)?;
+            crate::taxonomy::render_references(
+                &db.conn,
+                &actor,
+                "task",
+                &task.id,
+                &task.description,
+            )
+        })
+        .await?;
+    Ok(([(header::CACHE_CONTROL, "private, no-store")], Html(html)).into_response())
+}
 async fn task_fragment(
     State(s): State<AppState>,
     h: HeaderMap,
@@ -448,7 +588,7 @@ async fn task_fragment(
     let (tasks, can_write) = s
         .run(move |db| {
             Ok((
-                db.tasks(&actor, &id)?,
+                rendered_tasks(db, &actor, &id)?,
                 db.list_permission(&actor, &id)? >= 2,
             ))
         })
@@ -691,7 +831,7 @@ async fn undo(
 async fn capabilities(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Value>, ApiError> {
     s.auth(&h, false)?;
     Ok(Json(
-        json!({"version":"0.1.0-dev","mode":"development-only","interfaces":["rest","cli","mcp-development"],"operations":["lists.read","tasks.read","capture","tasks.update","subtree.read","subtree.move","move.preview","search","changes","trash","restore","undo.update"],"limits":{"capture_batch":100,"search_limit":100,"changes_page":1000,"title_characters":500,"description_bytes":100000},"search":{"matching":"unicode-token-prefix","fuzzy":false,"sort":"id"},"production_auth":s.production.is_some()}),
+        json!({"version":"0.1.0-dev","mode":if s.production.is_some(){"private-preview"}else{"development-only"},"interfaces":["rest","cli","mcp"],"operations":["lists.read","tasks.read","capture","tasks.update","subtree.read","subtree.move","move.preview","search","changes","trash","restore","undo.update","workspaces","sections","sharing","comments","attachments","schedules","recurrence","statistics","bulk.preview","bulk.apply","destinations.resolve","destinations.preferences","destinations.search"],"limits":{"capture_batch":100,"bulk_operations":50,"bulk_affected_tasks":500,"bulk_preview_ttl_seconds":600,"search_limit":100,"changes_page":1000,"title_characters":500,"description_bytes":100000},"search":{"matching":"unicode-token-prefix","fuzzy":false,"sort":"id"},"production_auth":s.production.is_some()}),
     ))
 }
 async fn openapi() -> impl IntoResponse {
@@ -717,35 +857,173 @@ struct Activity {
     task: Task,
     can_undo: bool,
 }
+#[derive(Deserialize, Default)]
+#[serde(default, deny_unknown_fields)]
+struct SearchForm {
+    query: String,
+    status: String,
+    list: String,
+    workspace: String,
+    tag: String,
+    priority: String,
+    planned_from: String,
+    planned_to: String,
+    due_from: String,
+    due_to: String,
+    recurrence: String,
+    cursor: Option<String>,
+}
+#[derive(Template)]
+#[template(path = "search.html")]
+struct StructuredSearchPage {
+    form: SearchForm,
+    lists: Vec<List>,
+    workspaces: Vec<crate::workspace::Workspace>,
+    hits: Vec<SearchResultView>,
+    total: usize,
+    next: String,
+}
+struct SearchResultView {
+    title: String,
+    kind: String,
+    snippet: String,
+    path: String,
+    url: String,
+    complete: bool,
+}
 async fn search_page(
     State(s): State<AppState>,
     h: HeaderMap,
-    Query(q): Query<SearchQuery>,
+    Query(mut form): Query<SearchForm>,
 ) -> Result<Response, ApiError> {
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
     };
-    let query = q.query.clone();
-    let tasks = s
-        .run(move |db| {
-            db.search(
-                &actor,
-                &q.query,
-                q.list.as_deref(),
-                q.complete,
-                q.limit,
-                q.after.as_deref(),
+    if form.status.is_empty() {
+        form.status = "all".into();
+    }
+    let optional = |value: &String| {
+        if value.is_empty() {
+            None
+        } else {
+            Some(value.clone())
+        }
+    };
+    let query = crate::search::Query {
+        text: form.query.clone(),
+        status: form.status.clone(),
+        list_id: optional(&form.list),
+        workspace_id: optional(&form.workspace),
+        tag: optional(&form.tag),
+        priority: if form.priority.is_empty() {
+            None
+        } else {
+            Some(
+                form.priority
+                    .parse::<u8>()
+                    .map_err(|_| Error::Invalid("Priority must be 1, 2 or 3".into()))?,
             )
+        },
+        planned_from: optional(&form.planned_from),
+        planned_to: optional(&form.planned_to),
+        due_from: optional(&form.due_from),
+        due_to: optional(&form.due_to),
+        recurrence: optional(&form.recurrence),
+        cursor: form.cursor.clone(),
+        ..Default::default()
+    };
+    let (page, lists, workspaces) = s
+        .run(move |db| {
+            Ok((
+                db.query(&actor, &query)?,
+                db.lists(&actor)?,
+                db.workspaces(&actor)?,
+            ))
         })
         .await?;
-    render_review(ReviewPage {
-        title: "Search".into(),
-        mode: "search".into(),
-        query,
-        csrf: s.csrf_for(&h),
-        tasks,
-        events: vec![],
-    })
+    let next = if let Some(cursor) = page.next_cursor {
+        let mut url = reqwest::Url::parse("https://todoer.invalid/search").unwrap();
+        for (key, value) in [
+            ("query", form.query.as_str()),
+            ("status", &form.status),
+            ("list", &form.list),
+            ("workspace", &form.workspace),
+            ("tag", &form.tag),
+            ("planned_from", &form.planned_from),
+            ("planned_to", &form.planned_to),
+            ("due_from", &form.due_from),
+            ("due_to", &form.due_to),
+            ("recurrence", &form.recurrence),
+            ("cursor", &cursor),
+        ] {
+            if !value.is_empty() {
+                url.query_pairs_mut().append_pair(key, value);
+            }
+        }
+        if !form.priority.is_empty() {
+            url.query_pairs_mut()
+                .append_pair("priority", &form.priority);
+        }
+        format!("/search?{}", url.query().unwrap_or(""))
+    } else {
+        String::new()
+    };
+    let hits = page
+        .hits
+        .into_iter()
+        .map(|hit| {
+            let path = hit
+                .context
+                .unwrap_or_default()
+                .into_iter()
+                .map(|c| c.title)
+                .collect::<Vec<_>>()
+                .join(" / ");
+            let url = if let Some(task) = hit.task_id {
+                format!("/tasks/{task}")
+            } else {
+                match hit.kind.as_str() {
+                    "task" => format!("/tasks/{}", hit.id),
+                    "workspace" => format!("/workspaces/{}", hit.id),
+                    "list" => format!("/lists/{}", hit.id),
+                    "section" => format!(
+                        "/lists/{}?section={}",
+                        hit.list_id.unwrap_or_default(),
+                        hit.id
+                    ),
+                    "tag" => format!("/search?tag={}", encode_query(&hit.id)),
+                    _ => "/search".into(),
+                }
+            };
+            SearchResultView {
+                title: hit.title.unwrap_or_else(|| hit.kind.clone()),
+                kind: hit.kind,
+                snippet: hit.snippet.unwrap_or_default(),
+                path,
+                url,
+                complete: hit.complete.unwrap_or(false),
+            }
+        })
+        .collect();
+    Ok(Html(
+        StructuredSearchPage {
+            form,
+            lists,
+            workspaces,
+            hits,
+            total: page.total,
+            next,
+        }
+        .render()
+        .map_err(|_| {
+            ApiError(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "template",
+                "Search render failed".into(),
+            )
+        })?,
+    )
+    .into_response())
 }
 async fn trash_page(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
     let Ok(actor) = s.auth(&h, false) else {

@@ -40,12 +40,12 @@ impl AtomicWrite<'_> {
         }
     }
 }
-struct StoreWrite<'a> {
+pub(crate) struct StoreWrite<'a> {
     store: &'a mut Store,
     finished: bool,
 }
 impl<'a> StoreWrite<'a> {
-    fn new(store: &'a mut Store) -> Result<Self, Error> {
+    pub(crate) fn new(store: &'a mut Store) -> Result<Self, Error> {
         if !store.conn.is_autocommit() {
             return Err(Error::Invalid(
                 "bulk operations require an outer connection".into(),
@@ -57,7 +57,7 @@ impl<'a> StoreWrite<'a> {
             finished: false,
         })
     }
-    fn commit(mut self) -> Result<(), Error> {
+    pub(crate) fn commit(mut self) -> Result<(), Error> {
         self.store.conn.execute_batch("COMMIT")?;
         self.finished = true;
         Ok(())
