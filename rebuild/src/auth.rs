@@ -35,6 +35,16 @@ pub struct SessionGrant {
     pub csrf: String,
     pub expires_at: i64,
 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentMetadata {
+    pub id: String,
+    pub audience: String,
+    pub permissions: Vec<Permission>,
+    pub list_ids: Option<Vec<String>>,
+    pub workspace: Option<String>,
+    pub expires_at: i64,
+    pub revoked: bool,
+}
 #[derive(Debug, Serialize)]
 pub struct AgentGrant {
     pub id: String,
@@ -234,14 +244,53 @@ impl AuthStore {
         principal.workspace = scope;
         Ok(principal)
     }
+    pub fn list_agents(&self, actor: &str) -> Result<Vec<AgentMetadata>, AuthError> {
+        let mut q=self.conn.prepare("SELECT id,audience,permissions,list_ids,workspace,expires_at,revoked FROM auth_agents WHERE user_id=?1 ORDER BY rowid DESC LIMIT 200")?;
+        let rows = q.query_map([actor], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, Option<String>>(3)?,
+                r.get::<_, Option<String>>(4)?,
+                r.get::<_, i64>(5)?,
+                r.get::<_, bool>(6)?,
+            ))
+        })?;
+        rows.map(|row| {
+            let (id, audience, permissions, lists, workspace, expires_at, revoked) = row?;
+            Ok(AgentMetadata {
+                id,
+                audience,
+                permissions: parse_json(&permissions)?,
+                list_ids: lists.map(|v| parse_json(&v)).transpose()?,
+                workspace,
+                expires_at,
+                revoked,
+            })
+        })
+        .collect()
+    }
     pub fn revoke_agent(&self, actor: &str, id: &str) -> Result<(), AuthError> {
-        let changed = self.conn.execute(
+        let tx = self.conn.unchecked_transaction()?;
+        let changed = tx.execute(
             "UPDATE auth_agents SET revoked=1 WHERE id=?1 AND user_id=?2",
             params![id, actor],
         )?;
         if changed == 0 {
             return Err(AuthError::Forbidden);
         }
+        let family: Option<String> = tx
+            .query_row(
+                "SELECT family_id FROM auth_oauth_refresh WHERE access_id=?1",
+                [id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if let Some(family) = family {
+            revoke_family(&tx, &family)?
+        }
+        tx.commit()?;
         Ok(())
     }
 }
