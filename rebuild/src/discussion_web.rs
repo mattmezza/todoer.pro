@@ -1,5 +1,4 @@
 //! Discussion transport delegates every operation to live core authorization.
-use super::filters;
 use super::*;
 use crate::discussion::{
     Attachment, Comment, EditComment, MAX_ATTACHMENT_BYTES, NewComment, UploadInput,
@@ -135,6 +134,33 @@ async fn delete_comment(
             .await?,
     ))
 }
+pub(crate) async fn create_upload_actor(
+    s: AppState,
+    actor: String,
+    id: String,
+    input: UploadInput,
+) -> Result<Value, ApiError> {
+    let objects = objects(&s)?;
+    let intent = s
+        .run(move |db| db.create_upload_intent(&actor, &id, input))
+        .await?;
+    let signed = objects.signed_upload(&intent).map_err(storage_error)?;
+    Ok(json!({"intent":intent,"upload":signed}))
+}
+pub(crate) async fn upload_actor(
+    s: AppState,
+    actor: String,
+    id: String,
+) -> Result<Value, ApiError> {
+    let objects = objects(&s)?;
+    let intent = s.run(move |db| db.upload_intent(&actor, &id)).await?;
+    let upload = if intent.finalized {
+        None
+    } else {
+        Some(objects.signed_upload(&intent).map_err(storage_error)?)
+    };
+    Ok(json!({"intent":intent,"upload":upload}))
+}
 async fn create_upload(
     State(s): State<AppState>,
     h: HeaderMap,
@@ -142,12 +168,7 @@ async fn create_upload(
     Input(input): Input<UploadInput>,
 ) -> Result<Json<Value>, ApiError> {
     let actor = s.auth(&h, true)?;
-    let objects = objects(&s)?;
-    let intent = s
-        .run(move |db| db.create_upload_intent(&actor, &id, input))
-        .await?;
-    let signed = objects.signed_upload(&intent).map_err(storage_error)?;
-    Ok(Json(json!({"intent":intent,"upload":signed})))
+    Ok(Json(create_upload_actor(s, actor, id, input).await?))
 }
 async fn upload(
     State(s): State<AppState>,
@@ -155,14 +176,7 @@ async fn upload(
     Path(id): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     let actor = s.auth(&h, true)?;
-    let objects = objects(&s)?;
-    let intent = s.run(move |db| db.upload_intent(&actor, &id)).await?;
-    let plan = if intent.finalized {
-        None
-    } else {
-        Some(objects.signed_upload(&intent).map_err(storage_error)?)
-    };
-    Ok(Json(json!({"intent":intent,"upload":plan})))
+    Ok(Json(upload_actor(s, actor, id).await?))
 }
 async fn upload_content(
     State(s): State<AppState>,
@@ -210,19 +224,16 @@ async fn upload_content(
         json!({"uploaded":true,"intent_id":current.id,"revision":current.revision}),
     ))
 }
-async fn finalize(
-    State(s): State<AppState>,
-    h: HeaderMap,
-    Path(id): Path<String>,
-    Input(expected): Input<ExpectedRevision>,
-) -> Result<Json<Attachment>, ApiError> {
-    let actor = s.auth(&h, true)?;
+pub(crate) async fn finalize_actor(
+    s: AppState,
+    actor: String,
+    id: String,
+    revision: i64,
+) -> Result<Attachment, ApiError> {
     let storage = objects(&s)?;
     let a = actor.clone();
     let intent = s.run(move |db| db.upload_intent(&a, &id)).await?;
-    if expected.revision != intent.revision
-        && !(intent.finalized && expected.revision == intent.revision - 1)
-    {
+    if revision != intent.revision && !(intent.finalized && revision == intent.revision - 1) {
         return Err(ApiError(
             StatusCode::CONFLICT,
             "stale_revision",
@@ -233,10 +244,17 @@ async fn finalize(
         .verify_and_promote(&intent)
         .await
         .map_err(storage_error)?;
-    Ok(Json(
-        s.run(move |db| db.finalize_attachment(&actor, verified))
-            .await?,
-    ))
+    s.run(move |db| db.finalize_attachment(&actor, verified))
+        .await
+}
+async fn finalize(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+    Input(expected): Input<ExpectedRevision>,
+) -> Result<Json<Attachment>, ApiError> {
+    let actor = s.auth(&h, true)?;
+    Ok(Json(finalize_actor(s, actor, id, expected.revision).await?))
 }
 async fn attachments(
     State(s): State<AppState>,
@@ -301,6 +319,7 @@ struct FileView {
     can_delete: bool,
 }
 struct CommentView {
+    body_html: String,
     record: Comment,
     files: Vec<FileView>,
     can_edit: bool,
@@ -345,13 +364,21 @@ async fn fragment(
                         .map(file_view)
                         .collect();
                     let can_edit = rank >= 2 && (record.author_id == user || rank >= 3);
-                    CommentView {
+                    let body_html = crate::taxonomy::render_references(
+                        &db.conn,
+                        &actor,
+                        "comment",
+                        &record.id,
+                        &record.body,
+                    )?;
+                    Ok(CommentView {
+                        body_html,
                         record,
                         files,
                         can_edit,
-                    }
+                    })
                 })
-                .collect();
+                .collect::<Result<Vec<_>, Error>>()?;
             let files = all_files
                 .iter()
                 .filter(|file| file.comment_id.is_none())

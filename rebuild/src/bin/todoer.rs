@@ -1,6 +1,8 @@
 use clap::{Parser, Subcommand};
 use reqwest::{Client, Method};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
+use std::io::{Read, Write};
 
 #[derive(Parser)]
 #[command(about = "Todoer REST client")]
@@ -86,6 +88,33 @@ enum Command {
     References {
         #[command(subcommand)]
         command: ReferenceCommand,
+    },
+    /// Scheduling and recurrence through shared operations.
+    Schedule {
+        #[command(subcommand)]
+        command: ScheduleCommand,
+    },
+    Comments {
+        #[command(subcommand)]
+        command: CommentCommand,
+    },
+    /// Metadata plus bounded checksum-verified file upload/download.
+    Files {
+        #[command(subcommand)]
+        command: FileCommand,
+    },
+    /// Compact access action JSON; grants require explicit acknowledgment.
+    Access {
+        #[arg(long)]
+        body: String,
+    },
+    Activity {
+        #[arg(long)]
+        body: String,
+    },
+    Invitations {
+        #[command(subcommand)]
+        command: InvitationCommand,
     },
     Tasks {
         list: String,
@@ -450,6 +479,264 @@ fn reference_request(command: ReferenceCommand) -> RequestSpec {
     )
 }
 #[derive(Subcommand)]
+enum ScheduleCommand {
+    Get {
+        id: String,
+    },
+    Set {
+        id: String,
+        #[arg(long)]
+        revision: i64,
+        #[arg(long)]
+        body: String,
+    },
+    Start {
+        id: String,
+        #[arg(long)]
+        revision: i64,
+        #[arg(long)]
+        body: String,
+    },
+    Series {
+        id: String,
+    },
+    All,
+    State {
+        id: String,
+        #[arg(long)]
+        revision: i64,
+        state: String,
+    },
+    Occurrences {
+        id: String,
+    },
+    Skip {
+        id: String,
+        #[arg(long)]
+        revision: i64,
+    },
+    Planning {
+        #[arg(long)]
+        from: String,
+        #[arg(long)]
+        to: String,
+    },
+    Statistics {
+        #[arg(long)]
+        from: String,
+    },
+    Action {
+        #[arg(long)]
+        body: String,
+    },
+}
+#[derive(Subcommand)]
+enum CommentCommand {
+    List {
+        task: String,
+        #[arg(long, default_value_t = 0)]
+        after: i64,
+        #[arg(long, default_value_t = 20)]
+        limit: i64,
+        #[arg(long)]
+        full: bool,
+    },
+    Get {
+        id: String,
+    },
+    Add {
+        task: String,
+        #[arg(long)]
+        key: String,
+        body: String,
+    },
+    Edit {
+        id: String,
+        #[arg(long)]
+        revision: i64,
+        body: String,
+    },
+    Delete {
+        id: String,
+        #[arg(long)]
+        revision: i64,
+    },
+}
+#[derive(Subcommand)]
+enum FileCommand {
+    List {
+        task: String,
+    },
+    Info {
+        id: String,
+    },
+    Delete {
+        id: String,
+        #[arg(long)]
+        revision: i64,
+    },
+    Intent {
+        task: String,
+        #[arg(long)]
+        body: String,
+    },
+    ResumeIntent {
+        id: String,
+    },
+    #[command(alias = "confirm")]
+    Finalize {
+        id: String,
+        #[arg(long)]
+        revision: i64,
+    },
+    Upload {
+        task: String,
+        #[arg(long)]
+        file: std::path::PathBuf,
+        #[arg(long)]
+        comment: Option<String>,
+        #[arg(long)]
+        dry_run: bool,
+    },
+    Resume {
+        id: String,
+        #[arg(long)]
+        file: std::path::PathBuf,
+    },
+    Download {
+        id: String,
+        #[arg(long)]
+        output: std::path::PathBuf,
+    },
+}
+#[derive(Subcommand)]
+enum InvitationCommand {
+    List {
+        kind: String,
+        id: String,
+    },
+    Create {
+        kind: String,
+        id: String,
+        email: String,
+        #[arg(long, default_value = "viewer")]
+        role: String,
+        #[arg(long)]
+        key: String,
+        #[arg(long)]
+        acknowledge_access_change: bool,
+    },
+    Revoke {
+        id: String,
+    },
+}
+fn object_body(body: &str) -> Result<Value, (i32, String)> {
+    let value: Value =
+        serde_json::from_str(body).map_err(|_| (2, "--body must contain valid JSON".into()))?;
+    if !value.is_object() {
+        return Err((2, "--body must contain a JSON object".into()));
+    }
+    Ok(value)
+}
+fn schedule_request(command: ScheduleCommand) -> Result<RequestSpec, (i32, String)> {
+    Ok(action_request(
+        "/agent/schedule",
+        match command {
+            ScheduleCommand::Get { id } => json!({"op":"get","id":id}),
+            ScheduleCommand::Set { id, revision, body } => {
+                json!({"op":"set","id":id,"revision":revision,"schedule":object_body(&body)?})
+            }
+            ScheduleCommand::Start { id, revision, body } => {
+                json!({"op":"series_start","id":id,"revision":revision,"spec":object_body(&body)?})
+            }
+            ScheduleCommand::Series { id } => json!({"op":"series_get","id":id}),
+            ScheduleCommand::All => json!({"op":"series_list"}),
+            ScheduleCommand::State {
+                id,
+                revision,
+                state,
+            } => json!({"op":"series_state","id":id,"revision":revision,"state":state}),
+            ScheduleCommand::Occurrences { id } => json!({"op":"occurrences","id":id}),
+            ScheduleCommand::Skip { id, revision } => {
+                json!({"op":"skip","id":id,"revision":revision})
+            }
+            ScheduleCommand::Planning { from, to } => json!({"op":"planning","from":from,"to":to}),
+            ScheduleCommand::Statistics { from } => json!({"op":"statistics","from":from}),
+            ScheduleCommand::Action { body } => object_body(&body)?,
+        },
+    ))
+}
+fn comments_request(command: CommentCommand) -> RequestSpec {
+    action_request(
+        "/agent/activity",
+        match command {
+            CommentCommand::List {
+                task,
+                after,
+                limit,
+                full,
+            } => {
+                json!({"op":"comments","task_id":task,"after_seq":after,"limit":limit,"include_bodies":full})
+            }
+            CommentCommand::Get { id } => json!({"op":"comment_get","id":id}),
+            CommentCommand::Add { task, key, body } => {
+                json!({"op":"comment_create","task_id":task,"idempotency_key":key,"body":body})
+            }
+            CommentCommand::Edit { id, revision, body } => {
+                json!({"op":"comment_edit","id":id,"revision":revision,"body":body})
+            }
+            CommentCommand::Delete { id, revision } => {
+                json!({"op":"comment_delete","id":id,"revision":revision})
+            }
+        },
+    )
+}
+fn files_request(command: FileCommand) -> Result<RequestSpec, (i32, String)> {
+    Ok(action_request(
+        "/agent/activity",
+        match command {
+            FileCommand::List { task } => json!({"op":"files","task_id":task}),
+            FileCommand::Info { id } => json!({"op":"file_link","id":id}),
+            FileCommand::Delete { id, revision } => {
+                json!({"op":"file_delete","id":id,"revision":revision})
+            }
+            FileCommand::Intent { task, body } => {
+                json!({"op":"upload_create","task_id":task,"input":object_body(&body)?})
+            }
+            FileCommand::ResumeIntent { id } => json!({"op":"upload_get","id":id}),
+            FileCommand::Finalize { id, revision } => {
+                json!({"op":"upload_finalize","id":id,"revision":revision})
+            }
+            FileCommand::Upload { .. }
+            | FileCommand::Resume { .. }
+            | FileCommand::Download { .. } => {
+                unreachable!("binary transfer handled before request dispatch")
+            }
+        },
+    ))
+}
+fn invitation_request(command: InvitationCommand) -> RequestSpec {
+    action_request(
+        "/agent/access",
+        match command {
+            InvitationCommand::List { kind, id } => {
+                json!({"op":"invitations","target_kind":kind,"target_id":id})
+            }
+            InvitationCommand::Create {
+                kind,
+                id,
+                email,
+                role,
+                key,
+                acknowledge_access_change,
+            } => {
+                json!({"op":"invite","idempotency_key":key,"input":{"target_kind":kind,"target_id":id,"email":email,"role":role,"acknowledge_access_change":acknowledge_access_change}})
+            }
+            InvitationCommand::Revoke { id } => json!({"op":"revoke_invitation","id":id}),
+        },
+    )
+}
+#[derive(Subcommand)]
 enum BulkCommand {
     Preview {
         #[arg(long)]
@@ -652,6 +939,14 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         }
         return Ok(());
     }
+    if let Command::Files { command } = &args.command
+        && matches!(
+            command,
+            FileCommand::Upload { .. } | FileCommand::Resume { .. } | FileCommand::Download { .. }
+        )
+    {
+        return transfer_file(&args, command).await;
+    }
     let mut query_pairs: Vec<(String, String)> = Vec::new();
     let (method, path, body, key) = match args.command {
         Command::Workspace { command } => workspace_request(command)?,
@@ -660,6 +955,12 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         Command::AuthInfo => unreachable!("handled before request construction"),
         Command::Bulk { command } => bulk_request(command)?,
         Command::Query(q) => query_request(*q)?,
+        Command::Schedule { command } => schedule_request(command)?,
+        Command::Comments { command } => comments_request(command),
+        Command::Files { command } => files_request(command)?,
+        Command::Access { body } => write_request(Method::POST, "/agent/access".into(), body)?,
+        Command::Activity { body } => write_request(Method::POST, "/agent/activity".into(), body)?,
+        Command::Invitations { command } => invitation_request(command),
         Command::Organize { body } => write_request(Method::POST, "/organize".into(), body)?,
         Command::Tags { command } => tag_request(command),
         Command::TaskSection {
@@ -860,6 +1161,18 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             "request failed; check server URL and connectivity".into(),
         )
     })?;
+    let (raw, value) = response_json(response).await?;
+    if args.json {
+        println!("{raw}");
+    } else if raw.is_empty() {
+        println!("OK");
+    } else {
+        print_human(&value);
+    }
+    Ok(())
+}
+
+async fn response_json(response: reqwest::Response) -> Result<(String, Value), (i32, String)> {
     let status = response.status();
     let raw = response
         .text()
@@ -888,15 +1201,198 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         };
         return Err((exit, message));
     }
-    if args.json {
-        println!("{raw}");
-    } else if raw.is_empty() {
-        println!("OK");
+    let value = if raw.is_empty() {
+        Value::Null
     } else {
-        let value: Value =
-            serde_json::from_str(&raw).map_err(|_| (1, "server returned invalid JSON".into()))?;
-        print_human(&value);
+        serde_json::from_str(&raw).map_err(|_| (1, "server returned invalid JSON".into()))?
+    };
+    Ok((raw, value))
+}
+fn api_url(base: &str, path: &str) -> Result<reqwest::Url, (i32, String)> {
+    reqwest::Url::parse(&format!("{}/api/v1{path}", base.trim_end_matches('/')))
+        .map_err(|_| (2, "invalid server URL".into()))
+}
+async fn transfer_json(
+    client: &Client,
+    base: &str,
+    token: &str,
+    path: &str,
+    body: Value,
+) -> Result<Value, (i32, String)> {
+    let response = client
+        .post(api_url(base, path)?)
+        .bearer_auth(token)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|_| (1, "request failed; check server connectivity".into()))?;
+    Ok(response_json(response).await?.1)
+}
+fn local_file(path: &std::path::Path) -> Result<(Vec<u8>, String), (i32, String)> {
+    let file = std::fs::File::open(path).map_err(|_| (2, "could not open selected file".into()))?;
+    if !file
+        .metadata()
+        .map_err(|_| (2, "could not inspect selected file".into()))?
+        .is_file()
+    {
+        return Err((2, "selected path must be a regular file".into()));
     }
+    let mut bytes = Vec::new();
+    file.take(todoer::discussion::MAX_ATTACHMENT_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| (2, "could not read selected file".into()))?;
+    if bytes.len() as u64 > todoer::discussion::MAX_ATTACHMENT_BYTES {
+        return Err((2, "file exceeds25MiB limit".into()));
+    }
+    let hash = format!("{:x}", Sha256::digest(&bytes));
+    Ok((bytes, hash))
+}
+fn output_value(args: &Args, value: &Value) {
+    if args.json {
+        println!("{value}");
+    } else {
+        print_human(value);
+    }
+}
+async fn transfer_file(args: &Args, command: &FileCommand) -> Result<(), (i32, String)> {
+    let prepared = match command {
+        FileCommand::Upload { file, .. } | FileCommand::Resume { file, .. } => {
+            Some(local_file(file)?)
+        }
+        _ => None,
+    };
+    if let FileCommand::Upload {
+        file,
+        dry_run: true,
+        ..
+    } = command
+    {
+        let (bytes, hash) = prepared.as_ref().expect("prepared file");
+        output_value(
+            args,
+            &json!({"dry_run":true,"filename":file.file_name().unwrap_or_default().to_string_lossy(),"size":bytes.len(),"sha256":hash}),
+        );
+        return Ok(());
+    }
+    let token = std::env::var("TODOER_TOKEN")
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+        .ok_or((3, "TODOER_TOKEN must be set and nonempty".into()))?;
+    let client = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|_| (1, "could not initialize HTTP client".into()))?;
+    if let FileCommand::Download { id, output } = command {
+        let metadata = transfer_json(
+            &client,
+            &args.url,
+            &token,
+            "/agent/activity",
+            json!({"op":"file_link","id":id}),
+        )
+        .await?;
+        let expected_size = metadata["attachment"]["size"]
+            .as_u64()
+            .ok_or((1, "server omitted attachment size".into()))?;
+        let expected_hash = metadata["attachment"]["sha256"]
+            .as_str()
+            .ok_or((1, "server omitted attachment checksum".into()))?;
+        if expected_size > todoer::discussion::MAX_ATTACHMENT_BYTES {
+            return Err((2, "attachment exceeds25MiB limit".into()));
+        }
+        let mut response = client
+            .get(api_url(
+                &args.url,
+                &format!("/attachments/{}/download", segment(id)),
+            )?)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|_| (1, "download failed".into()))?;
+        if !response.status().is_success() {
+            return response_json(response).await.map(|_| ());
+        }
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|_| (1, "download interrupted".into()))?
+        {
+            if bytes.len() + chunk.len() > todoer::discussion::MAX_ATTACHMENT_BYTES as usize {
+                return Err((1, "download exceeds declared limit".into()));
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        let actual_hash = format!("{:x}", Sha256::digest(&bytes));
+        if bytes.len() as u64 != expected_size || !actual_hash.eq_ignore_ascii_case(expected_hash) {
+            return Err((
+                1,
+                "download size or SHA256 mismatch; output was not written".into(),
+            ));
+        }
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(output)
+            .map_err(|_| (2, "output exists or cannot be created".into()))?;
+        file.write_all(&bytes)
+            .map_err(|_| (1, "could not write verified download".into()))?;
+        output_value(
+            args,
+            &json!({"id":id,"output":output.to_string_lossy(),"size":bytes.len(),"sha256":actual_hash}),
+        );
+        return Ok(());
+    }
+    let (bytes, hash) = prepared.expect("upload/resume prepared");
+    let plan=match command{
+        FileCommand::Upload{task,file,comment,..}=>transfer_json(&client,&args.url,&token,"/agent/activity",json!({"op":"upload_create","task_id":task,"input":{"comment_id":comment,"filename":file.file_name().unwrap_or_default().to_string_lossy(),"size":bytes.len(),"sha256":hash}})).await?,
+        FileCommand::Resume{id,..}=>transfer_json(&client,&args.url,&token,"/agent/activity",json!({"op":"upload_get","id":id})).await?,
+        _=>unreachable!("download already handled"),
+    };
+    let intent = &plan["intent"];
+    let id = intent["id"]
+        .as_str()
+        .ok_or((1, "server omitted upload intent ID".into()))?;
+    let revision = intent["revision"]
+        .as_i64()
+        .ok_or((1, "server omitted upload intent revision".into()))?;
+    if intent["size"].as_u64() != Some(bytes.len() as u64)
+        || !intent["sha256"]
+            .as_str()
+            .is_some_and(|v| v.eq_ignore_ascii_case(&hash))
+    {
+        return Err((
+            2,
+            "selected file does not match upload intent size/SHA256".into(),
+        ));
+    }
+    if intent["finalized"] != true {
+        let response = client
+            .put(api_url(
+                &args.url,
+                &format!("/uploads/{}/content?revision={revision}", segment(id)),
+            )?)
+            .bearer_auth(&token)
+            .header("content-type", "application/octet-stream")
+            .body(bytes)
+            .send()
+            .await
+            .map_err(|_| (1, format!("upload interrupted; resume intent {id}")))?;
+        response_json(response)
+            .await
+            .map_err(|(code, msg)| (code, format!("{msg}; resume intent {id}")))?;
+    }
+    let attachment = transfer_json(
+        &client,
+        &args.url,
+        &token,
+        "/agent/activity",
+        json!({"op":"upload_finalize","id":id,"revision":revision}),
+    )
+    .await
+    .map_err(|(code, msg)| (code, format!("{msg}; resume intent {id}")))?;
+    output_value(args, &attachment);
     Ok(())
 }
 
