@@ -9,7 +9,7 @@ use openidconnect::{
     AccessTokenHash, AuthorizationCode, ClientId, ClientSecret, CsrfToken, EndpointMaybeSet,
     EndpointNotSet, EndpointSet, IssuerUrl, Nonce, OAuth2TokenResponse, PkceCodeChallenge,
     PkceCodeVerifier, RedirectUrl, Scope, TokenResponse,
-    core::{CoreAuthenticationFlow, CoreClient, CoreProviderMetadata},
+    core::{CoreAuthenticationFlow, CoreClient, CoreProviderMetadata, CoreTokenResponse},
 };
 use std::time::{Duration, Instant};
 
@@ -25,6 +25,7 @@ type DiscoveredClient = CoreClient<
     EndpointMaybeSet,
 >;
 
+#[derive(Clone)]
 pub struct GoogleConfig {
     pub client_id: String,
     pub client_secret: String,
@@ -88,6 +89,9 @@ impl VerifiedIdentity {
 pub struct GoogleOidc {
     client: DiscoveredClient,
     http: reqwest::Client,
+    issuer: String,
+    refresh: Option<(GoogleConfig, IssuerUrl)>,
+    refreshed_client: std::sync::Mutex<Option<DiscoveredClient>>,
 }
 impl GoogleOidc {
     /// Offline construction for isolated route tests only. Empty keys cannot
@@ -97,6 +101,14 @@ impl GoogleOidc {
         tests::isolated_client()
     }
     pub async fn discover(config: GoogleConfig) -> Result<Self, OidcError> {
+        Self::discover_for(
+            config,
+            IssuerUrl::new(GOOGLE_ISSUER.into()).map_err(|_| OidcError::Configuration)?,
+        )
+        .await
+    }
+    // Not exposed: public production discovery always uses the fixed Google issuer.
+    async fn discover_for(config: GoogleConfig, issuer: IssuerUrl) -> Result<Self, OidcError> {
         let redirect = validate_config(&config)?;
         let http = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
@@ -106,15 +118,15 @@ impl GoogleOidc {
             .map_err(|_| OidcError::Configuration)?;
         let metadata = tokio::time::timeout(
             NETWORK_TIMEOUT,
-            CoreProviderMetadata::discover_async(
-                IssuerUrl::new(GOOGLE_ISSUER.into()).map_err(|_| OidcError::Configuration)?,
-                &http,
-            ),
+            CoreProviderMetadata::discover_async(issuer.clone(), &http),
         )
         .await
         .map_err(|_| OidcError::Timeout)?
         .map_err(|_| OidcError::Discovery)?;
-        Ok(Self::from_metadata(config, redirect, metadata, http))
+        let refresh = Some((config.clone(), issuer));
+        let mut provider = Self::from_metadata(config, redirect, metadata, http);
+        provider.refresh = refresh;
+        Ok(provider)
     }
     fn from_metadata(
         config: GoogleConfig,
@@ -122,6 +134,7 @@ impl GoogleOidc {
         metadata: CoreProviderMetadata,
         http: reqwest::Client,
     ) -> Self {
+        let issuer = metadata.issuer().as_str().to_owned();
         Self {
             client: CoreClient::from_provider_metadata(
                 metadata,
@@ -130,12 +143,23 @@ impl GoogleOidc {
             )
             .set_redirect_uri(redirect),
             http,
+            issuer,
+            refresh: None,
+            refreshed_client: std::sync::Mutex::new(None),
         }
+    }
+    fn client_snapshot(&self) -> DiscoveredClient {
+        self.refreshed_client
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+            .as_ref()
+            .unwrap_or(&self.client)
+            .clone()
     }
     pub fn begin_login(&self) -> LoginStart {
         let (challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-        let (url, state, nonce) = self
-            .client
+        let client = self.client_snapshot();
+        let (url, state, nonce) = client
             .authorize_url(
                 CoreAuthenticationFlow::AuthorizationCode,
                 CsrfToken::new_random,
@@ -174,8 +198,8 @@ impl GoogleOidc {
         if code.is_empty() {
             return Err(OidcError::Exchange);
         }
-        let request = self
-            .client
+        let client = self.client_snapshot();
+        let request = client
             .exchange_code(AuthorizationCode::new(code.into()))
             .map_err(|_| OidcError::Configuration)?
             .set_pkce_verifier(pending.pkce_verifier);
@@ -183,11 +207,33 @@ impl GoogleOidc {
             .await
             .map_err(|_| OidcError::Timeout)?
             .map_err(|_| OidcError::Exchange)?;
+        let verified = self.verify_response(&client, &response, &pending.nonce);
+        if matches!(verified, Err(OidcError::InvalidIdentity))
+            && let Some((config, issuer)) = &self.refresh
+        {
+            // Refresh once per failed callback and verify the SAME token.
+            // Never replay the one-use authorization code or skip claims.
+            let fresh = Self::discover_for(config.clone(), issuer.clone()).await?;
+            let verified = self.verify_response(&fresh.client, &response, &pending.nonce);
+            *self
+                .refreshed_client
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner()) = Some(fresh.client);
+            return verified;
+        }
+        verified
+    }
+    fn verify_response(
+        &self,
+        client: &DiscoveredClient,
+        response: &CoreTokenResponse,
+        nonce: &Nonce,
+    ) -> Result<VerifiedIdentity, OidcError> {
         let token = response.id_token().ok_or(OidcError::MissingIdToken)?;
-        let verifier = self.client.id_token_verifier();
+        let verifier = client.id_token_verifier();
         // Library verifies signature, issuer, audience, expiry and nonce.
         let claims = token
-            .claims(&verifier, &pending.nonce)
+            .claims(&verifier, nonce)
             .map_err(|_| OidcError::InvalidIdentity)?;
         if let Some(expected) = claims.access_token_hash() {
             let actual = AccessTokenHash::from_token(
@@ -204,7 +250,7 @@ impl GoogleOidc {
                 return Err(OidcError::InvalidIdentity);
             }
         }
-        if claims.issuer().as_str() != GOOGLE_ISSUER || claims.subject().as_str().is_empty() {
+        if claims.issuer().as_str() != self.issuer || claims.subject().as_str().is_empty() {
             return Err(OidcError::InvalidIdentity);
         }
         Ok(VerifiedIdentity {
@@ -444,6 +490,85 @@ mod tests {
                     "case {case}"
                 );
             }
+        }
+        server.abort();
+    }
+    #[tokio::test]
+    async fn unknown_signing_key_refreshes_discovery_once_without_redeeming_code_again() {
+        use axum::{
+            Json, Router,
+            routing::{get, post},
+        };
+        use openidconnect::{
+            AccessToken, PrivateSigningKey,
+            core::{
+                CoreIdToken, CoreIdTokenClaims, CoreJwsSigningAlgorithm, CoreRsaPrivateSigningKey,
+            },
+        };
+        use rsa::pkcs1::EncodeRsaPrivateKey;
+        use std::sync::{
+            Arc, Mutex,
+            atomic::{AtomicUsize, Ordering},
+        };
+        let rsa = rsa::RsaPrivateKey::new(&mut rand::rngs::OsRng, 2048).unwrap();
+        let key = CoreRsaPrivateSigningKey::from_pem(
+            &rsa.to_pkcs1_pem(Default::default()).unwrap(),
+            Some(openidconnect::JsonWebKeyId::new("rotated".into())),
+        )
+        .unwrap();
+        let keys = Arc::new(Mutex::new(serde_json::json!({"keys":[]})));
+        let token = Arc::new(Mutex::new(String::new()));
+        let discovery_calls = Arc::new(AtomicUsize::new(0));
+        let exchange_calls = Arc::new(AtomicUsize::new(0));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let issuer = format!("http://{}", listener.local_addr().unwrap());
+        let metadata = serde_json::json!({"issuer":issuer,"authorization_endpoint":format!("{issuer}/authorize"),"token_endpoint":format!("{issuer}/token"),"jwks_uri":format!("{issuer}/jwks"),"response_types_supported":["code"],"subject_types_supported":["public"],"id_token_signing_alg_values_supported":["RS256"]});
+        let router = Router::new()
+            .route("/.well-known/openid-configuration", get({let count=discovery_calls.clone(); move || {let metadata=metadata.clone(); let count=count.clone(); async move { count.fetch_add(1, Ordering::SeqCst); Json(metadata) }}}))
+            .route("/jwks", get({let keys=keys.clone(); move || {let keys=keys.clone(); async move {Json(keys.lock().unwrap().clone())}}}))
+            .route("/token", post({let token=token.clone(); let count=exchange_calls.clone(); move || {let token=token.clone(); let count=count.clone(); async move {count.fetch_add(1, Ordering::SeqCst); Json(serde_json::json!({"access_token":"rotation-access","token_type":"Bearer","id_token":token.lock().unwrap().clone()}))}}}));
+        let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+        // Only this private test helper accepts a local issuer. The public
+        // discover() entry point always uses Google's HTTPS issuer.
+        let client = GoogleOidc::discover_for(
+            config("http://127.0.0.1:8092/auth/google/callback"),
+            IssuerUrl::new(issuer.clone()).unwrap(),
+        )
+        .await
+        .unwrap();
+        *keys.lock().unwrap() = serde_json::json!({"keys":[key.as_verification_key()]});
+        for iteration in 0..2 {
+            let pending = client.begin_login().pending;
+            let state = pending.state.secret().clone();
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            let claims: CoreIdTokenClaims=serde_json::from_value(serde_json::json!({"iss":issuer,"sub":"rotated-subject","aud":"test-client","iat":now,"exp":now+300,"nonce":pending.nonce.secret(),"email":"rotation@example.test","email_verified":true})).unwrap();
+            *token.lock().unwrap() = CoreIdToken::new(
+                claims,
+                &key,
+                CoreJwsSigningAlgorithm::RsaSsaPkcs1V15Sha256,
+                Some(&AccessToken::new("rotation-access".into())),
+                None,
+            )
+            .unwrap()
+            .to_string();
+            let identity = client
+                .complete_login(pending, &state, "single-use-code")
+                .await
+                .unwrap();
+            assert_eq!(identity.subject, "rotated-subject");
+            assert_eq!(
+                discovery_calls.load(Ordering::SeqCst),
+                2,
+                "refreshed keys should be cached"
+            );
+            assert_eq!(
+                exchange_calls.load(Ordering::SeqCst),
+                iteration + 1,
+                "each authorization code is exchanged only once"
+            );
         }
         server.abort();
     }
