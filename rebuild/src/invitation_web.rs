@@ -165,11 +165,24 @@ async fn accept(
 ) -> Result<Response, ApiError> {
     let signer = signer(&s)?;
     let value = token.clone();
-    s.run(move |db| db.check_invitation(&value, None, &signer))
+    let invitation = s
+        .run(move |db| db.check_invitation(&value, None, &signer))
         .await?;
     let mut url = reqwest::Url::parse(&format!("{}/auth/google", s.origin))
         .map_err(|_| Error::Invalid("Invalid origin".into()))?;
     url.query_pairs_mut().append_pair("invitation", &token);
+    url.query_pairs_mut().append_pair(
+        "next",
+        &format!(
+            "/{}/{}",
+            if invitation.target_kind == "workspace" {
+                "workspaces"
+            } else {
+                "lists"
+            },
+            invitation.target_id
+        ),
+    );
     Ok(Redirect::to(url.as_str().strip_prefix(&s.origin).unwrap()).into_response())
 }
 

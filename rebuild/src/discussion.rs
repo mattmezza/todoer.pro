@@ -174,7 +174,7 @@ fn discussion_event(
     let (user, client) = core::actor_identity(c, actor)?;
     // The task snapshot supports the existing live history visibility join; its
     // revision is unchanged. The event kind/entity are separate from task edits.
-    let event = serde_json::json!({"kind":kind,"task":task,"actor":user,"client":client,"attribution":if client.is_some(){"agent"}else{"human"},"discussion":entity});
+    let event = serde_json::json!({"kind":kind,"task":task,"actor":user,"client":client,"attribution":if client.is_some(){"agent"}else{"human"},"discussion":entity,"request_id":crate::audit::request_id()});
     c.execute(
         "INSERT INTO history(list_id,event,actor,before_event) VALUES(?1,?2,?3,?4)",
         params![task.list_id, event.to_string(), user, before],

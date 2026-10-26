@@ -45,6 +45,7 @@ rust-format: ## format Rust and rebuild frontend source
 rust-lint: ## deny compiler and Clippy warnings
 	cargo clippy --locked --all-targets -- -D warnings
 rust-test: ## core and HTTP integration tests
+	node scripts/rebuild-sw-check.mjs
 	cargo test --locked
 rust-build: rust-assets ## build Rust binaries reproducibly
 	cargo build --locked --release
@@ -69,3 +70,16 @@ rust-restore: ## restore and verify into a new path; pass source=... destination
 .PHONY: rust-replication-check
 rust-replication-check: ## real isolated Litestream/S3 restore; pass litestream=/absolute/path
 	python3 scripts/rebuild-litestream-check.py --litestream "$(litestream)"
+
+.PHONY: rust-migrate rust-image rust-container-check rust-agent-check rust-release-prepare
+rust-migrate: ## apply schema only; export TODOER_RUST_DB to a backed-up rebuild DB
+	@test -n "$$TODOER_RUST_DB" || (echo 'Export TODOER_RUST_DB first; back up an existing database before migration.' >&2; exit 2)
+	TODOER_DEV_AUTH=0 cargo run --locked --bin todoer-server -- --migrate-only
+rust-image: ## build local production image; never pushes
+	docker build -f deploy/rebuild/Dockerfile -t todoer-rebuild:local-verified .
+rust-container-check: ## isolated local Compose and S3 restore; requires Moto on loopback8937
+	python3 scripts/rebuild-container-check.py
+rust-agent-check: ## isolated CLI/MCP/S3 workflow fixture
+	uv run --no-project scripts/rebuild-agent-check.py
+rust-release-prepare: ## validate release policy without publishing or tagging
+	python3 scripts/rebuild-release-prepare.py self-test

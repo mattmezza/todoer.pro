@@ -1,11 +1,17 @@
+#[path = "agent_features.rs"]
+pub(crate) mod agent_features;
 #[path = "agent_web.rs"]
 mod agent_http;
+#[path = "assist_web.rs"]
+mod assist_http;
 #[path = "auth_web.rs"]
 mod browser_auth;
 #[path = "discussion_web.rs"]
 mod discussion_http;
 #[path = "invitation_web.rs"]
 mod invitation_http;
+#[path = "list_move_web.rs"]
+mod list_move_http;
 #[path = "navigation_web.rs"]
 mod navigation_http;
 #[path = "oauth_web.rs"]
@@ -16,6 +22,8 @@ mod organization;
 mod push_http;
 #[path = "scheduling_web.rs"]
 mod scheduling_http;
+#[path = "statistics_web.rs"]
+mod statistics_http;
 #[path = "search_web.rs"]
 mod structured_search;
 #[path = "taxonomy_web.rs"]
@@ -44,6 +52,7 @@ pub struct AppState {
     storage: Option<Arc<crate::object_storage::ObjectStorage>>,
     invitations: Option<Arc<crate::invitations::InvitationSigner>>,
     push: Option<Arc<crate::push::PushTransport>>,
+    pub(crate) assist: crate::assist::AssistService,
     token_hash: [u8; 32],
     sessions: Arc<Mutex<std::collections::HashMap<[u8; 32], std::time::Instant>>>,
     csrf: String,
@@ -58,12 +67,17 @@ impl AppState {
             storage: None,
             invitations: None,
             push: None,
+            assist: crate::assist::AssistService::default(),
             token_hash: Sha256::digest(token.as_bytes()).into(),
             sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
             csrf: uuid::Uuid::new_v4().to_string(),
             origin,
             stopping: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
+    }
+    pub fn with_assist(mut self, assist: crate::assist::AssistService) -> Self {
+        self.assist = assist;
+        self
     }
     pub fn with_storage(mut self, storage: Option<crate::object_storage::ObjectStorage>) -> Self {
         self.storage = storage.map(Arc::new);
@@ -81,6 +95,9 @@ impl AppState {
         self.push
             .as_ref()
             .map(|transport| push_http::start_push_worker(self.clone(), transport.as_ref().clone()))
+    }
+    pub fn start_statistics_worker(&self) -> tokio::task::JoinHandle<()> {
+        statistics_http::start_statistics_worker(self.clone())
     }
     pub fn request_shutdown(&self) {
         self.stopping
@@ -135,11 +152,12 @@ impl AppState {
         f: impl FnOnce(&mut Store) -> Result<T, Error> + Send + 'static,
     ) -> Result<T, ApiError> {
         let store = self.store.clone();
+        let request_id = crate::audit::REQUEST_ID.try_with(Clone::clone).ok();
         tokio::task::spawn_blocking(move || {
             let mut guard = store
                 .lock()
                 .map_err(|_| Error::Invalid("Database unavailable".into()))?;
-            f(&mut guard)
+            crate::audit::with_request(request_id, || f(&mut guard))
         })
         .await
         .map_err(|_| {
@@ -191,7 +209,7 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/google", get(browser_auth::google_start))
         .route("/auth/google/callback", get(browser_auth::google_callback))
         .route("/logout", post(logout))
-        .route("/capture", post(capture_form))
+        .route("/capture", get(capture_page).post(capture_form))
         .route("/lists/{id}", get(page))
         .route("/tasks/{id}", get(task_link))
         .route("/health", get(|| async { Json(json!({"status":"ok"})) }))
@@ -203,6 +221,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/tasks/{id}/move-preview", get(move_preview))
         .route("/api/v1/tasks/{id}", patch(update))
         .route("/api/v1/tasks/{id}/subtree", get(subtree))
+        .route("/api/v1/tasks/{id}/subtree/query", post(subtree_query))
         .route("/api/v1/tasks/{id}/move", post(move_task))
         .route("/api/v1/changes", get(changes))
         .route("/api/v1/events", get(events))
@@ -226,10 +245,14 @@ pub fn router(state: AppState) -> Router {
         .merge(oauth_http::routes())
         .merge(organization::routes())
         .merge(agent_http::routes())
+        .merge(agent_features::routes())
         .merge(invitation_http::routes())
         .merge(navigation_http::routes())
+        .merge(list_move_http::routes())
         .merge(push_http::routes())
         .merge(structured_search::routes())
+        .merge(statistics_http::routes())
+        .merge(assist_http::routes())
         .merge(taxonomy_http::routes())
         .merge(transfer_http::routes())
         .merge(discussion_http::routes())
@@ -420,8 +443,41 @@ impl std::ops::Deref for RenderedTask {
         &self.task
     }
 }
+// Positions are per sibling group. A global ORDER BY position would interleave
+// children with unrelated roots after reorder; preserve sibling order in preorder.
+fn preorder_tasks(tasks: Vec<Task>) -> Result<Vec<Task>, Error> {
+    use std::collections::{HashMap, HashSet};
+    let count = tasks.len();
+    let ids = tasks.iter().map(|t| t.id.clone()).collect::<HashSet<_>>();
+    let mut children: HashMap<Option<String>, Vec<Task>> = HashMap::new();
+    for task in tasks {
+        if task.parent_id.as_ref().is_some_and(|p| !ids.contains(p)) {
+            return Err(Error::Conflict(
+                "Task hierarchy contains an unavailable parent".into(),
+            ));
+        }
+        children
+            .entry(task.parent_id.clone())
+            .or_default()
+            .push(task);
+    }
+    let mut stack = children.remove(&None).unwrap_or_default();
+    stack.reverse();
+    let mut result = Vec::with_capacity(count);
+    while let Some(task) = stack.pop() {
+        if let Some(mut descendants) = children.remove(&Some(task.id.clone())) {
+            descendants.reverse();
+            stack.extend(descendants);
+        }
+        result.push(task);
+    }
+    if result.len() != count {
+        return Err(Error::Conflict("Task hierarchy contains a cycle".into()));
+    }
+    Ok(result)
+}
 fn rendered_tasks(db: &Store, actor: &str, list: &str) -> Result<Vec<RenderedTask>, Error> {
-    db.tasks(actor, list)?
+    preorder_tasks(db.tasks(actor, list)?)?
         .into_iter()
         .map(|task| {
             let description_html = if task.description.is_empty() {
@@ -642,6 +698,17 @@ async fn update(
     let actor = s.auth(&h, true)?;
     Ok(Json(s.run(move |db| db.update(&actor, &id, c)).await?))
 }
+async fn subtree_query(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+    Json(input): Json<crate::subtree_query::SubtreeRead>,
+) -> Result<Json<crate::subtree_query::SubtreePage>, ApiError> {
+    let actor = s.auth(&h, false)?;
+    Ok(Json(
+        s.run(move |db| db.read_subtree(&actor, &id, input)).await?,
+    ))
+}
 async fn subtree(
     State(s): State<AppState>,
     h: HeaderMap,
@@ -831,7 +898,7 @@ async fn undo(
 async fn capabilities(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Value>, ApiError> {
     s.auth(&h, false)?;
     Ok(Json(
-        json!({"version":"0.1.0-dev","mode":if s.production.is_some(){"private-preview"}else{"development-only"},"interfaces":["rest","cli","mcp"],"operations":["lists.read","tasks.read","capture","tasks.update","subtree.read","subtree.move","move.preview","search","changes","trash","restore","undo.update","workspaces","sections","sharing","comments","attachments","schedules","recurrence","statistics","bulk.preview","bulk.apply","destinations.resolve","destinations.preferences","destinations.search"],"limits":{"capture_batch":100,"bulk_operations":50,"bulk_affected_tasks":500,"bulk_preview_ttl_seconds":600,"search_limit":100,"changes_page":1000,"title_characters":500,"description_bytes":100000},"search":{"matching":"unicode-token-prefix","fuzzy":false,"sort":"id"},"production_auth":s.production.is_some()}),
+        json!({"version":"0.1.0-dev","mode":if s.production.is_some(){"private-preview"}else{"development-only"},"interfaces":["rest","cli","mcp"],"operations":["lists.read","tasks.read","capture","tasks.update","subtree.read","subtree.move","move.preview","search","changes","trash","restore","undo.update","workspaces","sections","sharing","comments","attachments","schedules","recurrence","statistics","bulk.preview","bulk.apply","destinations.resolve","destinations.preferences","destinations.search","query","tags","references","favorites","exports","imports","invitations","review","lists.workspace.move","assist"],"limits":{"capture_batch":100,"bulk_operations":50,"bulk_affected_tasks":500,"bulk_preview_ttl_seconds":600,"search_limit":100,"subtree_page":100,"subtree_response_bytes":262144,"changes_page":1000,"title_characters":500,"description_bytes":100000},"search":{"matching":"unicode-token-prefix","fuzzy":false,"legacy_endpoint":"/api/v1/search","structured_endpoint":"/api/v1/query","sorts":["relevance","title","created","updated","planned","due","id"],"entities":["workspace","list","section","task","comment","tag","attachment"],"cursor_resync_status":409},"production_auth":s.production.is_some()}),
     ))
 }
 async fn openapi() -> impl IntoResponse {
@@ -1091,7 +1158,9 @@ async fn response_security(req: axum::extract::Request, next: axum::middleware::
     let started = std::time::Instant::now();
     let request_id = uuid::Uuid::new_v4().to_string();
     let method = req.method().to_string();
-    let mut res = next.run(req).await;
+    let mut res = crate::audit::REQUEST_ID
+        .scope(request_id.clone(), next.run(req))
+        .await;
     res.headers_mut()
         .insert("x-request-id", request_id.parse().unwrap());
     eprintln!(
@@ -1237,11 +1306,71 @@ where
     }
 }
 
+#[derive(Template)]
+#[template(path = "capture.html")]
+struct CapturePage {
+    lists: Vec<List>,
+    selected: String,
+    csrf: String,
+    key: String,
+}
+#[derive(Deserialize, Default)]
+struct CaptureContext {
+    list: Option<String>,
+}
+async fn capture_page(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Query(q): Query<CaptureContext>,
+) -> Result<Response, ApiError> {
+    let Ok(actor) = s.auth(&h, false) else {
+        return Ok(Redirect::to("/signin?next=%2Fcapture").into_response());
+    };
+    let (lists, default) = s
+        .run(move |db| {
+            let mut lists = db.lists(&actor)?;
+            lists.retain(|l| {
+                db.list_permission(&actor, &l.id)
+                    .is_ok_and(|rank| rank >= 2)
+            });
+            let default = db
+                .destination_preferences(&actor)?
+                .into_iter()
+                .find(|p| p.key == "inbox")
+                .map(|p| p.destination.id);
+            Ok((lists, default))
+        })
+        .await?;
+    let selected = q
+        .list
+        .or(default)
+        .filter(|id| lists.iter().any(|l| l.id == *id))
+        .unwrap_or_default();
+    Ok(Html(
+        CapturePage {
+            lists,
+            selected,
+            csrf: s.csrf_for(&h),
+            key: uuid::Uuid::new_v4().to_string(),
+        }
+        .render()
+        .map_err(|_| {
+            ApiError(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "template",
+                "Capture render failed".into(),
+            )
+        })?,
+    )
+    .into_response())
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CaptureForm {
     csrf: String,
     title: String,
+    #[serde(default)]
+    description: String,
     list_id: String,
     key: String,
 }
@@ -1267,7 +1396,7 @@ async fn capture_form(
                 list_id: f.list_id,
                 tasks: vec![crate::core::NewTask {
                     title: f.title,
-                    description: String::new(),
+                    description: f.description,
                     parent_id: None,
                 }],
             },

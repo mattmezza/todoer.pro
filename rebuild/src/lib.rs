@@ -1,4 +1,6 @@
 pub mod agent_ops;
+pub mod assist;
+mod audit;
 pub mod auth;
 pub mod core;
 pub mod discussion;
@@ -12,6 +14,8 @@ pub mod oidc;
 pub mod push;
 pub mod scheduling;
 pub mod search;
+pub mod statistics;
+pub mod subtree_query;
 pub mod taxonomy;
 pub mod transfer;
 pub mod web;

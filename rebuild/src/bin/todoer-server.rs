@@ -9,6 +9,12 @@ use todoer::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let arguments = env::args().skip(1).collect::<Vec<_>>();
+    let migrate_only = match arguments.as_slice() {
+        [] => false,
+        [flag] if flag == "--migrate-only" => true,
+        _ => return Err("Usage: todoer-server [--migrate-only]".into()),
+    };
     let development = env::var("TODOER_DEV_AUTH").as_deref() == Ok("1");
     let path = if development {
         env::var("TODOER_RUST_DB").unwrap_or_else(|_| ".local/rebuild/rust.db".into())
@@ -19,6 +25,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("Refusing legacy database path".into());
     }
     let mut store = Store::open(&path)?;
+    if migrate_only {
+        eprintln!("Database migrations complete; no listener or notification workers started");
+        return Ok(());
+    }
     let port: u16 = env::var("TODOER_RUST_PORT")
         .unwrap_or_else(|_| "8092".into())
         .parse()?;
@@ -101,8 +111,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     )?);
     let state = state
+        .with_assist(todoer::assist::AssistService::from_env()?)
         .with_storage(storage)
         .with_push(todoer::push::PushTransport::from_env()?);
+    let statistics_worker = state.start_statistics_worker();
     let push_worker = state.start_push_worker();
     let notifications = todoer::notifications::Notifications::from_env()?;
     let worker = notifications.map(|config| state.start_notification_worker(config));
@@ -134,6 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .await?;
     state.request_shutdown();
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(10), statistics_worker).await;
     if let Some(worker) = push_worker {
         let _ = tokio::time::timeout(std::time::Duration::from_secs(30), worker).await;
     }
