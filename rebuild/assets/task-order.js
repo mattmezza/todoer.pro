@@ -1,0 +1,236 @@
+// Ordering never moves DOM nodes optimistically: a confirmed write refreshes the
+// canonical fragment, and a rejected write leaves drafts and selections intact.
+// Native HTML5 drag is enabled only on desktop-width fine-pointer/hover devices.
+// Phones and coarse-pointer devices use the same 44px Up/Down actions instead.
+export function mountTaskOrdering({
+  container,
+  listId,
+  canWrite,
+  request,
+  onChanged,
+  onError,
+  hasActiveDraft,
+}) {
+  if (!container || !listId || typeof request !== 'function')
+    throw new Error('Ordering requires a list, container and request function');
+  const desktop = matchMedia('(min-width: 640px) and (hover: hover) and (pointer: fine)');
+  let active = true,
+    busy = false,
+    drag = null;
+  const controls = () => [
+    ...container.querySelectorAll(
+      '[data-order-up],[data-order-down],[data-order-handle]',
+    ),
+  ];
+  function configure() {
+    for (const control of controls()) {
+      control.disabled = !canWrite || busy;
+      if (!canWrite) control.hidden = true;
+      if (control.hasAttribute('data-order-handle')) {
+        control.hidden = !canWrite || !desktop.matches;
+        control.draggable = canWrite && desktop.matches && !busy;
+      }
+    }
+  }
+  function error(message) {
+    if (active) onError?.(message, true);
+  }
+  function blocked() {
+    if (hasActiveDraft?.()) {
+      error(
+        'Finish or close the active editor, clear the capture draft or text selection, then reorder. Your draft is unchanged.',
+      );
+      return true;
+    }
+    return false;
+  }
+  function clearMarkers() {
+    for (const row of container.querySelectorAll(
+      '[data-order-dragging],[data-order-drop]',
+    )) {
+      row.removeAttribute('data-order-dragging');
+      row.removeAttribute('data-order-drop');
+    }
+  }
+  async function snapshot() {
+    // The revision protects order writes; server validation protects the exact
+    // active sibling set. Completed tasks are deliberately retained here.
+    const [info, tasks] = await Promise.all([
+      request(`/lists/${encodeURIComponent(listId)}`),
+      request(`/lists/${encodeURIComponent(listId)}/tasks`),
+    ]);
+    if (!Number.isInteger(info.revision) || !Array.isArray(tasks))
+      throw new Error('Could not read the current sibling order. Reload and try again.');
+    return { revision: info.revision, tasks };
+  }
+  function siblings(state, source, row) {
+    const task = state.tasks.find((t) => t.id === source);
+    if (!task || task.list_id !== listId)
+      throw new Error(
+        'The task moved or is no longer available. Reload before reordering.',
+      );
+    if (
+      row?.hasAttribute('data-parent-id') &&
+      row.dataset.parentId !== (task.parent_id || '')
+    )
+      throw new Error('The task changed parent. Reload before reordering.');
+    const ids = state.tasks
+      .filter((t) => t.list_id === listId && t.parent_id === task.parent_id)
+      .map((t) => t.id);
+    return { task, ids };
+  }
+  async function commit(state, task, ids) {
+    if (!active || blocked()) return;
+    await request(`/lists/${encodeURIComponent(listId)}/task-order`, 'POST', {
+      parent_id: task.parent_id,
+      revision: state.revision,
+      ids,
+    });
+    if (active) onChanged?.();
+  }
+  async function run(action) {
+    if (!active || busy || !canWrite || blocked()) return;
+    busy = true;
+    configure();
+    try {
+      await action();
+    } catch (e) {
+      if (!active) return;
+      error(
+        `${e.message || 'Could not reorder tasks'}. The displayed order was not moved. Your drafts and selection are unchanged.`,
+      );
+      // Parent refresh deliberately respects any editor opened during the request.
+      if (e.status === 409 || e.status === 403 || e.status === 404) onChanged?.();
+    } finally {
+      busy = false;
+      clearMarkers();
+      if (active) configure();
+    }
+  }
+  function click(event) {
+    const control = event.target.closest('[data-order-up],[data-order-down]');
+    if (!control || !container.contains(control)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    // An action menu is not an edit draft. Closing only this menu also permits
+    // the parent to perform its normal draft-preserving canonical refresh.
+    const menu = control.closest('details');
+    if (menu) menu.open = false;
+    const row = control.closest('.task[data-id]');
+    if (!row) return;
+    run(async () => {
+      const state = await snapshot();
+      if (!active || blocked()) return;
+      const { task, ids } = siblings(state, row.dataset.id, row);
+      const from = ids.indexOf(task.id),
+        to = from + (control.hasAttribute('data-order-up') ? -1 : 1);
+      if (to < 0 || to >= ids.length) {
+        error(
+          'This task is already at that end of its full sibling order, including completed tasks.',
+        );
+        return;
+      }
+      [ids[from], ids[to]] = [ids[to], ids[from]];
+      await commit(state, task, ids);
+    });
+  }
+  function dragStart(event) {
+    const handle = event.target.closest('[data-order-handle]');
+    if (!handle) return;
+    if (
+      !container.contains(handle) ||
+      !canWrite ||
+      busy ||
+      !desktop.matches ||
+      blocked()
+    ) {
+      event.preventDefault();
+      return;
+    }
+    const row = handle.closest('.task[data-id]');
+    if (!row) {
+      event.preventDefault();
+      return;
+    }
+    // Keep the handle visible for the native drag. Hiding its containing menu
+    // during dragstart cancels native dragging in Chromium.
+    clearMarkers();
+    row.dataset.orderDragging = 'true';
+    const pending = snapshot();
+    // Attach a rejection handler immediately; a cancelled native drag may never
+    // drop and therefore may never await this read.
+    pending.catch(() => {});
+    drag = { source: row.dataset.id, row, pending, menu: handle.closest('details') };
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', row.dataset.id);
+    event.dataTransfer.setDragImage(row, 24, 24);
+  }
+  function dragOver(event) {
+    if (!drag || !canWrite || !desktop.matches || busy) return;
+    const row = event.target.closest('.task[data-id]');
+    if (!row || !container.contains(row) || row.dataset.id === drag.source) return;
+    if (
+      row.hasAttribute('data-parent-id') &&
+      drag.row.hasAttribute('data-parent-id') &&
+      row.dataset.parentId !== drag.row.dataset.parentId
+    )
+      return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    for (const old of container.querySelectorAll('[data-order-drop]'))
+      old.removeAttribute('data-order-drop');
+    const box = row.getBoundingClientRect();
+    row.dataset.orderDrop = event.clientY < box.top + box.height / 2 ? 'before' : 'after';
+  }
+  function drop(event) {
+    const current = drag;
+    const row = event.target.closest('.task[data-id]');
+    if (!current || !row || !container.contains(row)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    drag = null;
+    if (current.menu) current.menu.open = false;
+    const box = row.getBoundingClientRect();
+    const after = event.clientY >= box.top + box.height / 2;
+    run(async () => {
+      const state = await current.pending;
+      if (!active || blocked()) return;
+      const { task, ids } = siblings(state, current.source, current.row);
+      const target = state.tasks.find((t) => t.id === row.dataset.id);
+      if (!target || target.parent_id !== task.parent_id)
+        throw new Error('Drop only beside a sibling in the same parent');
+      if (target.id === task.id) return;
+      const order = ids.filter((id) => id !== task.id);
+      const index = order.indexOf(target.id);
+      if (index < 0) throw new Error('The drop target moved. Reload before reordering');
+      order.splice(index + (after ? 1 : 0), 0, task.id);
+      if (order.every((id, index) => id === ids[index])) return;
+      await commit(state, task, order);
+    });
+  }
+  function dragEnd() {
+    drag = null;
+    if (!busy) clearMarkers();
+  }
+  configure();
+  const observer = new MutationObserver(configure);
+  observer.observe(container, { childList: true, subtree: true });
+  container.addEventListener('click', click);
+  container.addEventListener('dragstart', dragStart);
+  container.addEventListener('dragover', dragOver);
+  container.addEventListener('drop', drop);
+  container.addEventListener('dragend', dragEnd);
+  desktop.addEventListener('change', configure);
+  return () => {
+    active = false;
+    drag = null;
+    clearMarkers();
+    observer.disconnect();
+    desktop.removeEventListener('change', configure);
+    container.removeEventListener('click', click);
+    container.removeEventListener('dragstart', dragStart);
+    container.removeEventListener('dragover', dragOver);
+    container.removeEventListener('drop', drop);
+    container.removeEventListener('dragend', dragEnd);
+  };
+}
