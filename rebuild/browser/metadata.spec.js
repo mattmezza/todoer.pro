@@ -37,7 +37,7 @@ async function open(page, list, task) {
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
   await page.goto(`/lists/${list.id}?task=${task.id}`);
   await expect(page.locator('#task-editor')).toBeVisible();
-  await page.locator('[data-task-metadata] summary').click();
+  await page.locator('[data-task-metadata] > details > summary').click();
   await expect(page.locator('[data-tags-form] [name=new_tags]')).toBeEnabled();
   return page.locator('[data-task-metadata]');
 }
@@ -69,7 +69,9 @@ for (const [name, width, height] of [
     ).toHaveCount(0);
     await expect(root.locator(`[data-tag-id="${oldTag.id}"]`)).toHaveText('+Old Name');
     await root.locator('[name=section_id]').selectOption(f.section.id);
-    await root.locator('[name=parent_id]').fill(f.parent.id);
+    await root.locator('[name=parent_search]').fill(f.parent.title);
+    await root.locator(`[data-parent-choice="${f.parent.id}"]`).click();
+    await expect(root.locator('[data-parent-selection]')).toHaveText(f.parent.title);
     await root.locator('[name=new_tags]').fill('+home +urgent');
     response = await request.patch(`/api/v1/tags/${oldTag.id}`, {
       headers: auth,
@@ -103,10 +105,22 @@ for (const [name, width, height] of [
     await expect(
       root.getByRole('button', { name: 'Save section', exact: true }),
     ).toBeHidden();
+    await root.getByText('Advanced: exact task ID', { exact: true }).click();
     await root.locator('[name=parent_id]').fill(f.task.id);
     await root.getByRole('button', { name: 'Change parent', exact: true }).click();
     await expect(root.locator('[data-metadata-notice]')).toContainText('cycle');
     await expect(root.locator('[name=parent_id]')).toHaveValue(f.task.id);
+    await root.getByRole('button', { name: 'Top-level task', exact: true }).click();
+    await expect(root.locator('[data-parent-selection]')).toHaveText('Top-level task');
+    await root.getByRole('button', { name: 'Change parent', exact: true }).click();
+    await expect(root.locator('[data-metadata-notice]')).toHaveText('Parent updated.');
+    expect(
+      (
+        await (
+          await request.get(`/api/v1/tasks/${f.task.id}/subtree`, { headers: auth })
+        ).json()
+      )[0].parent_id,
+    ).toBeNull();
     expect(
       await page.locator('#task-editor').evaluate((d) => d.scrollWidth <= d.clientWidth),
     ).toBe(true);
@@ -174,6 +188,7 @@ test('reference autocomplete, saved ambiguous binding guard and authorized backl
     ],
   });
   let root = await open(page, f.list, source);
+  await root.locator('[data-reference-details] summary').click();
   await expect(root.locator('[data-unresolved-references]')).toContainText(
     `#${duplicate}`,
   );
@@ -209,7 +224,8 @@ test('reference autocomplete, saved ambiguous binding guard and authorized backl
   );
   await page.goto(`/lists/${f.list.id}?task=${f.task.id}`);
   root = page.locator('[data-task-metadata]');
-  await root.locator('summary').click();
+  await root.locator(':scope > details > summary').click();
+  await root.locator('[data-reference-details] summary').click();
   await expect(
     root.locator(`[data-backlinks] a[href="/tasks/${source.id}"]`),
   ).toBeVisible();
@@ -244,4 +260,51 @@ test('native favorites and filtered search open the actual canonical task', asyn
   await link.click();
   await expect(page.locator('#task-editor')).toBeVisible();
   await expect(page.locator('#edit-title')).toHaveValue(f.task.title);
+});
+test('parent search is bounded to the current list and shows duplicate-title context', async ({
+  page,
+  request,
+}) => {
+  const f = await fixture(request);
+  const [duplicate] = await post(request, '/capture', {
+    list_id: f.list.id,
+    tasks: [{ title: f.parent.title, description: '', parent_id: f.parent.id }],
+  });
+  const elsewhere = await post(request, '/lists', {
+    workspace_id: f.workspace.id,
+    title: 'Elsewhere',
+  });
+  const [outside] = await post(request, '/capture', {
+    list_id: elsewhere.id,
+    tasks: [{ title: f.parent.title, description: '', parent_id: null }],
+  });
+  const root = await open(page, f.list, f.task);
+  const searched = page.waitForResponse(
+    (r) => r.url().endsWith('/api/v1/query') && r.request().method() === 'POST',
+  );
+  await root.locator('[name=parent_search]').fill(f.parent.title);
+  const response = await searched;
+  expect(response.request().postDataJSON()).toMatchObject({
+    list_id: f.list.id,
+    entities: ['task'],
+    limit: 20,
+  });
+  const entered = page.waitForResponse(
+    (r) => r.url().endsWith('/api/v1/query') && r.request().method() === 'POST',
+  );
+  await root.locator('[name=parent_search]').press('Enter');
+  await entered;
+  await expect(root.locator('[data-metadata-notice]')).not.toContainText(
+    'Parent updated.',
+  );
+  await expect(root.locator('[data-parent-choice]')).toHaveCount(2);
+  await expect(root.locator(`[data-parent-choice="${outside.id}"]`)).toHaveCount(0);
+  const first = await root.locator(`[data-parent-choice="${f.parent.id}"]`).textContent();
+  const nested = await root
+    .locator(`[data-parent-choice="${duplicate.id}"]`)
+    .textContent();
+  expect(first).not.toBe(nested);
+  await root.locator(`[data-parent-choice="${duplicate.id}"]`).click();
+  await expect(root.locator('[name=parent_id]')).toHaveValue(duplicate.id);
+  await expect(root.locator('[data-parent-selection]')).toHaveText(f.parent.title);
 });
