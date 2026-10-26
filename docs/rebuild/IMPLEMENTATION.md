@@ -29,8 +29,8 @@ or verification on every browser/device. Unchecked items remain required work.
 - [x] REST/OpenAPI, Rust CLI, remote MCP, installable skill and actual official-SDK/CLI synthetic scenarios for their documented surfaces.
 - [x] Comment retry/CAS/history, private S3 upload intents, checksum finalization, authenticated downloads and soft deletion.
 - [x] Scheduling editor, bounded nested recurrence, durable reminder outbox, SMTP reminders/email digests and session-bound encrypted Web Push reminders.
-- [ ] Daily/weekly push digests: currently email-only; push reminder delivery does not satisfy this feature.
-- [ ] Optional OpenRouter assistance: new domain/HTTP/UI files are in active integration; do not count source presence as passing integration evidence.
+- [x] Independent opt-in daily/weekly push digests with durable per-device delivery, generic payloads and current permission checks.
+- [x] Optional OpenRouter assistance: immediate exact capture, authorized destination suggestions, editable reviewed drafts, atomic apply and durable budgets. Local provider HTTP tests and disabled-provider browser checks pass; live model quality remains unverified.
 - [x] PWA manifest/update lifecycle, account-scoped recent-list cached reading and durable offline capture/replay.
 - [x] Today/upcoming/recurring/review screens, favorites/settings and durable observed overdue trends.
 - [x] Non-destructive legacy reconciliation, explicit identity mapping, JSON/text/CSV/ZIP export and verified object-byte ZIP restore.
@@ -51,23 +51,27 @@ snapshots, not current totals or evidence for files added afterward.
 | Tasks, metadata, moves | [Move contract](sharing-moves.md); 11 workspace plus 9 taxonomy tests at move integration, followed by a passing same-parent stale-order regression; six move browser checks; twelve metadata browser checks plus two Enter-key checks, Chromium/Firefox | WebKit and physical devices unverified. List move rejects workspace-less legacy lists. It retains object keys rather than copying blobs. |
 | Agents and search | [Agent workflow](agent-workflow.md), [search](search.md); actual official Python SDK OAuth/refresh and all 21 registered bearer tools, isolated CLI/Moto checks | New list-workspace move and `/api/v1/review` lack full agent/OpenAPI parity. An official SDK session is not acceptance by every hosted connector. |
 | Comments and files | [Attachments](attachments.md); real local HTTP PUT/HEAD/GET, digest verification, retry/finalize and revocation checks against isolated Moto | Production S3 provider/permissions/retention and real legacy object completeness remain external. No automatic blob garbage collection or attachment-backup guarantee from SQLite alone. |
-| Scheduling/notifications | [Scheduling](scheduling.md), [notifications](notifications.md), [push](push.md); seven scheduling scenarios per Chromium/Firefox, local SMTP capture and encrypted HTTP push receiver tests | Real SMTP receipt and Apple/Google/Mozilla device delivery unverified. Push digests are unfinished. External-send crash ambiguity remains; no exactly-once delivery claim. |
+| Scheduling/notifications | [Scheduling](scheduling.md), [notifications](notifications.md), [push](push.md); seven scheduling scenarios per Chromium/Firefox, local SMTP capture and encrypted HTTP push receiver tests | Real SMTP receipt and Apple/Google/Mozilla device delivery unverified. Independent push digest delivery is locally tested. External-send crash ambiguity remains; no exactly-once delivery claim. |
 | PWA | [PWA](pwa.md); emulated phone/tablet/desktop Chromium/Firefox, offline reload, actual browser restart and single logical capture replay | No physical iOS/Home Screen or WebKit acceptance. Closed-app background sync is not promised; disconnected cached copies cannot be remotely erased. |
 | Review/statistics | [Statistics](statistics.md), current authorized `/review` and `/api/v1/review`, durable observation worker | No fabricated historical backlog: pre-observation days and older imported completion evidence remain absent. New increment needs its own browser/release acceptance. |
 | Migration/recovery/release | [Migration/export](migration-export.md), [replication](replication.md), [deployment](deployment.md); isolated real-copy reconciliation, checksummed ZIP roundtrip, local amd64 Docker/Compose/Litestream recovery | No production cutover, registry push, remote CI run, ARM verification or restore of the user's complete real object corpus. Rebuild/retest the image after new increments. |
 | Performance | [Performance probe](performance.md), synthetic in-memory 10,000 tasks and query-plan-backed subtree fix | Whole-list materialization, no virtualized UI, one serialized SQLite connection. No current-feature end-to-end/concurrency/persistent-WAL/mobile memory acceptance. |
 
-### Documentation corrections still needed
+### Recent integration evidence
 
-Some focused runbooks describe earlier increments: `pwa.md` still says production
-authentication and push subscriptions do not exist; `notifications.md` still says
-push transport is unimplemented; `performance.md` says comments are not in the
-schema; `ci.md` calls production authentication an implementation blocker. Those
-claims are superseded by current code and the evidence links above. Their old
-measurements remain historical evidence, not measurements of the expanded app.
-The CLI scheduling examples also retain an old root-leaf-only recurrence limit;
-the common operation now supports bounded nested root checklists. Update those
-runbooks with their feature owners before final handoff.
+`2c85da7` adds independent push digests; eight push and four notification tests pass.
+`5964772` adds optional assistance; eleven domain/HTTP tests and four actual
+Chromium/Firefox capture checks pass without paid provider calls.
+`fdd9c6f` corrects stale focused runbooks while retaining dated measurements.
+`404776c` mounts these services, weekly review and bounded subtree reads, adds
+explicit migration-only startup and server-generated request attribution.
+`6484acc` integrates the editors and fixes long mobile navigation and pointer/live
+update races. The latest full library run passes 172 tests with eight explicitly
+separate probes. A broad browser run exposed five failures; after fixing navigation,
+the pointer race and an obsolete Markdown-in-search assertion, the affected full
+workflow suite passes 25 checks with one Firefox-specific browser-restart skip.
+The previously passing metadata/order/sharing/capture/recurrence suites are retained.
+Final image and whole-suite checks after these increments remain required.
 
 ### Changed-file privacy check
 
@@ -183,3 +187,19 @@ and Firefox. A regression test confirms already delivered reminder instants are
 not requeued by unrelated schedule edits. Favorites are user-scoped and live
 permission-filtered; list color changes use the normal list revision. Account
 exports now include visible favorites/default destinations and empty workspaces.
+
+Visual reference check (2026-10-26): removed desktop and mobile sidebar right
+borders. Compared original Layout/App and Nav/Menu source: black content,
+gray-950 (#030712) sidebar, slate-300 (#cbd5e1) text, slate-800
+(#1e293b) separators; account popover uses gray-900. Actual Chromium and
+Firefox checks at 390px and 1440px confirm zero sidebar border, matching
+computed dark palette and no horizontal overflow. Gravatar normalized identity
+hashing and direct-list guest sidebar privacy tests both pass.
+
+## Latest visual correction pass
+
+See [design-feedback.md](design-feedback.md) for the reference UI corrections,
+workspace lifecycle behavior, isolated browser checks and remaining acceptance
+limits. Latest library verification passes 201 tests (eight explicit probes
+ignored); all-target Clippy is clean. Production data and the Python app remain
+untouched.

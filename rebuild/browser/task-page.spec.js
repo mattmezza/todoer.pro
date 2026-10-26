@@ -101,6 +101,7 @@ test('task page shares metadata planning and discussion while keeping the brief 
   await page
     .getByLabel('Task title', { exact: true })
     .fill('Brief draft across module saves');
+  await page.locator('[data-task-advanced] > summary').click();
   await page.getByText('Planning and recurrence', { exact: true }).click();
   const planned = page.getByLabel('Planned date', { exact: true });
   await expect(planned).toBeEnabled();
@@ -125,6 +126,7 @@ test('task page shares metadata planning and discussion while keeping the brief 
     'Brief draft across module saves',
   );
   expect((await current(task.id)).title).toBe('Brief draft across module saves');
+  await page.locator('[data-comment-composer]>summary').click();
   const comment = page.getByLabel('Add a comment', { exact: true });
   await comment.fill('Dedicated task comment with **context**');
   await comment.press('Control+Enter');

@@ -3,7 +3,10 @@ export default defineConfig({
   testDir: './rebuild/browser',
   outputDir: '.local/rebuild/browser-results',
   reporter: 'list',
-  use: { baseURL: 'http://127.0.0.1:8092', colorScheme: 'dark' },
+  use: {
+    baseURL: process.env.TODOER_BROWSER_URL || 'http://127.0.0.1:8092',
+    colorScheme: 'dark',
+  },
   projects: [
     { name: 'chromium', use: { browserName: 'chromium' } },
     { name: 'firefox', use: { browserName: 'firefox' } },
