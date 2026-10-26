@@ -136,9 +136,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             apply,
         } => {
             independent(&source, &target)?;
-            let bundle: ExportBundle = serde_json::from_slice(&std::fs::read(&source)?)?;
-            let mut db = destination(&target, apply)?;
-            let report = transfer::import_bundle(&mut db, &bundle, &mapping(identity_map)?, apply)?;
+            let db = destination(&target, apply)?;
+            let identities = mapping(identity_map)?;
+            let mut file = std::fs::File::open(&source)?;
+            let mut signature = [0u8; 4];
+            use std::io::Read;
+            file.read_exact(&mut signature)?;
+            let report = if signature == *b"PK\x03\x04" {
+                let storage = todoer::object_storage::S3Config::from_env()?
+                    .map(todoer::object_storage::ObjectStorage::new)
+                    .transpose()?;
+                transfer::restore_zip(
+                    std::sync::Arc::new(std::sync::Mutex::new(db)),
+                    &source,
+                    &identities,
+                    storage.as_ref(),
+                    apply,
+                )
+                .await?
+            } else {
+                if file.metadata()?.len() > 100 * 1024 * 1024 {
+                    return Err("JSON restore exceeds 100 MiB".into());
+                }
+                let bundle: ExportBundle = serde_json::from_slice(&std::fs::read(&source)?)?;
+                let mut db = db;
+                transfer::import_bundle(&mut db, &bundle, &identities, apply)?
+            };
             println!("{}", serde_json::to_string(&report)?);
         }
         Command::Export {

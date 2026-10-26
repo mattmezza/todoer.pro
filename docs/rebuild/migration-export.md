@@ -139,8 +139,8 @@ symlinks are never overwritten. Archive names do not use user filenames, so
 `../` and path separators in filenames cannot escape the archive. Verification
 checks every declared file without extracting it and rejects undeclared files.
 The manifest excludes itself from its checksum list. JSON restore restores
-metadata, not S3 bytes; a ZIP retains those bytes for a separately reviewed
-object restore using its manifest. No bucket object is mutated by export.
+metadata, not S3 bytes; ZIP restore verifies and restores those bytes using its
+manifest as described below. No bucket object is mutated by export.
 
 Legacy orphan hierarchy is recovered only for an existing source creator. Missing
 lists receive a clearly named placeholder; lists with missing workspaces go into
@@ -148,3 +148,56 @@ a deterministic private recovery workspace owned by that creator. Original sourc
 parent IDs remain in the sanitized archive. Dry-run reports recovery counts and
 apply requires `--ack-unsupported`; deleted creator UUIDs are preserved as disabled local placeholder accounts, also requiring explicit acknowledgement. Non-UUID ownership references block import. Derived
 reference indexes are excluded; original reference text is preserved.
+
+## Complete ZIP restore
+
+`todoer-migrate restore --source export.zip --destination restored.db` validates
+without writing either storage or database. Add `--apply` only after reviewing
+the report. ZIP is detected by its file signature. Apply uses the normal private
+`TODOER_STORAGE_*` destination configuration, never the legacy source credentials.
+
+The complete archive manifest, checksums, canonical attachment IDs, declared
+sizes, metadata relationships and destination conflicts are checked before any
+upload. Restores accept at most 10,000 manifest entries, 512 MiB of total declared
+content, 100 MiB business JSON and 25 MiB per attachment. Empty objects work.
+Every attachment must have exactly one matching archive entry; extra or missing
+object files fail validation. Native metadata digests must match the manifest.
+
+Objects use deterministic private restore keys derived from the bundle digest
+and attachment UUID, not archive-supplied object keys or filenames. Uploads and
+promotion use conditional creation and verify checksums, including existing
+objects on retries. A different existing object is never overwritten. Original
+attachment IDs remain stable. Legacy attachments become normal verified native
+attachments; their original MIME, object key and metadata remain in sanitized
+source records. Imported creation attribution for those legacy files is the
+mapped export recipient.
+
+The database commits only after all object staging and promotion checks succeed.
+An interrupted restore can leave immutable objects with no committed metadata;
+retrying the same archive safely reuses verified bytes. Database edits racing
+with restore still cause the final metadata transaction to fail. There is no
+cross-system rollback or deletion of preexisting objects. Retain source archives;
+review unreachable restore objects separately before any retention cleanup.
+JSON restore continues to restore metadata only; use ZIP for usable attachment
+bytes. ZIP restore is covered by a local HTTP object-store roundtrip test that
+retrieves the imported bytes, repeats conditional writes and rejects a corrupt
+existing object without committing metadata or overwriting that object.
+
+## HTTP transfers
+
+Authenticated `GET /api/v1/export?format=json|text|csv|zip` exports the readable
+account. Add either `list=ID` or `workspace=ID` to narrow it. Responses download
+fixed filenames, use `Cache-Control: no-store, private` and `nosniff`, and stream
+from exclusive mode-0600 temporary files which are removed after response or
+cancellation. ZIP requires configured private storage, plus separate legacy blob
+configuration when old attachment references are present.
+
+`POST /api/v1/import` accepts a raw `application/zip` or `application/json` body.
+It defaults to validation only. `?apply=true` explicitly applies. Browser session,
+same-origin validation and `X-CSRF-Token` are required; bearer credentials cannot
+import. Only the export recipient maps to the signed-in account. Other source
+users stay separate disabled identities, and existing entity IDs or changed rows
+are never implicitly overwritten. HTTP JSON with attachments is rejected: use
+ZIP so attachment metadata cannot be restored without its bytes. Uploads stream
+to private temporary files with a 512 MiB ZIP / 100 MiB JSON limit. No session,
+provider token, password or delivery credential is included in exports.
