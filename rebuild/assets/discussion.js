@@ -1,3 +1,4 @@
+import { confirmAction } from './confirm.js';
 // Task-local controller. Parent must call its cleanup before replacing the panel.
 export function mountDiscussion({ taskId, csrf, container, accountId, onConflict }) {
   if (!container || !taskId || !accountId)
@@ -101,6 +102,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
   }
   function draftsActive() {
     return Boolean(
+      container.contains(document.activeElement) ||
       get('[data-comment-composer]')?.open ||
       get('[data-new-comment-input]')?.value ||
       all('[data-comment-form]').some((form) => !form.hidden),
@@ -136,8 +138,8 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
     discard.type = 'button';
     discard.className = 'min-h-11';
     discard.textContent = 'Discard this local draft';
-    discard.onclick = () => {
-      if (confirm('Discard this unsaved local draft?')) {
+    discard.onclick = async () => {
+      if (await confirmAction('Discard this unsaved local draft?')) {
         remove(key);
         details.remove();
       }
@@ -145,12 +147,35 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
     details.append(summary, text, discard);
     container.append(details);
   }
+  function formatTime(time) {
+    const date = new Date(Number(time.dataset.createdAt) * 1000);
+    const seconds = Math.round((date.getTime() - Date.now()) / 1000);
+    const [divisor, unit] =
+      Math.abs(seconds) < 3600
+        ? [60, 'minute']
+        : Math.abs(seconds) < 86400
+          ? [3600, 'hour']
+          : Math.abs(seconds) < 2592000
+            ? [86400, 'day']
+            : Math.abs(seconds) < 31536000
+              ? [2592000, 'month']
+              : [31536000, 'year'];
+    time.textContent =
+      Math.abs(seconds) < 60
+        ? 'now'
+        : new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
+            Math.round(seconds / divisor),
+            unit,
+          );
+    time.title = date.toLocaleString();
+    time.dateTime = date.toISOString();
+  }
   function restore() {
     for (const time of all('[data-created-at]')) {
-      const date = new Date(Number(time.dataset.createdAt) * 1000);
-      time.textContent = date.toLocaleString();
-      time.dateTime = date.toISOString();
+      formatTime(time);
     }
+    for (const image of all('[data-comment-avatar]'))
+      image.onerror = () => image.remove();
     const fresh = get('[data-new-comment-input]');
     const newDraft = newDraftState;
     if (fresh) {
@@ -319,9 +344,9 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
         file.name !== fileState.name)
     ) {
       if (
-        !confirm(
+        !(await confirmAction(
           'Use a different file? The previous unfinished upload will remain in storage until retention cleanup.',
-        )
+        ))
       ) {
         const input = get('[data-file-input]');
         if (input) input.value = '';
@@ -435,7 +460,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
       remove('upload');
       fileState = null;
       pendingRefresh = true;
-      notice('File attached.');
+      notice('');
     } catch (error) {
       persistFile();
       if (active)
@@ -458,7 +483,12 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
       input.style.height = `${Math.max(96, input.scrollHeight)}px`;
     }
   }
-  container.addEventListener('toggle', growComments, true);
+  function onComposerToggle(event) {
+    growComments();
+    if (event.target.matches('[data-comment-composer]') && event.target.open)
+      event.target.querySelector('[data-new-comment-input]')?.focus();
+  }
+  container.addEventListener('toggle', onComposerToggle, true);
   function onInput(event) {
     if (event.target.matches('textarea')) growComments();
     if (event.target.matches('[data-new-comment-input]'))
@@ -525,7 +555,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
         const composer = get('[data-comment-composer]');
         if (composer) composer.open = false;
         pendingRefresh = true;
-        notice('Comment posted.');
+        notice('');
       });
     } else {
       const row = form.closest('[data-comment-id]');
@@ -543,7 +573,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
         form.hidden = true;
         row.querySelector('[data-comment-rendered]').hidden = false;
         pendingRefresh = true;
-        notice('Comment saved.');
+        notice('');
       });
     }
   }
@@ -566,7 +596,9 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
         return;
       }
       if (
-        !confirm('Replace the current local text with the originally submitted comment?')
+        !(await confirmAction(
+          'Replace the current local text with the originally submitted comment?',
+        ))
       )
         return;
       const input = get('[data-new-comment-input]');
@@ -578,9 +610,9 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
     if (button.matches('[data-new-comment-reset]')) {
       if (busy.has('new')) return;
       if (
-        !confirm(
+        !(await confirmAction(
           'Discard this local comment draft? A previously submitted comment may already be saved. Check the discussion before posting a different comment.',
-        )
+        ))
       )
         return;
       remove('new');
@@ -593,9 +625,9 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
       if (fileState?.busy) return;
       if (
         fileState?.intent &&
-        !confirm(
+        !(await confirmAction(
           'Discard this local upload intent? Storage bytes remain until retention cleanup.',
-        )
+        ))
       )
         return;
       remove('upload');
@@ -605,6 +637,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
       updateFileUi();
       return;
     }
+    button.closest('.comment-actions')?.removeAttribute('open');
     const row = button.closest('[data-comment-id]');
     if (row && busy.has(row.dataset.commentId)) return;
     if (button.matches('[data-comment-edit]')) {
@@ -630,7 +663,9 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
     }
     if (button.matches('[data-comment-delete]')) {
       if (
-        !confirm('Delete this comment and hide its files? Its audit history is retained.')
+        !(await confirmAction(
+          'Delete this comment and hide its files? Its audit history is retained.',
+        ))
       )
         return;
       mutation(row.dataset.commentId, row.querySelector('form'), async () => {
@@ -642,15 +677,15 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
         remove(editKey(row.dataset.commentId));
         row.remove();
         pendingRefresh = true;
-        notice('Comment deleted.');
+        notice('');
       });
       return;
     }
     if (button.matches('[data-file-delete]')) {
       if (
-        !confirm(
+        !(await confirmAction(
           'Remove this file from the task? Stored bytes remain under the retention policy.',
-        )
+        ))
       )
         return;
       const id = button.dataset.fileDelete;
@@ -660,7 +695,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
           revision: Number(button.dataset.fileRevision),
         });
         button.closest('[data-file-row]').remove();
-        notice('File removed.');
+        notice('');
       });
       if (button.isConnected) button.disabled = false;
       return;
@@ -694,9 +729,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
               select.append(option);
             }
         for (const time of target.querySelectorAll('[data-created-at]')) {
-          const date = new Date(Number(time.dataset.createdAt) * 1000);
-          time.textContent = date.toLocaleString();
-          time.dateTime = date.toISOString();
+          formatTime(time);
         }
       } catch (error) {
         if (active) notice(error.message, true);
@@ -751,7 +784,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
     selectionVersion++;
     for (const controller of requests) controller.abort();
     xhr?.abort();
-    container.removeEventListener('toggle', growComments, true);
+    container.removeEventListener('toggle', onComposerToggle, true);
     container.removeEventListener('input', onInput);
     container.removeEventListener('change', onChange);
     container.removeEventListener('submit', onSubmit);

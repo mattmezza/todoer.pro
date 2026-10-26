@@ -55,10 +55,13 @@ test('dedicated task preserves drafts across reload, remote CAS conflict and exp
   );
   await page.locator('[data-edit-title]').click();
   await page.getByLabel('Task title', { exact: true }).fill('My preserved local title');
+  await page.locator('[data-saved-description]').click();
   await page
     .getByLabel('Description, Markdown supported', { exact: true })
     .fill('My **local draft** stays intact.');
-  await page.getByLabel('Task title', { exact: true }).press('Escape');
+  await page
+    .getByLabel('Description, Markdown supported', { exact: true })
+    .press('Escape');
   await expect(page.locator('[data-brief-form]')).toBeHidden();
   await page.reload();
   await expect(page.getByLabel('Task title', { exact: true })).toHaveValue(
@@ -77,9 +80,12 @@ test('dedicated task preserves drafts across reload, remote CAS conflict and exp
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await expect(page.locator('[data-conflict]')).not.toBeEmpty();
   expect((await current(task.id)).description).toBe('Remote saved description');
-  page.on('dialog', (dialog) => dialog.accept());
   await page
     .getByRole('button', { name: 'Use latest revision with my draft', exact: true })
+    .click();
+  await page
+    .getByRole('dialog', { name: 'Confirm change' })
+    .getByRole('button', { name: 'Confirm', exact: true })
     .click();
   await page.getByLabel('Task title', { exact: true }).press('Control+Enter');
   await expect(page.locator('[data-edit-title]')).toHaveText('My preserved local title');
@@ -101,7 +107,9 @@ test('task page shares metadata planning and discussion while keeping the brief 
   await page
     .getByLabel('Task title', { exact: true })
     .fill('Brief draft across module saves');
-  await page.locator('[data-task-advanced] > summary').click();
+  await page.getByLabel('Task title', { exact: true }).press('Escape');
+  await page.locator('.task-context-menu > summary').click();
+  await page.locator('[data-open-advanced]').click();
   await page.getByText('Planning and recurrence', { exact: true }).click();
   const planned = page.getByLabel('Planned date', { exact: true });
   await expect(planned).toBeEnabled();
@@ -110,6 +118,7 @@ test('task page shares metadata planning and discussion while keeping the brief 
   await expect(page.getByLabel('Task title', { exact: true })).toHaveValue(
     'Brief draft across module saves',
   );
+  await page.getByRole('tab', { name: 'Tags & references' }).click();
   await page.getByText('Tags, structure and references', { exact: true }).click();
   const tags = page.getByLabel('Add tags (space-separated +names)', { exact: true });
   await expect(tags).toBeEnabled();
@@ -121,6 +130,14 @@ test('task page shares metadata planning and discussion while keeping the brief 
       (await api(`/tasks/${task.id}/tags`)).some((tag) => tag.name === tagName),
     )
     .toBe(true);
+  await page
+    .getByRole('dialog', { name: 'Task details', exact: true })
+    .getByRole('button', { name: 'Back', exact: false })
+    .click();
+  await expect(
+    page.getByRole('dialog', { name: 'Task details', exact: true }),
+  ).toHaveCount(0);
+  await page.locator('[data-edit-title]').click();
   await page.getByRole('button', { name: 'Save changes', exact: true }).click();
   await expect(page.locator('[data-edit-title]')).toHaveText(
     'Brief draft across module saves',
@@ -131,12 +148,11 @@ test('task page shares metadata planning and discussion while keeping the brief 
   await comment.fill('Dedicated task comment with **context**');
   await comment.press('Control+Enter');
   await expect(page.locator('[data-comment-rendered] strong')).toHaveText('context');
-  await page.getByText('Add subtask', { exact: true }).click();
+  await page.locator('[data-child-composer] > summary').click();
   const childForm = page.locator('[data-child-form]');
   await childForm
     .getByLabel('New checklist item', { exact: true })
     .fill('Linked child task');
-  await childForm.getByText('Add a description', { exact: true }).click();
   await childForm
     .getByLabel('Checklist item description', { exact: true })
     .fill('Child original description');
@@ -347,7 +363,7 @@ test('bounded checklist continuation retains brief and subtask drafts and report
     { 'Idempotency-Key': `task-page-many-${randomUUID()}` },
   );
   await ready(page, task.id);
-  await page.getByText('Add subtask', { exact: true }).click();
+  await page.locator('[data-child-composer] > summary').click();
   await page
     .getByLabel('New checklist item', { exact: true })
     .fill('Unsubmitted child draft');

@@ -1,7 +1,10 @@
+import { toast } from './toast.js';
+import { confirmAction } from './confirm.js';
 import './site.js';
 import { mountDiscussion } from './discussion.js';
 import { mountScheduling } from './scheduling.js';
 import { mountTaskMetadata } from './task-metadata.js';
+import { openTaskSettings } from './list-settings.js';
 
 // Shared by task-page and list-row move dialogs. Both use the same server
 // dry-run plans; the server supplies the next revision for section assignment.
@@ -73,6 +76,25 @@ if (root) {
   const form = get('[data-brief-form]'),
     title = get('#task-page-title'),
     description = get('#task-page-description');
+  for (const [selector, label, icon] of [
+    ['[data-context-edit]', 'Edit task…', 'edit'],
+    ['[data-open-move]', 'Move task and checklist…', 'move'],
+    ['[data-open-advanced]', 'Task settings…', 'settings'],
+    ['[data-trash]', 'Move to trash…', 'trash'],
+  ]) {
+    const button = get(selector);
+    button.querySelector('span').textContent = label;
+    button.querySelector('use').setAttribute('href', `/assets/icons.svg#${icon}`);
+  }
+  form.prepend(title);
+  title.placeholder = 'Task name';
+  description.placeholder = 'Description (Markdown supported)';
+  const editActions = form.querySelector('.task-page-actions');
+  const cancelEdit = form.querySelector('[data-cancel-edit]');
+  cancelEdit.replaceChildren(document.createTextNode('Cancel'));
+  const saveEdit = form.querySelector('[type=submit]');
+  saveEdit.replaceChildren(document.createTextNode('Save'));
+  editActions.prepend(cancelEdit, saveEdit);
   const canWrite = root.dataset.canWrite === 'true';
   let task = {
     id,
@@ -166,8 +188,11 @@ if (root) {
   function openEditor(field = 'title') {
     if (!canWrite || busy || !alive) return;
     editOpen = true;
+    root.dataset.editMode = 'combined';
+    get('.task-context-menu').open = false;
     form.hidden = false;
     title.hidden = false;
+    description.hidden = false;
     get('[data-edit-title]').hidden = true;
     if (draft) {
       title.value = draft.title;
@@ -180,11 +205,11 @@ if (root) {
   function closeEditor() {
     remember();
     editOpen = false;
+    delete root.dataset.editMode;
     form.hidden = true;
     title.hidden = true;
     get('[data-edit-title]').hidden = false;
-    if (draft)
-      notice('Your unsaved task draft is kept on this device under your account.');
+    notice('');
   }
   function releaseSoon() {
     if (pending && !busy && alive) {
@@ -491,7 +516,9 @@ if (root) {
       complete && (forceSubtree || hasChildren || (target.id === id && !!nextCursor));
     if (
       subtree &&
-      !confirm('Complete this task and every unfinished item in its checklist?')
+      !(await confirmAction(
+        'Complete this task and every unfinished item in its checklist?',
+      ))
     )
       return;
     const release = beginWrite();
@@ -507,7 +534,7 @@ if (root) {
         updateView();
       }
       pending = true;
-      notice(complete ? 'Task completed.' : 'Task reopened.');
+      notice('');
     } catch (error) {
       conflict(error.message);
       pending = true;
@@ -535,21 +562,14 @@ if (root) {
   get('[data-copy-task-reference]')?.addEventListener('click', async (event) => {
     try {
       await navigator.clipboard.writeText(event.currentTarget.dataset.copyTaskReference);
-      notice('Reference copied.');
+      toast('Reference copied.');
     } catch {
       notice('Could not copy reference.', true);
     }
   });
   get('[data-open-advanced]').onclick = () => {
-    const details = get('[data-task-advanced]');
-    details.open = true;
     get('.task-context-menu').open = false;
-    details.scrollIntoView({
-      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches
-        ? 'instant'
-        : 'smooth',
-      block: 'start',
-    });
+    openTaskSettings(root);
   };
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -572,11 +592,12 @@ if (root) {
       get('[data-rebase]').hidden = true;
       get('[data-discard]').hidden = true;
       editOpen = false;
+      delete root.dataset.editMode;
       form.hidden = true;
       title.hidden = true;
       get('[data-edit-title]').hidden = false;
       updateView();
-      notice('Task saved.');
+      notice('');
       pending = true;
     } catch (error) {
       conflict(error.message);
@@ -589,9 +610,9 @@ if (root) {
     if (
       busy ||
       !draft ||
-      !confirm(
+      !(await confirmAction(
         'Keep your draft text and use the latest saved revision? Saving afterward will replace the saved title and description with your draft.',
-      )
+      ))
     )
       return;
     const release = beginWrite();
@@ -613,8 +634,8 @@ if (root) {
       release();
     }
   };
-  get('[data-discard]').onclick = () => {
-    if (busy || !confirm('Discard this unsaved task draft?')) return;
+  get('[data-discard]').onclick = async () => {
+    if (busy || !(await confirmAction('Discard this unsaved task draft?'))) return;
     draft = null;
     store(prefix, null);
     title.value = task.title;
@@ -623,14 +644,14 @@ if (root) {
     get('[data-rebase]').hidden = true;
     get('[data-discard]').hidden = true;
     closeEditor();
-    notice('Draft discarded.');
+    notice('');
   };
   get('[data-root-complete]').onclick = () => toggleComplete(task, children.size > 0);
   get('[data-complete-all]').onclick = () => toggleComplete(task, true, true);
   get('[data-permalink]').onclick = async () => {
     try {
       await navigator.clipboard.writeText(new URL(`/tasks/${id}`, location.origin).href);
-      notice('Task permalink copied.');
+      toast('Task permalink copied.');
     } catch {
       notice(`Task permalink: ${new URL(`/tasks/${id}`, location.origin).href}`);
     }
@@ -639,9 +660,9 @@ if (root) {
     if (
       !canWrite ||
       busy ||
-      !confirm(
+      !(await confirmAction(
         'Move this task and its entire checklist to trash? Unsaved drafts remain on this device.',
-      )
+      ))
     )
       return;
     const release = beginWrite();
@@ -688,6 +709,17 @@ if (root) {
     get('[data-child-composer]').open = false;
     get('[data-child-composer] > summary').focus();
   });
+  const grow = (input) => {
+    input.style.height = 'auto';
+    input.style.height = `${Math.max(56, input.scrollHeight)}px`;
+  };
+  get('[data-child-composer]').addEventListener('toggle', () => {
+    if (get('[data-child-composer]').open) {
+      childTitle.focus();
+      grow(childDescription);
+    }
+  });
+  childDescription.addEventListener('input', () => grow(childDescription));
   childForm.addEventListener('input', rememberChild);
   childForm.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -717,7 +749,7 @@ if (root) {
         store(childKey, null);
       }
       pending = true;
-      notice('Checklist item added.');
+      notice('');
     } catch (error) {
       notice(error.message, true);
     } finally {
@@ -1008,7 +1040,7 @@ if (root) {
   ) {
     title.value = draft.title;
     description.value = draft.description;
-    openEditor('title');
+    openEditor(draft.title === task.title ? 'description' : 'title');
     conflict(
       draft.revision === task.revision
         ? 'Restored your unsaved task draft. Saving checks its original revision.'
@@ -1021,9 +1053,12 @@ if (root) {
   refresh();
   if ('EventSource' in window) {
     eventSource = new EventSource(
-      `/api/v1/events?after=0&list_id=${encodeURIComponent(task.list_id)}`,
+      `/api/v1/events?after=${Number(root.dataset.cursor) || 0}&list_id=${encodeURIComponent(task.list_id)}`,
     );
-    eventSource.addEventListener('changes', () => {
+    eventSource.addEventListener('changes', (event) => {
+      let change;
+      try { change = JSON.parse(event.data); } catch { return; }
+      if (!change.resync && !(change.count > 0)) return;
       pending = true;
       releaseSoon();
     });

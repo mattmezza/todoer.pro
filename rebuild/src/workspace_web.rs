@@ -9,7 +9,11 @@ use axum::http::HeaderValue;
 
 pub(super) fn routes() -> Router<AppState> {
     Router::new()
-        .route("/workspaces", get(overview).post(workspace_create_form))
+        .route(
+            "/workspaces",
+            get(legacy_overview).post(workspace_create_form),
+        )
+        .route("/spaces", get(overview).post(workspace_create_form))
         .route(
             "/workspaces/{id}",
             get(space_redirect).post(workspace_edit_form),
@@ -433,6 +437,12 @@ fn html<T: Template>(template: T) -> Result<Response, ApiError> {
 struct WorkspacePageQuery {
     page: Option<usize>,
 }
+async fn legacy_overview(Query(q): Query<WorkspacePageQuery>) -> Redirect {
+    Redirect::to(&format!(
+        "/spaces?page={}",
+        q.page.unwrap_or(1).clamp(1, 10000)
+    ))
+}
 async fn overview(
     State(s): State<AppState>,
     h: HeaderMap,
@@ -500,6 +510,7 @@ async fn overview(
     let workspaces = visible.into_iter().skip((page - 1) * 20).take(20).collect();
     let mut sidebar = sidebar;
     sidebar.lists.clear();
+    sidebar.space_overview = true;
     html(Overview {
         sidebar,
         slugs,
@@ -1278,7 +1289,7 @@ mod tests {
         assert!(html.contains("method=\"post\""));
         assert!(html.contains("Create a list"));
         assert!(html.contains("method=\"post\"")); // Native forms remain usable without JavaScript.
-        let overview = page(&app, "/workspaces").await;
+        let overview = page(&app, "/spaces").await;
         assert!(overview.contains("Native workspace"));
     }
     #[tokio::test]

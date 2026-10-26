@@ -1,3 +1,5 @@
+#[path = "activity_web.rs"]
+mod activity_http;
 #[path = "section_move_web.rs"]
 mod section_move_http;
 #[path = "sidebar_ui.rs"]
@@ -242,7 +244,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/openapi.json", get(openapi))
         .route("/search", get(search_page))
         .route("/trash", get(trash_page))
-        .route("/activity", get(activity_page))
+        .route("/activity", get(home))
         .route("/fragments/lists/{id}/tasks", get(task_fragment))
         .route(
             "/fragments/tasks/{id}/description",
@@ -251,6 +253,7 @@ pub fn router(state: AppState) -> Router {
         .nest_service("/assets", ServeDir::new("rebuild/assets"))
         .nest_service("/legacy-assets", ServeDir::new("public"))
         .layer(DefaultBodyLimit::max(128 * 1024))
+        .merge(activity_http::routes())
         .merge(oauth_http::routes())
         .merge(organization::routes())
         .merge(agent_http::routes())
@@ -743,7 +746,10 @@ pub(super) async fn page(
     let reference_actor = account_id.clone();
     let reference_list = list.id.clone();
     let reference = s
-        .run(move |db| db.list_reference(&reference_actor, &reference_list))
+        .run(move |db| {
+            crate::core::access_rank(&db.conn, &reference_actor, &reference_list, 1)?;
+            crate::defaults::public_id(&db.conn, "list", &reference_list)
+        })
         .await?;
     let html = ListPage {
         change_cursor,
@@ -1294,33 +1300,6 @@ async fn trash_page(State(s): State<AppState>, h: HeaderMap) -> Result<Response,
         csrf: s.csrf_for(&h),
         tasks,
         events: vec![],
-    })
-}
-async fn activity_page(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
-    let Ok(actor) = s.auth(&h, false) else {
-        return Ok(Redirect::to("/signin").into_response());
-    };
-    let values = s.run(move |db| db.changes(&actor, 0)).await?;
-    let events = values
-        .into_iter()
-        .rev()
-        .filter_map(|v| {
-            Some(Activity {
-                seq: v["seq"].as_i64()?,
-                kind: v["kind"].as_str()?.to_owned(),
-                actor: v["actor"].as_str().unwrap_or("legacy-unknown").to_owned(),
-                task: serde_json::from_value(v["task"].clone()).ok()?,
-                can_undo: v["kind"] == "update",
-            })
-        })
-        .collect();
-    render_review(ReviewPage {
-        title: "Activity".into(),
-        mode: "activity".into(),
-        query: String::new(),
-        csrf: s.csrf_for(&h),
-        tasks: vec![],
-        events,
     })
 }
 fn render_review(p: ReviewPage) -> Result<Response, ApiError> {

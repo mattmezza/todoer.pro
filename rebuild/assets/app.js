@@ -1,3 +1,4 @@
+import { confirmAction } from './confirm.js';
 import { mountCaptures } from './capture-ui.js';
 import './site.js';
 import { mountListUi } from './list-ui.js';
@@ -197,7 +198,7 @@ async function showPending() {
     const discard = document.createElement('button');
     discard.textContent = 'Discard';
     discard.onclick = async () => {
-      if (confirm('Discard this unsynced capture?')) {
+      if (await confirmAction('Discard this unsynced capture?')) {
         await discardCapture(account, record.key);
         showPending();
       }
@@ -215,7 +216,6 @@ async function replay() {
       api('/capture', 'POST', record.payload, { 'Idempotency-Key': record.key }),
     );
     if (result.sent) {
-      notice(`${result.sent} capture(s) synced.`);
       refresh();
     }
     if (result.errors.length && navigator.onLine) notice(result.errors[0].message, true);
@@ -292,7 +292,7 @@ $('#task-list').addEventListener('click', async (e) => {
         'aria-label',
         `${task.complete ? 'Reopen' : 'Complete'} ${task.title}`,
       );
-      notice(task.complete ? 'Task completed.' : 'Task reopened.');
+      notice('');
     } catch (err) {
       row.classList.toggle('is-complete', !complete);
       button.setAttribute('aria-pressed', String(!complete));
@@ -304,7 +304,11 @@ $('#task-list').addEventListener('click', async (e) => {
     }
   } else if (e.target.closest('[data-action="complete-subtree"]')) {
     row.querySelector('details')?.removeAttribute('open');
-    if (!canWrite || !confirm('Complete this task and every unfinished subtask?')) return;
+    if (
+      !canWrite ||
+      !(await confirmAction('Complete this task and every unfinished subtask?'))
+    )
+      return;
     const button = e.target.closest('button');
     button.disabled = true;
     try {
@@ -313,7 +317,7 @@ $('#task-list').addEventListener('click', async (e) => {
         complete: true,
         complete_subtree: true,
       });
-      notice('Checklist completed.');
+      notice('');
       await refresh(true);
     } catch (error) {
       notice(error.message, true);
@@ -403,7 +407,7 @@ $('#edit-form').addEventListener('submit', async (e) => {
       closeEditor();
       closed = true;
     }
-    notice('Changes saved.');
+    notice('');
     refresh(true);
   } catch (err) {
     $('#edit-error').textContent =
@@ -486,9 +490,9 @@ if (taskId) openTask(taskId, false);
 $('#trash-task').onclick = async () => {
   if (!editor || editorBusy) return;
   if (
-    !confirm(
+    !(await confirmAction(
       'Move this task and its entire checklist to trash? Unsaved edits stay in your draft.',
-    )
+    ))
   )
     return;
   const task = { ...editor };
@@ -501,7 +505,7 @@ $('#trash-task').onclick = async () => {
       closeEditor();
       closed = true;
     }
-    notice('Task moved to trash. Restore it from Trash.');
+    notice('');
     refresh(true);
   } catch (err) {
     $('#edit-error').textContent = err.message;
@@ -734,7 +738,7 @@ $('#move-task').onclick = async () => {
     );
     let acknowledge_access_change = false;
     if (preview.audience_broadens) {
-      acknowledge_access_change = confirm(
+      acknowledge_access_change = await confirmAction(
         `This move gives ${preview.added_members} additional member(s) access to this task and its entire checklist. Allow this access change?`,
       );
       if (!acknowledge_access_change) return;
@@ -749,7 +753,7 @@ $('#move-task').onclick = async () => {
       closeEditor();
       closed = true;
     }
-    notice('Task and checklist moved. IDs and references are preserved.');
+    notice('');
     refresh(true);
   } catch (err) {
     $('#edit-error').textContent = err.message;
@@ -839,7 +843,7 @@ async function renameInline(row, snapshot) {
         display.textContent = result.title;
         row.dataset.revision = result.revision;
         close();
-        notice('Title saved.');
+        notice('');
       } catch (err) {
         stash();
         notice(`${err.message}. Your inline draft is preserved.`, true);

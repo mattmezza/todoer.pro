@@ -1,3 +1,5 @@
+import './search-omnibar.js';
+import { confirmAction } from './confirm.js';
 import { listPending, clearAccount } from './offline.js';
 import { clearPwa } from './pwa.js';
 const navigation = document.querySelector('#navigation');
@@ -106,9 +108,9 @@ document
       const pending = account ? await listPending(account) : [];
       if (
         pending.length &&
-        !confirm(
+        !(await confirmAction(
           `${pending.length} captures have not synced. Sign out and discard their local copies?`,
-        )
+        ))
       )
         return;
       const response = await fetch('/logout', {
@@ -144,7 +146,7 @@ document.addEventListener('click', (event) => {
     document.querySelector('.account-menu')?.removeAttribute('open');
     const form = listDialog.querySelector('form');
     if (!form.elements.workspace_id.value) {
-      location.assign('/workspaces');
+      location.assign('/spaces');
       return;
     }
     listDialog.showModal();
@@ -191,7 +193,23 @@ for (const image of document.querySelectorAll('[data-profile-avatar]'))
   });
 
 function applyMenuIcons() {
+  for (const grip of document.querySelectorAll('.task-drag-grip svg:has(use)')) {
+    grip.replaceChildren();
+    grip.setAttribute('viewBox', '0 0 24 24');
+    for (const x of [9, 15]) for (const y of [6, 12, 18]) {
+      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      dot.setAttribute('cx', x);
+      dot.setAttribute('cy', y);
+      dot.setAttribute('r', '1.5');
+      dot.setAttribute('fill', 'currentColor');
+      grip.append(dot);
+    }
+  }
   const names = [
+    [/settings/i, 'settings'],
+    [/^open$/i, 'open'],
+    [/^move up$/i, 'arrow-up'],
+    [/^move down$/i, 'arrow-down'],
     [/rename|edit/i, 'edit'],
     [/copy|permalink/i, 'link'],
     [/move|drag/i, 'move'],
@@ -200,6 +218,8 @@ function applyMenuIcons() {
     [/complete/i, 'check'],
   ];
   for (const button of document.querySelectorAll('.menu-items button,.menu-items a')) {
+    if (button.matches('[data-list-archive],[data-list-settings-open],[data-list-sharing-open],[data-workspace-settings-open],[data-list-edit-open],[data-section-edit-open]') && !button.textContent.trim().endsWith('…'))
+      button.append(document.createTextNode('…'));
     if (button.querySelector('svg')) continue;
     const icon = names.find(([pattern]) => pattern.test(button.textContent))?.[1];
     if (!icon) continue;
@@ -228,3 +248,74 @@ function applyEntityColors() {
 }
 applyEntityColors();
 document.body.addEventListener('htmx:afterSwap', applyEntityColors);
+
+document.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-workspace-settings-open]');
+  if (!button) return;
+  event.preventDefault();
+  button.closest('details')?.removeAttribute('open');
+  const { openWorkspaceSettings } = await import('./list-settings.js');
+  await openWorkspaceSettings(button.dataset.workspaceSettingsOpen);
+});
+
+// Resize initial fields as well as dynamically mounted panels and drafts.
+const textareaSizes = new WeakMap();
+function growTextarea(field) {
+  if (!(field instanceof HTMLTextAreaElement) || !field.getClientRects().length) return;
+  const width = field.getBoundingClientRect().width;
+  const previous = textareaSizes.get(field);
+  if (previous?.value === field.value && previous.width === width) return;
+  field.style.height = 'auto';
+  const borders = field.offsetHeight - field.clientHeight;
+  field.style.height = `${field.scrollHeight + borders}px`;
+  textareaSizes.set(field, { value: field.value, width });
+}
+function growTextareas() {
+  document.querySelectorAll('textarea').forEach(growTextarea);
+}
+document.addEventListener('input', (event) => growTextarea(event.target));
+window.addEventListener('resize', growTextareas);
+const textareaObserver = new MutationObserver(() => requestAnimationFrame(growTextareas));
+textareaObserver.observe(document.body, {
+  subtree: true,
+  childList: true,
+  attributes: true,
+  attributeFilter: ['hidden', 'open', 'class'],
+});
+growTextareas();
+
+// Keep contextual creation explicit, including pages rendered before restart.
+for (const button of document.querySelectorAll('.sidebar-add[data-list-create-open]')) {
+  button.setAttribute('aria-label', 'Add list');
+  if (!button.querySelector('span')) {
+    const label = document.createElement('span');
+    label.textContent = 'Add list';
+    button.append(label);
+  }
+}
+document.querySelector('.primary-navigation a[href="/search"]')?.remove();
+
+for (const link of document.querySelectorAll('.pagination a')) {
+  if (link.querySelector('svg')) continue;
+  const previous = link.textContent.trim() === 'Previous';
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.classList.add('ui-icon', 'pagination-chevron');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.5');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', previous ? 'm15 18-6-6 6-6' : 'm9 6 6 6-6 6');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
+  svg.append(path);
+  if (previous) link.prepend(svg);
+  else link.append(svg);
+}
+
+for (const link of document.querySelectorAll('.planning-tabs a'))
+  if (new URL(link.href).pathname === location.pathname)
+    link.setAttribute('aria-current', 'page');
+
+import './quick-capture.js';

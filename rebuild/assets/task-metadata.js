@@ -1,3 +1,4 @@
+import { confirmAction } from './confirm.js';
 // Stable entity IDs are retained separately from their display names.
 export function mountTaskMetadata({
   taskId,
@@ -38,9 +39,9 @@ export function mountTaskMetadata({
     'data-metadata-notice': '',
   });
   const preview = node('div', { class: 'markdown', 'data-description-preview': '' });
-  const chips = node('div', { class: 'grid gap-3', 'data-tag-chips': '' });
+  const chips = node('div', { class: 'tag-pills', 'data-tag-chips': '' });
   const tags = field('text', 'new_tags', {
-    placeholder: '+urgent +home',
+    placeholder: 'Add tags…',
     maxlength: '5000',
   });
   const tagSuggestions = node('div', { 'data-tag-suggestions': '' });
@@ -72,7 +73,8 @@ export function mountTaskMetadata({
   const saveTags = button('Save tags', 'submit');
   const saveSection = button('Save section', 'submit');
   const saveParent = button('Change parent', 'submit');
-  const reload = button('Load saved metadata');
+  const reload = button('Reset unsaved changes');
+  reload.dataset.metadataReset = '';
   const unresolved = node('div', {
     class: 'grid gap-3',
     'data-unresolved-references': '',
@@ -100,12 +102,6 @@ export function mountTaskMetadata({
   tagsForm.append(
     node('h3', {}, 'Tags'),
     chips,
-    label('Add tags (space-separated +names)', tags),
-    node(
-      'p',
-      { class: 'muted' },
-      'Existing tag chips keep stable IDs when renamed. Space-separated new names create or reuse tags; existing names containing spaces remain intact as chips.',
-    ),
     tagSuggestions,
     saveTags,
   );
@@ -177,10 +173,9 @@ export function mountTaskMetadata({
   details.append(
     node('summary', { class: 'nav-link' }, 'Tags, structure and references'),
     notice,
-    node('h3', {}, 'Saved description'),
+    node('h3', { 'data-saved-description-heading': '' }, 'Saved description'),
     preview,
     tagsForm,
-    sectionForm,
     parentForm,
     reload,
     referenceDetails,
@@ -216,12 +211,28 @@ export function mountTaskMetadata({
       'PUT',
       { tags: [...selected.map((t) => ({ id: t.id })), ...additions] },
       async () => {
-        selected = await request(`/tasks/${encodeURIComponent(taskId)}/tags`);
+        const order = [...selected.map((tag) => tag.id), ...additions];
+        const saved = await request(`/tasks/${encodeURIComponent(taskId)}/tags`);
+        const position = (tag) => {
+          const index = order.findIndex((value) => value === tag.id || value.toLowerCase() === tag.name.toLowerCase());
+          return index < 0 ? order.length : index;
+        };
+        selected = saved.sort((a, b) => position(a) - position(b));
         tags.value = '';
         renderTags();
       },
       'Tags saved.',
     );
+    if (active) tags.focus();
+  });
+  tags.addEventListener('keydown', (event) => {
+    if (event.isComposing || !['Enter', ',', ' '].includes(event.key) || !tags.value.trim()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!busy) tagsForm.requestSubmit();
+  });
+  tags.addEventListener('blur', () => {
+    if (active && !busy && tags.value.trim()) tagsForm.requestSubmit();
   });
   sectionForm.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -245,11 +256,13 @@ export function mountTaskMetadata({
       'Parent updated.',
     );
   });
-  reload.addEventListener('click', () => {
+  reload.addEventListener('click', async () => {
     if (
       busy ||
       (draft &&
-        !confirm('Discard the metadata draft and load saved tags, section and parent?'))
+        !(await confirmAction(
+          'Discard the metadata draft and load saved tags, section and parent?',
+        )))
     )
       return;
     draft = null;
@@ -375,22 +388,29 @@ export function mountTaskMetadata({
   function renderTags() {
     chips.replaceChildren();
     for (const tag of selected) {
-      const row = node('div');
+      const row = node('div', { class: 'tag-pill' });
       row.append(node('span', { 'data-tag-id': tag.id }, `+${tag.name}`));
       if (canWrite) {
-        const remove = button(`Remove +${tag.name}`);
+        const remove = button('×');
+        remove.className = 'tag-pill-remove';
+        remove.setAttribute('aria-label', `Remove +${tag.name}`);
+        remove.title = `Remove +${tag.name}`;
         remove.addEventListener('click', () => {
           if (busy) return;
           selected = selected.filter((t) => t.id !== tag.id);
           renderTags();
           changed();
+          tagsForm.requestSubmit();
         });
         row.append(remove);
       }
       chips.append(row);
     }
-    if (!selected.length)
-      chips.append(node('p', { class: 'muted' }, 'No existing tags.'));
+    tags.classList.add('tag-inline-input');
+    tags.setAttribute('aria-label', 'Add tags, separated by spaces');
+    tags.placeholder = '+ Add tag';
+    chips.append(tags);
+    chips.hidden = false;
   }
   async function load() {
     if (!active || busy || loading) return;
@@ -439,7 +459,7 @@ export function mountTaskMetadata({
       renderUnresolved(references);
       renderBacklinks(links);
       disabled(false);
-      if (!draft) say('Changes save separately from the task brief.');
+      if (!draft) say('');
       loadPreview(version);
     } catch (e) {
       if (active)
@@ -535,7 +555,7 @@ export function mountTaskMetadata({
         draft = null;
         remove();
       }
-      say(draft ? `${message} Other metadata edits remain unsaved.` : message);
+      say(draft ? 'Other metadata edits remain unsaved.' : '');
     } catch (e) {
       if (active) {
         say(
@@ -717,6 +737,7 @@ export function mountTaskMetadata({
           renderTags();
           tagSuggestions.replaceChildren();
           changed();
+          tagsForm.requestSubmit();
         });
         tagSuggestions.append(choose);
       }

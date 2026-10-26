@@ -250,7 +250,7 @@ async fn calendar(s: AppState, h: HeaderMap, upcoming: bool) -> Result<Response,
     let mut body = String::new();
     for row in rows {
         body.push_str(&format!(
-            "<article class=\"task planning-task\"><a class=\"planning-completion\" href=\"/tasks/{}\" aria-label=\"Open task\"></a><div class=\"task-content\"><a class=\"task-title\" href=\"/tasks/{0}\">{}</a><p class=\"muted\">{}</p>{}</div></article>",
+            "<article class=\"task planning-task\"><a class=\"planning-completion\" href=\"/tasks/{}\" aria-label=\"Open task\"></a><div class=\"task-content\"><a class=\"task-title\" href=\"/tasks/{0}\">{}</a></div><span class=\"planning-date\"><svg class=\"ui-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z\"/></svg><span>{}</span>{}</span></article>",
             esc(&row.task.id),
             esc(&row.task.title),
             esc(&row.dates.join(", ")),
@@ -262,7 +262,7 @@ async fn calendar(s: AppState, h: HeaderMap, upcoming: bool) -> Result<Response,
         ));
     }
     if body.is_empty() {
-        body.push_str("<p class=\"muted\">Nothing planned here yet.</p>");
+        body.push_str("<div class=\"planning-empty\"><h2>A little breathing room.</h2><p>Nothing planned here yet. Enjoy the space, or capture something you want to make time for.</p><a href=\"/capture\" class=\"primary\">Add a task</a></div>");
     }
     let csrf = s.csrf_for(&h);
     let sidebar = s

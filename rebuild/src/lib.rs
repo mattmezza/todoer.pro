@@ -1,3 +1,4 @@
+pub mod activity;
 pub mod agent_ops;
 pub mod assist;
 mod audit;

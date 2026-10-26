@@ -15,9 +15,11 @@ pub(super) struct SidebarSpace {
     pub slug: String,
 }
 pub(super) struct Sidebar {
+    pub space_overview: bool,
     pub account_id: String,
     pub lists: Vec<SidebarList>,
     pub spaces: Vec<SidebarSpace>,
+    pub menu_spaces: Vec<SidebarSpace>,
     pub user_name: String,
     pub user_initial: String,
     pub avatar_url: String,
@@ -129,7 +131,16 @@ pub(super) fn build_sidebar(
             title: l.title,
         })
         .collect();
+    let menu_spaces = spaces
+        .iter()
+        .filter(|s| Some(&s.id) == workspace.as_ref())
+        .chain(spaces.iter().filter(|s| Some(&s.id) != workspace.as_ref()))
+        .take(5)
+        .cloned()
+        .collect();
     Ok(Sidebar {
+        menu_spaces,
+        space_overview: false,
         account_id: user,
         lists,
         spaces: spaces.clone(),

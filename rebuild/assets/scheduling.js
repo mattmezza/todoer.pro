@@ -1,3 +1,4 @@
+import { confirmAction } from './confirm.js';
 // Task scheduling is saved separately from the task brief. Every draft retains
 // its original task revision until an explicit save or discard.
 export function mountScheduling({
@@ -57,11 +58,11 @@ export function mountScheduling({
     { type: 'button', class: 'secondary min-h-11' },
     'Add reminder',
   );
-  const save = el('button', { type: 'submit', class: 'primary' }, 'Save schedule');
+  const save = el('button', { type: 'submit', class: 'primary' }, 'Save planning');
   const reload = el(
     'button',
     { type: 'button', class: 'secondary min-h-11' },
-    'Load saved schedule',
+    'Reset unsaved changes',
   );
   const rule = select('rule', [
     ['daily', 'Every N days'],
@@ -108,16 +109,16 @@ export function mountScheduling({
   );
   form.append(
     el('h3', {}, 'Schedule'),
-    label('Planned date', planned),
+    label('Work on', planned),
     el(
       'p',
       { class: 'muted' },
-      'Planning is a date only. It does not set a deadline or notification.',
+      'When you intend to work on this task. This is not a deadline.',
     ),
-    label('Due', dueKind),
+    label('Deadline', dueKind),
     label('Due date', dueDate),
-    label('Due local date and time', dueLocal),
-    label('Due IANA timezone', dueZone),
+    label('Date and time', dueLocal),
+    label('Timezone', dueZone),
     label('Priority', priority),
     el('h3', {}, 'Reminders'),
     el(
@@ -148,7 +149,84 @@ export function mountScheduling({
     discardRecurrence,
     seriesLink,
   );
-  details.append(summary, notice, form, recurrence);
+  const priorityGroup = el('fieldset', { class: 'priority-selector' });
+  priorityGroup.append(el('legend', {}, 'Priority'));
+  const priorityOptions = el('div', { class: 'priority-options' });
+  for (const [value, text] of [['', 'None'], ['3', 'Low'], ['2', 'Medium'], ['1', 'High']]) {
+    const choice = input('radio', 'priority_choice', value);
+    choice.setAttribute('aria-label', `${text} priority`);
+    const option = el('label', { class: 'priority-option', 'data-priority': value || 'none' });
+    const caption = el('span', {}, text);
+    iconFor(caption, value ? 'flag' : 'minus');
+    option.append(choice, caption);
+    choice.addEventListener('change', () => {
+      if (choice.checked) {
+        priority.value = value;
+        priority.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+    priorityOptions.append(option);
+  }
+  priorityGroup.append(priorityOptions);
+  priority.closest('label').replaceWith(priorityGroup);
+  priority.hidden = true;
+  form.append(priority);
+  const timedRow = el('div', { class: 'planning-timed-row' });
+  const localLabel = dueLocal.closest('label');
+  const zoneLabel = dueZone.closest('label');
+  localLabel.before(timedRow);
+  timedRow.append(localLabel, zoneLabel);
+  const zones = el('datalist', { id: `timezones-${taskId}` });
+  let zoneNames;
+  try { zoneNames = Intl.supportedValuesOf('timeZone'); } catch { zoneNames = []; }
+  for (const name of [...new Set([defaultZone, 'UTC', ...zoneNames])].sort())
+    zones.append(el('option', { value: name }));
+  dueZone.setAttribute('list', zones.id);
+  dueZone.setAttribute('autocomplete', 'off');
+  dueZone.setAttribute('spellcheck', 'false');
+  dueZone.placeholder = 'Search timezones…';
+  root.append(zones);
+  for (const control of [planned, dueKind, dueDate, dueLocal, dueZone]) {
+    const wrapper = control.closest('label');
+    const caption = el('span', { class: 'planning-label-caption' }, wrapper.firstChild.textContent);
+    wrapper.firstChild.replaceWith(caption);
+    iconFor(caption, control === dueKind ? 'clock' : 'calendar');
+  }
+  const reminderGroup = el('details', { class: 'planning-group' });
+  const reminderSummary = el('summary', {}, 'Reminders');
+  reminderGroup.append(reminderSummary);
+  const reminderHeading = [...form.children].find((node) => node.tagName === 'H3' && node.textContent === 'Reminders');
+  for (let node = reminderHeading?.nextElementSibling; node && node !== save && node !== reload;) {
+    const next = node.nextElementSibling;
+    reminderGroup.append(node);
+    node = next;
+  }
+  reminderHeading?.replaceWith(reminderGroup);
+  const recurrenceGroup = el('details', { class: 'planning-group' });
+  recurrenceGroup.append(el('summary', {}, 'Repeat this task'), recurrence);
+  recurrence.querySelector('h3')?.remove();
+  const actions = el('div', { class: 'planning-actions' });
+  actions.append(reload, save);
+  form.append(actions);
+  details.append(summary, notice, form, recurrenceGroup);
+  function iconFor(element, name) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    svg.classList.add('ui-icon'); svg.setAttribute('aria-hidden', 'true');
+    use.setAttribute('href', `/assets/icons.svg#${name}`); svg.append(use);
+    element.prepend(svg);
+  }
+  iconFor(reminderSummary, 'bell');
+  iconFor(recurrenceGroup.querySelector('summary'), 'repeat');
+  iconFor(save, 'check');
+  iconFor(reload, 'arrow-uturn-left');
+  iconFor(addReminder, 'plus');
+  reload.hidden = !(scheduleDraft || recurrenceDraft);
+  function updateDraftActions() { reload.hidden = !(scheduleDraft || recurrenceDraft); }
+  form.addEventListener('input', updateDraftActions);
+  form.addEventListener('change', updateDraftActions);
+  recurrence.addEventListener('input', updateDraftActions);
+  recurrence.addEventListener('change', updateDraftActions);
   root.append(details);
   container.replaceChildren(root);
   if (!canWrite) {
@@ -184,13 +262,13 @@ export function mountScheduling({
     addReminderRow({ channel: 'email', local: '', timezone: defaultZone });
     scheduleChanged();
   });
-  reload.addEventListener('click', () => {
+  reload.addEventListener('click', async () => {
     if (busy) return;
     if (
       (scheduleDraft || recurrenceDraft) &&
-      !confirm(
-        'Discard the schedule and recurrence drafts for this task and load the saved schedule?',
-      )
+      !(await confirmAction(
+        'Reset unsaved planning and recurrence changes to the last saved values?',
+      ))
     )
       return;
     scheduleDraft = null;
@@ -200,9 +278,9 @@ export function mountScheduling({
     applyRecurrence({});
     load(true);
   });
-  discardRecurrence.addEventListener('click', () => {
+  discardRecurrence.addEventListener('click', async () => {
     if (busy || !recurrenceDraft) return;
-    if (!confirm('Discard this recurrence draft?')) return;
+    if (!(await confirmAction('Discard this recurrence draft?'))) return;
     recurrenceDraft = null;
     remove('recurrence');
     recurrenceRevision = baseRevision;
@@ -318,6 +396,8 @@ export function mountScheduling({
     dueLocal.value = values.dueLocal || '';
     dueZone.value = values.dueZone || defaultZone;
     priority.value = values.priority || '';
+    for (const radio of priorityOptions.querySelectorAll('input'))
+      radio.checked = radio.value === priority.value;
     reminders.replaceChildren();
     for (const reminder of (values.reminders || []).slice(0, 10))
       addReminderRow(reminder);
@@ -365,6 +445,7 @@ export function mountScheduling({
     reminders.append(row);
   }
   function updateVisibility() {
+    timedRow.hidden = dueKind.value !== 'timed';
     dueDate.closest('label').hidden = dueKind.value !== 'date';
     dueLocal.closest('label').hidden = dueKind.value !== 'timed';
     dueZone.closest('label').hidden = dueKind.value !== 'timed';
@@ -433,6 +514,54 @@ export function mountScheduling({
       })),
     };
   }
+  function showDue(schedule) {
+    const page = document.querySelector('[data-task-page]');
+    if (!page || page.dataset.taskId !== taskId) return;
+    let summary = page.querySelector('[data-task-due]');
+    if (!summary) {
+      summary = document.createElement('button');
+      summary.type = 'button';
+      summary.dataset.taskDue = '';
+      summary.className = 'task-due-summary';
+      summary.addEventListener('click', async () => {
+        const { openTaskSettings } = await import('./list-settings.js');
+        openTaskSettings(page, 'planning');
+      });
+      page.querySelector('.task-page-heading').after(summary);
+    }
+    summary.replaceChildren();
+    summary.hidden = !schedule?.due && !schedule?.planned && !schedule?.priority;
+    summary.title = 'Edit planning';
+    if (schedule?.priority) {
+      const priorityBadge = document.createElement('span');
+      priorityBadge.className = 'task-priority-summary';
+      priorityBadge.dataset.priority = String(schedule.priority);
+      const names = { 1: 'High priority', 2: 'Medium priority', 3: 'Low priority' };
+      priorityBadge.textContent = names[schedule.priority] || 'Priority';
+      iconFor(priorityBadge, 'flag');
+      summary.append(priorityBadge);
+    }
+    const due = schedule?.due || schedule?.planned;
+    if (!due) return;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.classList.add('ui-icon');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.5');
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z');
+    svg.append(path);
+    const value = due.kind === 'date' ? due.date : due.local;
+    const date = new Date(due.kind === 'date' ? `${value}T12:00:00` : value);
+    const text = Number.isNaN(date.getTime()) ? value : date.toLocaleString(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric',
+      ...(due.kind === 'timed' ? { hour: 'numeric', minute: '2-digit' } : {}),
+    });
+    summary.append(svg, document.createTextNode(`${schedule?.due ? 'Due' : 'Planned for'} ${text}${due.kind === 'timed' ? ` · ${due.timezone}` : ''}`));
+    summary.title = 'Edit planning';
+  }
   async function load(explicit = false) {
     if (!active || loading || busy) return;
     if (!explicit && (scheduleDraft || recurrenceDraft))
@@ -445,6 +574,7 @@ export function mountScheduling({
       const result = await request(`/tasks/${encodeURIComponent(taskId)}/schedule`);
       if (!active || version !== loadVersion) return;
       storedSchedule = result;
+      showDue(result.schedule);
       if (!scheduleDraft) {
         baseRevision = result.task_revision;
         applyValues(fromSchedule(result.schedule));
@@ -453,9 +583,11 @@ export function mountScheduling({
       if (!scheduleDraft && !recurrenceDraft)
         say(
           canWrite
-            ? 'Schedule and task brief save separately. Local times require an IANA timezone; ambiguous or nonexistent times are rejected.'
+            ? ''
             : 'This schedule is read only.',
         );
+      reminderGroup.open = Boolean(result.schedule.reminders?.length);
+      updateDraftActions();
       setDisabled(false);
     } catch (e) {
       if (active) {
@@ -517,9 +649,11 @@ export function mountScheduling({
       scheduleDraft = null;
       remove('schedule');
       storedSchedule = result;
+      showDue(result.schedule);
       applyValues(fromSchedule(result.schedule));
       if (!recurrenceDraft) recurrenceRevision = result.task_revision;
-      say('Schedule saved.');
+      say('');
+      updateDraftActions();
     } catch (e) {
       if (active) {
         say(
