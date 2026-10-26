@@ -149,12 +149,12 @@ fn comment_raw(c: &Connection, id: &str) -> Result<Comment, Error> {
     .ok_or(Error::NotFound)
 }
 fn comment_belongs(c: &Connection, comment: Option<&str>, task: &str) -> Result<(), Error> {
-    if let Some(id) = comment {
-        if comment_raw(c, id)?.task_id != task {
-            return Err(Error::Invalid(
-                "comment must belong to the attachment task".into(),
-            ));
-        }
+    if let Some(id) = comment
+        && comment_raw(c, id)?.task_id != task
+    {
+        return Err(Error::Invalid(
+            "comment must belong to the attachment task".into(),
+        ));
     }
     Ok(())
 }
@@ -265,6 +265,7 @@ impl Store {
         &mut self,
         actor: &str,
         task: &str,
+        key: &str,
         input: NewComment,
     ) -> Result<Comment, Error> {
         body_valid(&input.body)?;
@@ -272,6 +273,35 @@ impl Store {
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let task = task_access(&tx, actor, task, 2)?;
+        if key.trim().is_empty() || key.len() > 200 {
+            return Err(Error::Invalid(
+                "Idempotency-Key must contain 1–200 bytes".into(),
+            ));
+        }
+        let key = format!("comment:{key}");
+        let payload =
+            serde_json::json!({"operation":"comment.create","task_id":task.id,"body":input.body})
+                .to_string();
+        if let Some((previous, response)) = tx
+            .query_row(
+                "SELECT payload,response FROM idempotency WHERE actor=?1 AND key=?2",
+                params![actor, key],
+                |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+            )
+            .optional()?
+        {
+            if previous != payload {
+                return Err(Error::Conflict(
+                    "idempotency key reused with different comment payload".into(),
+                ));
+            }
+            let original: Comment = serde_json::from_str(&response)
+                .map_err(|_| Error::Invalid("invalid stored comment response".into()))?;
+            let current = comment_raw(&tx, &original.id)?;
+            task_access(&tx, actor, &current.task_id, 2)?;
+            tx.commit()?;
+            return Ok(original);
+        }
         let (user, _) = core::actor_identity(&tx, actor)?;
         let id = Uuid::new_v4().to_string();
         tx.execute(
@@ -279,6 +309,11 @@ impl Store {
             params![id, task.id, user, input.body],
         )?;
         let result = comment_raw(&tx, &id)?;
+        crate::taxonomy::index_references(&tx, actor, "comment", &id, &result.body)?;
+        tx.execute(
+            "INSERT INTO idempotency(actor,key,payload,response) VALUES(?1,?2,?3,?4)",
+            params![actor, key, payload, serde_json::to_string(&result).unwrap()],
+        )?;
         discussion_event(
             &tx,
             &task,
@@ -309,6 +344,7 @@ impl Store {
             params![id, input.body],
         )?;
         let result = comment_raw(&tx, id)?;
+        crate::taxonomy::index_references(&tx, actor, "comment", id, &result.body)?;
         discussion_event(
             &tx,
             &task,
@@ -552,6 +588,7 @@ mod tests {
             .create_comment(
                 "dev",
                 &task.id,
+                "fixture-comment-1",
                 NewComment {
                     body: "**Owner note**".into(),
                 },
@@ -561,6 +598,7 @@ mod tests {
             .create_comment(
                 "other",
                 &task.id,
+                "fixture-comment-2",
                 NewComment {
                     body: "Other note".into(),
                 },
@@ -626,6 +664,7 @@ mod tests {
             db.create_comment(
                 "other",
                 &task.id,
+                "fixture-comment-3",
                 NewComment {
                     body: "Denied viewer".into()
                 }
@@ -666,6 +705,7 @@ mod tests {
             .create_comment(
                 "dev",
                 &other_task.id,
+                "fixture-comment-4",
                 NewComment {
                     body: "Other task comment".into(),
                 },
@@ -735,6 +775,7 @@ mod tests {
             .create_comment(
                 "other",
                 &task.id,
+                "fixture-comment-5",
                 NewComment {
                     body: "With attachment".into(),
                 },
@@ -763,6 +804,133 @@ mod tests {
         ));
     }
     #[test]
+    fn comment_retries_are_idempotent_payload_bound_and_authorized_live() {
+        let (mut db, task, list) = fixture();
+        let first = db
+            .create_comment(
+                "other",
+                &task.id,
+                "retry-key",
+                NewComment {
+                    body: "Original comment".into(),
+                },
+            )
+            .unwrap();
+        let repeated = db
+            .create_comment(
+                "other",
+                &task.id,
+                "retry-key",
+                NewComment {
+                    body: "Original comment".into(),
+                },
+            )
+            .unwrap();
+        assert_eq!(first.id, repeated.id);
+        assert_eq!(db.comments("dev", &task.id, 0, 100).unwrap().len(), 1);
+        assert!(matches!(
+            db.create_comment(
+                "other",
+                &task.id,
+                "retry-key",
+                NewComment {
+                    body: "Changed comment".into()
+                }
+            ),
+            Err(Error::Conflict(_))
+        ));
+        let revision = db.list_info("dev", &list).unwrap().list.revision;
+        db.revoke_list("dev", &list, "other", revision).unwrap();
+        assert!(matches!(
+            db.create_comment(
+                "other",
+                &task.id,
+                "retry-key",
+                NewComment {
+                    body: "Original comment".into()
+                }
+            ),
+            Err(Error::Forbidden)
+        ));
+        let revision = db.list_info("dev", &list).unwrap().list.revision;
+        db.grant_list("dev", &list, "other", ListRole::Editor, revision, true)
+            .unwrap();
+        db.delete_comment("other", &first.id, first.revision)
+            .unwrap();
+        assert!(matches!(
+            db.create_comment(
+                "other",
+                &task.id,
+                "retry-key",
+                NewComment {
+                    body: "Original comment".into()
+                }
+            ),
+            Err(Error::NotFound)
+        ));
+        assert!(db.comments("dev", &task.id, 0, 100).unwrap().is_empty());
+    }
+    #[test]
+    fn comment_references_keep_stable_targets_and_deleted_sources_leave_no_backlinks() {
+        let (mut db, task, list) = fixture();
+        let target = db
+            .capture(
+                "dev",
+                "reference-target",
+                Capture {
+                    list_id: list,
+                    tasks: vec![NewTask {
+                        title: "Referenced task".into(),
+                        description: String::new(),
+                        parent_id: None,
+                    }],
+                },
+            )
+            .unwrap()
+            .remove(0);
+        let text = format!("See %{}", target.reference);
+        let comment = db
+            .create_comment(
+                "dev",
+                &task.id,
+                "reference-comment",
+                NewComment { body: text.clone() },
+            )
+            .unwrap();
+        let links = db.reference_backlinks("dev", "task", &target.id).unwrap();
+        assert!(
+            links
+                .iter()
+                .any(|link| link.source_kind == "comment" && link.source_id == comment.id)
+        );
+        db.move_subtree("dev", &target.id, "groceries", target.revision, false)
+            .unwrap();
+        assert!(
+            db.reference_backlinks("dev", "task", &target.id)
+                .unwrap()
+                .iter()
+                .any(|link| link.source_id == comment.id)
+        );
+        assert!(db.reference_backlinks("other", "task", &target.id).is_err());
+        let comment = db
+            .update_comment(
+                "dev",
+                &comment.id,
+                EditComment {
+                    revision: comment.revision,
+                    body: text,
+                },
+            )
+            .unwrap();
+        db.delete_comment("dev", &comment.id, comment.revision)
+            .unwrap();
+        assert!(
+            db.reference_backlinks("dev", "task", &target.id)
+                .unwrap()
+                .is_empty()
+        );
+    }
+    #[test]
     fn filenames_body_and_upload_checks_are_bounded() {
         assert_eq!(
             safe_filename("C:\\folder\\safe\r\n.txt").unwrap(),
@@ -773,13 +941,19 @@ mod tests {
         assert!(safe_filename("folder/").is_err());
         let (mut db, task, _) = fixture();
         assert!(
-            db.create_comment("dev", &task.id, NewComment { body: " ".into() })
-                .is_err()
+            db.create_comment(
+                "dev",
+                &task.id,
+                "fixture-comment-6",
+                NewComment { body: " ".into() }
+            )
+            .is_err()
         );
         assert!(
             db.create_comment(
                 "dev",
                 &task.id,
+                "fixture-comment-7",
                 NewComment {
                     body: "a".repeat(100001)
                 }
