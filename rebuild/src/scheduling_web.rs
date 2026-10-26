@@ -364,9 +364,24 @@ async fn notification_page(State(s): State<AppState>, h: HeaderMap) -> Result<Re
         return Err(Error::Forbidden.into());
     }
     let a = s.auth(&h, false)?;
-    let prefs = s.run(move |db| db.notification_preferences(&a)).await?;
+    let actor = a.clone();
+    let prefs = s.run(move |db| db.notification_preferences(&actor)).await?;
+    let lists = s.run(move |db| db.lists(&a)).await?;
+    let mut mutes = String::new();
+    for list in lists {
+        mutes.push_str(&format!(
+            "<label><input type=\"checkbox\" name=\"mute_{}\" value=\"yes\" {}>{}</label><br>",
+            esc(&list.id),
+            if prefs.list_opt_out.contains(&list.id) {
+                "checked"
+            } else {
+                ""
+            },
+            esc(&list.title)
+        ));
+    }
     let body = format!(
-        "<form method=\"post\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><label>IANA timezone <input name=\"timezone\" value=\"{}\" required></label><p><label><input type=\"checkbox\" name=\"email_opt_in\" {}>Email reminders and digests to my verified sign-in email</label></p><label>Quiet hours start <input type=\"time\" name=\"quiet_start\" value=\"{}\"></label><label>Quiet hours end <input type=\"time\" name=\"quiet_end\" value=\"{}\"></label><p>Equal quiet-hour times mute all hours. Leave both blank to disable quiet hours.</p><p><label><input type=\"checkbox\" name=\"daily_opt_in\" {}>Daily summary</label><input type=\"time\" name=\"daily_time\" value=\"{}\"></p><p><label><input type=\"checkbox\" name=\"weekly_opt_in\" {}>Weekly summary</label><label>Weekday (Monday=1)<input type=\"number\" name=\"weekly_day\" min=\"1\" max=\"7\" value=\"{}\"></label><input type=\"time\" name=\"weekly_time\" value=\"{}\"></p><p><label>Mute list IDs (comma separated)<input name=\"list_opt_out\" value=\"{}\"></label></p><button>Save notification preferences</button></form><p>Delivery requires the server's SMTP worker to be configured. Push delivery is not available.</p>",
+        "<form method=\"post\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><label>IANA timezone <input name=\"timezone\" value=\"{}\" required></label><p><label><input type=\"checkbox\" name=\"email_opt_in\" {}>Email reminders and digests to my verified sign-in email</label></p><label>Quiet hours start <input type=\"time\" name=\"quiet_start\" value=\"{}\"></label><label>Quiet hours end <input type=\"time\" name=\"quiet_end\" value=\"{}\"></label><p>Equal quiet-hour times mute all hours. Leave both blank to disable quiet hours.</p><p><label><input type=\"checkbox\" name=\"daily_opt_in\" {}>Daily summary</label><input type=\"time\" name=\"daily_time\" value=\"{}\"></p><p><label><input type=\"checkbox\" name=\"weekly_opt_in\" {}>Weekly summary</label><label>Weekday (Monday=1)<input type=\"number\" name=\"weekly_day\" min=\"1\" max=\"7\" value=\"{}\"></label><input type=\"time\" name=\"weekly_time\" value=\"{}\"></p><fieldset><legend>Mute notifications from these lists</legend>{}</fieldset><button>Save notification preferences</button></form><p>Delivery requires the server's SMTP worker to be configured. Push delivery is not available.</p>",
         esc(&s.csrf_for(&h)),
         esc(&prefs.timezone),
         if prefs.email_opt_in { "checked" } else { "" },
@@ -377,7 +392,7 @@ async fn notification_page(State(s): State<AppState>, h: HeaderMap) -> Result<Re
         if prefs.weekly_opt_in { "checked" } else { "" },
         prefs.weekly_day,
         esc(&prefs.weekly_time),
-        esc(&prefs.list_opt_out.join(","))
+        mutes
     );
     Ok(page("Notification preferences", body, &prefs.timezone))
 }
@@ -414,14 +429,164 @@ async fn notification_form(
             .parse()
             .map_err(|_| Error::Invalid("Invalid weekday".into()))?,
         weekly_time: field("weekly_time"),
-        list_opt_out: field("list_opt_out")
-            .split(',')
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(str::to_owned)
+        list_opt_out: form
+            .iter()
+            .filter_map(|(key, value)| {
+                key.strip_prefix("mute_")
+                    .filter(|_| value.as_str() == "yes")
+                    .map(str::to_owned)
+            })
             .collect(),
     };
     s.run(move |db| db.set_notification_preferences(&a, prefs))
         .await?;
     Ok(Redirect::to("/notifications").into_response())
+}
+
+/// Startup owns the returned task and awaits it during graceful shutdown.
+pub(super) fn spawn_worker(
+    state: AppState,
+    config: crate::notifications::Notifications,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(15));
+        while !state.stopping.load(std::sync::atomic::Ordering::SeqCst) {
+            interval.tick().await;
+            if state.stopping.load(std::sync::atomic::Ordering::SeqCst) {
+                break;
+            }
+            if crate::notifications::worker_tick_until(
+                &state.store,
+                &config,
+                Some(state.stopping.as_ref()),
+            )
+            .await
+            .is_err()
+            {
+                eprintln!(
+                    "notification worker iteration failed; durable jobs remain available for retry"
+                );
+            }
+        }
+    })
+}
+impl AppState {
+    pub fn start_notification_worker(
+        &self,
+        config: crate::notifications::Notifications,
+    ) -> tokio::task::JoinHandle<()> {
+        spawn_worker(self.clone(), config)
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use http_body_util::BodyExt;
+    use tower::ServiceExt;
+    #[tokio::test]
+    async fn schedule_http_conflicts_and_browser_preferences_are_protected() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let task = db
+            .capture(
+                "dev",
+                "http",
+                Capture {
+                    list_id: "inbox".into(),
+                    tasks: vec![crate::core::NewTask {
+                        title: "Planning <task>".into(),
+                        description: String::new(),
+                        parent_id: None,
+                    }],
+                },
+            )
+            .unwrap()
+            .remove(0);
+        let state = AppState::new(
+            Arc::new(Mutex::new(db)),
+            "agent".into(),
+            "http://127.0.0.1:8000".into(),
+        );
+        state
+            .sessions
+            .lock()
+            .unwrap()
+            .insert(Sha256::digest(b"browser").into(), std::time::Instant::now());
+        let app = routes().with_state(state.clone());
+        let today = Utc::now().date_naive().to_string();
+        let body=serde_json::json!({"revision":1,"schedule":{"planned":{"kind":"date","date":today},"reminders":[]}}).to_string();
+        let request = || {
+            axum::http::Request::builder()
+                .uri(format!("/api/v1/tasks/{}/schedule", task.id))
+                .method("PUT")
+                .header("authorization", "Bearer agent")
+                .header("content-type", "application/json")
+                .body(axum::body::Body::from(body.clone()))
+                .unwrap()
+        };
+        assert_eq!(
+            app.clone().oneshot(request()).await.unwrap().status(),
+            StatusCode::OK
+        );
+        assert_eq!(
+            app.clone().oneshot(request()).await.unwrap().status(),
+            StatusCode::CONFLICT
+        );
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/today")
+                    .header("authorization", "Bearer agent")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let text = String::from_utf8(
+            response
+                .into_body()
+                .collect()
+                .await
+                .unwrap()
+                .to_bytes()
+                .to_vec(),
+        )
+        .unwrap();
+        assert!(text.contains("Planning &lt;task&gt;"));
+        let request = |csrf: &str| {
+            axum::http::Request::builder()
+                .uri("/api/v1/notification-preferences")
+                .method("PUT")
+                .header("cookie", "todoer_dev=browser")
+                .header("content-type", "application/json")
+                .header("x-csrf-token", csrf)
+                .body(axum::body::Body::from("{\"timezone\":\"Europe/Zurich\"}"))
+                .unwrap()
+        };
+        assert!(
+            app.clone()
+                .oneshot(request("wrong"))
+                .await
+                .unwrap()
+                .status()
+                .is_client_error()
+        );
+        assert_eq!(
+            app.clone()
+                .oneshot(request(&state.csrf))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::OK
+        );
+        let mut bearer = request(&state.csrf);
+        bearer
+            .headers_mut()
+            .insert("authorization", "Bearer agent".parse().unwrap());
+        assert_eq!(
+            app.oneshot(bearer).await.unwrap().status(),
+            StatusCode::FORBIDDEN
+        );
+    }
 }
