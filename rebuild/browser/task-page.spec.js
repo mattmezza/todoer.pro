@@ -398,3 +398,49 @@ test('task-page logout revokes the session and does not recreate cleared drafts 
   await expect(page).toHaveURL(/\/signin/);
   await expect(page.locator('body')).not.toContainText('Logout task fixture');
 });
+
+test('task composers and contextual actions retain the reference layout', async ({
+  page,
+}) => {
+  const { capture, api } = await setup(page);
+  const task = await capture(`Composer layout ${randomUUID().slice(0, 8)}`);
+  await ready(page, task.id);
+  await expect(page.getByText('No checklist items yet')).toHaveCount(0);
+  await page.locator('[data-child-composer] > summary').click();
+  await expect(page.locator('[data-child-composer] > summary')).toBeHidden();
+  await page.locator('[data-child-cancel]').click();
+  await expect(page.locator('[data-child-composer] > summary')).toBeVisible();
+  await page.locator('[data-comment-composer] > summary').click();
+  const comment = page.locator('[data-new-comment-input]');
+  const initial = await comment.evaluate((el) => el.clientHeight);
+  await comment.fill(Array(20).fill('A longer comment line').join('\n'));
+  expect(await comment.evaluate((el) => el.clientHeight)).toBeGreaterThan(initial);
+  await comment.press('Escape');
+  await expect(page.locator('[data-comment-composer] > summary')).toBeVisible();
+  await page.locator('.task-context-menu > summary').click();
+  await expect(page.locator('[data-context-edit]')).toHaveCSS('display', 'flex');
+  await page.locator('[data-open-move]').click();
+  await expect(page.locator('[data-move-dialog]')).toBeVisible();
+  expect(
+    await page
+      .locator('#task-move-heading')
+      .evaluate((el) => getComputedStyle(el).fontFamily),
+  ).not.toContain('monospace');
+  await page.getByRole('button', { name: 'Close move dialog' }).click();
+  const workspace = await api('/workspaces', 'POST', {
+    title: `Modal ${randomUUID().slice(0, 8)}`,
+  });
+  const list = await api('/lists', 'POST', {
+    workspace_id: workspace.id,
+    title: 'Modal list',
+  });
+  await page.goto(`/lists/${list.id}`);
+  await page.waitForFunction(() => document.body.dataset.ready === 'true');
+  await page.locator('[data-list-create-open]').first().click();
+  const create = page.locator('#list-create-dialog');
+  await expect(create).toBeVisible();
+  await expect(create.locator('select')).toHaveCount(0);
+  await expect(create.locator('[name=workspace_id]')).not.toHaveValue('');
+  await expect(create.locator('.inline-actions')).toHaveCSS('border-top-width', '0px');
+  await expect(create.locator('[name=title]')).toHaveCSS('font-size', '16px');
+});

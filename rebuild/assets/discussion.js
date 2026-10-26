@@ -182,9 +182,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
     if (!active || loading) return;
     if (busy.size || draftsActive() || fileState?.busy || hashing) {
       pendingRefresh = true;
-      notice(
-        'Discussion has changed. Finish or cancel your drafts, then refresh to see the latest comments.',
-      );
+
       return;
     }
     loading = true;
@@ -205,6 +203,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
       container.replaceChildren(root);
       pendingRefresh = false;
       restore();
+      requestAnimationFrame(growComments);
     } catch (error) {
       if (active) {
         notice(`${error.message}. Your local drafts have not been removed.`, true);
@@ -453,7 +452,15 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
       }
     }
   }
+  function growComments() {
+    for (const input of container.querySelectorAll('textarea:not([hidden])')) {
+      input.style.height = 'auto';
+      input.style.height = `${Math.max(96, input.scrollHeight)}px`;
+    }
+  }
+  container.addEventListener('toggle', growComments, true);
   function onInput(event) {
+    if (event.target.matches('textarea')) growComments();
     if (event.target.matches('[data-new-comment-input]'))
       save('new', { ...newDraftState, body: event.target.value });
     else if (event.target.matches('[data-comment-input]'))
@@ -744,6 +751,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
     selectionVersion++;
     for (const controller of requests) controller.abort();
     xhr?.abort();
+    container.removeEventListener('toggle', growComments, true);
     container.removeEventListener('input', onInput);
     container.removeEventListener('change', onChange);
     container.removeEventListener('submit', onSubmit);
