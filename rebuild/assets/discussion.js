@@ -101,6 +101,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
   }
   function draftsActive() {
     return Boolean(
+      get('[data-comment-composer]')?.open ||
       get('[data-new-comment-input]')?.value ||
       all('[data-comment-form]').some((form) => !form.hidden),
     );
@@ -152,8 +153,12 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
     }
     const fresh = get('[data-new-comment-input]');
     const newDraft = newDraftState;
-    if (fresh) fresh.value = newDraft?.body || '';
-    else draftRecovery('new', newDraft, 'Unsent comment draft — copy before discarding');
+    if (fresh) {
+      fresh.value = newDraft?.body || '';
+      const composer = get('[data-comment-composer]');
+      if (composer) composer.open = Boolean(newDraft?.body);
+    } else
+      draftRecovery('new', newDraft, 'Unsent comment draft — copy before discarding');
     for (const [key, draft] of recoverableDrafts()) {
       const id = key.slice(5);
       const row = all('[data-comment-id]').find((row) => row.dataset.commentId === id);
@@ -510,6 +515,8 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
         );
         remove('new');
         input.value = '';
+        const composer = get('[data-comment-composer]');
+        if (composer) composer.open = false;
         pendingRefresh = true;
         notice('Comment posted.');
       });
@@ -536,6 +543,11 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
   async function onClick(event) {
     const button = event.target.closest('button');
     if (!button) return;
+    if (button.matches('[data-comment-composer-close]')) {
+      const composer = get('[data-comment-composer]');
+      if (composer) composer.open = false;
+      return;
+    }
     if (button.matches('[data-discussion-refresh]')) {
       await refresh();
       return;
@@ -695,6 +707,14 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
       event.preventDefault();
       event.stopPropagation();
       event.target.closest('form').requestSubmit();
+    } else if (
+      event.key === 'Escape' &&
+      event.target.matches('[data-new-comment-input]')
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      const composer = get('[data-comment-composer]');
+      if (composer) composer.open = false;
     } else if (event.key === 'Escape' && event.target.matches('[data-comment-input]')) {
       // Keep the modal open: Escape on an edit is an explicit local edit cancel.
       event.preventDefault();

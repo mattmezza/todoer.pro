@@ -80,7 +80,11 @@ async fn page(
                 label: format!("#{}", slugs.lists.get(&list.id).unwrap_or(&list.title)),
                 url: format!("/lists/{}", list.id),
             });
-            let section_id = db.task_section(&a, &task.id)?.unwrap_or_default();
+            let mut section_root = task.clone();
+            while let Some(parent) = &section_root.parent_id {
+                section_root = crate::core::task(&db.conn, parent)?;
+            }
+            let section_id = db.task_section(&a, &section_root.id)?.unwrap_or_default();
             if !section_id.is_empty()
                 && let Some(section) = db
                     .sections(&a, &task.list_id)?

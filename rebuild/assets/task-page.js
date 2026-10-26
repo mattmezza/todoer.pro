@@ -523,6 +523,25 @@ if (root) {
   });
   for (const input of [title, description]) input.addEventListener('input', remember);
   get('[data-cancel-edit]').onclick = closeEditor;
+  get('[data-copy-task-reference]')?.addEventListener('click', async (event) => {
+    try {
+      await navigator.clipboard.writeText(event.currentTarget.dataset.copyTaskReference);
+      notice('Reference copied.');
+    } catch {
+      notice('Could not copy reference.', true);
+    }
+  });
+  get('[data-open-advanced]').onclick = () => {
+    const details = get('[data-task-advanced]');
+    details.open = true;
+    get('.task-context-menu').open = false;
+    details.scrollIntoView({
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'instant'
+        : 'smooth',
+      block: 'start',
+    });
+  };
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (busy || !canWrite) return;
