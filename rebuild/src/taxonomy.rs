@@ -310,6 +310,10 @@ impl Store {
                 event(&tx, &task(&tx, &id)?, "update", actor, Some(&before))?;
             }
         }
+        tx.execute(
+            "UPDATE lists SET revision=revision+1 WHERE id=?1",
+            [&old.list_id],
+        )?;
         tx.commit()?;
         Ok(updated)
     }
@@ -377,8 +381,18 @@ pub(crate) fn after_move(
     ids: &[String],
     destination: &str,
 ) -> Result<(), Error> {
-    let home = scope(c, destination)?;
     assign_location(c, ids, None)?;
+    remap_tags_after_move(c, actor, ids, destination)
+}
+/// Remap only tag scopes. Moving a whole list between workspaces must retain
+/// its existing sections and task_locations, unlike a cross-list subtree move.
+pub(crate) fn remap_tags_after_move(
+    c: &Connection,
+    actor: &str,
+    ids: &[String],
+    destination: &str,
+) -> Result<(), Error> {
+    let home = scope(c, destination)?;
     for id in ids {
         let mut stmt=c.prepare("SELECT g.id,g.name,g.scope FROM tags g JOIN task_tags tt ON tt.tag_id=g.id WHERE tt.task_id=?1")?;
         let tags = stmt

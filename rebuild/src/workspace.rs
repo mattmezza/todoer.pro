@@ -706,6 +706,227 @@ fn preserve_owner(
     Ok(())
 }
 
+/// One changed effective grant, including loss (rank 0) and owner access (rank 3).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListMoveAudienceChange {
+    pub user_id: String,
+    pub before_rank: i64,
+    pub after_rank: i64,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListMoveTagMapping {
+    pub source_tag_id: String,
+    pub name: String,
+    pub destination_tag_id: Option<String>,
+    pub destination_tag_revision: Option<i64>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListWorkspaceMovePreview {
+    pub list_id: String,
+    pub source_workspace_id: String,
+    pub destination_workspace_id: String,
+    pub list_revision: i64,
+    pub source_workspace_revision: i64,
+    pub destination_workspace_revision: i64,
+    pub restricted: bool,
+    pub audience: Vec<ListMoveAudienceChange>,
+    pub audience_broadens: bool,
+    pub task_count: usize,
+    pub tag_mapping: Vec<ListMoveTagMapping>,
+    pub policy_hash: String,
+}
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ListWorkspaceMoveInput {
+    pub destination_workspace_id: String,
+    pub list_revision: i64,
+    pub source_workspace_revision: i64,
+    pub destination_workspace_revision: i64,
+    pub policy_hash: String,
+    #[serde(default)]
+    pub acknowledge_access_change: bool,
+}
+fn move_audience(
+    c: &Connection,
+    list: &str,
+    workspace: &str,
+    restricted: bool,
+) -> Result<std::collections::BTreeMap<String, i64>, Error> {
+    let mut q=c.prepare("SELECT user_id,MAX(rank) FROM (SELECT m.user_id,CASE COALESCE(r.role,'editor') WHEN 'viewer' THEN 1 ELSE 2 END rank FROM memberships m LEFT JOIN membership_roles r ON r.list_id=m.list_id AND r.user_id=m.user_id WHERE m.list_id=?1 UNION ALL SELECT user_id,CASE role WHEN 'owner' THEN 3 WHEN 'editor' THEN 2 ELSE 1 END FROM workspace_members WHERE workspace_id=?2 AND (?3=0 OR role='owner')) GROUP BY user_id ORDER BY user_id")?;
+    Ok(q.query_map(params![list, workspace, restricted], |r| {
+        Ok((r.get(0)?, r.get(1)?))
+    })?
+    .collect::<Result<_, _>>()?)
+}
+fn list_move_preview(
+    c: &Connection,
+    actor: &str,
+    list: &str,
+    destination: &str,
+) -> Result<ListWorkspaceMovePreview, Error> {
+    use sha2::{Digest, Sha256};
+    crate::core::actor_user(c, actor, 3)?;
+    let l = list_raw(c, list)?;
+    let (source, restricted): (Option<String>, bool) = c.query_row(
+        "SELECT workspace_id,restricted FROM lists WHERE id=?1",
+        [list],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    let source = source.ok_or_else(|| {
+        Error::Invalid("list has no source workspace; adoption is a separate operation".into())
+    })?;
+    require_workspace(c, actor, &source, 3)?;
+    require_workspace(c, actor, destination, 3)?;
+    if source == destination {
+        return Err(Error::Invalid(
+            "choose a different destination workspace".into(),
+        ));
+    }
+    let from = workspace_raw(c, &source)?;
+    let to = workspace_raw(c, destination)?;
+    let before = move_audience(c, list, &source, restricted)?;
+    let after = move_audience(c, list, destination, restricted)?;
+    let users = before
+        .keys()
+        .chain(after.keys())
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>();
+    let audience = users
+        .into_iter()
+        .filter_map(|user_id| {
+            let before_rank = before.get(&user_id).copied().unwrap_or(0);
+            let after_rank = after.get(&user_id).copied().unwrap_or(0);
+            (before_rank != after_rank).then_some(ListMoveAudienceChange {
+                user_id,
+                before_rank,
+                after_rank,
+            })
+        })
+        .collect::<Vec<_>>();
+    let versions = {
+        let mut q = c.prepare("SELECT id,revision FROM tasks WHERE list_id=?1 ORDER BY id")?;
+        q.query_map([list], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
+        })?
+        .collect::<Result<Vec<_>, _>>()?
+    };
+    let tag_mapping = {
+        let mut q=c.prepare("SELECT DISTINCT g.id,g.name,d.id,d.revision FROM task_tags tt JOIN tasks t ON t.id=tt.task_id JOIN tags g ON g.id=tt.tag_id LEFT JOIN tags d ON d.scope=?2 AND d.normalized_name=g.normalized_name WHERE t.list_id=?1 ORDER BY g.id")?;
+        q.query_map(params![list, format!("workspace:{destination}")], |r| {
+            Ok(ListMoveTagMapping {
+                source_tag_id: r.get(0)?,
+                name: r.get(1)?,
+                destination_tag_id: r.get(2)?,
+                destination_tag_revision: r.get(3)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?
+    };
+    let grants = {
+        let mut q=c.prepare("SELECT m.user_id,COALESCE(r.role,'editor') FROM memberships m LEFT JOIN membership_roles r ON r.list_id=m.list_id AND r.user_id=m.user_id WHERE m.list_id=?1 ORDER BY m.user_id")?;
+        q.query_map([list], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        })?
+        .collect::<Result<Vec<_>, _>>()?
+    };
+    // Comments and files have independent revisions from their task brief.
+    // Bind their state too, so a preview never silently approves later content.
+    let resource_versions = {
+        let mut q=c.prepare("SELECT 'section' kind,id,revision FROM sections WHERE list_id=?1 UNION ALL SELECT 'comment',c.id,c.revision FROM comments c JOIN tasks t ON t.id=c.task_id WHERE t.list_id=?1 UNION ALL SELECT 'attachment',a.id,a.revision FROM attachments a JOIN tasks t ON t.id=a.task_id WHERE t.list_id=?1 UNION ALL SELECT 'upload',u.id,u.revision FROM upload_intents u JOIN tasks t ON t.id=u.task_id WHERE t.list_id=?1 ORDER BY 1,2")?;
+        q.query_map([list], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, i64>(2)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?
+    };
+    let mut result = ListWorkspaceMovePreview {
+        list_id: list.into(),
+        source_workspace_id: source,
+        destination_workspace_id: destination.into(),
+        list_revision: l.revision,
+        source_workspace_revision: from.revision,
+        destination_workspace_revision: to.revision,
+        restricted,
+        audience_broadens: audience.iter().any(|a| a.after_rank > a.before_rank),
+        audience,
+        task_count: versions.len(),
+        tag_mapping,
+        policy_hash: String::new(),
+    };
+    let material=serde_json::to_vec(&serde_json::json!({"actor":actor,"preview":result,"tasks":versions,"direct_grants":grants,"before_audience":before,"after_audience":after,"resource_versions":resource_versions})).map_err(|_|Error::Invalid("cannot encode list move policy".into()))?;
+    result.policy_hash = format!("{:x}", Sha256::digest(material));
+    Ok(result)
+}
+impl Store {
+    pub fn list_workspace_move_preview(
+        &self,
+        actor: &str,
+        list: &str,
+        destination_workspace: &str,
+    ) -> Result<ListWorkspaceMovePreview, Error> {
+        let tx = self.conn.unchecked_transaction()?;
+        let preview = list_move_preview(&tx, actor, list, destination_workspace)?;
+        tx.commit()?;
+        Ok(preview)
+    }
+    pub fn move_list_workspace(
+        &mut self,
+        actor: &str,
+        list: &str,
+        input: ListWorkspaceMoveInput,
+    ) -> Result<List, Error> {
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
+        let preview = list_move_preview(&tx, actor, list, &input.destination_workspace_id)?;
+        check_revision(preview.list_revision, input.list_revision)?;
+        check_revision(
+            preview.source_workspace_revision,
+            input.source_workspace_revision,
+        )?;
+        check_revision(
+            preview.destination_workspace_revision,
+            input.destination_workspace_revision,
+        )?;
+        if preview.policy_hash != input.policy_hash {
+            return Err(Error::Conflict(
+                "list move preview changed; review a fresh preview".into(),
+            ));
+        }
+        if preview.audience_broadens && !input.acknowledge_access_change {
+            return Err(Error::Conflict(
+                "acknowledge the previewed access expansion before moving this list".into(),
+            ));
+        }
+        let ids = {
+            let mut q = tx.prepare("SELECT id FROM tasks WHERE list_id=?1 ORDER BY id")?;
+            q.query_map([list], |r| r.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?
+        };
+        tx.execute("UPDATE lists SET workspace_id=?2,position=(SELECT COALESCE(MAX(position),-1)+1 FROM lists WHERE workspace_id=?2),revision=revision+1 WHERE id=?1",params![list,input.destination_workspace_id])?;
+        crate::taxonomy::remap_tags_after_move(&tx, actor, &ids, list)?;
+        for id in ids {
+            let before = crate::core::raw_task(&tx, &id)?;
+            tx.execute("UPDATE tasks SET revision=revision+1 WHERE id=?1", [&id])?;
+            let after = crate::core::raw_task(&tx, &id)?;
+            crate::core::event(&tx, &after, "list_workspace_move", actor, Some(&before))?;
+            // Task history is visible to direct list guests; never disclose either
+            // workspace identifier through this public event payload.
+            let detail = serde_json::json!({"policy_hash":input.policy_hash,"acknowledged":input.acknowledge_access_change});
+            tx.execute(
+                "UPDATE history SET event=json_set(event,'$.workspace_move',json(?2)) WHERE seq=?1",
+                params![tx.last_insert_rowid(), detail.to_string()],
+            )?;
+        }
+        bump_workspace(&tx, &preview.source_workspace_id)?;
+        bump_workspace(&tx, &input.destination_workspace_id)?;
+        let moved = list_raw(&tx, list)?;
+        tx.commit()?;
+        Ok(moved)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1124,5 +1345,360 @@ mod tests {
             Err(Error::Invalid(_))
         ));
         assert!(db.workspaces("dev").unwrap().is_empty());
+    }
+    fn move_input(p: &ListWorkspaceMovePreview, ack: bool) -> ListWorkspaceMoveInput {
+        ListWorkspaceMoveInput {
+            destination_workspace_id: p.destination_workspace_id.clone(),
+            list_revision: p.list_revision,
+            source_workspace_revision: p.source_workspace_revision,
+            destination_workspace_revision: p.destination_workspace_revision,
+            policy_hash: p.policy_hash.clone(),
+            acknowledge_access_change: ack,
+        }
+    }
+    fn move_member(db: &mut Store, w: &str, user: &str, role: WorkspaceRole) {
+        let revision = db.workspace("dev", w).unwrap().revision;
+        db.set_workspace_member("dev", w, user, role, revision, true)
+            .unwrap();
+    }
+    fn move_task(
+        db: &mut Store,
+        list: &str,
+        parent: Option<String>,
+        description: &str,
+    ) -> crate::core::Task {
+        db.capture(
+            "dev",
+            &Uuid::new_v4().to_string(),
+            crate::core::Capture {
+                list_id: list.into(),
+                tasks: vec![crate::core::NewTask {
+                    title: "Synthetic move task".into(),
+                    description: description.into(),
+                    parent_id: parent,
+                }],
+            },
+        )
+        .unwrap()
+        .remove(0)
+    }
+    #[test]
+    fn list_workspace_move_preserves_contents_sections_direct_guests_and_audit() {
+        use crate::{
+            discussion::{NewComment, UploadInput},
+            taxonomy::TagSelector,
+        };
+        let mut db = db();
+        db.conn
+            .execute(
+                "INSERT INTO users VALUES('destination-reader','Synthetic destination reader')",
+                [],
+            )
+            .unwrap();
+        let from = workspace(&mut db);
+        let to = workspace(&mut db);
+        move_member(&mut db, &from.id, "other", WorkspaceRole::Editor);
+        move_member(&mut db, &to.id, "destination-reader", WorkspaceRole::Editor);
+        let l = list(&mut db, &from.id, false);
+        let dest_list = list(&mut db, &to.id, false);
+        let direct_revision = db.list_info("dev", &l.id).unwrap().list.revision;
+        db.grant_list(
+            "dev",
+            &l.id,
+            "guest",
+            ListRole::Viewer,
+            direct_revision,
+            true,
+        )
+        .unwrap();
+        let section = section(&mut db, &l.id, "Preserved section");
+        let root = move_task(&mut db, &l.id, None, &format!("Saved #{}", l.id));
+        let child = move_task(&mut db, &l.id, Some(root.id.clone()), "Child context");
+        let root = db
+            .set_task_tags(
+                "dev",
+                &root.id,
+                root.revision,
+                vec![TagSelector::Name("urgent".into())],
+            )
+            .unwrap();
+        let root = db
+            .set_section("dev", &root.id, root.revision, Some(section.id.clone()))
+            .unwrap();
+        let old_tag = db.task_tags("dev", &root.id).unwrap().remove(0);
+        let destination_tag = db.create_tag("dev", &dest_list.id, "URGENT").unwrap();
+        let comment = db
+            .create_comment(
+                "dev",
+                &root.id,
+                "list-move-comment",
+                NewComment {
+                    body: format!("Preserve %{}", root.reference),
+                },
+            )
+            .unwrap();
+        let intent = db
+            .create_upload_intent(
+                "dev",
+                &root.id,
+                UploadInput {
+                    comment_id: Some(comment.id.clone()),
+                    filename: "synthetic.txt".into(),
+                    size: 3,
+                    sha256: "aa".repeat(32),
+                },
+            )
+            .unwrap();
+        db.conn.execute("INSERT INTO attachments(id,intent_id,task_id,comment_id,creator_id,filename,size,sha256,object_key) VALUES('synthetic-attachment',?1,?2,?3,'dev','synthetic.txt',3,?4,?5)",params![intent.id,root.id,comment.id,intent.sha256,intent.object_key]).unwrap();
+        let trashed = move_task(&mut db, &l.id, None, "Trashed context");
+        db.trash("dev", &trashed.id, trashed.revision).unwrap();
+        let edges: Vec<(String, String)> = {
+            let mut q=db.conn.prepare("SELECT target_kind,target_id FROM reference_edges ORDER BY source_id,occurrence").unwrap();
+            q.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        assert_eq!(db.comments("other", &root.id, 0, 200).unwrap().len(), 1);
+        let preview = db
+            .list_workspace_move_preview("dev", &l.id, &to.id)
+            .unwrap();
+        assert_eq!(preview.task_count, 3);
+        assert!(preview.audience_broadens);
+        assert!(
+            preview
+                .audience
+                .iter()
+                .any(|a| a.user_id == "other" && a.before_rank == 2 && a.after_rank == 0)
+        );
+        assert!(
+            preview
+                .audience
+                .iter()
+                .any(|a| a.user_id == "destination-reader"
+                    && a.before_rank == 0
+                    && a.after_rank == 2)
+        );
+        assert!(!preview.audience.iter().any(|a| a.user_id == "guest"));
+        assert_eq!(
+            preview.tag_mapping[0].destination_tag_id.as_deref(),
+            Some(destination_tag.id.as_str())
+        );
+        assert!(matches!(
+            db.move_list_workspace("dev", &l.id, move_input(&preview, false)),
+            Err(Error::Conflict(_))
+        ));
+        assert_eq!(
+            db.list_info("dev", &l.id).unwrap().workspace_id.as_deref(),
+            Some(from.id.as_str())
+        );
+        let moved = db
+            .move_list_workspace("dev", &l.id, move_input(&preview, true))
+            .unwrap();
+        assert_eq!(moved.id, l.id);
+        assert_eq!(moved.revision, preview.list_revision + 1);
+        assert_eq!(
+            db.list_info("dev", &l.id).unwrap().workspace_id.as_deref(),
+            Some(to.id.as_str())
+        );
+        assert_eq!(db.subtree("dev", &root.id).unwrap().len(), 2);
+        assert_eq!(
+            db.task_section("dev", &root.id).unwrap(),
+            Some(section.id.clone())
+        );
+        assert_eq!(db.task_section("dev", &child.id).unwrap(), Some(section.id));
+        assert_eq!(
+            db.task_tags("dev", &root.id).unwrap()[0].id,
+            destination_tag.id
+        );
+        assert_eq!(db.conn.query_row("SELECT count(*) FROM tag_move_audit WHERE source_tag_id=?1 AND destination_tag_id=?2",params![old_tag.id,destination_tag.id],|r|r.get::<_,i64>(0)).unwrap(),1);
+        assert!(matches!(
+            db.comments("other", &root.id, 0, 200),
+            Err(Error::Forbidden)
+        ));
+        assert!(matches!(
+            db.attachment("other", "synthetic-attachment"),
+            Err(Error::Forbidden)
+        ));
+        assert!(
+            db.search("other", "Synthetic", None, None, 100, None)
+                .unwrap()
+                .iter()
+                .all(|t| t.list_id != l.id)
+        );
+        assert_eq!(
+            db.comments("destination-reader", &root.id, 0, 200).unwrap()[0].id,
+            comment.id
+        );
+        assert_eq!(
+            db.attachment("guest", "synthetic-attachment").unwrap().id,
+            "synthetic-attachment"
+        );
+        assert_eq!(db.list_permission("guest", &l.id).unwrap(), 1);
+        assert_eq!(db.list_info("guest", &l.id).unwrap().workspace_id, None);
+        assert_eq!(
+            db.trash_tasks("dev")
+                .unwrap()
+                .iter()
+                .find(|t| t.id == trashed.id)
+                .unwrap()
+                .revision,
+            trashed.revision + 2
+        );
+        assert_eq!(db.conn.query_row("SELECT count(*) FROM history WHERE json_extract(event,'$.kind')='list_workspace_move' AND json_extract(event,'$.workspace_move.policy_hash')=?1",[&preview.policy_hash],|r|r.get::<_,i64>(0)).unwrap(),3);
+        let after = {
+            let mut q=db.conn.prepare("SELECT target_kind,target_id FROM reference_edges ORDER BY source_id,occurrence").unwrap();
+            q.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        };
+        assert_eq!(edges, after);
+        for event in db.changes("guest", 0).unwrap() {
+            assert!(!event.to_string().contains(&from.id));
+            assert!(!event.to_string().contains(&to.id));
+        }
+
+        assert!(
+            db.changes("other", 0)
+                .unwrap()
+                .iter()
+                .all(|e| e["task"]["list_id"] != l.id)
+        );
+    }
+    #[test]
+    fn list_workspace_move_restricted_policy_upgrades_and_stale_previews() {
+        let mut db = db();
+        let from = workspace(&mut db);
+        let to = workspace(&mut db);
+        move_member(&mut db, &from.id, "other", WorkspaceRole::Viewer);
+        move_member(&mut db, &to.id, "other", WorkspaceRole::Editor);
+        let l = list(&mut db, &from.id, false);
+        let p = db
+            .list_workspace_move_preview("dev", &l.id, &to.id)
+            .unwrap();
+        assert!(
+            p.audience
+                .iter()
+                .any(|a| a.user_id == "other" && a.before_rank == 1 && a.after_rank == 2)
+        );
+        assert!(matches!(
+            db.move_list_workspace("dev", &l.id, move_input(&p, false)),
+            Err(Error::Conflict(_))
+        ));
+        let task = move_task(&mut db, &l.id, None, "Preview snapshot");
+        assert!(matches!(
+            db.move_list_workspace("dev", &l.id, move_input(&p, true)),
+            Err(Error::Conflict(_))
+        ));
+        let p = db
+            .list_workspace_move_preview("dev", &l.id, &to.id)
+            .unwrap();
+        db.set_task_tags(
+            "dev",
+            &task.id,
+            task.revision,
+            vec![crate::taxonomy::TagSelector::Name("new".into())],
+        )
+        .unwrap();
+        assert!(matches!(
+            db.move_list_workspace("dev", &l.id, move_input(&p, true)),
+            Err(Error::Conflict(_))
+        ));
+        let p = db
+            .list_workspace_move_preview("dev", &l.id, &to.id)
+            .unwrap();
+        let comment = db
+            .create_comment(
+                "dev",
+                &task.id,
+                "move-preview-comment",
+                crate::discussion::NewComment {
+                    body: "Before review".into(),
+                },
+            )
+            .unwrap();
+        let comment_preview = db
+            .list_workspace_move_preview("dev", &l.id, &to.id)
+            .unwrap();
+        db.update_comment(
+            "dev",
+            &comment.id,
+            crate::discussion::EditComment {
+                revision: comment.revision,
+                body: "Changed after review".into(),
+            },
+        )
+        .unwrap();
+        assert!(matches!(
+            db.move_list_workspace("dev", &l.id, move_input(&comment_preview, true)),
+            Err(Error::Conflict(_))
+        ));
+        move_member(&mut db, &to.id, "other", WorkspaceRole::Viewer);
+        assert!(matches!(
+            db.move_list_workspace("dev", &l.id, move_input(&p, true)),
+            Err(Error::Conflict(_))
+        ));
+        let restricted = list(&mut db, &from.id, true);
+        let p = db
+            .list_workspace_move_preview("dev", &restricted.id, &to.id)
+            .unwrap();
+        assert!(!p.audience_broadens);
+        db.move_list_workspace("dev", &restricted.id, move_input(&p, false))
+            .unwrap();
+        assert_eq!(db.list_permission("other", &restricted.id).unwrap(), 0);
+        let restricted = list(&mut db, &from.id, true);
+        let rev = db.list_info("dev", &restricted.id).unwrap().list.revision;
+        db.grant_list("dev", &restricted.id, "guest", ListRole::Editor, rev, true)
+            .unwrap();
+        let p = db
+            .list_workspace_move_preview("dev", &restricted.id, &to.id)
+            .unwrap();
+        assert!(!p.audience_broadens);
+        db.move_list_workspace("dev", &restricted.id, move_input(&p, false))
+            .unwrap();
+        assert_eq!(db.list_permission("guest", &restricted.id).unwrap(), 2);
+        assert_eq!(
+            db.list_info("guest", &restricted.id).unwrap().workspace_id,
+            None
+        );
+    }
+    #[test]
+    fn list_workspace_move_requires_live_owner_both_and_rejects_scoped_credentials() {
+        let mut db = db();
+        let from = workspace(&mut db);
+        let to = workspace(&mut db);
+        let l = list(&mut db, &from.id, false);
+        move_member(&mut db, &from.id, "other", WorkspaceRole::Editor);
+        assert!(matches!(
+            db.list_workspace_move_preview("other", &l.id, &to.id),
+            Err(Error::Forbidden)
+        ));
+        move_member(&mut db, &from.id, "other", WorkspaceRole::Owner);
+        assert!(matches!(
+            db.list_workspace_move_preview("other", &l.id, &to.id),
+            Err(Error::Forbidden)
+        ));
+        db.conn.execute("INSERT INTO auth_agents(id,user_id,token_hash,audience,permissions,workspace,expires_at) VALUES('source-only','dev','synthetic-source-token','https://synthetic.invalid/api/v1','[\"admin\"]',?1,unixepoch()+3600)",[&from.id]).unwrap();
+        assert!(matches!(
+            db.list_workspace_move_preview("credential:source-only", &l.id, &to.id),
+            Err(Error::Forbidden)
+        ));
+        let p = db
+            .list_workspace_move_preview("dev", &l.id, &to.id)
+            .unwrap();
+        move_member(&mut db, &to.id, "other", WorkspaceRole::Owner);
+        move_member(&mut db, &to.id, "dev", WorkspaceRole::Viewer);
+        assert!(matches!(
+            db.move_list_workspace("dev", &l.id, move_input(&p, true)),
+            Err(Error::Forbidden)
+        ));
+        assert_eq!(
+            db.conn
+                .query_row("SELECT workspace_id FROM lists WHERE id=?1", [&l.id], |r| r
+                    .get::<_, String>(0))
+                .unwrap(),
+            from.id
+        );
     }
 }
