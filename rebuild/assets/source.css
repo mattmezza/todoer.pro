@@ -2591,3 +2591,13 @@ input[type='color'] {
     Menlo,
     monospace;
 }
+.completion .ui-icon {
+  position: relative;
+  z-index: 1;
+  color: #93c5fd;
+}
+@media (prefers-color-scheme: light) {
+  .completion .ui-icon {
+    color: #2563eb;
+  }
+}
