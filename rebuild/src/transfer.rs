@@ -807,6 +807,7 @@ pub fn import_bundle(
     if issues != 0 {
         return Err(invalid("export references missing business rows"));
     }
+    crate::slugs::backfill(&tx)?;
     if apply {
         tx.commit()?;
         report.applied = true
@@ -1487,6 +1488,7 @@ pub fn import_legacy(
     if imported as usize != expected {
         return Err(invalid("legacy sanitized row reconciliation failed"));
     }
+    crate::slugs::backfill(&tx)?;
     if apply {
         tx.commit()?;
         report.applied = true
@@ -1515,6 +1517,23 @@ pub fn copy_destination_for_dry_run(source: &Connection, target: &mut Store) -> 
         tx.execute_batch(include_str!("../migrations/012_transfer.sql"))?;
         tx.execute(
             "INSERT OR IGNORE INTO schema_migrations(version) VALUES(12)",
+            [],
+        )?;
+        tx.commit()?;
+    }
+    // Older Rust destinations copied for a dry run have not passed Store::open
+    // migrations. Upgrade only this private copy before import backfill hooks.
+    let has_slugs: bool = target.conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='entity_slugs')",
+        [],
+        |r| r.get(0),
+    )?;
+    if !has_slugs {
+        let tx = target.conn.transaction()?;
+        tx.execute_batch(include_str!("../migrations/022_slugs.sql"))?;
+        crate::slugs::backfill(&tx)?;
+        tx.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version) VALUES(22)",
             [],
         )?;
         tx.commit()?;

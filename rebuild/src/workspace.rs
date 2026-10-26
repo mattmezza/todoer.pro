@@ -341,6 +341,7 @@ impl Store {
             "INSERT INTO workspace_members(workspace_id,user_id,role) VALUES(?1,?2,'owner')",
             params![id, owner],
         )?;
+        crate::slugs::workspace(&tx, &id)?;
         let result = workspace_raw(&tx, &id)?;
         tx.commit()?;
         Ok(result)
@@ -362,6 +363,7 @@ impl Store {
             "UPDATE workspaces SET title=?2,description=?3 WHERE id=?1",
             params![id, title.trim(), description],
         )?;
+        crate::slugs::workspace(&tx, id)?;
         let result = bump_workspace(&tx, id)?;
         tx.commit()?;
         Ok(result)
@@ -459,6 +461,7 @@ impl Store {
         let id = Uuid::new_v4().to_string();
         tx.execute("INSERT INTO lists(id,title,description,workspace_id,restricted,position) VALUES(?1,?2,?3,?4,?5,(SELECT COALESCE(MAX(position),-1)+1 FROM lists WHERE workspace_id=?4))",params![id,input.title.trim(),input.description,input.workspace_id,input.restricted])?;
         bump_workspace(&tx, &input.workspace_id)?;
+        crate::slugs::list(&tx, &id)?;
         let result = list_raw(&tx, &id)?;
         tx.commit()?;
         Ok(result)
@@ -500,6 +503,7 @@ impl Store {
             "UPDATE lists SET title=?2,description=?3,archived=COALESCE(?4,archived) WHERE id=?1",
             params![id, title.trim(), description, change.archived],
         )?;
+        crate::slugs::list(&tx, id)?;
         let result = bump_list(&tx, id)?;
         tx.commit()?;
         Ok(result)
@@ -597,6 +601,7 @@ impl Store {
         let id = Uuid::new_v4().to_string();
         tx.execute("INSERT INTO sections(id,list_id,title,description,position) VALUES(?1,?2,?3,?4,(SELECT COALESCE(MAX(position),-1)+1 FROM sections WHERE list_id=?2))",params![id,list,input.title.trim(),input.description])?;
         bump_list(&tx, list)?;
+        crate::slugs::section(&tx, &id)?;
         let result = section_raw(&tx, &id)?;
         tx.commit()?;
         Ok(result)
@@ -618,6 +623,7 @@ impl Store {
             "UPDATE sections SET title=?2,description=?3,revision=revision+1 WHERE id=?1",
             params![id, title.trim(), description],
         )?;
+        crate::slugs::section(&tx, id)?;
         let result = section_raw(&tx, id)?;
         tx.commit()?;
         Ok(result)
@@ -905,6 +911,7 @@ impl Store {
                 .collect::<Result<Vec<_>, _>>()?
         };
         tx.execute("UPDATE lists SET workspace_id=?2,position=(SELECT COALESCE(MAX(position),-1)+1 FROM lists WHERE workspace_id=?2),revision=revision+1 WHERE id=?1",params![list,input.destination_workspace_id])?;
+        crate::slugs::list(&tx, list)?;
         crate::taxonomy::remap_tags_after_move(&tx, actor, &ids, list)?;
         for id in ids {
             let before = crate::core::raw_task(&tx, &id)?;
