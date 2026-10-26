@@ -565,3 +565,279 @@ mod tests {
         );
     }
 }
+
+/// Source-only credentials for explicit legacy object transfer. These are never
+/// inferred from the new attachment bucket or SQLite replication configuration.
+pub struct LegacyStorageConfig {
+    pub endpoint: String,
+    pub bucket: String,
+    pub region: String,
+    /// Empty is valid: the legacy application stored each UUID at bucket root.
+    pub prefix: String,
+    pub access_key_id: String,
+    pub secret_access_key: String,
+}
+impl LegacyStorageConfig {
+    pub fn from_env() -> Result<Option<Self>, StorageError> {
+        let required = [
+            "TODOER_LEGACY_STORAGE_ENDPOINT",
+            "TODOER_LEGACY_STORAGE_BUCKET",
+            "TODOER_LEGACY_STORAGE_REGION",
+            "TODOER_LEGACY_STORAGE_ACCESS_KEY_ID",
+            "TODOER_LEGACY_STORAGE_SECRET_ACCESS_KEY",
+        ];
+        let values: Vec<_> = required.iter().map(|key| std::env::var(key).ok()).collect();
+        let prefix = std::env::var("TODOER_LEGACY_STORAGE_PREFIX").ok();
+        if values.iter().all(Option::is_none) && prefix.is_none() {
+            return Ok(None);
+        }
+        if values
+            .iter()
+            .any(|value| value.as_ref().is_none_or(|value| value.trim().is_empty()))
+        {
+            return Err(StorageError::Configuration);
+        }
+        let mut values = values.into_iter().map(Option::unwrap);
+        Ok(Some(Self {
+            endpoint: values.next().unwrap(),
+            bucket: values.next().unwrap(),
+            region: values.next().unwrap(),
+            access_key_id: values.next().unwrap(),
+            secret_access_key: values.next().unwrap(),
+            prefix: prefix.unwrap_or_default(),
+        }))
+    }
+}
+#[derive(Clone)]
+pub struct LegacyBlobSource {
+    bucket: Bucket,
+    credentials: Credentials,
+    prefix: String,
+    http: reqwest::Client,
+}
+/// SHA-256 is computed from received bytes, never copied from legacy metadata.
+/// A legacy object without an existing checksum establishes a new digest baseline.
+pub struct VerifiedLegacyBlob {
+    pub bytes: Vec<u8>,
+    pub sha256: String,
+    pub size: u64,
+}
+impl LegacyBlobSource {
+    pub fn new(config: LegacyStorageConfig) -> Result<Self, StorageError> {
+        let endpoint: reqwest::Url = config
+            .endpoint
+            .parse()
+            .map_err(|_| StorageError::Configuration)?;
+        let local = matches!(
+            endpoint.host_str(),
+            Some("localhost" | "127.0.0.1" | "[::1]" | "::1")
+        );
+        if endpoint.scheme() != "https" && !(endpoint.scheme() == "http" && local)
+            || !endpoint.username().is_empty()
+            || endpoint.password().is_some()
+            || endpoint.query().is_some()
+            || endpoint.fragment().is_some()
+        {
+            return Err(StorageError::Configuration);
+        }
+        let prefix = config.prefix.trim_matches('/').to_owned();
+        if prefix.len() > 200
+            || prefix.chars().any(char::is_control)
+            || (!prefix.is_empty()
+                && prefix
+                    .split('/')
+                    .any(|part| part.is_empty() || part == "." || part == ".."))
+        {
+            return Err(StorageError::Configuration);
+        }
+        if config.access_key_id.is_empty()
+            || config.secret_access_key.is_empty()
+            || config.region.is_empty()
+        {
+            return Err(StorageError::Configuration);
+        }
+        let bucket = Bucket::new(endpoint, UrlStyle::Path, config.bucket, config.region)
+            .map_err(|_| StorageError::Configuration)?;
+        let http = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(60))
+            .build()
+            .map_err(|_| StorageError::Configuration)?;
+        Ok(Self {
+            bucket,
+            credentials: Credentials::new(config.access_key_id, config.secret_access_key),
+            prefix,
+            http,
+        })
+    }
+    fn key(&self, key: &str) -> Result<String, StorageError> {
+        let uuid = uuid::Uuid::parse_str(key).map_err(|_| StorageError::Integrity)?;
+        if uuid.to_string() != key {
+            return Err(StorageError::Integrity);
+        }
+        Ok(if self.prefix.is_empty() {
+            key.to_owned()
+        } else {
+            format!("{}/{key}", self.prefix)
+        })
+    }
+    /// Read only: never deletes, copies, replaces or changes ACLs on legacy blobs.
+    /// The caller must explicitly report any error rather than omitting a file.
+    pub async fn get(
+        &self,
+        key: &str,
+        expected_size: Option<u64>,
+    ) -> Result<VerifiedLegacyBlob, StorageError> {
+        let key = self.key(key)?;
+        if expected_size.is_some_and(|size| size > MAX_ATTACHMENT_BYTES) {
+            return Err(StorageError::TooLarge);
+        }
+        let head = self.bucket.head_object(Some(&self.credentials), &key);
+        let response = self
+            .http
+            .head(head.sign(Duration::from_secs(60)))
+            .send()
+            .await
+            .map_err(|_| StorageError::Unavailable)?;
+        if !response.status().is_success() {
+            return Err(StorageError::Unavailable);
+        }
+        let declared = response
+            .headers()
+            .get(reqwest::header::CONTENT_LENGTH)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<u64>().ok())
+            .ok_or(StorageError::Integrity)?;
+        if declared > MAX_ATTACHMENT_BYTES {
+            return Err(StorageError::TooLarge);
+        }
+        if expected_size.is_some_and(|size| size != declared) {
+            return Err(StorageError::Integrity);
+        }
+        let action = self.bucket.get_object(Some(&self.credentials), &key);
+        let mut response = self
+            .http
+            .get(action.sign(Duration::from_secs(60)))
+            .send()
+            .await
+            .map_err(|_| StorageError::Unavailable)?;
+        if !response.status().is_success() {
+            return Err(StorageError::Unavailable);
+        }
+        if response
+            .content_length()
+            .is_some_and(|size| size > MAX_ATTACHMENT_BYTES)
+        {
+            return Err(StorageError::TooLarge);
+        }
+        let limit = expected_size.unwrap_or(declared);
+        let mut bytes = Vec::new();
+        let mut digest = Sha256::new();
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|_| StorageError::Unavailable)?
+        {
+            if bytes.len() as u64 + chunk.len() as u64 > limit {
+                return Err(StorageError::Integrity);
+            }
+            digest.update(&chunk);
+            bytes.extend_from_slice(&chunk);
+        }
+        let size = bytes.len() as u64;
+        if size != declared || expected_size.is_some_and(|expected| size != expected) {
+            return Err(StorageError::Integrity);
+        }
+        Ok(VerifiedLegacyBlob {
+            bytes,
+            sha256: format!("{:x}", digest.finalize()),
+            size,
+        })
+    }
+}
+#[cfg(test)]
+mod legacy_tests {
+    use super::*;
+    fn config(endpoint: String, bucket: String) -> LegacyStorageConfig {
+        LegacyStorageConfig {
+            endpoint,
+            bucket,
+            region: "us-east-1".into(),
+            prefix: String::new(),
+            access_key_id: "synthetic-legacy-source".into(),
+            secret_access_key: "synthetic-legacy-source-secret".into(),
+        }
+    }
+    #[test]
+    fn source_keys_are_only_canonical_uuids_and_prefix_can_be_empty() {
+        let source =
+            LegacyBlobSource::new(config("http://127.0.0.1:8937".into(), "synthetic".into()))
+                .unwrap();
+        let id = uuid::Uuid::new_v4().to_string();
+        assert_eq!(source.key(&id).unwrap(), id);
+        for bad in [
+            "../file",
+            "https://untrusted.invalid/file",
+            "folder/file",
+            "00000000000000000000000000000000",
+        ] {
+            assert!(source.key(bad).is_err());
+        }
+        let mut configured = config("http://127.0.0.1:8937".into(), "synthetic".into());
+        configured.prefix = "legacy/files".into();
+        let source = LegacyBlobSource::new(configured).unwrap();
+        assert_eq!(source.key(&id).unwrap(), format!("legacy/files/{id}"));
+    }
+    #[tokio::test]
+    #[ignore = "requires isolated local Moto S3 source; see attachments.md"]
+    async fn local_legacy_source_reads_private_uuid_keys_and_computes_real_digest() {
+        let endpoint =
+            std::env::var("TODOER_TEST_S3_ENDPOINT").expect("local source fixture required");
+        assert!(endpoint.starts_with("http://127.0.0.1:"));
+        let bucket = std::env::var("TODOER_TEST_S3_BUCKET").expect("synthetic bucket required");
+        assert!(bucket.starts_with("todoer-synthetic-"));
+        let source = LegacyBlobSource::new(config(endpoint.clone(), bucket.clone())).unwrap();
+        let key = uuid::Uuid::new_v4().to_string();
+        let bytes = b"synthetic legacy attachment fixture".to_vec();
+        let action = source.bucket.put_object(Some(&source.credentials), &key);
+        let response = source
+            .http
+            .put(action.sign(Duration::from_secs(60)))
+            .body(bytes.clone())
+            .send()
+            .await
+            .unwrap();
+        assert!(response.status().is_success());
+        let verified = source.get(&key, Some(bytes.len() as u64)).await.unwrap();
+        assert_eq!(verified.bytes, bytes);
+        assert_eq!(verified.size, bytes.len() as u64);
+        assert_eq!(verified.sha256, sha256_hex(&bytes));
+        assert_eq!(
+            source.get(&key, None).await.unwrap().sha256,
+            verified.sha256
+        );
+        assert!(matches!(
+            source.get("../escape", None).await,
+            Err(StorageError::Integrity)
+        ));
+        assert!(matches!(
+            source.get(&key, Some(1)).await,
+            Err(StorageError::Integrity)
+        ));
+        assert!(matches!(
+            source.get(&key, Some(MAX_ATTACHMENT_BYTES + 1)).await,
+            Err(StorageError::TooLarge)
+        ));
+        assert_eq!(
+            reqwest::get(format!("{endpoint}/{bucket}/{key}"))
+                .await
+                .unwrap()
+                .status(),
+            reqwest::StatusCode::FORBIDDEN
+        );
+        println!(
+            "legacy private S3 source: root UUID key, signed HEAD/GET, exact size, computed SHA-256, bad-key/size/oversize refusal and anonymous denial passed"
+        );
+    }
+}

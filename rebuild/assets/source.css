@@ -932,3 +932,33 @@ dialog h2 {
   min-height: 44px;
   min-width: 44px;
 }
+/* Native selects have an intrinsic width based on the longest option. Let
+   form grids shrink on phones instead of widening the entire document. */
+form,
+form > * {
+  min-width: 0;
+}
+select {
+  max-width: 100%;
+  min-width: 0;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  min-height: 44px;
+}
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+input[type='checkbox'] {
+  appearance: auto;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  flex: 0 0 18px;
+  padding: 0;
+  accent-color: var(--accent);
+}
+.completed-filter {
+  min-height: 44px;
+}

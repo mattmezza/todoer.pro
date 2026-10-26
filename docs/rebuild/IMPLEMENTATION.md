@@ -73,3 +73,27 @@ models, scheduling, notifications, attachments/discussion, all planning screens,
 exports/legacy importer, OpenRouter, push, Litestream and production release
 remain unfinished. External credentials are not the reason these implementations
 are unfinished. Do not cut over or deploy this increment.
+
+## Identity and sharing increment
+
+Browser Google OIDC, durable revocable sessions, browser-managed scoped REST/MCP
+credentials, public-client MCP OAuth/PKCE consent and rotation, workspace roles,
+restricted/inherited lists, direct existing-user list grants and section metadata
+are now implemented. Common operations intersect live resource permissions with
+credential ceilings, including enumeration/search/history. Browser account IDs
+scope cached pages and drafts; SSE checks the open list and reports revocation.
+
+Evidence: signed local OIDC provider and key-rotation tests; production-mode
+cookie/CSRF/scoped-token/revocation HTTP tests; actual official Python MCP SDK
+OAuth flow over an isolated loopback server (including refresh and tool calls).
+See `authentication.md`. Google tenant/hosted connector checks remain external.
+Invitations, task-to-section assignment, full sharing UX and cross-workspace list
+moves remain unfinished; section metadata alone does not complete hierarchy.
+
+Current integrated verification: `make rust-check` passes (78 unit tests, nine
+HTTP/backup integration tests; four external-service probes are separately
+invoked). Phone/desktop workspace/list/section/direct-sharing browser forms pass
+in both Chromium and Firefox. A native-select overflow found on phones was fixed,
+and native checkboxes retain their visual size inside wrapping form labels.
+Local S3 protocol and Axum upload/download tests use a private Moto fixture;
+SMTP transport is exercised against an isolated aiosmtpd capture service.

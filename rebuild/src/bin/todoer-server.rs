@@ -9,31 +9,91 @@ use todoer::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    if env::var("TODOER_DEV_AUTH").as_deref() != Ok("1") {
-        return Err("Google authentication is not implemented yet. This increment runs only with TODOER_DEV_AUTH=1 on loopback; do not deploy.".into());
-    }
-    let path = env::var("TODOER_RUST_DB").unwrap_or_else(|_| ".local/rebuild/rust.db".into());
+    let development = env::var("TODOER_DEV_AUTH").as_deref() == Ok("1");
+    let path = if development {
+        env::var("TODOER_RUST_DB").unwrap_or_else(|_| ".local/rebuild/rust.db".into())
+    } else {
+        env::var("TODOER_RUST_DB")?
+    };
     if path == "deploy/data/todoer_local.db" || path == "deploy/data/todoer_prod.db" {
         return Err("Refusing legacy database path".into());
     }
-    let token = env::var("TODOER_DEV_TOKEN")?;
-    if token.len() < 24 {
-        return Err("TODOER_DEV_TOKEN must contain at least 24 characters".into());
-    }
     let mut store = Store::open(&path)?;
-    store.seed_dev()?;
     let port: u16 = env::var("TODOER_RUST_PORT")
         .unwrap_or_else(|_| "8092".into())
         .parse()?;
-    let state = AppState::new(
-        Arc::new(Mutex::new(store)),
-        token,
-        format!("http://127.0.0.1:{port}"),
+    let (state, bind) = if development {
+        let token = env::var("TODOER_DEV_TOKEN")?;
+        if token.len() < 24 {
+            return Err("TODOER_DEV_TOKEN must contain at least24 characters".into());
+        }
+        store.seed_dev()?;
+        (
+            AppState::new(
+                Arc::new(Mutex::new(store)),
+                token,
+                format!("http://127.0.0.1:{port}"),
+            ),
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+    } else {
+        let origin = env::var("TODOER_PUBLIC_URL")?
+            .trim_end_matches('/')
+            .to_string();
+        let url = reqwest::Url::parse(&origin)?;
+        if !url.username().is_empty()
+            || url.password().is_some()
+            || url.query().is_some()
+            || url.fragment().is_some()
+            || url.path() != "/"
+            || url.scheme() != "https"
+        {
+            return Err(
+                "TODOER_PUBLIC_URL must be an HTTPS origin without path, query or credentials"
+                    .into(),
+            );
+        }
+        let auth = todoer::auth::AuthStore::open(&path)?;
+        for address in env::var("TODOER_REGISTRATION_ALLOWLIST")
+            .unwrap_or_default()
+            .split(',')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            auth.allow_email(address)?;
+        }
+        let oidc = todoer::oidc::GoogleOidc::discover(todoer::oidc::GoogleConfig {
+            client_id: env::var("TODOER_GOOGLE_CLIENT_ID")?,
+            client_secret: env::var("TODOER_GOOGLE_CLIENT_SECRET")?,
+            redirect_uri: format!("{origin}/auth/google/callback"),
+        })
+        .await?;
+        let bind = env::var("TODOER_RUST_BIND")
+            .unwrap_or_else(|_| "127.0.0.1".into())
+            .parse::<std::net::IpAddr>()?;
+        (
+            AppState::production(Arc::new(Mutex::new(store)), auth, oidc, origin),
+            bind,
+        )
+    };
+    let storage = todoer::object_storage::S3Config::from_env()?
+        .map(todoer::object_storage::ObjectStorage::new)
+        .transpose()?;
+    let state = state.with_storage(storage);
+    let notifications = todoer::notifications::Notifications::from_env()?;
+    let worker = notifications.map(|config| state.start_notification_worker(config));
+    let listener = tokio::net::TcpListener::bind((bind, port)).await?;
+    eprintln!(
+        "Todoer server listening on {} ({})",
+        listener.local_addr()?,
+        if development {
+            "isolated development"
+        } else {
+            "Google authentication"
+        }
     );
-    let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).await?;
-    eprintln!("Todoer development-only server: http://127.0.0.1:{port}");
     let shutdown_state = state.clone();
-    axum::serve(listener, router(state))
+    axum::serve(listener, router(state.clone()))
         .with_graceful_shutdown(async move {
             #[cfg(unix)]
             {
@@ -49,5 +109,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             shutdown_state.request_shutdown();
         })
         .await?;
+    state.request_shutdown();
+    if let Some(worker) = worker {
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(30), worker).await;
+    }
     Ok(())
 }

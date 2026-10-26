@@ -60,7 +60,7 @@ pub struct Change {
     pub complete_subtree: bool,
 }
 pub struct Store {
-    conn: Connection,
+    pub(crate) conn: Connection,
 }
 fn task_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
     Ok(Task {
@@ -76,7 +76,7 @@ fn task_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
     })
 }
 const COLS: &str = "id,reference,list_id,parent_id,title,description,complete,revision,position";
-fn raw_task(c: &Connection, id: &str) -> Result<Task, Error> {
+pub(crate) fn raw_task(c: &Connection, id: &str) -> Result<Task, Error> {
     c.query_row(
         &format!("SELECT {COLS} FROM tasks WHERE id=?1 OR reference=?1"),
         [id],
@@ -85,7 +85,7 @@ fn raw_task(c: &Connection, id: &str) -> Result<Task, Error> {
     .optional()?
     .ok_or(Error::NotFound)
 }
-fn task(c: &Connection, id: &str) -> Result<Task, Error> {
+pub(crate) fn task(c: &Connection, id: &str) -> Result<Task, Error> {
     let t = raw_task(c, id)?;
     let deleted: bool = c.query_row(
         "SELECT deleted_at IS NOT NULL FROM tasks WHERE id=?1",
@@ -95,6 +95,9 @@ fn task(c: &Connection, id: &str) -> Result<Task, Error> {
     if deleted { Err(Error::NotFound) } else { Ok(t) }
 }
 fn access(c: &Connection, actor: &str, list: &str) -> Result<(), Error> {
+    access_rank(c, actor, list, 1)
+}
+pub(crate) fn access_rank(c: &Connection, actor: &str, list: &str, rank: i64) -> Result<(), Error> {
     if !c.query_row(
         "SELECT EXISTS(SELECT 1 FROM lists WHERE id=?1)",
         [list],
@@ -103,13 +106,33 @@ fn access(c: &Connection, actor: &str, list: &str) -> Result<(), Error> {
         return Err(Error::NotFound);
     }
     if !c.query_row(
-        "SELECT EXISTS(SELECT 1 FROM memberships WHERE list_id=?1 AND user_id=?2)",
-        params![list, actor],
+        "SELECT EXISTS(SELECT 1 FROM actor_list_access WHERE list_id=?1 AND actor_id=?2 AND rank>=?3)",
+        params![list, actor, rank],
         |r| r.get::<_, bool>(0),
     )? {
         return Err(Error::Forbidden);
     }
     Ok(())
+}
+pub(crate) fn actor_user(c: &Connection, actor: &str, required: i64) -> Result<String, Error> {
+    if let Some(id) = actor.strip_prefix("credential:") {
+        let user = c.query_row("SELECT user_id FROM auth_agents a WHERE id=?1 AND revoked=0 AND expires_at>unixepoch() AND list_ids IS NULL AND workspace IS NULL AND EXISTS(SELECT 1 FROM json_each(a.permissions) WHERE CASE value WHEN 'admin' THEN 3 WHEN 'write' THEN 2 WHEN 'read' THEN 1 ELSE 0 END >= ?2)", params![id,required], |r|r.get(0)).optional()?;
+        return user.ok_or(Error::Forbidden);
+    }
+    c.query_row("SELECT id FROM users WHERE id=?1", [actor], |r| r.get(0))
+        .optional()?
+        .ok_or(Error::Forbidden)
+}
+pub(crate) fn actor_identity(
+    c: &Connection,
+    actor: &str,
+) -> Result<(String, Option<String>), Error> {
+    if let Some(id) = actor.strip_prefix("credential:") {
+        let user=c.query_row("SELECT user_id FROM auth_agents WHERE id=?1 AND revoked=0 AND expires_at>unixepoch()",[id],|r|r.get(0)).optional()?.ok_or(Error::Forbidden)?;
+        Ok((user, Some(id.to_owned())))
+    } else {
+        Ok((actor.to_owned(), None))
+    }
 }
 fn title(s: &str) -> Result<(), Error> {
     if s.trim().is_empty() || s.chars().count() > 500 {
@@ -125,20 +148,38 @@ fn descendants(c: &Connection, id: &str) -> Result<Vec<Task>, Error> {
     let rows = q.query_map([id], task_row)?;
     Ok(rows.collect::<Result<_, _>>()?)
 }
-fn event(
+pub(crate) fn event(
     c: &Connection,
     t: &Task,
     kind: &str,
     actor: &str,
     before: Option<&Task>,
 ) -> Result<(), Error> {
-    let value = serde_json::json!({"kind":kind,"task":t,"actor":actor});
+    if let Some(previous) = before {
+        crate::scheduling::after_task_update(
+            c,
+            actor,
+            previous,
+            t,
+            chrono::Utc::now().timestamp(),
+        )?;
+    }
+    if matches!(kind, "create" | "update" | "undo" | "recurrence-create") {
+        crate::taxonomy::index_references(c, actor, "task", &t.id, &t.description)?;
+    }
+    let (user, credential) = actor_identity(c, actor)?;
+    let leaf: bool = c.query_row(
+        "SELECT NOT EXISTS(SELECT 1 FROM tasks WHERE parent_id=?1 AND deleted_at IS NULL)",
+        [&t.id],
+        |row| row.get(0),
+    )?;
+    let value = serde_json::json!({"kind":kind,"task":t,"actor":user,"client":credential,"countable_leaf":leaf,"attribution":if credential.is_some(){"agent"}else{"human"}});
     c.execute(
         "INSERT INTO history(list_id,event,actor,before_event) VALUES(?1,?2,?3,?4)",
         params![
             t.list_id,
             value.to_string(),
-            actor,
+            user,
             before.map(|t| serde_json::to_string(t).expect("serialize task"))
         ],
     )?;
@@ -166,12 +207,12 @@ fn audience_change(
 ) -> Result<(i64, i64, i64), Error> {
     let count = |list: &str| -> Result<i64, Error> {
         Ok(c.query_row(
-            "SELECT COUNT(*) FROM memberships WHERE list_id=?1",
+            "SELECT COUNT(*) FROM effective_list_access WHERE list_id=?1",
             [list],
             |r| r.get(0),
         )?)
     };
-    let added = c.query_row("SELECT COUNT(*) FROM memberships d WHERE d.list_id=?1 AND NOT EXISTS(SELECT 1 FROM memberships s WHERE s.list_id=?2 AND s.user_id=d.user_id)", params![destination, source], |r| r.get(0))?;
+    let added = c.query_row("SELECT COUNT(*) FROM effective_list_access d WHERE d.list_id=?1 AND NOT EXISTS(SELECT 1 FROM effective_list_access s WHERE s.list_id=?2 AND s.user_id=d.user_id)", params![destination, source], |r| r.get(0))?;
     Ok((count(source)?, count(destination)?, added))
 }
 impl Store {
@@ -194,6 +235,14 @@ impl Store {
             (1, include_str!("../migrations/001.sql")),
             (2, include_str!("../migrations/002.sql")),
             (3, include_str!("../migrations/003.sql")),
+            (4, include_str!("../migrations/004_auth.sql")),
+            (5, include_str!("../migrations/005_workspace.sql")),
+            (6, include_str!("../migrations/006_credentials.sql")),
+            (7, include_str!("../migrations/007_auth_oauth.sql")),
+            (8, include_str!("../migrations/008_scheduling.sql")),
+            (9, include_str!("../migrations/009_discussion.sql")),
+            (10, include_str!("../migrations/010_notifications.sql")),
+            (11, include_str!("../migrations/011_taxonomy.sql")),
         ] {
             let applied: bool = tx.query_row(
                 "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=?1)",
@@ -222,7 +271,7 @@ impl Store {
         Ok(())
     }
     pub fn lists(&self, actor: &str) -> Result<Vec<List>, Error> {
-        let mut q=self.conn.prepare("SELECT l.id,l.title,l.description,l.revision FROM lists l JOIN memberships m ON m.list_id=l.id WHERE m.user_id=?1 ORDER BY l.id")?;
+        let mut q=self.conn.prepare("SELECT l.id,l.title,l.description,l.revision FROM lists l JOIN actor_list_access m ON m.list_id=l.id WHERE m.actor_id=?1 ORDER BY l.position,l.id")?;
         Ok(q.query_map([actor], |r| {
             Ok(List {
                 id: r.get(0)?,
@@ -263,7 +312,7 @@ impl Store {
             .collect::<Vec<_>>()
             .join(",");
         let sql = format!(
-            "SELECT {columns} FROM tasks t JOIN memberships m ON m.list_id=t.list_id WHERE m.user_id=?1 AND t.deleted_at IS NULL AND (?2 IS NULL OR t.list_id=?2) AND (?3 IS NULL OR t.complete=?3) AND (?4 IS NULL OR t.id>?4) {} ORDER BY t.id LIMIT ?6",
+            "SELECT {columns} FROM tasks t JOIN actor_list_access m ON m.list_id=t.list_id WHERE m.actor_id=?1 AND t.deleted_at IS NULL AND (?2 IS NULL OR t.list_id=?2) AND (?3 IS NULL OR t.complete=?3) AND (?4 IS NULL OR t.id>?4) {} ORDER BY t.id LIMIT ?6",
             if expression.is_empty() {
                 ""
             } else {
@@ -295,7 +344,7 @@ impl Store {
         let tx = self
             .conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        access(&tx, actor, &request.list_id)?;
+        access_rank(&tx, actor, &request.list_id, 2)?;
         if key.trim().is_empty() || key.len() > 200 {
             return Err(Error::Invalid(
                 "idempotency key must contain 1–200 bytes".into(),
@@ -319,7 +368,7 @@ impl Store {
                 serde_json::from_str(&response).map_err(|e| Error::Invalid(e.to_string()))?;
             for original in &result {
                 let current = task(&tx, &original.id)?;
-                access(&tx, actor, &current.list_id)?;
+                access_rank(&tx, actor, &current.list_id, 2)?;
             }
             return Ok(result);
         }
@@ -380,7 +429,7 @@ impl Store {
             .conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let t = task(&tx, id)?;
-        access(&tx, actor, &t.list_id)?;
+        access_rank(&tx, actor, &t.list_id, 2)?;
         if t.revision != change.revision {
             return Err(Error::Conflict("stale revision".into()));
         }
@@ -446,8 +495,8 @@ impl Store {
         let recorded: Task = serde_json::from_value(value["task"].clone())
             .map_err(|e| Error::Invalid(e.to_string()))?;
         let current = task(&tx, &recorded.id)?;
-        access(&tx, actor, &current.list_id)?;
-        if original_actor != actor {
+        access_rank(&tx, actor, &current.list_id, 2)?;
+        if original_actor != actor_identity(&tx, actor)?.0 {
             return Err(Error::Forbidden);
         }
         if value["kind"] != "update" || before.is_none() {
@@ -494,7 +543,7 @@ impl Store {
             .map(|col| format!("t.{col}"))
             .collect::<Vec<_>>()
             .join(",");
-        let mut q = self.conn.prepare(&format!("SELECT {cols} FROM tasks t JOIN memberships m ON m.list_id=t.list_id WHERE m.user_id=?1 AND t.deleted_at IS NOT NULL ORDER BY t.id"))?;
+        let mut q = self.conn.prepare(&format!("SELECT {cols} FROM tasks t JOIN actor_list_access m ON m.list_id=t.list_id WHERE m.actor_id=?1 AND t.deleted_at IS NOT NULL ORDER BY t.id"))?;
         Ok(q.query_map([actor], task_row)?.collect::<Result<_, _>>()?)
     }
     pub fn trash(&mut self, actor: &str, id: &str, revision: i64) -> Result<Task, Error> {
@@ -502,7 +551,7 @@ impl Store {
             .conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let root = task(&tx, id)?;
-        access(&tx, actor, &root.list_id)?;
+        access_rank(&tx, actor, &root.list_id, 2)?;
         if root.revision != revision {
             return Err(Error::Conflict("stale revision".into()));
         }
@@ -519,7 +568,7 @@ impl Store {
             .conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let root = raw_task(&tx, id)?;
-        access(&tx, actor, &root.list_id)?;
+        access_rank(&tx, actor, &root.list_id, 2)?;
         if root.revision != revision {
             return Err(Error::Conflict("stale revision".into()));
         }
@@ -549,7 +598,7 @@ impl Store {
                 .collect::<Result<Vec<_>, _>>()?
         };
         for t in members {
-            access(&tx, actor, &t.list_id)?;
+            access_rank(&tx, actor, &t.list_id, 2)?;
             tx.execute("UPDATE tasks SET deleted_at=NULL,delete_group=NULL,revision=revision+1 WHERE id=?1",[&t.id])?;
             event(&tx, &raw_task(&tx, &t.id)?, "restore", actor, Some(&t))?;
         }
@@ -588,8 +637,8 @@ impl Store {
             .conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let t = task(&tx, id)?;
-        access(&tx, actor, &t.list_id)?;
-        access(&tx, actor, destination)?;
+        access_rank(&tx, actor, &t.list_id, 2)?;
+        access_rank(&tx, actor, destination, 2)?;
         if t.revision != revision {
             return Err(Error::Conflict("stale revision".into()));
         }
@@ -610,6 +659,10 @@ impl Store {
             q.query_map([&t.id], task_row)?
                 .collect::<Result<Vec<_>, _>>()?
         };
+        let moving_ids = moving
+            .iter()
+            .map(|child| child.id.clone())
+            .collect::<Vec<_>>();
         for child in moving {
             pos += 1;
             tx.execute("UPDATE tasks SET list_id=?1,parent_id=CASE WHEN id=?2 THEN NULL ELSE parent_id END,position=?3,revision=revision+1 WHERE id=?4",params![destination,t.id,pos,child.id])?;
@@ -617,12 +670,13 @@ impl Store {
             event(&tx, &child, "move_out", actor, None)?;
             event(&tx, &moved, "move", actor, Some(&child))?;
         }
+        crate::taxonomy::after_move(&tx, actor, &moving_ids, destination)?;
         let moved = task(&tx, &t.id)?;
         tx.commit()?;
         Ok(moved)
     }
     pub fn changes(&self, actor: &str, after: i64) -> Result<Vec<serde_json::Value>, Error> {
-        let mut q=self.conn.prepare("SELECT h.seq,h.event FROM history h JOIN memberships m ON m.list_id=h.list_id JOIN tasks t ON t.id=json_extract(h.event,'$.task.id') JOIN memberships live ON live.list_id=t.list_id AND live.user_id=m.user_id WHERE m.user_id=?1 AND h.seq>?2 ORDER BY h.seq LIMIT 1000")?;
+        let mut q=self.conn.prepare("SELECT h.seq,h.event FROM history h JOIN actor_list_access m ON m.list_id=h.list_id JOIN tasks t ON t.id=json_extract(h.event,'$.task.id') JOIN actor_list_access live ON live.list_id=t.list_id AND live.actor_id=m.actor_id WHERE m.actor_id=?1 AND h.seq>?2 ORDER BY h.seq LIMIT 1000")?;
         let rows = q.query_map(params![actor, after], |r| {
             Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
         })?;
@@ -1126,7 +1180,7 @@ mod tests {
                 .conn
                 .query_row("SELECT COUNT(*) FROM schema_migrations", [], |r| r.get(0))
                 .unwrap();
-            assert_eq!(count, 3);
+            assert_eq!(count, 11);
         }
         {
             let s = Store::open(path.to_str().unwrap()).unwrap();
