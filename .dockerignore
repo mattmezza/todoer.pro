@@ -9,3 +9,11 @@ node_modules
 deploy
 scripts
 .python-version
+
+# Rebuild local data and build outputs never enter an image build context.
+.local
+target
+.env
+**/*.db
+**/*.db-wal
+**/*.db-shm

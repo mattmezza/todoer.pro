@@ -39,8 +39,9 @@ rust-assets: ## compile Tailwind v4 and self-host htmx
 rust-dev: rust-assets ## start isolated loopback Rust app; requires TODOER_DEV_AUTH/TODOER_DEV_TOKEN
 	mkdir -p .local/rebuild
 	cargo run --locked --bin todoer-server
-rust-format: ## format Rust source
+rust-format: ## format Rust and rebuild frontend source
 	cargo fmt --all
+	npm run format
 rust-lint: ## deny compiler and Clippy warnings
 	cargo clippy --locked --all-targets -- -D warnings
 rust-test: ## core and HTTP integration tests
@@ -50,6 +51,7 @@ rust-build: rust-assets ## build Rust binaries reproducibly
 rust-e2e: ## browser tests against already-running isolated Rust development server
 	npx playwright test
 rust-check: rust-assets ## format, lint, tests and debug build
+	npm run format:check
 	cargo fmt --all -- --check
 	cargo clippy --locked --all-targets -- -D warnings
 	cargo test --locked

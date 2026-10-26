@@ -1540,6 +1540,51 @@
           }
         }
       }
+    },
+    "/api/v1/events": {
+      "get": {
+        "summary": "Development SSE change invalidation with live session rechecks",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "changes events with cursor/count; session-expired closes stream. Reconnect uses Last-Event-ID. No history expiration is implemented yet.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          }
+        }
+      }
     }
   },
   "components": {

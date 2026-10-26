@@ -32,9 +32,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).await?;
     eprintln!("Todoer development-only server: http://127.0.0.1:{port}");
+    let shutdown_state = state.clone();
     axum::serve(listener, router(state))
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
+        .with_graceful_shutdown(async move {
+            #[cfg(unix)]
+            {
+                let mut terminate =
+                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                        .expect("SIGTERM handler");
+                tokio::select! {_ = tokio::signal::ctrl_c()=>{},_ = terminate.recv()=>{}}
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = tokio::signal::ctrl_c().await;
+            }
+            shutdown_state.request_shutdown();
         })
         .await?;
     Ok(())
