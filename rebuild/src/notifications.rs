@@ -358,3 +358,786 @@ mod tests {
         );
     }
 }
+
+use crate::scheduling::{Channel, ReminderJob};
+use chrono::{Datelike, Utc};
+use lettre::{
+    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor, message::Mailbox,
+    transport::smtp::authentication::Credentials,
+};
+use std::sync::{Arc, Mutex};
+#[derive(Clone)]
+pub struct Notifications {
+    smtp: AsyncSmtpTransport<Tokio1Executor>,
+    from: Mailbox,
+    test_recipient: Option<String>,
+}
+impl Notifications {
+    pub fn from_env() -> Result<Option<Self>, Error> {
+        let Ok(host) = std::env::var("TODOER_SMTP_HOST") else {
+            return Ok(None);
+        };
+        let from = std::env::var("TODOER_SMTP_FROM")
+            .map_err(|_| invalid("TODOER_SMTP_FROM is required"))?
+            .parse()
+            .map_err(|_| invalid("SMTP from address is invalid"))?;
+        let port = std::env::var("TODOER_SMTP_PORT")
+            .unwrap_or_else(|_| "587".into())
+            .parse::<u16>()
+            .map_err(|_| invalid("SMTP port is invalid"))?;
+        let local = matches!(host.as_str(), "127.0.0.1" | "::1" | "localhost")
+            && std::env::var("TODOER_SMTP_INSECURE_LOCAL").as_deref() == Ok("1");
+        let builder = if local {
+            AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&host)
+        } else if std::env::var("TODOER_SMTP_TLS").as_deref() == Ok("implicit") {
+            AsyncSmtpTransport::<Tokio1Executor>::relay(&host)
+                .map_err(|_| invalid("SMTP TLS configuration is invalid"))?
+        } else {
+            AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&host)
+                .map_err(|_| invalid("SMTP STARTTLS configuration is invalid"))?
+        };
+        let mut builder = builder
+            .port(port)
+            .timeout(Some(std::time::Duration::from_secs(15)));
+        match (
+            std::env::var("TODOER_SMTP_USERNAME").ok(),
+            std::env::var("TODOER_SMTP_PASSWORD").ok(),
+        ) {
+            (Some(user), Some(password)) => {
+                builder = builder.credentials(Credentials::new(user, password));
+            }
+            (None, None) => {}
+            _ => {
+                return Err(invalid(
+                    "SMTP username and password must both be configured",
+                ));
+            }
+        }
+        let test_recipient = std::env::var("TODOER_SMTP_TEST_RECIPIENT").ok();
+        if let Some(address) = &test_recipient
+            && (!local || !address.ends_with(".invalid") || address.parse::<Mailbox>().is_err())
+        {
+            return Err(invalid(
+                "test recipients require explicit local SMTP and an .invalid address",
+            ));
+        }
+        Ok(Some(Self {
+            smtp: builder.build(),
+            from,
+            test_recipient,
+        }))
+    }
+    async fn send(&self, id: &str, delivery: Delivery) -> Result<(), Error> {
+        let message = Message::builder()
+            .from(self.from.clone())
+            .to(delivery
+                .to
+                .parse()
+                .map_err(|_| invalid("verified recipient address is invalid"))?)
+            .message_id(Some(format!("<{id}@todoer.invalid>")))
+            .subject(delivery.subject)
+            .header(lettre::message::header::ContentType::TEXT_PLAIN)
+            .body(delivery.body)
+            .map_err(|_| invalid("could not build notification message"))?;
+        tokio::time::timeout(std::time::Duration::from_secs(20), self.smtp.send(message))
+            .await
+            .map_err(|_| invalid("SMTP operation timed out; delivery may have been accepted"))?
+            .map_err(|_| invalid("SMTP operation failed; delivery may have been accepted"))?;
+        Ok(())
+    }
+}
+#[derive(Debug, Default, Serialize)]
+pub struct WorkerReport {
+    pub sent: usize,
+    pub deferred: usize,
+    pub cancelled: usize,
+    pub failed: usize,
+    pub digests_queued: usize,
+}
+struct Delivery {
+    to: String,
+    subject: String,
+    body: String,
+}
+enum Decision {
+    Send(Delivery),
+    Defer(i64),
+    Cancel,
+}
+fn quiet_until(prefs: &Preferences, now: i64) -> Result<Option<i64>, Error> {
+    let tz = zone(&prefs.timezone)?;
+    let instant = Utc
+        .timestamp_opt(now, 0)
+        .single()
+        .ok_or_else(|| invalid("invalid notification time"))?
+        .with_timezone(&tz);
+    let (Some(start), Some(end)) = (&prefs.quiet_start, &prefs.quiet_end) else {
+        return Ok(None);
+    };
+    let start = time(start)?;
+    let end = time(end)?;
+    let clock = instant.time();
+    let inside = if start == end {
+        true
+    } else if start < end {
+        clock >= start && clock < end
+    } else {
+        clock >= start || clock < end
+    };
+    if !inside {
+        return Ok(None);
+    }
+    let date = if start == end || start > end && clock >= start {
+        instant
+            .date_naive()
+            .succ_opt()
+            .ok_or_else(|| invalid("quiet hour date overflow"))?
+    } else {
+        instant.date_naive()
+    };
+    let candidate = date.and_time(end);
+    for minutes in 0..=180 {
+        if let Some(value) = tz
+            .from_local_datetime(&(candidate + Duration::minutes(minutes)))
+            .earliest()
+            && value.timestamp() > now
+        {
+            return Ok(Some(value.timestamp()));
+        }
+    }
+    Ok(Some(now + 86_400))
+}
+fn destination(
+    c: &rusqlite::Connection,
+    user: &str,
+    test: Option<&str>,
+) -> Result<Option<String>, Error> {
+    if let Some(test) = test {
+        return Ok(Some(test.into()));
+    }
+    Ok(c.query_row(
+        "SELECT email FROM auth_identities WHERE user_id=?1 ORDER BY issuer,subject LIMIT 1",
+        [user],
+        |r| r.get(0),
+    )
+    .optional()?)
+}
+fn policy(prefs: &Preferences, now: i64) -> Result<Option<Decision>, Error> {
+    if !prefs.email_opt_in {
+        return Ok(Some(Decision::Cancel));
+    }
+    Ok(quiet_until(prefs, now)?.map(Decision::Defer))
+}
+impl Store {
+    fn prepare_reminder(
+        &self,
+        job: &ReminderJob,
+        now: i64,
+        test: Option<&str>,
+    ) -> Result<Decision, Error> {
+        let tx = self.conn.unchecked_transaction()?;
+        if !self.reminder_eligible(&job.id, &job.lease_owner, &job.lease_token, now)?
+            || job.channel != Channel::Email
+        {
+            return Ok(Decision::Cancel);
+        }
+        let prefs = self.notification_preferences(&job.recipient)?;
+        if let Some(decision) = policy(&prefs, now)? {
+            return Ok(decision);
+        }
+        let task = task(&self.conn, &job.task_id)?;
+        if prefs.list_opt_out.contains(&task.list_id) {
+            return Ok(Decision::Cancel);
+        }
+        let Some(to) = destination(&self.conn, &job.recipient, test)? else {
+            return Ok(Decision::Cancel);
+        };
+        let schedule = self.get_schedule(&job.recipient, &task.id)?;
+        let due = schedule
+            .schedule
+            .due
+            .map(|m| match m {
+                Moment::Date { date } => date,
+                Moment::Timed { local, timezone } => format!("{local} {timezone}"),
+            })
+            .unwrap_or_else(|| "No due date".into());
+        let result = Decision::Send(Delivery {
+            to,
+            subject: "Todoer task reminder".into(),
+            body: format!(
+                "{}\n\nDue: {}\nReference: {}\n\nYou enabled email reminders in Todoer. Change notification preferences to unsubscribe.\n",
+                task.title, due, task.reference
+            ),
+        });
+        tx.commit()?;
+        Ok(result)
+    }
+    fn disposition_reminder(
+        &mut self,
+        job: &ReminderJob,
+        decision: Option<i64>,
+        now: i64,
+    ) -> Result<(), Error> {
+        self.conn.execute("UPDATE reminder_outbox SET status=?1,available_at=?2,attempts=MAX(0,attempts-1),lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE id=?3 AND status='leased' AND lease_owner=?4 AND lease_token=?5 AND lease_until>?6",params![if decision.is_some(){"pending"}else{"cancelled"},decision.unwrap_or(now),job.id,job.lease_owner,job.lease_token,now])?;
+        Ok(())
+    }
+    pub fn queue_digests(&mut self, now: i64) -> Result<usize, Error> {
+        let tx = self
+            .conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let users = {
+            let mut q = tx.prepare(
+                "SELECT user_id,document FROM notification_preferences ORDER BY user_id LIMIT 1000",
+            )?;
+            q.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
+                .collect::<Result<Vec<_>, _>>()?
+        };
+        let mut count = 0;
+        for (user, data) in users {
+            let prefs: Preferences = decode(&data)?;
+            if !prefs.email_opt_in {
+                continue;
+            }
+            let tz = zone(&prefs.timezone)?;
+            let local = Utc
+                .timestamp_opt(now, 0)
+                .single()
+                .ok_or_else(|| invalid("invalid worker time"))?
+                .with_timezone(&tz);
+            for (kind, enabled, clock) in [
+                ("daily", prefs.daily_opt_in, &prefs.daily_time),
+                (
+                    "weekly",
+                    prefs.weekly_opt_in && local.weekday().number_from_monday() == prefs.weekly_day,
+                    &prefs.weekly_time,
+                ),
+            ] {
+                if !enabled || local.time() < time(clock)? {
+                    continue;
+                }
+                let period = if kind == "daily" {
+                    local.date_naive()
+                } else {
+                    local.date_naive()
+                        - Duration::days(local.weekday().num_days_from_monday().into())
+                }
+                .to_string();
+                count+=tx.execute("INSERT OR IGNORE INTO digest_outbox(id,user_id,kind,period,available_at) VALUES(?1,?2,?3,?4,?5)",params![uuid::Uuid::new_v4().to_string(),user,kind,period,now])?;
+            }
+        }
+        tx.commit()?;
+        Ok(count)
+    }
+}
+#[derive(Debug, Clone)]
+struct DigestJob {
+    id: String,
+    user: String,
+    kind: String,
+    period: String,
+    owner: String,
+    token: String,
+}
+impl Store {
+    fn claim_digest(&mut self, owner: &str, now: i64) -> Result<Option<DigestJob>, Error> {
+        let tx = self
+            .conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        tx.execute("UPDATE digest_outbox SET status='dead',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE attempts>=5 AND (status='pending' OR status='leased' AND lease_until<=?1)",[now])?;
+        let job:Option<(String,String,String,String)>=tx.query_row("SELECT id,user_id,kind,period FROM digest_outbox WHERE attempts<5 AND available_at<=?1 AND (status='pending' OR status='leased' AND lease_until<=?1) ORDER BY available_at,id LIMIT 1",[now],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
+        let Some((id, user, kind, period)) = job else {
+            tx.commit()?;
+            return Ok(None);
+        };
+        let token = uuid::Uuid::new_v4().to_string();
+        tx.execute("UPDATE digest_outbox SET status='leased',attempts=attempts+1,lease_owner=?1,lease_token=?2,lease_until=?3 WHERE id=?4",params![owner,token,now+60,id])?;
+        tx.commit()?;
+        Ok(Some(DigestJob {
+            id,
+            user,
+            kind,
+            period,
+            owner: owner.into(),
+            token,
+        }))
+    }
+    fn prepare_digest(
+        &self,
+        job: &DigestJob,
+        now: i64,
+        test: Option<&str>,
+    ) -> Result<Decision, Error> {
+        let tx = self.conn.unchecked_transaction()?;
+        let owned:bool=self.conn.query_row("SELECT EXISTS(SELECT 1 FROM digest_outbox WHERE id=?1 AND status='leased' AND lease_owner=?2 AND lease_token=?3 AND lease_until>?4)",params![job.id,job.owner,job.token,now],|r|r.get(0))?;
+        if !owned {
+            return Ok(Decision::Cancel);
+        }
+        let prefs = self.notification_preferences(&job.user)?;
+        if job.kind == "daily" && !prefs.daily_opt_in
+            || job.kind == "weekly" && !prefs.weekly_opt_in
+        {
+            return Ok(Decision::Cancel);
+        }
+        if let Some(decision) = policy(&prefs, now)? {
+            return Ok(decision);
+        }
+        let tz = zone(&prefs.timezone)?;
+        let today = Utc
+            .timestamp_opt(now, 0)
+            .single()
+            .ok_or_else(|| invalid("invalid worker time"))?
+            .with_timezone(&tz)
+            .date_naive();
+        let local_now = Utc
+            .timestamp_opt(now, 0)
+            .single()
+            .ok_or_else(|| invalid("invalid worker time"))?
+            .with_timezone(&tz);
+        if job.kind == "weekly" && local_now.weekday().number_from_monday() != prefs.weekly_day {
+            return Ok(Decision::Cancel);
+        }
+        let clock = time(if job.kind == "weekly" {
+            &prefs.weekly_time
+        } else {
+            &prefs.daily_time
+        })?;
+        if local_now.time() < clock
+            && let Some(next) = tz.from_local_datetime(&today.and_time(clock)).earliest()
+        {
+            return Ok(Decision::Defer(next.timestamp()));
+        }
+        let period = day(&job.period)?;
+        if (job.kind == "daily" && period != today)
+            || (job.kind == "weekly" && (period > today || (today - period).num_days() >= 7))
+        {
+            return Ok(Decision::Cancel);
+        }
+        let Some(to) = destination(&self.conn, &job.user, test)? else {
+            return Ok(Decision::Cancel);
+        };
+        let from = today - Duration::days(365);
+        let to_date = today + Duration::days(1);
+        let end = if job.kind == "weekly" {
+            today + Duration::days(7)
+        } else {
+            to_date
+        }; // Range stays <=366 below by using a bounded overdue window.
+        let start = if job.kind == "weekly" {
+            today - Duration::days(359)
+        } else {
+            from
+        };
+        let rows = self
+            .planning_tasks(&job.user, &start.to_string(), &end.to_string())?
+            .into_iter()
+            .filter(|r| !prefs.list_opt_out.contains(&r.task.list_id))
+            .collect::<Vec<_>>();
+        let mut body = format!(
+            "Todoer {} summary for {} ({})\n\n{} scheduled open tasks in the last year and upcoming period.\n",
+            job.kind,
+            job.period,
+            prefs.timezone,
+            rows.len()
+        );
+        if job.kind == "weekly" {
+            let from = tz
+                .from_local_datetime(&period.and_hms_opt(0, 0, 0).unwrap())
+                .earliest()
+                .ok_or_else(|| invalid("weekly summary starts in a DST gap"))?
+                .timestamp();
+            let end_day = period
+                .checked_add_signed(Duration::days(7))
+                .ok_or_else(|| invalid("weekly summary date overflow"))?;
+            let to = tz
+                .from_local_datetime(&end_day.and_hms_opt(0, 0, 0).unwrap())
+                .earliest()
+                .ok_or_else(|| invalid("weekly summary ends in a DST gap"))?
+                .timestamp();
+            let count:i64=self.conn.query_row("SELECT COUNT(*) FROM history h JOIN tasks t ON t.id=json_extract(h.event,'$.task.id') JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?1 WHERE h.occurred_at>=?2 AND h.occurred_at<?3 AND json_extract(h.event,'$.task.complete')=1 AND json_extract(h.before_event,'$.complete')=0 AND json_extract(h.event,'$.countable_leaf')=1 AND a.rank>=1 AND t.list_id NOT IN(SELECT value FROM json_each(?4))",params![job.user,from,to,serde_json::to_string(&prefs.list_opt_out).unwrap()],|r|r.get(0))?;
+            body.push_str(&format!(
+                "{count} leaf completion transitions this week; repeat completions count again.\n"
+            ));
+        }
+        for row in rows.iter().take(100) {
+            body.push_str(&format!(
+                "- {} [{}] ({})\n",
+                row.task.title,
+                row.dates.join(", "),
+                row.task.reference
+            ));
+        }
+        if rows.len() > 100 {
+            body.push_str(
+                "Further tasks are omitted from this email; open Todoer for the full view.\n",
+            );
+        }
+        body.push_str("\nOnly tasks you can currently access and have not muted are included. Change notification preferences in Todoer to unsubscribe.\n");
+        let result = Decision::Send(Delivery {
+            to,
+            subject: format!("Todoer {} summary", job.kind),
+            body,
+        });
+        tx.commit()?;
+        Ok(result)
+    }
+    fn finish_digest(
+        &mut self,
+        job: &DigestJob,
+        outcome: &str,
+        when: i64,
+        now: i64,
+        error: Option<&str>,
+    ) -> Result<(), Error> {
+        let when = if error.is_some() {
+            let attempts: i64 = self.conn.query_row(
+                "SELECT attempts FROM digest_outbox WHERE id=?1",
+                [&job.id],
+                |r| r.get(0),
+            )?;
+            now + (60 * (1_i64 << attempts.min(6))).min(3600)
+        } else {
+            when
+        };
+        self.conn.execute("UPDATE digest_outbox SET status=?1,available_at=?2,attempts=CASE WHEN ?1='pending' AND ?7 IS NULL THEN MAX(0,attempts-1) ELSE attempts END,lease_owner=NULL,lease_token=NULL,lease_until=NULL,last_error=?7 WHERE id=?3 AND status='leased' AND lease_owner=?4 AND lease_token=?5 AND lease_until>?6",params![outcome,when,job.id,job.owner,job.token,now,error])?;
+        Ok(())
+    }
+}
+async fn database<T: Send + 'static>(
+    store: &Arc<Mutex<Store>>,
+    work: impl FnOnce(&mut Store) -> Result<T, Error> + Send + 'static,
+) -> Result<T, Error> {
+    let store = store.clone();
+    tokio::task::spawn_blocking(move || {
+        let mut db = store
+            .lock()
+            .map_err(|_| invalid("notification database lock failed"))?;
+        work(&mut db)
+    })
+    .await
+    .map_err(|_| invalid("notification database task failed"))?
+}
+/// A bounded iteration; callers schedule it repeatedly and stop it during shutdown.
+pub async fn worker_tick(
+    store: &Arc<Mutex<Store>>,
+    config: &Notifications,
+) -> Result<WorkerReport, Error> {
+    worker_tick_until(store, config, None).await
+}
+pub(crate) async fn worker_tick_until(
+    store: &Arc<Mutex<Store>>,
+    config: &Notifications,
+    stopping: Option<&std::sync::atomic::AtomicBool>,
+) -> Result<WorkerReport, Error> {
+    let mut report = WorkerReport::default();
+    let now = Utc::now().timestamp();
+    report.digests_queued = database(store, move |db| db.queue_digests(now)).await?;
+    let owner = uuid::Uuid::new_v4().to_string();
+    for _ in 0..10 {
+        if stopping.is_some_and(|v| v.load(std::sync::atomic::Ordering::SeqCst)) {
+            break;
+        }
+        let actor = owner.clone();
+        let now = Utc::now().timestamp();
+        let job = database(store, move |db| {
+            Ok(db.claim_reminders(&actor, now, 1)?.pop())
+        })
+        .await?;
+        let Some(job) = job else { break };
+        let copy = job.clone();
+        let recipient = config.test_recipient.clone();
+        let decision = database(store, move |db| {
+            db.prepare_reminder(&copy, Utc::now().timestamp(), recipient.as_deref())
+        })
+        .await?;
+        match decision {
+            Decision::Cancel => {
+                let copy = job.clone();
+                database(store, move |db| {
+                    db.disposition_reminder(&copy, None, Utc::now().timestamp())
+                })
+                .await?;
+                report.cancelled += 1;
+            }
+            Decision::Defer(until) => {
+                let copy = job.clone();
+                database(store, move |db| {
+                    db.disposition_reminder(&copy, Some(until), Utc::now().timestamp())
+                })
+                .await?;
+                report.deferred += 1;
+            }
+            Decision::Send(delivery) => {
+                let sent = config.send(&job.id, delivery).await.is_ok();
+                let copy = job.clone();
+                database(store, move |db| {
+                    if sent {
+                        db.acknowledge_reminder(
+                            &copy.id,
+                            &copy.lease_owner,
+                            &copy.lease_token,
+                            Utc::now().timestamp(),
+                        )
+                    } else {
+                        db.fail_reminder(
+                            &copy.id,
+                            &copy.lease_owner,
+                            &copy.lease_token,
+                            Utc::now().timestamp(),
+                            "SMTP delivery failed or ambiguous",
+                        )
+                    }
+                })
+                .await?;
+                if sent {
+                    report.sent += 1
+                } else {
+                    report.failed += 1
+                }
+            }
+        }
+    }
+    for _ in 0..5 {
+        if stopping.is_some_and(|v| v.load(std::sync::atomic::Ordering::SeqCst)) {
+            break;
+        }
+        let actor = owner.clone();
+        let job = database(store, move |db| {
+            db.claim_digest(&actor, Utc::now().timestamp())
+        })
+        .await?;
+        let Some(job) = job else { break };
+        let copy = job.clone();
+        let recipient = config.test_recipient.clone();
+        let decision = database(store, move |db| {
+            db.prepare_digest(&copy, Utc::now().timestamp(), recipient.as_deref())
+        })
+        .await?;
+        match decision {
+            Decision::Cancel => {
+                database(store, move |db| {
+                    db.finish_digest(
+                        &job,
+                        "cancelled",
+                        Utc::now().timestamp(),
+                        Utc::now().timestamp(),
+                        None,
+                    )
+                })
+                .await?;
+                report.cancelled += 1
+            }
+            Decision::Defer(until) => {
+                database(store, move |db| {
+                    db.finish_digest(&job, "pending", until, Utc::now().timestamp(), None)
+                })
+                .await?;
+                report.deferred += 1
+            }
+            Decision::Send(delivery) => {
+                let sent = config.send(&job.id, delivery).await.is_ok();
+                database(store, move |db| {
+                    db.finish_digest(
+                        &job,
+                        if sent { "delivered" } else { "pending" },
+                        Utc::now().timestamp() + 300,
+                        Utc::now().timestamp(),
+                        if sent {
+                            None
+                        } else {
+                            Some("SMTP delivery failed or ambiguous")
+                        },
+                    )
+                })
+                .await?;
+                if sent {
+                    report.sent += 1
+                } else {
+                    report.failed += 1
+                }
+            }
+        }
+    }
+    Ok(report)
+}
+#[cfg(test)]
+mod delivery_tests {
+    use super::*;
+    #[test]
+    fn quiet_hours_and_digest_keys_are_local_and_idempotent() {
+        let now = chrono::DateTime::parse_from_rfc3339("2026-04-10T21:00:00Z")
+            .unwrap()
+            .timestamp();
+        let prefs = Preferences {
+            timezone: "Europe/Zurich".into(),
+            quiet_start: Some("22:00".into()),
+            quiet_end: Some("07:00".into()),
+            ..Default::default()
+        };
+        let end = quiet_until(&prefs, now).unwrap().unwrap();
+        assert_eq!(
+            Utc.timestamp_opt(end, 0).single().unwrap().to_rfc3339(),
+            "2026-04-11T05:00:00+00:00"
+        );
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        db.set_notification_preferences(
+            "dev",
+            Preferences {
+                email_opt_in: true,
+                daily_opt_in: true,
+                weekly_opt_in: true,
+                weekly_day: 5,
+                timezone: "Europe/Zurich".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(db.queue_digests(now).unwrap(), 2);
+        assert_eq!(db.queue_digests(now).unwrap(), 0);
+        let first = db.claim_digest("a", now).unwrap().unwrap();
+        assert!(db.claim_digest("b", now).unwrap().is_some());
+        assert!(db.claim_digest("c", now).unwrap().is_none());
+        assert!(matches!(
+            db.prepare_digest(&first, now, Some("dev@todoer.invalid"))
+                .unwrap(),
+            Decision::Send(_)
+        ));
+        db.set_notification_preferences("dev", Preferences::default())
+            .unwrap();
+        assert!(matches!(
+            db.prepare_digest(&first, now, Some("dev@todoer.invalid"))
+                .unwrap(),
+            Decision::Cancel
+        ));
+    }
+    #[tokio::test]
+    #[ignore = "run scripts/rebuild-smtp-check.py against its isolated SMTP capture server"]
+    async fn smtp_capture_roundtrip() {
+        let config = Notifications::from_env()
+            .unwrap()
+            .expect("local SMTP test config");
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        db.set_notification_preferences(
+            "dev",
+            Preferences {
+                email_opt_in: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let task = db
+            .capture(
+                "dev",
+                "smtp",
+                crate::core::Capture {
+                    list_id: "inbox".into(),
+                    tasks: vec![crate::core::NewTask {
+                        title: "SMTP <test> & café".into(),
+                        description: String::new(),
+                        parent_id: None,
+                    }],
+                },
+            )
+            .unwrap()
+            .remove(0);
+        let local = (Utc::now() - Duration::minutes(1))
+            .format("%Y-%m-%dT%H:%M:%S")
+            .to_string();
+        db.set_schedule(
+            "dev",
+            &task.id,
+            1,
+            Schedule {
+                reminders: vec![crate::scheduling::Reminder {
+                    channel: Channel::Email,
+                    at: Moment::Timed {
+                        local,
+                        timezone: "UTC".into(),
+                    },
+                }],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let store = Arc::new(Mutex::new(db));
+        let report = worker_tick(&store, &config).await.unwrap();
+        assert_eq!(report.sent, 1);
+        assert_eq!(worker_tick(&store, &config).await.unwrap().sent, 0);
+    }
+    #[test]
+    fn digest_contents_recheck_access_and_list_mutes() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let now = Utc::now().timestamp();
+        let today = Utc::now().date_naive().to_string();
+        for (actor, list, title) in [
+            ("dev", "inbox", "Visible task"),
+            ("dev", "groceries", "Muted secret"),
+            ("other", "private", "Private secret"),
+        ] {
+            let task = db
+                .capture(
+                    actor,
+                    title,
+                    crate::core::Capture {
+                        list_id: list.into(),
+                        tasks: vec![crate::core::NewTask {
+                            title: title.into(),
+                            description: String::new(),
+                            parent_id: None,
+                        }],
+                    },
+                )
+                .unwrap()
+                .remove(0);
+            db.set_schedule(
+                actor,
+                &task.id,
+                1,
+                Schedule {
+                    planned: Some(Moment::Date {
+                        date: today.clone(),
+                    }),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        }
+        db.set_notification_preferences(
+            "dev",
+            Preferences {
+                email_opt_in: true,
+                daily_opt_in: true,
+                daily_time: "00:00".into(),
+                list_opt_out: vec!["groceries".into()],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(db.queue_digests(now).unwrap(), 1);
+        let job = db.claim_digest("worker", now).unwrap().unwrap();
+        let Decision::Send(delivery) = db
+            .prepare_digest(&job, now, Some("dev@todoer.invalid"))
+            .unwrap()
+        else {
+            panic!("digest should be deliverable")
+        };
+        assert!(delivery.body.contains("Visible task"));
+        assert!(!delivery.body.contains("Muted secret"));
+        assert!(!delivery.body.contains("Private secret"));
+        db.conn
+            .execute(
+                "DELETE FROM memberships WHERE list_id='inbox' AND user_id='dev'",
+                [],
+            )
+            .unwrap();
+        let Decision::Send(delivery) = db
+            .prepare_digest(&job, now, Some("dev@todoer.invalid"))
+            .unwrap()
+        else {
+            panic!("empty digest is still deliverable")
+        };
+        assert!(!delivery.body.contains("Visible task"));
+    }
+}
