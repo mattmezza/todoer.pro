@@ -82,6 +82,23 @@ enum Command {
         #[arg(long)]
         destination: String,
     },
+    TrashList,
+    Trash {
+        id: String,
+        #[arg(long)]
+        revision: i64,
+    },
+    Restore {
+        id: String,
+        #[arg(long)]
+        revision: i64,
+    },
+    Undo {
+        seq: i64,
+        #[arg(long)]
+        revision: i64,
+    },
+    Capabilities,
     Changes {
         #[arg(long, default_value_t = 0)]
         after: i64,
@@ -216,6 +233,26 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
                 None,
             )
         }
+        Command::TrashList => (Method::GET, "/trash".into(), None, None),
+        Command::Trash { id, revision } => (
+            Method::POST,
+            format!("/tasks/{}/trash", segment(&id)),
+            Some(json!({"revision": revision})),
+            None,
+        ),
+        Command::Restore { id, revision } => (
+            Method::POST,
+            format!("/tasks/{}/restore", segment(&id)),
+            Some(json!({"revision": revision})),
+            None,
+        ),
+        Command::Undo { seq, revision } => (
+            Method::POST,
+            format!("/history/{seq}/undo"),
+            Some(json!({"revision": revision})),
+            None,
+        ),
+        Command::Capabilities => (Method::GET, "/capabilities".into(), None, None),
         Command::Changes { after } => (Method::GET, format!("/changes?after={after}"), None, None),
     };
     let token =
