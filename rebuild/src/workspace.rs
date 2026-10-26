@@ -156,6 +156,7 @@ fn workspace_raw(c: &Connection, id: &str) -> Result<Workspace, Error> {
 }
 fn workspace_rank(c: &Connection, actor: &str, id: &str) -> Result<i64, Error> {
     workspace_raw(c, id)?;
+    if c.query_row("SELECT EXISTS(SELECT 1 FROM workspace_lifecycle WHERE workspace_id=?1 AND deleted_at IS NOT NULL)",[id],|r|r.get::<_,bool>(0))? {return Err(Error::NotFound);}
     Ok(c.query_row(
         "SELECT rank FROM actor_workspace_access WHERE workspace_id=?1 AND actor_id=?2",
         params![id, actor],
@@ -311,11 +312,60 @@ impl Store {
             .optional()?
             .unwrap_or(0))
     }
+    /// Archive preserves data and access; deleting an archived workspace moves it to
+    /// retained trash and revokes all inherited and direct list access atomically.
+    pub fn change_workspace_lifecycle(
+        &mut self,
+        actor: &str,
+        id: &str,
+        revision: i64,
+        action: &str,
+        confirmation: Option<&str>,
+    ) -> Result<(), Error> {
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
+        require_workspace(&tx, actor, id, 3)?;
+        let old = workspace_raw(&tx, id)?;
+        check_revision(old.revision, revision)?;
+        let archived = tx
+            .query_row(
+                "SELECT archived FROM workspace_lifecycle WHERE workspace_id=?1",
+                [id],
+                |r| r.get::<_, bool>(0),
+            )
+            .optional()?
+            .unwrap_or(false);
+        match action {
+            "archive" | "restore" => {
+                tx.execute("INSERT INTO workspace_lifecycle(workspace_id,archived) VALUES(?1,?2) ON CONFLICT(workspace_id) DO UPDATE SET archived=excluded.archived",params![id,action=="archive"])?;
+            }
+            "delete" => {
+                if !archived {
+                    return Err(Error::Invalid(
+                        "Archive the workspace before deleting it".into(),
+                    ));
+                }
+                if confirmation != Some(old.title.as_str()) {
+                    return Err(Error::Invalid(
+                        "Type the exact workspace name to confirm deletion".into(),
+                    ));
+                }
+                tx.execute("UPDATE workspace_lifecycle SET deleted_at=CURRENT_TIMESTAMP WHERE workspace_id=?1",[id])?;
+            }
+            _ => return Err(Error::Invalid("Unknown workspace action".into())),
+        }
+        tx.execute(
+            "UPDATE workspaces SET revision=revision+1 WHERE id=?1",
+            [id],
+        )?;
+        tx.execute("INSERT INTO workspace_lifecycle_events(workspace_id,actor_id,action,revision) VALUES(?1,?2,?3,?4)",params![id,actor,action,revision+1])?;
+        tx.commit()?;
+        Ok(())
+    }
     pub fn workspace_permission(&self, actor: &str, workspace: &str) -> Result<i64, Error> {
         workspace_rank(&self.conn, actor, workspace)
     }
     pub fn workspaces(&self, actor: &str) -> Result<Vec<Workspace>, Error> {
-        let mut stmt=self.conn.prepare("SELECT w.id,w.title,w.description,w.revision FROM workspaces w JOIN actor_workspace_access m ON m.workspace_id=w.id WHERE m.actor_id=?1 ORDER BY w.title,w.id")?;
+        let mut stmt=self.conn.prepare("SELECT w.id,w.title,w.description,w.revision FROM workspaces w JOIN actor_workspace_access m ON m.workspace_id=w.id WHERE m.actor_id=?1 AND NOT EXISTS(SELECT 1 FROM workspace_lifecycle x WHERE x.workspace_id=w.id AND x.deleted_at IS NOT NULL) ORDER BY w.title,w.id")?;
         Ok(stmt
             .query_map([actor], workspace_row)?
             .collect::<Result<_, _>>()?)
@@ -2308,5 +2358,113 @@ mod section_move_tests {
             section_raw(&db.conn, &section.id).unwrap().list_id,
             source.id
         );
+    }
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+    #[test]
+    fn archived_workspace_delete_requires_owner_revision_and_exact_confirmation_and_revokes_lists()
+    {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let w = db
+            .create_workspace(
+                "dev",
+                WorkspaceInput {
+                    title: "Retained project".into(),
+                    description: "Keep this brief".into(),
+                },
+            )
+            .unwrap();
+        let l = db
+            .create_list(
+                "dev",
+                CreateList {
+                    workspace_id: w.id.clone(),
+                    title: "Private list".into(),
+                    description: String::new(),
+                    restricted: false,
+                },
+            )
+            .unwrap();
+        let revision = db.workspace("dev", &w.id).unwrap().revision;
+        assert!(
+            db.change_workspace_lifecycle("dev", &w.id, revision, "delete", Some(&w.title))
+                .is_err()
+        );
+        assert!(
+            db.change_workspace_lifecycle("other", &w.id, revision, "archive", None)
+                .is_err()
+        );
+        db.change_workspace_lifecycle("dev", &w.id, revision, "archive", None)
+            .unwrap();
+        assert!(db.list_permission("dev", &l.id).is_ok());
+        assert!(
+            db.change_workspace_lifecycle("dev", &w.id, revision, "restore", None)
+                .is_err()
+        );
+        let revision = db.workspace("dev", &w.id).unwrap().revision;
+        db.change_workspace_lifecycle("dev", &w.id, revision, "restore", None)
+            .unwrap();
+        let revision = db.workspace("dev", &w.id).unwrap().revision;
+        db.change_workspace_lifecycle("dev", &w.id, revision, "archive", None)
+            .unwrap();
+        let revision = db.workspace("dev", &w.id).unwrap().revision;
+        assert!(
+            db.change_workspace_lifecycle("dev", &w.id, revision, "delete", Some("wrong"))
+                .is_err()
+        );
+        db.change_workspace_lifecycle("dev", &w.id, revision, "delete", Some(&w.title))
+            .unwrap();
+        assert!(db.workspace("dev", &w.id).is_err());
+        assert_eq!(db.list_permission("dev", &l.id).unwrap(), 0);
+        assert!(!db.workspaces("dev").unwrap().iter().any(|x| x.id == w.id));
+        assert_eq!(
+            db.conn
+                .query_row(
+                    "SELECT description FROM workspaces WHERE id=?1",
+                    [&w.id],
+                    |r| r.get::<_, String>(0)
+                )
+                .unwrap(),
+            "Keep this brief"
+        );
+        assert_eq!(
+            db.conn
+                .query_row("SELECT count(*) FROM lists WHERE id=?1", [l.id], |r| r
+                    .get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+    }
+    #[test]
+    fn native_hex_colors_and_short_references_survive_rename() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let r = db.list_reference("dev", "groceries").unwrap();
+        assert_eq!(r.len(), 7);
+        assert!(db.list_reference("other", "groceries").is_err());
+        let rev = db.list_info("dev", "groceries").unwrap().list.revision;
+        db.set_list_color("dev", "groceries", rev, Some("#1a2B3c".into()))
+            .unwrap();
+        assert_eq!(
+            db.list_color("dev", "groceries").unwrap().as_deref(),
+            Some("#1a2B3c")
+        );
+        let rev = db.list_info("dev", "groceries").unwrap().list.revision;
+        db.update_list(
+            "dev",
+            "groceries",
+            ListChange {
+                revision: rev,
+                title: Some("New groceries".into()),
+                description: None,
+                archived: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(db.list_reference("dev", "groceries").unwrap(), r);
     }
 }
