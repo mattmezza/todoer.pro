@@ -59,3 +59,82 @@ structured multi-entity search, recurrence, statistics and assistance need their
 own representative workloads. No additional performance run was made during the
 runbook correction. The serialized-connection, full-list rendering and unmeasured
 concurrency/memory/persistent-storage limits above remain acceptance work.
+
+## Persistent synthetic HTTP probe, 2026-10-26
+
+The new standard-library Python harness starts its **own** built server on a free
+loopback port with a fresh database. It strips inherited `TODOER_` configuration,
+uses synthetic development authentication, stops the server before inserting the
+fixture, and maintains SQLite's FTS/search triggers. It refuses an existing output
+directory/database. It never reads the legacy or ordinary development databases.
+
+```sh
+cargo build --manifest-path rebuild/Cargo.toml --locked --bin todoer-server
+python3 scripts/rebuild-http-performance.py \
+  --binary target/debug/todoer-server \
+  --output .local/rebuild/http-performance-20261026c --repetitions 7
+```
+
+Choose a new output path when repeating. Omitting `--output` uses a temporary
+directory deleted after completion. A retained run contains only synthetic SQLite
+data, a local server log and `measurements.json`; do not commit these artifacts.
+Fixture insertion bypasses application capture/history intentionally, so this run
+measures reads and a pair of real HTTP updates, not bulk-write/import throughput.
+There are 10,000 tasks and 10,000 comments across 100 readable lists (100 tasks per
+list), an additional 1,000-task stress list, and one unreadable private sentinel.
+Descriptions are 540 UTF-8 bytes; titles vary from approximately 26 to 106
+characters. The first list includes a 50-node binary subtree. Comments contain
+representative repeated synthetic discussion text. No attachment payloads are
+included.
+
+This completed x86_64 Linux **debug** binary run recorded SHA-256
+`31ac58868fccc69f8955f9131850b7ab129be258c0d55c4945a053ed2710d612`.
+Python's fixture connection used SQLite 3.54.0; the HTTP server uses the bundled
+rusqlite build. Each ordinary measurement has seven samples; the subtree traversal
+has its three actual pages. p95 is nearest rank (therefore maximum with seven
+samples), with no machine-time assertions and no artificial warmup excluded.
+The measurements include loopback HTTP, server queueing/authorization/SQL,
+serialization or HTML rendering, and client response-body reads. They exclude
+browser parsing/layout/script execution, TLS, remote latency and asset loading.
+
+| HTTP operation | Samples | Median ms | p95 ms | Response bytes |
+| --- | ---: | ---: | ---: | ---: |
+| Legacy literal task prefix, 100 results | 7 | 66.266 | 88.182 | 77,828 |
+| Structured task/comment prefix, first 100 | 7 | 1,663.480 | 1,748.266 | 13,639 |
+| Structured prefix cursor, next 100 | 7 | 1,750.024 | 1,877.868 | 13,639 |
+| Projected subtree, first 17 | 7 | 14.919 | 17.677 | 3,590 |
+| All 50 subtree nodes, per-page | 3 | 14.958 | 15.960 | 3,032–3,590 |
+| Typical list HTML, 100 tasks | 7 | 153.977 | 177.826 | 225,620 |
+| Stress list HTML, 1,000 tasks | 7 | 1,431.138 | 1,808.933 | 2,047,878 |
+
+The broad prefix `Bench` matches 21,000 authorized task/comment documents. The
+harness verifies the exact authorized total, no repeated IDs across query cursor
+pages, no private sentinel, all 50 unique subtree IDs across pages, and response
+bounds (17 items requested, 256 KiB subtree maximum). These are different search
+implementations/projections: their times should not be treated as a controlled
+comparison of only their indexes. Structured search still computes authorized
+matching totals and does substantial work despite the 100-result response limit.
+At this debug workload its approximately 1.7-second broad search is an explicit
+performance limitation, not evidence that interactive search is fast.
+
+A simultaneous cookie-authenticated human PATCH and development bearer-authenticated
+agent PATCH used the same task revision. The agent received 200 in 22.365 ms and
+the human received 409 in 23.078 ms; exactly one update persisted at revision 2.
+Which writer wins is intentionally unspecified. This verifies the CAS behavior
+under two concurrent local requests, not load capacity, production OAuth session
+behavior or fairness under sustained contention.
+
+The database remained in WAL mode with a WAL file present while running. After
+clean stop/restart the winning title/revision persisted, an HTTP structured search
+found that edited task, SQLite `integrity_check` returned `ok`, and
+`foreign_key_check` returned no violations. The main database was 35,909,632 bytes
+after restart. This is a graceful persistent restart check; it does not simulate
+power loss or verify disaster recovery (the separate Litestream probe does).
+
+The current full-list HTML has no virtualization: 1,000 tasks generated roughly
+2 MB before browser work. Splitting a 10,000-task account across 100 lists is the
+representative case here; rendering all 10,000 in one list is intentionally not
+presented as an acceptable mobile interaction. Browser memory, DOM/layout time,
+release profile and high concurrent load remain separate acceptance measurements.
+These results establish reproducible correctness and practical local limits, not
+production latency or memory SLOs.
