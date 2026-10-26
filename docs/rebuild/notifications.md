@@ -76,3 +76,11 @@ UTF-8 plaintext body and absence of replay after acknowledgement. Plain SMTP is
 allowed only with `TODOER_SMTP_INSECURE_LOCAL=1` and a loopback host. The explicit
 `TODOER_SMTP_TEST_RECIPIENT` adapter additionally requires an `.invalid` recipient;
 it cannot redirect a production SMTP delivery.
+
+Reminder intent identity is `(task, recipient, channel, resolved instant)`. Editing
+priority/planned date or re-saving unchanged reminders reuses that delivery intent
+and its push device ledger. A delivered instant is not sent again on such edits;
+a different reminder instant creates a new intent. Exhausted attempts stay dead
+until an explicit operational retry policy is used. In-flight SMTP acceptance
+still has the documented crash/commit ambiguity; stable Message-ID is assistance,
+not an exactly-once guarantee.

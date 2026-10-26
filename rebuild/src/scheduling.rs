@@ -4,7 +4,7 @@
 use crate::core::{Error, Store, Task, access_rank, event, raw_task, task};
 use chrono::{Datelike, Duration, LocalResult, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
-use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -211,7 +211,17 @@ fn write_schedule(
                 Channel::Email => "email",
                 Channel::Push => "push",
             };
-            c.execute("INSERT OR IGNORE INTO reminder_outbox(id,task_id,schedule_revision,recipient,channel,at,available_at) VALUES(?1,?2,?3,?4,?5,?6,?6)",params![Uuid::new_v4().to_string(),t.id,revision,user,channel,at])?;
+            // Logical delivery identity survives unrelated schedule edits. Reuse
+            // the intent and its device delivery ledger; never replay a delivered
+            // timestamp merely because priority/planned date changed.
+            let existing:Option<(String,String)>=c.query_row("SELECT id,status FROM reminder_outbox WHERE task_id=?1 AND recipient=?2 AND channel=?3 AND at=?4 ORDER BY (status='delivered') DESC,rowid LIMIT 1",params![t.id,user,channel,at],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+            if let Some((id, status)) = existing {
+                if status != "delivered" {
+                    c.execute("UPDATE reminder_outbox SET schedule_revision=?1,status=CASE WHEN attempts>=5 THEN 'dead' ELSE 'pending' END,available_at=?2,lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE id=?3",params![revision,at,id])?;
+                }
+            } else {
+                c.execute("INSERT INTO reminder_outbox(id,task_id,schedule_revision,recipient,channel,at,available_at) VALUES(?1,?2,?3,?4,?5,?6,?6)",params![Uuid::new_v4().to_string(),t.id,revision,user,channel,at])?;
+            }
         }
     }
     Ok(ScheduleState {
@@ -456,9 +466,7 @@ impl Store {
         schedule: Schedule,
     ) -> Result<ScheduleState, Error> {
         validate(&schedule)?;
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let before = checked(&tx, actor, id, 2, Some(revision))?;
         tx.execute(
             "UPDATE tasks SET revision=revision+1 WHERE id=?1",
@@ -478,9 +486,7 @@ impl Store {
         spec: RecurrenceSpec,
     ) -> Result<Series, Error> {
         recurrence_valid(&spec)?;
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let before = checked(&tx, actor, id, 2, Some(revision))?;
         let child: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM tasks WHERE parent_id=?1)",
@@ -549,9 +555,7 @@ impl Store {
         new_state: SeriesState,
         now: i64,
     ) -> Result<Series, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let t = series_task(&tx, id)?;
         access_rank(&tx, actor, &t.list_id, 2)?;
         let series = series_row(&tx, id)?;
@@ -585,9 +589,7 @@ impl Store {
         revision: i64,
         now: i64,
     ) -> Result<Series, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let before = checked(&tx, actor, id, 2, Some(revision))?;
         let series_id:String=tx.query_row("SELECT series_id FROM recurrence_occurrences WHERE task_id=?1 AND status='pending'",[&before.id],|r|r.get(0)).optional()?.ok_or(Error::NotFound)?;
         tx.execute(
@@ -678,17 +680,40 @@ impl Store {
         now: i64,
         limit: i64,
     ) -> Result<Vec<ReminderJob>, Error> {
+        self.claim_reminders_filtered(owner, now, limit, None)
+    }
+    pub fn claim_reminders_channel(
+        &mut self,
+        owner: &str,
+        now: i64,
+        limit: i64,
+        channel: Channel,
+    ) -> Result<Vec<ReminderJob>, Error> {
+        self.claim_reminders_filtered(owner, now, limit, Some(channel))
+    }
+    fn claim_reminders_filtered(
+        &mut self,
+        owner: &str,
+        now: i64,
+        limit: i64,
+        channel: Option<Channel>,
+    ) -> Result<Vec<ReminderJob>, Error> {
+        let channel = channel.map(|channel| {
+            if channel == Channel::Email {
+                "email"
+            } else {
+                "push"
+            }
+        });
         if owner.is_empty() || owner.len() > 200 || !(1..=100).contains(&limit) {
             return Err(invalid("lease owner and limit 1–100 required"));
         }
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         // Crashes consume an attempt. Exhausted abandoned leases become dead letters.
         tx.execute("UPDATE reminder_outbox SET status='dead',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE attempts>=5 AND (status='pending' OR (status='leased' AND lease_until<=?1))",[now])?;
         let ids = {
-            let mut q=tx.prepare("SELECT id FROM reminder_outbox WHERE attempts<5 AND available_at<=?1 AND (status='pending' OR (status='leased' AND lease_until<=?1)) ORDER BY available_at,id LIMIT ?2")?;
-            q.query_map(params![now, limit], |r| r.get::<_, String>(0))?
+            let mut q=tx.prepare("SELECT id FROM reminder_outbox WHERE attempts<5 AND available_at<=?1 AND (?3 IS NULL OR channel=?3) AND (status='pending' OR (status='leased' AND lease_until<=?1)) ORDER BY available_at,id LIMIT ?2")?;
+            q.query_map(params![now, limit, channel], |r| r.get::<_, String>(0))?
                 .collect::<Result<Vec<_>, _>>()?
         };
         let mut jobs = Vec::new();
@@ -721,9 +746,7 @@ impl Store {
         lease_token: &str,
         now: i64,
     ) -> Result<(), Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         if !eligible(&tx, id)? {
             return Err(Error::Conflict(
                 "reminder is stale or recipient access was revoked".into(),
@@ -746,9 +769,7 @@ impl Store {
         now: i64,
         message: &str,
     ) -> Result<(), Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let attempts:i64=tx.query_row("SELECT attempts FROM reminder_outbox WHERE id=?1 AND status='leased' AND lease_owner=?2 AND lease_token=?3 AND lease_until>?4",params![id,owner,lease_token,now],|r|r.get(0)).optional()?.ok_or_else(||Error::Conflict("reminder lease is expired or no longer owned".into()))?;
         let delay = 60 * (1_i64 << attempts.min(6));
         tx.execute("UPDATE reminder_outbox SET status=?1,available_at=?2,lease_owner=NULL,lease_token=NULL,lease_until=NULL,last_error=?3 WHERE id=?4",params![if attempts>=5{"dead"}else{"pending"},now+delay.min(3600),message.chars().take(500).collect::<String>(),id])?;
@@ -808,6 +829,72 @@ mod tests {
     }
     fn unix(value: &str) -> i64 {
         timed(&moment(value)).unwrap()
+    }
+    #[test]
+    fn unrelated_schedule_edits_preserve_delivery_intents_and_do_not_replay_sent() {
+        let mut s = db();
+        let task = new_task(&mut s);
+        let value = schedule();
+        let first = s
+            .set_schedule("dev", &task.id, task.revision, value.clone())
+            .unwrap();
+        let now = unix("2026-03-29T08:00:00");
+        let first_job = s
+            .claim_reminders_channel("smtp", now, 1, Channel::Email)
+            .unwrap()
+            .remove(0);
+        // Simulate a provider-accepted delivery committed in the durable ledger.
+        s.conn.execute("UPDATE reminder_outbox SET status='delivered',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE id=?1",[&first_job.id]).unwrap();
+        let mut changed = value;
+        changed.priority = Some(1);
+        let second = s
+            .set_schedule("dev", &task.id, first.task_revision, changed)
+            .unwrap();
+        assert_eq!(second.task_revision, first.task_revision + 1);
+        assert!(
+            s.claim_reminders_channel("smtp", now, 10, Channel::Email)
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            s.conn
+                .query_row(
+                    "SELECT count(*) FROM reminder_outbox WHERE task_id=?1",
+                    [&task.id],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap(),
+            1
+        );
+    }
+    #[test]
+    fn email_and_push_workers_lease_only_their_own_channel() {
+        let mut s = db();
+        let task = new_task(&mut s);
+        let mut value = schedule();
+        value.reminders.push(Reminder {
+            channel: Channel::Push,
+            at: moment("2026-03-28T08:00:00"),
+        });
+        s.set_schedule("dev", &task.id, task.revision, value)
+            .unwrap();
+        let now = unix("2026-03-29T08:00:00");
+        let email = s
+            .claim_reminders_channel("smtp", now, 100, Channel::Email)
+            .unwrap();
+        assert_eq!(email.len(), 1);
+        assert_eq!(email[0].channel, Channel::Email);
+        let push = s
+            .claim_reminders_channel("push", now, 100, Channel::Push)
+            .unwrap();
+        assert_eq!(push.len(), 1);
+        assert_eq!(push[0].channel, Channel::Push);
+        assert_ne!(email[0].id, push[0].id);
+        assert!(
+            s.claim_reminders_channel("second-smtp", now, 100, Channel::Email)
+                .unwrap()
+                .is_empty()
+        );
     }
     #[test]
     fn schedule_validation_permissions_revision_and_stale_intents() {
