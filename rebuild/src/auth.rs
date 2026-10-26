@@ -370,3 +370,600 @@ mod tests {
         );
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OAuthClient {
+    pub client_id: String,
+    pub client_name: String,
+    pub redirect_uris: Vec<String>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthorizationRequest {
+    pub client_id: String,
+    pub redirect_uri: String,
+    pub resource: String,
+    pub scope: String,
+    pub state: String,
+    pub code_challenge: String,
+    pub code_challenge_method: String,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingAuthorization {
+    pub id: String,
+    pub client_name: String,
+    pub request: AuthorizationRequest,
+    pub expires_at: i64,
+}
+#[derive(Debug, Serialize)]
+pub struct AuthorizationCode {
+    pub code: String,
+    pub redirect_uri: String,
+    pub state: String,
+}
+#[derive(Debug, Serialize)]
+pub struct OAuthTokens {
+    pub access_token: String,
+    pub token_type: String,
+    pub expires_in: i64,
+    pub refresh_token: String,
+    pub scope: String,
+}
+fn parse_json<T: serde::de::DeserializeOwned>(value: &str) -> Result<T, AuthError> {
+    serde_json::from_str(value).map_err(|_| AuthError::Invalid("invalid stored OAuth data".into()))
+}
+fn oauth_permissions(scope: &str) -> Result<Vec<Permission>, AuthError> {
+    let mut out = Vec::new();
+    for word in scope.split_whitespace() {
+        let permission = match word {
+            "tasks:read" => Permission::Read,
+            "tasks:write" => Permission::Write,
+            _ => return Err(AuthError::Invalid("unsupported OAuth scope".into())),
+        };
+        if !out.contains(&permission) {
+            out.push(permission)
+        }
+    }
+    if out.is_empty() {
+        return Err(AuthError::Invalid("OAuth scope is required".into()));
+    }
+    Ok(out)
+}
+fn oauth_scope(permissions: &[Permission]) -> String {
+    permissions
+        .iter()
+        .map(|p| match p {
+            Permission::Read => "tasks:read",
+            Permission::Write => "tasks:write",
+            Permission::Admin => "unsupported",
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+fn redirect_valid(uri: &str) -> bool {
+    let Ok(url) = reqwest::Url::parse(uri) else {
+        return false;
+    };
+    if !url.username().is_empty() || url.password().is_some() || url.fragment().is_some() {
+        return false;
+    }
+    url.host_str().is_some()
+        && (url.scheme() == "https"
+            || (url.scheme() == "http"
+                && url
+                    .host_str()
+                    .is_some_and(|h| matches!(h, "127.0.0.1" | "[::1]" | "::1"))))
+}
+fn canonical_resource(resource: &str, canonical: &str) -> Result<(), AuthError> {
+    if resource != canonical || !redirect_valid(canonical) {
+        return Err(AuthError::Invalid(
+            "resource must exactly match the configured MCP URL".into(),
+        ));
+    }
+    let url = reqwest::Url::parse(canonical)
+        .map_err(|_| AuthError::Invalid("invalid resource".into()))?;
+    if url.query().is_some() {
+        return Err(AuthError::Invalid("resource cannot include a query".into()));
+    }
+    Ok(())
+}
+fn revoke_family(c: &Connection, family: &str) -> Result<(), AuthError> {
+    c.execute(
+        "UPDATE auth_oauth_families SET revoked=1 WHERE id=?1",
+        [family],
+    )?;
+    c.execute("UPDATE auth_agents SET revoked=1 WHERE id IN(SELECT access_id FROM auth_oauth_refresh WHERE family_id=?1)",[family])?;
+    Ok(())
+}
+#[allow(clippy::too_many_arguments)]
+fn mint_oauth(
+    c: &Connection,
+    actor: &str,
+    resource: &str,
+    permissions: &str,
+    lists: Option<&str>,
+    workspace: Option<&str>,
+    family: &str,
+) -> Result<OAuthTokens, AuthError> {
+    let access = secret();
+    let refresh = secret();
+    let id = Uuid::new_v4().to_string();
+    c.execute("INSERT INTO auth_agents(id,user_id,token_hash,audience,permissions,list_ids,workspace,expires_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",params![id,actor,hash(&access),resource,permissions,lists,workspace,now()+900])?;
+    c.execute("INSERT INTO auth_oauth_refresh(token_hash,family_id,access_id,expires_at) VALUES(?1,?2,?3,?4)",params![hash(&refresh),family,id,now()+2_592_000])?;
+    let permissions: Vec<Permission> = parse_json(permissions)?;
+    Ok(OAuthTokens {
+        access_token: access,
+        token_type: "Bearer".into(),
+        expires_in: 900,
+        refresh_token: refresh,
+        scope: oauth_scope(&permissions),
+    })
+}
+impl AuthStore {
+    pub fn register_client(
+        &self,
+        name: &str,
+        redirect_uris: Vec<String>,
+    ) -> Result<OAuthClient, AuthError> {
+        if name.trim().is_empty()
+            || name.len() > 200
+            || redirect_uris.is_empty()
+            || redirect_uris.len() > 10
+            || redirect_uris
+                .iter()
+                .any(|uri| uri.len() > 2048 || !redirect_valid(uri))
+        {
+            return Err(AuthError::Invalid("public clients require a name and exact HTTPS or IP-loopback redirect URIs without fragments".into()));
+        }
+        let client = OAuthClient {
+            client_id: Uuid::new_v4().to_string(),
+            client_name: name.trim().into(),
+            redirect_uris,
+        };
+        self.conn.execute(
+            "INSERT INTO auth_oauth_clients VALUES(?1,?2,?3)",
+            params![
+                client.client_id,
+                client.client_name,
+                serde_json::to_string(&client.redirect_uris).unwrap()
+            ],
+        )?;
+        Ok(client)
+    }
+    pub fn begin_authorization(
+        &self,
+        request: AuthorizationRequest,
+        canonical: &str,
+    ) -> Result<PendingAuthorization, AuthError> {
+        canonical_resource(&request.resource, canonical)?;
+        oauth_permissions(&request.scope)?;
+        if request.code_challenge_method != "S256"
+            || request.code_challenge.len() != 43
+            || !request
+                .code_challenge
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+            || request.state.is_empty()
+            || request.state.len() > 2048
+        {
+            return Err(AuthError::Invalid(
+                "S256 PKCE and a bounded nonempty state are required".into(),
+            ));
+        }
+        let (name, redirects): (String, String) = self
+            .conn
+            .query_row(
+                "SELECT name,redirect_uris FROM auth_oauth_clients WHERE id=?1",
+                [&request.client_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?
+            .ok_or(AuthError::Unauthorized)?;
+        let redirects: Vec<String> = parse_json(&redirects)?;
+        if !redirects.contains(&request.redirect_uri) {
+            return Err(AuthError::Invalid(
+                "redirect URI does not match client registration".into(),
+            ));
+        }
+        let pending = PendingAuthorization {
+            id: secret(),
+            client_name: name,
+            request,
+            expires_at: now() + 300,
+        };
+        self.conn.execute(
+            "INSERT INTO auth_oauth_requests(id,request,expires_at) VALUES(?1,?2,?3)",
+            params![
+                pending.id,
+                serde_json::to_string(&pending.request).unwrap(),
+                pending.expires_at
+            ],
+        )?;
+        Ok(pending)
+    }
+    pub fn authorization_request(&self, id: &str) -> Result<PendingAuthorization, AuthError> {
+        let (encoded,expires):(String,i64)=self.conn.query_row("SELECT request,expires_at FROM auth_oauth_requests WHERE id=?1 AND expires_at>?2 AND approved=0",params![id,now()],|r|Ok((r.get(0)?,r.get(1)?))).optional()?.ok_or(AuthError::Unauthorized)?;
+        let request: AuthorizationRequest = parse_json(&encoded)?;
+        let name = self.conn.query_row(
+            "SELECT name FROM auth_oauth_clients WHERE id=?1",
+            [&request.client_id],
+            |r| r.get(0),
+        )?;
+        Ok(PendingAuthorization {
+            id: id.into(),
+            client_name: name,
+            request,
+            expires_at: expires,
+        })
+    }
+    /// Call only after explicit, CSRF-protected authenticated user approval.
+    pub fn approve_authorization(
+        &mut self,
+        id: &str,
+        actor: &str,
+        permissions: Vec<Permission>,
+        list_ids: Option<Vec<String>>,
+        workspace: Option<String>,
+    ) -> Result<AuthorizationCode, AuthError> {
+        let tx = self
+            .conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let encoded:String=tx.query_row("SELECT request FROM auth_oauth_requests WHERE id=?1 AND expires_at>?2 AND approved=0",params![id,now()],|r|r.get(0)).optional()?.ok_or(AuthError::Unauthorized)?;
+        let request: AuthorizationRequest = parse_json(&encoded)?;
+        let requested = oauth_permissions(&request.scope)?;
+        if permissions.is_empty()
+            || permissions.iter().any(|p| !requested.contains(p))
+            || list_ids.as_ref().is_some_and(|v| v.is_empty())
+        {
+            return Err(AuthError::Invalid(
+                "approval must select requested permissions and nonempty resources".into(),
+            ));
+        }
+        let code = secret();
+        tx.execute("UPDATE auth_oauth_requests SET actor=?1,permissions=?2,list_ids=?3,workspace=?4,code_hash=?5,approved=1,expires_at=?6 WHERE id=?7",params![actor,serde_json::to_string(&permissions).unwrap(),list_ids.map(|v|serde_json::to_string(&v).unwrap()),workspace,hash(&code),now()+120,id])?;
+        tx.commit()?;
+        Ok(AuthorizationCode {
+            code,
+            redirect_uri: request.redirect_uri,
+            state: request.state,
+        })
+    }
+    pub fn exchange_code(
+        &mut self,
+        client_id: &str,
+        redirect_uri: &str,
+        code: &str,
+        verifier: &str,
+        resource: &str,
+        canonical: &str,
+    ) -> Result<OAuthTokens, AuthError> {
+        canonical_resource(resource, canonical)?;
+        if !(43..=128).contains(&verifier.len())
+            || !verifier
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~'))
+        {
+            return Err(AuthError::Unauthorized);
+        }
+        let tx = self
+            .conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let (id,encoded,actor,permissions,lists,workspace,consumed):(String,String,String,String,Option<String>,Option<String>,bool)=tx.query_row("SELECT id,request,actor,permissions,list_ids,workspace,consumed FROM auth_oauth_requests WHERE code_hash=?1 AND approved=1 AND expires_at>?2",params![hash(code),now()],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?))).optional()?.ok_or(AuthError::Unauthorized)?;
+        let request: AuthorizationRequest = parse_json(&encoded)?;
+        let challenge = oauth2::PkceCodeChallenge::from_code_verifier_sha256(
+            &oauth2::PkceCodeVerifier::new(verifier.into()),
+        );
+        if request.client_id != client_id
+            || request.redirect_uri != redirect_uri
+            || request.resource != resource
+            || request.code_challenge != challenge.as_str()
+        {
+            return Err(AuthError::Unauthorized);
+        }
+        if consumed {
+            let family: String = tx.query_row(
+                "SELECT family_id FROM auth_oauth_code_families WHERE request_id=?1",
+                [&id],
+                |r| r.get(0),
+            )?;
+            revoke_family(&tx, &family)?;
+            tx.commit()?;
+            return Err(AuthError::Unauthorized);
+        }
+        tx.execute(
+            "UPDATE auth_oauth_requests SET consumed=1 WHERE id=?1",
+            [&id],
+        )?;
+        let family = Uuid::new_v4().to_string();
+        tx.execute(
+            "INSERT INTO auth_oauth_families(id,client_id) VALUES(?1,?2)",
+            params![family, client_id],
+        )?;
+        tx.execute(
+            "INSERT INTO auth_oauth_code_families(request_id,family_id) VALUES(?1,?2)",
+            params![id, family],
+        )?;
+        let tokens = mint_oauth(
+            &tx,
+            &actor,
+            resource,
+            &permissions,
+            lists.as_deref(),
+            workspace.as_deref(),
+            &family,
+        )?;
+        tx.commit()?;
+        Ok(tokens)
+    }
+    pub fn refresh_oauth(
+        &mut self,
+        client_id: &str,
+        token: &str,
+        resource: &str,
+        canonical: &str,
+    ) -> Result<OAuthTokens, AuthError> {
+        canonical_resource(resource, canonical)?;
+        let tx = self
+            .conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        type RefreshRow = (
+            String,
+            String,
+            bool,
+            bool,
+            i64,
+            String,
+            String,
+            String,
+            Option<String>,
+            Option<String>,
+        );
+        let (family,client,consumed,revoked,expires,actor,audience,permissions,lists,workspace):RefreshRow=tx.query_row("SELECT r.family_id,f.client_id,r.consumed,f.revoked,r.expires_at,a.user_id,a.audience,a.permissions,a.list_ids,a.workspace FROM auth_oauth_refresh r JOIN auth_oauth_families f ON f.id=r.family_id JOIN auth_agents a ON a.id=r.access_id WHERE r.token_hash=?1",[hash(token)],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?,r.get(7)?,r.get(8)?,r.get(9)?))).optional()?.ok_or(AuthError::Unauthorized)?;
+        if client != client_id || audience != resource {
+            return Err(AuthError::Unauthorized);
+        }
+        if consumed {
+            revoke_family(&tx, &family)?;
+            tx.commit()?;
+            return Err(AuthError::Unauthorized);
+        }
+        if revoked || expires <= now() {
+            return Err(AuthError::Unauthorized);
+        }
+        tx.execute(
+            "UPDATE auth_oauth_refresh SET consumed=1 WHERE token_hash=?1",
+            [hash(token)],
+        )?;
+        let result = mint_oauth(
+            &tx,
+            &actor,
+            resource,
+            &permissions,
+            lists.as_deref(),
+            workspace.as_deref(),
+            &family,
+        )?;
+        tx.commit()?;
+        Ok(result)
+    }
+    pub fn revoke_oauth(&mut self, client_id: &str, token: &str) -> Result<(), AuthError> {
+        let tx = self
+            .conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let family:Option<String>=tx.query_row("SELECT f.id FROM auth_oauth_families f JOIN auth_oauth_refresh r ON r.family_id=f.id JOIN auth_agents a ON a.id=r.access_id WHERE f.client_id=?1 AND (r.token_hash=?2 OR a.token_hash=?2)",params![client_id,hash(token)],|r|r.get(0)).optional()?;
+        if let Some(family) = family {
+            revoke_family(&tx, &family)?
+        }
+        tx.commit()?;
+        Ok(())
+    }
+}
+#[cfg(test)]
+mod oauth_tests {
+    use super::*;
+    const RESOURCE: &str = "https://todoer.example/mcp";
+    const VERIFIER: &str = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+    fn setup() -> (AuthStore, OAuthClient) {
+        let s = AuthStore::memory().unwrap();
+        s.conn.execute_batch("CREATE TABLE users(id TEXT PRIMARY KEY,name TEXT NOT NULL);INSERT INTO users VALUES('alice','Alice');").unwrap();
+        let client = s
+            .register_client("Test client", vec!["http://127.0.0.1:1234/callback".into()])
+            .unwrap();
+        (s, client)
+    }
+    fn request(c: &OAuthClient) -> AuthorizationRequest {
+        AuthorizationRequest {
+            client_id: c.client_id.clone(),
+            redirect_uri: c.redirect_uris[0].clone(),
+            resource: RESOURCE.into(),
+            scope: "tasks:read tasks:write".into(),
+            state: "client-state".into(),
+            code_challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM".into(),
+            code_challenge_method: "S256".into(),
+        }
+    }
+    fn code(s: &mut AuthStore, c: &OAuthClient) -> AuthorizationCode {
+        let pending = s.begin_authorization(request(c), RESOURCE).unwrap();
+        s.approve_authorization(
+            &pending.id,
+            "alice",
+            vec![Permission::Read],
+            Some(vec!["inbox".into()]),
+            None,
+        )
+        .unwrap()
+    }
+    #[test]
+    fn public_client_validation_and_explicit_approval() {
+        let (mut s, c) = setup();
+        for redirect in [
+            "http://evil.example/cb",
+            "https://ok.example/cb#bad",
+            "https://user@ok.example/cb",
+            "javascript:alert(1)",
+        ] {
+            assert!(s.register_client("bad", vec![redirect.into()]).is_err());
+        }
+        let mut r = request(&c);
+        r.code_challenge_method = "plain".into();
+        assert!(s.begin_authorization(r, RESOURCE).is_err());
+        let mut r = request(&c);
+        r.resource = "https://attacker.example/mcp".into();
+        assert!(s.begin_authorization(r, RESOURCE).is_err());
+        let pending = s.begin_authorization(request(&c), RESOURCE).unwrap();
+        assert_eq!(
+            s.authorization_request(&pending.id).unwrap().request.state,
+            "client-state"
+        );
+        assert!(
+            s.exchange_code(
+                &c.client_id,
+                &c.redirect_uris[0],
+                &pending.id,
+                VERIFIER,
+                RESOURCE,
+                RESOURCE
+            )
+            .is_err()
+        );
+        assert!(
+            s.approve_authorization(&pending.id, "alice", vec![Permission::Admin], None, None)
+                .is_err()
+        );
+    }
+    #[test]
+    fn pkce_codes_bind_client_redirect_resource_and_are_single_use() {
+        let (mut s, c) = setup();
+        let grant = code(&mut s, &c);
+        assert_eq!(grant.state, "client-state");
+        assert!(
+            s.exchange_code(
+                "wrong",
+                &c.redirect_uris[0],
+                &grant.code,
+                VERIFIER,
+                RESOURCE,
+                RESOURCE
+            )
+            .is_err()
+        );
+        assert!(
+            s.exchange_code(
+                &c.client_id,
+                "https://evil.example/cb",
+                &grant.code,
+                VERIFIER,
+                RESOURCE,
+                RESOURCE
+            )
+            .is_err()
+        );
+        assert!(
+            s.exchange_code(
+                &c.client_id,
+                &c.redirect_uris[0],
+                &grant.code,
+                &"a".repeat(43),
+                RESOURCE,
+                RESOURCE
+            )
+            .is_err()
+        );
+        let tokens = s
+            .exchange_code(
+                &c.client_id,
+                &c.redirect_uris[0],
+                &grant.code,
+                VERIFIER,
+                RESOURCE,
+                RESOURCE,
+            )
+            .unwrap();
+
+        let principal = s
+            .authenticate_agent(&tokens.access_token, RESOURCE, Permission::Read, None, None)
+            .unwrap();
+        assert_eq!(principal.list_ids, Some(vec!["inbox".into()]));
+        assert!(
+            s.authenticate_agent(
+                &tokens.access_token,
+                RESOURCE,
+                Permission::Write,
+                None,
+                None
+            )
+            .is_err()
+        );
+        assert!(
+            s.authenticate_agent(
+                &tokens.access_token,
+                "https://other.example/mcp",
+                Permission::Read,
+                None,
+                None
+            )
+            .is_err()
+        );
+        assert!(
+            s.exchange_code(
+                &c.client_id,
+                &c.redirect_uris[0],
+                &grant.code,
+                VERIFIER,
+                RESOURCE,
+                RESOURCE
+            )
+            .is_err()
+        );
+        assert!(
+            s.authenticate_agent(&tokens.access_token, RESOURCE, Permission::Read, None, None)
+                .is_err()
+        );
+    }
+    #[test]
+    fn refresh_rotation_detects_reuse_and_revokes_the_family() {
+        let (mut s, c) = setup();
+        let grant = code(&mut s, &c);
+        let first = s
+            .exchange_code(
+                &c.client_id,
+                &c.redirect_uris[0],
+                &grant.code,
+                VERIFIER,
+                RESOURCE,
+                RESOURCE,
+            )
+            .unwrap();
+        let second = s
+            .refresh_oauth(&c.client_id, &first.refresh_token, RESOURCE, RESOURCE)
+            .unwrap();
+        assert_ne!(first.refresh_token, second.refresh_token);
+        assert!(
+            s.refresh_oauth(&c.client_id, &first.refresh_token, RESOURCE, RESOURCE)
+                .is_err()
+        );
+        assert!(
+            s.authenticate_agent(&second.access_token, RESOURCE, Permission::Read, None, None)
+                .is_err()
+        );
+        assert!(
+            s.refresh_oauth(&c.client_id, &second.refresh_token, RESOURCE, RESOURCE)
+                .is_err()
+        );
+        let grant = code(&mut s, &c);
+        let tokens = s
+            .exchange_code(
+                &c.client_id,
+                &c.redirect_uris[0],
+                &grant.code,
+                VERIFIER,
+                RESOURCE,
+                RESOURCE,
+            )
+            .unwrap();
+        s.revoke_oauth(&c.client_id, &tokens.access_token).unwrap();
+        assert!(
+            s.refresh_oauth(&c.client_id, &tokens.refresh_token, RESOURCE, RESOURCE)
+                .is_err()
+        );
+    }
+}
