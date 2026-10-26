@@ -519,7 +519,15 @@ impl AuthStore {
             client_name: name.trim().into(),
             redirect_uris,
         };
-        self.conn.execute(
+        let tx = self.conn.unchecked_transaction()?;
+        let count: i64 =
+            tx.query_row("SELECT COUNT(*) FROM auth_oauth_clients", [], |r| r.get(0))?;
+        if count >= 1000 {
+            return Err(AuthError::Invalid(
+                "client registration capacity reached".into(),
+            ));
+        }
+        tx.execute(
             "INSERT INTO auth_oauth_clients VALUES(?1,?2,?3)",
             params![
                 client.client_id,
@@ -527,6 +535,7 @@ impl AuthStore {
                 serde_json::to_string(&client.redirect_uris).unwrap()
             ],
         )?;
+        tx.commit()?;
         Ok(client)
     }
     pub fn begin_authorization(
@@ -594,6 +603,13 @@ impl AuthStore {
             request,
             expires_at: expires,
         })
+    }
+    pub fn deny_authorization(&self, id: &str) -> Result<(), AuthError> {
+        let changed=self.conn.execute("UPDATE auth_oauth_requests SET approved=-1,consumed=1 WHERE id=?1 AND approved=0 AND consumed=0 AND expires_at>?2",params![id,now()])?;
+        if changed != 1 {
+            return Err(AuthError::Unauthorized);
+        }
+        Ok(())
     }
     /// Call only after explicit, CSRF-protected authenticated user approval.
     pub fn approve_authorization(
@@ -965,5 +981,25 @@ mod oauth_tests {
             s.refresh_oauth(&c.client_id, &tokens.refresh_token, RESOURCE, RESOURCE)
                 .is_err()
         );
+    }
+    #[test]
+    fn denial_and_approval_are_terminal() {
+        let (mut s, c) = setup();
+        let p = s.begin_authorization(request(&c), RESOURCE).unwrap();
+        s.deny_authorization(&p.id).unwrap();
+        assert!(s.authorization_request(&p.id).is_err());
+        assert!(
+            s.approve_authorization(&p.id, "alice", vec![Permission::Read], None, None)
+                .is_err()
+        );
+        assert!(s.deny_authorization(&p.id).is_err());
+        let p = s.begin_authorization(request(&c), RESOURCE).unwrap();
+        s.approve_authorization(&p.id, "alice", vec![Permission::Read], None, None)
+            .unwrap();
+        assert!(
+            s.approve_authorization(&p.id, "alice", vec![Permission::Read], None, None)
+                .is_err()
+        );
+        assert!(s.deny_authorization(&p.id).is_err());
     }
 }
