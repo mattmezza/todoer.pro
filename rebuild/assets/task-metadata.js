@@ -26,7 +26,9 @@ export function mountTaskMetadata({
     draft = read();
   let sequence = 0,
     suggestionSequence = 0,
-    timer;
+    timer,
+    parentTimer,
+    parentSequence = 0;
   const requests = new Set();
   const root = node('section', { class: 'checklist', 'data-task-metadata': '' });
   const details = node('details');
@@ -44,9 +46,26 @@ export function mountTaskMetadata({
   const tagSuggestions = node('div', { 'data-tag-suggestions': '' });
   const section = node('select', { name: 'section_id' });
   const parent = field('text', 'parent_id', {
-    placeholder: 'Parent task UUID, or blank for a root task',
+    placeholder: 'Exact task ID (advanced)',
     autocomplete: 'off',
   });
+  const parentSearch = field('search', 'parent_search', {
+    placeholder: 'Search task titles in this list',
+    autocomplete: 'off',
+  });
+  const parentChoices = node('div', {
+    class: 'grid gap-3',
+    'data-parent-choices': '',
+    'aria-live': 'polite',
+  });
+  const parentSelection = node('p', { class: 'muted', 'data-parent-selection': '' });
+  const topLevel = button('Top-level task');
+  const findParent = button('Find parent tasks');
+  const advancedParent = node('details');
+  advancedParent.append(
+    node('summary', { class: 'nav-link' }, 'Advanced: exact task ID'),
+    label('Parent task ID', parent),
+  );
   const tagsForm = node('form', { class: 'grid gap-3', 'data-tags-form': '' });
   const sectionForm = node('form', { class: 'grid gap-3 mt-8', 'data-section-form': '' });
   const parentForm = node('form', { class: 'grid gap-3 mt-8', 'data-parent-form': '' });
@@ -100,18 +119,41 @@ export function mountTaskMetadata({
     saveSection,
   );
   parentForm.append(
-    label('Parent task UUID', parent),
+    label('Find a parent task', parentSearch),
+    findParent,
+    topLevel,
+    parentSelection,
+    parentChoices,
     node(
       'p',
       { class: 'muted' },
-      'Use an exact task UUID in this list. Blank makes this task a root. The server rejects cycles and inaccessible parents.',
+      'Choose a task in this list, or make this a top-level task. The server checks cycles and current access when saving.',
     ),
+    advancedParent,
     saveParent,
   );
+  topLevel.addEventListener('click', () => chooseParent('', 'Top-level task'));
+  findParent.addEventListener('click', findParents);
+  parentSearch.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      findParents();
+    }
+  });
+  parentSearch.addEventListener('input', () => {
+    clearTimeout(parentTimer);
+    parentSequence++;
+    parentTimer = setTimeout(findParents, 250);
+  });
+  parent.addEventListener('input', () => {
+    parentSelection.textContent = parent.value
+      ? 'Advanced parent selection (not yet verified)'
+      : 'Top-level task';
+  });
   referenceForm.append(
     node('h3', {}, 'Find a reference'),
     label('Reference lookup', referenceQuery),
-    button('Find references', 'submit'),
+    button('Find references', 'submit', false),
     referenceChoices,
     selectedReference,
     node(
@@ -119,6 +161,18 @@ export function mountTaskMetadata({
       { class: 'muted' },
       'Select a result to copy its stable reference into the description. Save the description before resolving ambiguous names below.',
     ),
+  );
+  const referenceDetails = node('details', {
+    class: 'mt-8',
+    'data-reference-details': '',
+  });
+  referenceDetails.append(
+    node('summary', { class: 'nav-link' }, 'References and backlinks'),
+    referenceForm,
+    node('h3', {}, 'Unresolved references in saved description'),
+    unresolved,
+    node('h3', {}, 'Backlinks'),
+    backlinks,
   );
   details.append(
     node('summary', { class: 'nav-link' }, 'Tags, structure and references'),
@@ -129,11 +183,7 @@ export function mountTaskMetadata({
     sectionForm,
     parentForm,
     reload,
-    referenceForm,
-    node('h3', {}, 'Unresolved references in saved description'),
-    unresolved,
-    node('h3', {}, 'Backlinks'),
-    backlinks,
+    referenceDetails,
   );
   root.append(details);
   container.replaceChildren(root);
@@ -232,8 +282,15 @@ export function mountTaskMetadata({
   function field(type, name, attrs = {}) {
     return node('input', { type, name, class: 'min-h-11', ...attrs });
   }
-  function button(text, type = 'button') {
-    return node('button', { type, class: 'primary' }, text);
+  function button(text, type = 'button', primary = type === 'submit') {
+    return node(
+      'button',
+      {
+        type,
+        class: primary ? 'primary' : 'nav-link min-h-11 text-left',
+      },
+      text,
+    );
   }
   function label(text, input) {
     const n = node('label');
@@ -265,6 +322,7 @@ export function mountTaskMetadata({
       newTags: tags.value,
       sectionId: section.value || null,
       parentId: parent.value,
+      parentLabel: parentSelection.textContent,
     };
     try {
       sessionStorage.setItem(key, JSON.stringify(draft));
@@ -375,6 +433,8 @@ export function mountTaskMetadata({
           'Metadata draft restored with its original revision. Live changes will not replace it.',
         );
       }
+      await showParent();
+      if (!active || version !== sequence) return;
       renderTags();
       renderUnresolved(references);
       renderBacklinks(links);
@@ -466,6 +526,7 @@ export function mountTaskMetadata({
           newTags: tags.value,
           sectionId: section.value || null,
           parentId: parent.value,
+          parentLabel: parentSelection.textContent,
         };
         try {
           sessionStorage.setItem(key, JSON.stringify(draft));
@@ -554,6 +615,85 @@ export function mountTaskMetadata({
       else backlinks.append(node('p', {}, `Comment ${item.source_id}`));
     }
   }
+  function chooseParent(id, title) {
+    if (busy || !canWrite) return;
+    parent.value = id;
+    parentSelection.textContent = title;
+    parentChoices.replaceChildren();
+    parentSearch.value = '';
+    parentSequence++;
+    changed();
+  }
+  async function showParent() {
+    if (!parent.value) {
+      parentSelection.textContent = 'Top-level task';
+      return;
+    }
+    if (draft?.parentLabel) {
+      parentSelection.textContent = draft.parentLabel;
+      return;
+    }
+    const id = parent.value;
+    parentSelection.textContent = 'Loading selected parent…';
+    try {
+      const items = await request(
+        `/references/autocomplete?query=${encodeURIComponent('%' + id)}&limit=1`,
+      );
+      if (!active || parent.value !== id) return;
+      parentSelection.textContent =
+        items.find((t) => t.id === id)?.label || 'Selected parent unavailable';
+    } catch {
+      if (active && parent.value === id)
+        parentSelection.textContent =
+          'Selected parent unavailable. Choose another parent or top-level.';
+    }
+  }
+  async function findParents() {
+    if (!active || !task || busy || !canWrite) return;
+    clearTimeout(parentTimer);
+    const version = ++parentSequence;
+    try {
+      const result = await request('/query', 'POST', {
+        text: parentSearch.value.trim(),
+        list_id: task.list_id,
+        entities: ['task'],
+        status: 'all',
+        limit: 20,
+        fields: ['title', 'context'],
+      });
+      if (!active || version !== parentSequence) return;
+      parentChoices.replaceChildren();
+      for (const hit of result.hits.filter((t) => t.id !== taskId)) {
+        const context = (hit.context || [])
+          .filter((c) => c.id !== hit.id)
+          .map((c) => c.title)
+          .join(' / ');
+        const choose = button(
+          `${hit.title || 'Untitled task'}${context ? ' · ' + context : ''}`,
+        );
+        choose.dataset.parentChoice = hit.id;
+        choose.addEventListener('click', () =>
+          chooseParent(hit.id, hit.title || 'Untitled task'),
+        );
+        parentChoices.append(choose);
+      }
+      if (!parentChoices.children.length)
+        parentChoices.append(
+          node('p', { class: 'muted' }, 'No matching parent tasks in this list.'),
+        );
+      if (result.next_cursor)
+        parentChoices.append(
+          node(
+            'p',
+            { class: 'muted' },
+            'Showing the first matches. Refine the title search to find another task.',
+          ),
+        );
+    } catch (e) {
+      if (active && version === parentSequence)
+        say(`Parent search unavailable: ${e.message}`);
+    }
+  }
   async function findTags() {
     if (!active || !task || busy || !canWrite) return;
     const value = tags.value.trim().split(/\s+/).at(-1)?.replace(/^\+/, '') || '';
@@ -625,6 +765,8 @@ export function mountTaskMetadata({
     active = false;
     sequence++;
     clearTimeout(timer);
+    clearTimeout(parentTimer);
+    parentSequence++;
     for (const c of requests) c.abort();
     requests.clear();
   };
