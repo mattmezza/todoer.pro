@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head><meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false}'><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="color-scheme" content="dark light"><meta name="account-id" content="dev"><link rel="manifest" href="/assets/manifest.webmanifest"><link rel="apple-touch-icon" href="/legacy-assets/icon512_rounded.png"><meta name="theme-color" content="#030712"><meta name="csrf-token" content="{{ csrf }}"><title>#{{ list.title }} · Todoer</title><link rel="icon" href="/legacy-assets/favicon.png"><link rel="stylesheet" href="/assets/app.css"><script src="/assets/htmx.min.js" defer></script><script type="module" src="/assets/app.js"></script></head>
-<body data-list="{{ list.id }}">
+<body data-ready="false" data-list="{{ list.id }}">
 <a class="skip" href="#main">Skip to tasks</a>
 <header class="mobile-header"><a href="/" class="brand">todoer<span>.pro</span></a><button aria-label="Toggle navigation" id="nav-toggle" aria-expanded="false">☰</button></header>
 <aside id="navigation" aria-label="Main navigation">
@@ -18,7 +18,7 @@
 {% if !list.description.is_empty() %}<p class="list-description">{{ list.description }}</p>{% endif %}
 <div class="list-toolbar"><span>Tasks <span id="task-count">{{ tasks.len() }}</span></span><label class="completed-filter"><input id="show-completed" type="checkbox" checked> Show completed</label></div>
 <div id="task-list" hx-get="/fragments/lists/{{ list.id }}/tasks" hx-trigger="tasks-refresh" hx-swap="innerHTML" aria-label="Tasks">{% include "tasks.html" %}</div>
-<form id="capture-form" class="add-row"><span aria-hidden="true">+</span><label class="sr-only" for="capture-title">New task title</label><input id="capture-title" name="title" placeholder="Add a task…" required maxlength="500" autocomplete="off"><button type="submit">Add <span aria-hidden="true">↵</span></button></form>
+<form id="capture-form" class="add-row" action="/capture" method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="list_id" value="{{ list.id }}"><input type="hidden" name="key" value="{{ capture_key }}"><span aria-hidden="true">+</span><label class="sr-only" for="capture-title">New task title</label><input id="capture-title" name="title" placeholder="Add a task…" required maxlength="500" autocomplete="off"><button type="submit">Add <span aria-hidden="true">↵</span></button></form>
 <p class="capture-hint">Small steps count. <kbd>N</kbd> to add · click a title to edit</p>
 <div id="pending-captures" aria-live="polite"></div><button id="retry-captures" hidden>Sync pending captures</button><button id="apply-update" hidden>Update ready</button><div id="notice" role="status" aria-live="polite"></div>
 <div id="refresh-notice" hidden>New changes are available. Your draft is safe. <button id="refresh-now">Refresh tasks</button></div>

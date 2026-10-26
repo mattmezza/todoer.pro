@@ -56,3 +56,12 @@ rust-check: rust-assets ## format, lint, tests and debug build
 	cargo clippy --locked --all-targets -- -D warnings
 	cargo test --locked
 	cargo build --locked
+
+.PHONY: rust-integration rust-backup rust-restore
+rust-integration: ## real CLI and official MCP SDK checks against an isolated running server
+	python3 scripts/rebuild-cli-check.py
+	uv run --no-project scripts/rebuild-mcp-check.py
+rust-backup: ## verified new local backup; pass source=... destination=... (never overwrites)
+	python3 scripts/rebuild-backup.py backup "$(source)" "$(destination)"
+rust-restore: ## restore and verify into a new path; pass source=... destination=...
+	python3 scripts/rebuild-backup.py restore "$(source)" "$(destination)"

@@ -37,4 +37,12 @@ Trash, restore, and undo accept `{"revision":CURRENT_REVISION}`. Restore the ori
 
 History events contain `seq`, `kind`, `actor`, and a `task` snapshot. Visibility depends on membership both in the event's list and the task's current list. The feed is a bounded synchronization mechanism for accessible work, not an unrestricted audit export.
 
-Domain errors use `{"error":{"code":"conflict","message":"stale revision"}}`. Common statuses are 400 for invalid domain input, 401 for missing authentication, 403 for denied access or CSRF, 404 for missing resources, 409 for stale revisions or domain conflicts, and 500 for internal errors. Axum can reject malformed JSON, query strings, content types, or oversized bodies before the domain handler; those rejection bodies do not follow the JSON error envelope. Preserve the status code when handling such failures.
+Domain errors use `{"error":{"code":"conflict","message":"stale revision"}}`. Common statuses are 400 for invalid domain input, 401 for missing authentication, 403 for denied access or CSRF, 404 for missing resources, 409 for stale revisions or domain conflicts, and 500 for internal errors. JSON extraction failures use the same error envelope with code `invalid`. Malformed query strings, path parameters or browser form extraction may use plain Axum errors; preserve their status code.
+
+
+JSON write bodies reject unknown fields, including unsupported scheduling fields,
+with a structured `invalid` error (422). Malformed JSON/content-type failures
+also use the error envelope. Malformed URL query/path/form extraction may still
+use Axum's plain error responses. The browser quick-add form has an authenticated,
+CSRF-checked native POST fallback so capturing during script startup cannot
+silently turn into an unhandled GET navigation.

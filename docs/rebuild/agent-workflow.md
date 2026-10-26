@@ -2,9 +2,9 @@
 
 The Rust rebuild provides the `todoer` CLI as a REST client. Run it from the repository with `cargo run --manifest-path rebuild/Cargo.toml --bin todoer -- ...` or install/build the binary and use the examples below.
 
-Set `TODOER_TOKEN` to your server-issued bearer credential. `TODOER_URL` defaults to `http://127.0.0.1:8092`; `--url` overrides it. Keep tokens out of shell history and source control. The CLI does not print the token.
+Set `TODOER_TOKEN` to your configured Todoer bearer credential. `TODOER_URL` defaults to `http://127.0.0.1:8092`; `--url` overrides it. Keep tokens out of shell history and source control. The CLI does not print the token.
 
-The current server token adapter is development-only. It is not a production authentication or self-hosting authentication solution. Remote MCP has not yet been delivered; the workflow described here uses REST directly.
+The current server token adapter is development-only. It is not a production authentication or self-hosting authentication solution. Development MCP is available at `/mcp`; production OAuth discovery is unfinished. The CLI examples use REST directly.
 
 ```sh
 todoer list
@@ -38,4 +38,12 @@ The CLI calls `/api/v1/search`, `/api/v1/lists`, `/api/v1/lists/{id}/tasks`, `/a
 
 The official Python MCP SDK check is available as `uv run --no-project scripts/rebuild-mcp-check.py`. It pins `mcp==2.3.0` with inline script metadata, leaving project dependencies unchanged. Set `TODOER_TOKEN` and optionally `TODOER_MCP_URL` (default `http://127.0.0.1:8092/mcp`) before running it against the development server. The check initializes a real HTTP MCP session, lists the tools, resolves the inbox, retries an identical capture, and reads the resulting subtree. Each run creates one synthetic inbox task with a fresh idempotency key.
 
-Verified against the local synthetic development server: initialization, all eight tool registrations, destination resolution, identical capture retry, and subtree read passed. SDK 2.3.0 currently logs `Session termination failed: 202` when this rmcp transport acknowledges session cleanup; the request assertions complete and the check exits successfully.
+Verified against the local synthetic development server: initialization, all twelve tool registrations, destination resolution, identical capture retry, subtree read, edit, guarded undo, trash and restore passed. SDK 2.3.0 currently logs `Session termination failed: 202` when this rmcp transport acknowledges session cleanup; the request assertions complete and the check exits successfully.
+
+
+Implemented recovery commands: `todoer trash-list`, `todoer trash TASK_ID --revision N`,
+`todoer restore TASK_ID --revision N`, `todoer undo CHANGE_SEQ --revision N`, and
+`todoer capabilities`. `make rust-integration` exercises the Rust CLI over real
+HTTP and the official Python MCP client against an isolated running server. It
+creates synthetic tasks; never run verification scripts against a personal or
+production account.

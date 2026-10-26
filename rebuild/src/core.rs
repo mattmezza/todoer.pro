@@ -35,11 +35,13 @@ pub struct Task {
     pub position: i64,
 }
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Capture {
     pub list_id: String,
     pub tasks: Vec<NewTask>,
 }
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NewTask {
     pub title: String,
     #[serde(default)]
@@ -48,6 +50,7 @@ pub struct NewTask {
     pub description: String,
 }
 #[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Change {
     pub revision: i64,
     pub title: Option<String>,

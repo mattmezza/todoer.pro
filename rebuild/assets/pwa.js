@@ -36,6 +36,6 @@ export async function clearPwa(scope) {
   // Delete directly too; a worker may be stopped or an update may be waiting.
   if ('caches' in window) {
     await caches.delete(`todoer-page-${scope}`);
-    await caches.delete('todoer-account-v1');
+    await caches.delete('todoer-offline-meta-v1');
   }
 }
