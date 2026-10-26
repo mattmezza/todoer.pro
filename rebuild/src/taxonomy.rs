@@ -102,7 +102,7 @@ fn cas_task(c: &Connection, old: &Task, revision: i64) -> Result<(), Error> {
 }
 pub(crate) fn location(c: &Connection, id: &str) -> Result<Option<String>, Error> {
     Ok(c.query_row(
-        "WITH RECURSIVE ancestors(id,parent_id,depth) AS (SELECT id,parent_id,0 FROM tasks WHERE id=?1 UNION ALL SELECT t.id,t.parent_id,a.depth+1 FROM tasks t JOIN ancestors a ON t.id=a.parent_id) SELECT l.section_id FROM ancestors a JOIN task_locations l ON l.task_id=a.id ORDER BY a.depth LIMIT 1",
+        "WITH RECURSIVE ancestors(id,parent_id,depth) AS (SELECT id,parent_id,0 FROM tasks WHERE id=?1 UNION ALL SELECT t.id,t.parent_id,a.depth+1 FROM tasks t JOIN ancestors a ON t.id=a.parent_id) SELECT l.section_id FROM ancestors a JOIN task_locations l ON l.task_id=a.id WHERE NOT EXISTS(SELECT 1 FROM list_defaults d WHERE d.section_id=l.section_id) ORDER BY a.depth LIMIT 1",
         [id],
         |r| r.get(0),
     )
@@ -114,6 +114,7 @@ fn assign_location(c: &Connection, ids: &[String], section: Option<&str>) -> Res
             c.execute("INSERT INTO task_locations(task_id,section_id) VALUES(?1,?2) ON CONFLICT(task_id) DO UPDATE SET section_id=excluded.section_id",params![id,section])?;
         } else {
             c.execute("DELETE FROM task_locations WHERE task_id=?1", [id])?;
+            c.execute("INSERT INTO task_locations(task_id,section_id) SELECT t.id,d.section_id FROM tasks t JOIN list_defaults d ON d.list_id=t.list_id WHERE t.id=?1 AND t.parent_id IS NULL",[id])?;
         }
     }
     Ok(())

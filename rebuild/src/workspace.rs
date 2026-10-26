@@ -4,6 +4,7 @@ use crate::core::{Error, List, Store};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+#[cfg(test)]
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -382,7 +383,7 @@ impl Store {
         validate(&input.title, &input.description)?;
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let owner = crate::core::actor_user(&tx, actor, 3)?;
-        let id = Uuid::new_v4().to_string();
+        let id = crate::defaults::entity_id(&tx, "workspaces", "s")?;
         tx.execute(
             "INSERT INTO workspaces(id,title,description) VALUES(?1,?2,?3)",
             params![id, input.title.trim(), input.description],
@@ -392,6 +393,8 @@ impl Store {
             params![id, owner],
         )?;
         crate::slugs::workspace(&tx, &id)?;
+        crate::defaults::workspace(&tx, &id)?;
+        crate::defaults::public_id(&tx, "workspace", &id)?;
         let result = workspace_raw(&tx, &id)?;
         tx.commit()?;
         Ok(result)
@@ -508,10 +511,12 @@ impl Store {
             &input.workspace_id,
             if input.restricted { 3 } else { 2 },
         )?;
-        let id = Uuid::new_v4().to_string();
+        let id = crate::defaults::entity_id(&tx, "lists", "l")?;
         tx.execute("INSERT INTO lists(id,title,description,workspace_id,restricted,position) VALUES(?1,?2,?3,?4,?5,(SELECT COALESCE(MAX(position),-1)+1 FROM lists WHERE workspace_id=?4))",params![id,input.title.trim(),input.description,input.workspace_id,input.restricted])?;
         bump_workspace(&tx, &input.workspace_id)?;
         crate::slugs::list(&tx, &id)?;
+        crate::defaults::list(&tx, &id)?;
+        crate::defaults::public_id(&tx, "list", &id)?;
         let result = list_raw(&tx, &id)?;
         tx.commit()?;
         Ok(result)
@@ -634,7 +639,7 @@ impl Store {
     }
     pub fn sections(&self, actor: &str, list: &str) -> Result<Vec<Section>, Error> {
         require_list(&self.conn, actor, list, 1)?;
-        let mut stmt=self.conn.prepare("SELECT id,list_id,title,description,position,revision FROM sections WHERE list_id=?1 ORDER BY position,id")?;
+        let mut stmt=self.conn.prepare("SELECT id,list_id,title,description,position,revision FROM sections WHERE list_id=?1 AND NOT EXISTS(SELECT 1 FROM list_defaults d WHERE d.section_id=sections.id) ORDER BY position,id")?;
         Ok(stmt
             .query_map([list], section_row)?
             .collect::<Result<_, _>>()?)
@@ -648,10 +653,11 @@ impl Store {
         validate(&input.title, &input.description)?;
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         require_list(&tx, actor, list, 2)?;
-        let id = Uuid::new_v4().to_string();
+        let id = crate::defaults::entity_id(&tx, "sections", "c")?;
         tx.execute("INSERT INTO sections(id,list_id,title,description,position) VALUES(?1,?2,?3,?4,(SELECT COALESCE(MAX(position),-1)+1 FROM sections WHERE list_id=?2))",params![id,list,input.title.trim(),input.description])?;
         bump_list(&tx, list)?;
         crate::slugs::section(&tx, &id)?;
+        crate::defaults::public_id(&tx, "section", &id)?;
         let result = section_raw(&tx, &id)?;
         tx.commit()?;
         Ok(result)
@@ -715,7 +721,7 @@ impl Store {
         require_list(&tx, actor, list, 2)?;
         check_revision(list_raw(&tx, list)?.revision, revision)?;
         let current = {
-            let mut stmt = tx.prepare("SELECT id FROM sections WHERE list_id=?1")?;
+            let mut stmt = tx.prepare("SELECT id FROM sections WHERE list_id=?1 AND NOT EXISTS(SELECT 1 FROM list_defaults d WHERE d.section_id=sections.id)")?;
             stmt.query_map([list], |r| r.get(0))?
                 .collect::<Result<Vec<String>, _>>()?
         };
@@ -961,6 +967,11 @@ impl Store {
                 .collect::<Result<Vec<_>, _>>()?
         };
         tx.execute("UPDATE lists SET workspace_id=?2,position=(SELECT COALESCE(MAX(position),-1)+1 FROM lists WHERE workspace_id=?2),revision=revision+1 WHERE id=?1",params![list,input.destination_workspace_id])?;
+        tx.execute(
+            "DELETE FROM workspace_defaults WHERE workspace_id=?1 AND list_id=?2",
+            params![preview.source_workspace_id, list],
+        )?;
+        crate::defaults::workspace(&tx, &preview.source_workspace_id)?;
         crate::slugs::list(&tx, list)?;
         crate::taxonomy::remap_tags_after_move(&tx, actor, &ids, list)?;
         for id in ids {
@@ -1240,7 +1251,7 @@ impl Store {
         for task in &plan.tasks {
             if task.section.as_deref() == Some(id) {
                 write.conn.execute(
-                    "INSERT INTO task_locations(task_id,section_id) VALUES(?1,?2)",
+                    "INSERT INTO task_locations(task_id,section_id) VALUES(?1,?2) ON CONFLICT(task_id) DO UPDATE SET section_id=excluded.section_id",
                     params![task.id, id],
                 )?;
             }
@@ -1498,8 +1509,17 @@ mod tests {
             Err(Error::Conflict(_))
         ));
         let revision = db.workspace("dev", &w.id).unwrap().revision;
-        db.reorder_lists("dev", &w.id, revision, &[b.id.clone(), a.id.clone()])
-            .unwrap();
+        db.reorder_lists(
+            "dev",
+            &w.id,
+            revision,
+            &[
+                b.id.clone(),
+                a.id.clone(),
+                db.default_list("dev", &w.id).unwrap(),
+            ],
+        )
+        .unwrap();
         assert!(
             db.list_info("dev", &b.id).unwrap().position
                 < db.list_info("dev", &a.id).unwrap().position

@@ -4,6 +4,7 @@ mod audit;
 pub mod auth;
 pub mod capture_at;
 pub mod core;
+pub mod defaults;
 pub mod discussion;
 pub mod invitations;
 pub mod jobs;

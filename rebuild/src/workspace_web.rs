@@ -12,12 +12,14 @@ pub(super) fn routes() -> Router<AppState> {
         .route("/workspaces", get(overview).post(workspace_create_form))
         .route(
             "/workspaces/{id}",
-            get(workspace_page).post(workspace_edit_form),
+            get(space_redirect).post(workspace_edit_form),
         )
         .route(
             "/api/v1/workspaces/{id}/lifecycle",
             post(workspace_lifecycle),
         )
+        .route("/space/{id}", get(space_page))
+        .route("/workspaces/{id}/settings", get(workspace_page))
         .route("/workspaces/{id}/lists", post(list_create_form))
         .route("/workspaces/{id}/members", post(member_form))
         .route("/workspaces/{id}/members/revoke", post(member_revoke_form))
@@ -509,6 +511,39 @@ async fn overview(
         has_next,
         can_create,
     })
+}
+async fn space_redirect(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    let Ok(actor) = s.auth(&h, false) else {
+        return Ok(Redirect::to("/signin").into_response());
+    };
+    let target = s
+        .run(move |db| {
+            let id = crate::defaults::resolve(&db.conn, "workspace", &id)?;
+            db.workspace(&actor, &id)?;
+            crate::defaults::public_id(&db.conn, "workspace", &id)
+        })
+        .await?;
+    Ok(Redirect::to(&format!("/space/{target}")).into_response())
+}
+async fn space_page(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    let Ok(actor) = s.auth(&h, false) else {
+        return Ok(Redirect::to("/signin").into_response());
+    };
+    let list = s
+        .run(move |db| {
+            let id = crate::defaults::resolve(&db.conn, "workspace", &id)?;
+            db.default_list(&actor, &id)
+        })
+        .await?;
+    super::page(State(s), h, Path(list), Query(super::ListQuery::default())).await
 }
 async fn workspace_page(
     State(s): State<AppState>,
@@ -1237,7 +1272,7 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         let location = response.headers()[header::LOCATION].to_str().unwrap();
-        let html = page(&app, location).await;
+        let html = page(&app, &format!("{location}/settings")).await;
         assert!(html.contains("Native workspace"));
         assert!(html.contains("Saved without JavaScript"));
         assert!(html.contains("method=\"post\""));
@@ -1283,7 +1318,7 @@ mod tests {
                 .unwrap();
             (w, list)
         };
-        let html = page(&app, &format!("/workspaces/{}", workspace.id)).await;
+        let html = page(&app, &format!("/workspaces/{}/settings", workspace.id)).await;
         assert!(!html.contains(&format!("action=\"/workspaces/{}/lists\"", workspace.id)));
         assert!(!html.contains("Save member role"));
         let html = page(&app, &format!("/lists/{}/sharing", list.id)).await;

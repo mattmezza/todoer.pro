@@ -48,6 +48,7 @@ use axum::{
     response::{Html, IntoResponse, Redirect, Response},
     routing::{get, patch, post},
 };
+use rusqlite::OptionalExtension;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -219,7 +220,7 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/google/callback", get(browser_auth::google_callback))
         .route("/logout", post(logout))
         .route("/capture", get(capture_page).post(capture_form))
-        .route("/lists/{id}", get(page))
+        .route("/lists/{id}", get(legacy_list_page))
         .route("/health", get(|| async { Json(json!({"status":"ok"})) }))
         .route("/ready", get(ready))
         .route("/api/v1/lists", get(lists))
@@ -279,13 +280,33 @@ async fn home(State(s): State<AppState>, h: HeaderMap) -> Result<Redirect, ApiEr
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin"));
     };
-    let lists = s.run(move |db| db.lists(&actor)).await?;
-    Ok(Redirect::to(
-        &lists
-            .first()
-            .map(|list| format!("/lists/{}", list.id))
-            .unwrap_or_else(|| "/signin".into()),
-    ))
+    let target = s
+        .run(move |db| {
+            let user = crate::core::actor_identity(&db.conn, &actor)?.0;
+            let workspace: Option<String> = db
+                .conn
+                .query_row(
+                    "SELECT workspace_id FROM user_defaults WHERE user_id=?1",
+                    [user],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            if let Some(id) = workspace
+                && db.workspace(&actor, &id).is_ok()
+            {
+                return Ok(format!(
+                    "/space/{}",
+                    crate::defaults::public_id(&db.conn, "workspace", &id)?
+                ));
+            }
+            Ok(db
+                .lists(&actor)?
+                .first()
+                .map(|l| format!("/lists/{}", l.id))
+                .unwrap_or_else(|| "/workspaces".into()))
+        })
+        .await?;
+    Ok(Redirect::to(&target))
 }
 fn encode_query(value: &str) -> String {
     value
@@ -545,6 +566,13 @@ fn grouped_rows(db: &Store, actor: &str, list: &str) -> Result<(Vec<TaskGroup>, 
         tasks: vec![],
     }];
     for section in db.sections(actor, list)? {
+        if db.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM list_defaults WHERE section_id=?1)",
+            [&section.id],
+            |r| r.get::<_, bool>(0),
+        )? {
+            continue;
+        }
         let description_html = crate::markdown::render(&section.description);
         groups.push(TaskGroup {
             progress: 0,
@@ -604,11 +632,11 @@ fn grouped_rows(db: &Store, actor: &str, list: &str) -> Result<(Vec<TaskGroup>, 
     Ok((groups, count))
 }
 #[derive(Deserialize, Default)]
-struct ListQuery {
+pub(super) struct ListQuery {
     task: Option<String>,
     section: Option<String>,
 }
-async fn page(
+async fn legacy_list_page(
     State(s): State<AppState>,
     h: HeaderMap,
     Path(id): Path<String>,
@@ -617,6 +645,46 @@ async fn page(
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
     };
+    let requested = id.clone();
+    let target = s
+        .run(move |db| {
+            let resolved = crate::defaults::resolve(&db.conn, "list", &id)?;
+            let id = if db.lists(&actor)?.iter().any(|l| l.id == resolved) {
+                resolved
+            } else {
+                db.resolve_destination(&actor, Some(&id), None, false)?
+                    .destination
+                    .ok_or(Error::NotFound)?
+                    .id
+            };
+            crate::core::access_rank(&db.conn, &actor, &id, 1)?;
+            crate::defaults::public_id(&db.conn, "list", &id)
+        })
+        .await?;
+    if requested == target {
+        return page(State(s), h, Path(requested), Query(q)).await;
+    }
+    let mut url = format!("/lists/{target}");
+    if let Some(task) = q.task {
+        url.push_str(&format!("?task={}", encode_query(&task)));
+    } else if let Some(section) = q.section {
+        url.push_str(&format!("?section={}", encode_query(&section)));
+    }
+    Ok(Redirect::to(&url).into_response())
+}
+pub(super) async fn page(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+    Query(q): Query<ListQuery>,
+) -> Result<Response, ApiError> {
+    let Ok(actor) = s.auth(&h, false) else {
+        return Ok(Redirect::to("/signin").into_response());
+    };
+    let alias = id.clone();
+    let id = s
+        .run(move |db| crate::defaults::resolve(&db.conn, "list", &alias))
+        .await?;
     if let Some(target) = q.task {
         let reader = actor.clone();
         let task = s

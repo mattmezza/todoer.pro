@@ -274,33 +274,8 @@ pub(super) async fn google_callback(
         .issue_session(&user.id, 43200)?;
     // New users receive a private destination using normal authorized operations.
     let actor = user.id;
-    s.run(move |store| {
-        if store
-            .destination_preferences(&actor)?
-            .iter()
-            .all(|p| p.key != "inbox")
-        {
-            let workspace = store.create_workspace(
-                &actor,
-                crate::workspace::WorkspaceInput {
-                    title: "Personal".into(),
-                    description: String::new(),
-                },
-            )?;
-            let inbox = store.create_list(
-                &actor,
-                crate::workspace::CreateList {
-                    workspace_id: workspace.id,
-                    title: "Inbox".into(),
-                    description: String::new(),
-                    restricted: false,
-                },
-            )?;
-            store.set_destination_preference(&actor, "inbox", &inbox.id)?;
-        }
-        Ok(())
-    })
-    .await?;
+    s.run(move |store| store.ensure_user_defaults(&actor))
+        .await?;
     let mut response = Redirect::to(&pending.next).into_response();
     let secure = if s.origin.starts_with("https://") {
         "; Secure"
@@ -493,10 +468,17 @@ mod tests {
     #[tokio::test]
     async fn browser_identity_is_account_scoped_and_logout_revokes_persisted_session() {
         let f = Fixture::new();
+        let path = {
+            let db = f.state.store.lock().unwrap();
+            format!(
+                "/lists/{}",
+                crate::defaults::public_id(&db.conn, "list", "inbox").unwrap()
+            )
+        };
         let response = router(f.state.clone())
             .oneshot(
                 Request::builder()
-                    .uri("/lists/inbox")
+                    .uri(path)
                     .header("cookie", &f.cookie)
                     .body(Body::empty())
                     .unwrap(),
