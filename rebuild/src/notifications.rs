@@ -14,6 +14,8 @@ pub struct Preferences {
     pub quiet_start: Option<String>,
     pub quiet_end: Option<String>,
     pub daily_opt_in: bool,
+    pub push_daily_opt_in: bool,
+    pub push_weekly_opt_in: bool,
     pub daily_time: String,
     pub weekly_opt_in: bool,
     pub weekly_day: u32,
@@ -28,6 +30,8 @@ impl Default for Preferences {
             quiet_start: None,
             quiet_end: None,
             daily_opt_in: false,
+            push_daily_opt_in: false,
+            push_weekly_opt_in: false,
             daily_time: "08:00".into(),
             weekly_opt_in: false,
             weekly_day: 1,
@@ -132,6 +136,13 @@ impl Store {
         self.conn.execute("INSERT INTO notification_preferences(user_id,document) VALUES(?1,?2) ON CONFLICT(user_id) DO UPDATE SET document=excluded.document,revision=revision+1",params![user,serde_json::to_string(&value).unwrap()])?;
         Ok(value)
     }
+    // Internal calendar interpretation reveals no account-wide preference
+    // document to a scoped credential; resource rows still use live actor views.
+    fn planning_timezone(&self, actor: &str) -> Result<String, Error> {
+        let user = crate::core::actor_identity(&self.conn, actor)?.0;
+        let timezone:Option<String>=self.conn.query_row("SELECT json_extract(document,'$.timezone') FROM notification_preferences WHERE user_id=?1",[user],|r|r.get(0)).optional()?.flatten();
+        Ok(timezone.unwrap_or_else(|| "UTC".into()))
+    }
     pub fn planning_tasks(
         &self,
         actor: &str,
@@ -145,7 +156,7 @@ impl Store {
                 "planning range must be ordered and at most 366 days",
             ));
         }
-        let tz = zone(&self.notification_preferences(actor)?.timezone)?;
+        let tz = zone(&self.planning_timezone(actor)?)?;
         let mut q=self.conn.prepare("SELECT t.id,s.revision,s.document FROM tasks t JOIN task_schedule s ON s.task_id=t.id JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?1 JOIN lists l ON l.id=t.list_id WHERE t.deleted_at IS NULL AND t.complete=0 AND l.archived=0 AND a.rank>=1 ORDER BY t.id LIMIT 10000")?;
         let rows = q.query_map([actor], |r| {
             Ok((
@@ -203,8 +214,8 @@ impl Store {
         let end = start
             .checked_add_signed(Duration::days(6))
             .ok_or_else(|| invalid("week date overflow"))?;
-        let prefs = self.notification_preferences(actor)?;
-        let tz = zone(&prefs.timezone)?;
+        let timezone = self.planning_timezone(actor)?;
+        let tz = zone(&timezone)?;
         let start_time = tz
             .from_local_datetime(&start.and_hms_opt(0, 0, 0).unwrap())
             .earliest()
@@ -221,7 +232,7 @@ impl Store {
             .ok_or_else(|| invalid("week ends in a timezone gap"))?
             .timestamp();
         let count=self.conn.query_row("SELECT COUNT(*) FROM history h JOIN tasks t ON t.id=json_extract(h.event,'$.task.id') JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?1 WHERE h.occurred_at>=?2 AND h.occurred_at<?3 AND json_extract(h.event,'$.task.complete')=1 AND json_extract(h.before_event,'$.complete')=0 AND h.before_event IS NOT NULL AND json_extract(h.event,'$.countable_leaf')=1 AND a.rank>=1",params![actor,start_time,end_time],|r|r.get(0))?;
-        Ok(WeeklyStatistics{from:start.to_string(),to:end.to_string(),timezone:prefs.timezone,completed_transitions:count,scheduled_open:self.planning_tasks(actor,&start.to_string(),&end.to_string())?.len(),history_timestamp_note:"History without timestamps or leaf snapshots is excluded; repeat leaf completion transitions are counted.".into()})
+        Ok(WeeklyStatistics{from:start.to_string(),to:end.to_string(),timezone,completed_transitions:count,scheduled_open:self.planning_tasks(actor,&start.to_string(),&end.to_string())?.len(),history_timestamp_note:"History without timestamps or leaf snapshots is excluded; repeat leaf completion transitions are counted.".into()})
     }
 }
 #[cfg(test)]
@@ -530,6 +541,55 @@ fn destination(
     )
     .optional()?)
 }
+#[derive(Debug, PartialEq)]
+pub(crate) enum DigestTiming {
+    Ready,
+    Defer(i64),
+    Cancel,
+}
+pub(crate) fn digest_timing(
+    prefs: &Preferences,
+    kind: &str,
+    period: &str,
+    now: i64,
+) -> Result<DigestTiming, Error> {
+    if let Some(at) = quiet_until(prefs, now)? {
+        return Ok(DigestTiming::Defer(at));
+    }
+    let tz = zone(&prefs.timezone)?;
+    let today = Utc
+        .timestamp_opt(now, 0)
+        .single()
+        .ok_or_else(|| invalid("invalid worker time"))?
+        .with_timezone(&tz)
+        .date_naive();
+    let local_now = Utc
+        .timestamp_opt(now, 0)
+        .single()
+        .ok_or_else(|| invalid("invalid worker time"))?
+        .with_timezone(&tz);
+    if kind == "weekly" && local_now.weekday().number_from_monday() != prefs.weekly_day {
+        return Ok(DigestTiming::Cancel);
+    }
+    let clock = time(if kind == "weekly" {
+        &prefs.weekly_time
+    } else {
+        &prefs.daily_time
+    })?;
+    if local_now.time() < clock
+        && let Some(next) = tz.from_local_datetime(&today.and_time(clock)).earliest()
+    {
+        return Ok(DigestTiming::Defer(next.timestamp()));
+    }
+    let period = day(period)?;
+    if (kind == "daily" && period != today)
+        || (kind == "weekly" && (period > today || (today - period).num_days() >= 7))
+    {
+        return Ok(DigestTiming::Cancel);
+    }
+    Ok(DigestTiming::Ready)
+}
+
 fn policy(prefs: &Preferences, now: i64) -> Result<Option<Decision>, Error> {
     if !prefs.email_opt_in {
         return Ok(Some(Decision::Cancel));
@@ -590,6 +650,12 @@ impl Store {
         Ok(())
     }
     pub fn queue_digests(&mut self, now: i64) -> Result<usize, Error> {
+        self.queue_digest_channel(now, false)
+    }
+    pub(crate) fn queue_push_digests(&mut self, now: i64) -> Result<usize, Error> {
+        self.queue_digest_channel(now, true)
+    }
+    fn queue_digest_channel(&mut self, now: i64, push: bool) -> Result<usize, Error> {
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let users = {
             let mut q = tx.prepare(
@@ -601,7 +667,7 @@ impl Store {
         let mut count = 0;
         for (user, data) in users {
             let prefs: Preferences = decode(&data)?;
-            if !prefs.email_opt_in {
+            if !push && !prefs.email_opt_in {
                 continue;
             }
             let tz = zone(&prefs.timezone)?;
@@ -611,10 +677,22 @@ impl Store {
                 .ok_or_else(|| invalid("invalid worker time"))?
                 .with_timezone(&tz);
             for (kind, enabled, clock) in [
-                ("daily", prefs.daily_opt_in, &prefs.daily_time),
+                (
+                    "daily",
+                    if push {
+                        prefs.push_daily_opt_in
+                    } else {
+                        prefs.daily_opt_in
+                    },
+                    &prefs.daily_time,
+                ),
                 (
                     "weekly",
-                    prefs.weekly_opt_in && local.weekday().number_from_monday() == prefs.weekly_day,
+                    (if push {
+                        prefs.push_weekly_opt_in
+                    } else {
+                        prefs.weekly_opt_in
+                    }) && local.weekday().number_from_monday() == prefs.weekly_day,
                     &prefs.weekly_time,
                 ),
             ] {
@@ -628,7 +706,12 @@ impl Store {
                         - Duration::days(local.weekday().num_days_from_monday().into())
                 }
                 .to_string();
-                count+=tx.execute("INSERT OR IGNORE INTO digest_outbox(id,user_id,kind,period,available_at) VALUES(?1,?2,?3,?4,?5)",params![uuid::Uuid::new_v4().to_string(),user,kind,period,now])?;
+                let table = if push {
+                    "push_digest_outbox"
+                } else {
+                    "digest_outbox"
+                };
+                count+=tx.execute(&format!("INSERT OR IGNORE INTO {table}(id,user_id,kind,period,available_at) VALUES(?1,?2,?3,?4,?5)"),params![if push {format!("push-digest:{}",uuid::Uuid::new_v4())} else {uuid::Uuid::new_v4().to_string()},user,kind,period,now])?;
             }
         }
         tx.commit()?;
@@ -636,25 +719,38 @@ impl Store {
     }
 }
 #[derive(Debug, Clone)]
-struct DigestJob {
-    id: String,
-    user: String,
-    kind: String,
-    period: String,
-    owner: String,
-    token: String,
+pub(crate) struct DigestJob {
+    pub(crate) id: String,
+    pub(crate) user: String,
+    pub(crate) kind: String,
+    pub(crate) period: String,
+    pub(crate) owner: String,
+    pub(crate) token: String,
 }
 impl Store {
     fn claim_digest(&mut self, owner: &str, now: i64) -> Result<Option<DigestJob>, Error> {
+        self.claim_digest_channel(owner, now, false)
+    }
+    pub(crate) fn claim_digest_channel(
+        &mut self,
+        owner: &str,
+        now: i64,
+        push: bool,
+    ) -> Result<Option<DigestJob>, Error> {
+        let table = if push {
+            "push_digest_outbox"
+        } else {
+            "digest_outbox"
+        };
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
-        tx.execute("UPDATE digest_outbox SET status='dead',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE attempts>=5 AND (status='pending' OR status='leased' AND lease_until<=?1)",[now])?;
-        let job:Option<(String,String,String,String)>=tx.query_row("SELECT id,user_id,kind,period FROM digest_outbox WHERE attempts<5 AND available_at<=?1 AND (status='pending' OR status='leased' AND lease_until<=?1) ORDER BY available_at,id LIMIT 1",[now],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
+        tx.execute(&format!("UPDATE {table} SET status='dead',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE attempts>=5 AND (status='pending' OR status='leased' AND lease_until<=?1)"),[now])?;
+        let job:Option<(String,String,String,String)>=tx.query_row(&format!("SELECT id,user_id,kind,period FROM {table} WHERE attempts<5 AND available_at<=?1 AND (status='pending' OR status='leased' AND lease_until<=?1) ORDER BY available_at,id LIMIT 1"),[now],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
         let Some((id, user, kind, period)) = job else {
             tx.commit()?;
             return Ok(None);
         };
         let token = uuid::Uuid::new_v4().to_string();
-        tx.execute("UPDATE digest_outbox SET status='leased',attempts=attempts+1,lease_owner=?1,lease_token=?2,lease_until=?3 WHERE id=?4",params![owner,token,now+60,id])?;
+        tx.execute(&format!("UPDATE {table} SET status='leased',attempts=attempts+1,lease_owner=?1,lease_token=?2,lease_until=?3 WHERE id=?4"),params![owner,token,now+60,id])?;
         tx.commit()?;
         Ok(Some(DigestJob {
             id,
@@ -685,6 +781,11 @@ impl Store {
         if let Some(decision) = policy(&prefs, now)? {
             return Ok(decision);
         }
+        match digest_timing(&prefs, &job.kind, &job.period, now)? {
+            DigestTiming::Ready => {}
+            DigestTiming::Defer(at) => return Ok(Decision::Defer(at)),
+            DigestTiming::Cancel => return Ok(Decision::Cancel),
+        }
         let tz = zone(&prefs.timezone)?;
         let today = Utc
             .timestamp_opt(now, 0)
@@ -692,30 +793,7 @@ impl Store {
             .ok_or_else(|| invalid("invalid worker time"))?
             .with_timezone(&tz)
             .date_naive();
-        let local_now = Utc
-            .timestamp_opt(now, 0)
-            .single()
-            .ok_or_else(|| invalid("invalid worker time"))?
-            .with_timezone(&tz);
-        if job.kind == "weekly" && local_now.weekday().number_from_monday() != prefs.weekly_day {
-            return Ok(Decision::Cancel);
-        }
-        let clock = time(if job.kind == "weekly" {
-            &prefs.weekly_time
-        } else {
-            &prefs.daily_time
-        })?;
-        if local_now.time() < clock
-            && let Some(next) = tz.from_local_datetime(&today.and_time(clock)).earliest()
-        {
-            return Ok(Decision::Defer(next.timestamp()));
-        }
         let period = day(&job.period)?;
-        if (job.kind == "daily" && period != today)
-            || (job.kind == "weekly" && (period > today || (today - period).num_days() >= 7))
-        {
-            return Ok(Decision::Cancel);
-        }
         let Some(to) = destination(&self.conn, &job.user, test)? else {
             return Ok(Decision::Cancel);
         };

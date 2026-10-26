@@ -43,8 +43,7 @@ Quiet hours defer an intent without consuming its retry allowance. Equal start
 and end mute all hours. Overnight intervals work in the selected IANA timezone;
 a nonexistent quiet-end time moves forward to the next valid minute. Explicit
 email opt-out, missing verified recipient, muted lists, stale schedules and
-unavailable push delivery cancel the affected intent. The push transport is not
-implemented or presented as an available subscription.
+unavailable email delivery cancel the affected email intent. Push reminders and daily/weekly push summaries are implemented separately; see [push](push.md) for session-bound devices, generic encrypted payloads and delivery limits.
 
 The worker claims one reminder at a time, with a 60-second ownership lease.
 Transport operations time out after at most 20 seconds. Failures retry with
@@ -84,3 +83,22 @@ a different reminder instant creates a new intent. Exhausted attempts stay dead
 until an explicit operational retry policy is used. In-flight SMTP acceptance
 still has the documented crash/commit ambiguity; stable Message-ID is assistance,
 not an exactly-once guarantee.
+
+## Push digest channel
+
+`push_daily_opt_in` and `push_weekly_opt_in` are independent, default-off fields
+in the existing notification preferences document. They reuse the daily/weekly
+clock, weekday, timezone, quiet hours and list mutes. The native preferences form
+exposes both email and push choices. Push also requires account push opt-in and a
+currently live device session; email opt-in and verified email are not gates for
+push. Common queue/claim/timing functions serve separate SMTP and push outboxes,
+so either worker can run without the other. Migration 021 adds push digest and
+per-device delivery tables; existing email uniqueness and retry state stay intact.
+
+Push summaries carry generic text and `/review`, never private task text/counts.
+The send path rechecks current membership, mutes, opt-in and session. New timing
+or quiet-hour rules defer outstanding work; stale local periods cancel. Durable
+per-period and per-device identities prevent ordinary queue/retry duplication,
+while provider acceptance before local commit retains the documented crash
+ambiguity. See [push verification](push.md) for local HTTP evidence and real
+device checks that remain external.

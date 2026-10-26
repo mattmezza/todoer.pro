@@ -246,7 +246,7 @@ impl PushTransport {
                 .ascii_serialization(),
         );
         let sig = signature.build().map_err(|_| PushError::Invalid)?;
-        let payload=serde_json::to_vec(&serde_json::json!({"title":"Todoer reminder","url":format!("/tasks/{}",job.task_id),"intent_id":format!("{}:{}",job.id,d.device_id)})).map_err(|_|PushError::Invalid)?;
+        let payload=serde_json::to_vec(&serde_json::json!({"title":if digest_job(job) {"Todoer summary"} else {"Todoer reminder"},"url":if digest_job(job) {"/review".into()} else {format!("/tasks/{}",job.task_id)},"intent_id":format!("{}:{}",job.id,d.device_id)})).map_err(|_|PushError::Invalid)?;
         let mut builder = WebPushMessageBuilder::new(&sub);
         builder.set_payload(ContentEncoding::Aes128Gcm, &payload);
         builder.set_vapid_signature(sig);
@@ -458,6 +458,9 @@ impl Store {
         Ok(())
     }
     fn push_allowed(&self, job: &ReminderJob, now: i64) -> Result<bool, Error> {
+        if digest_job(job) {
+            return self.push_digest_allowed(job, now);
+        }
         if job.channel != Channel::Push
             || !self.reminder_eligible(&job.id, &job.lease_owner, &job.lease_token, now)?
         {
@@ -483,12 +486,12 @@ impl Store {
             return Ok(None);
         }
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
-        tx.execute("INSERT OR IGNORE INTO push_deliveries(reminder_id,device_id,available_at) SELECT ?1,d.id,?2 FROM push_devices d JOIN auth_sessions s ON s.id=d.session_id WHERE d.user_id=?3 AND d.active=1 AND s.revoked=0 AND s.expires_at>?2",params![job.id,now,job.recipient])?;
-        tx.execute("UPDATE push_deliveries SET status='dead',lease_token=NULL,lease_until=NULL WHERE reminder_id=?1 AND attempts>=5 AND status IN ('pending','leased') AND COALESCE(lease_until,0)<=?2",params![job.id,now])?;
-        let next:Option<(String,String,String,String,i64)>=tx.query_row("SELECT d.id,d.endpoint,d.p256dh,d.auth_secret,d.revision FROM push_deliveries p JOIN push_devices d ON d.id=p.device_id JOIN auth_sessions s ON s.id=d.session_id WHERE p.reminder_id=?1 AND p.attempts<5 AND p.available_at<=?2 AND (p.status='pending' OR (p.status='leased' AND p.lease_until<=?2)) AND d.active=1 AND s.revoked=0 AND s.expires_at>?2 ORDER BY d.id LIMIT 1",params![job.id,now],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional()?;
+        tx.execute(&format!("INSERT OR IGNORE INTO {}(reminder_id,device_id,available_at) SELECT ?1,d.id,?2 FROM push_devices d JOIN auth_sessions s ON s.id=d.session_id WHERE d.user_id=?3 AND d.active=1 AND s.revoked=0 AND s.expires_at>?2", delivery_table(job)),params![job.id,now,job.recipient])?;
+        tx.execute(&format!("UPDATE {} SET status='dead',lease_token=NULL,lease_until=NULL WHERE reminder_id=?1 AND attempts>=5 AND status IN ('pending','leased') AND COALESCE(lease_until,0)<=?2", delivery_table(job)),params![job.id,now])?;
+        let next:Option<(String,String,String,String,i64)>=tx.query_row(&format!("SELECT d.id,d.endpoint,d.p256dh,d.auth_secret,d.revision FROM {} p JOIN push_devices d ON d.id=p.device_id JOIN auth_sessions s ON s.id=d.session_id WHERE p.reminder_id=?1 AND p.attempts<5 AND p.available_at<=?2 AND (p.status='pending' OR (p.status='leased' AND p.lease_until<=?2)) AND d.active=1 AND s.revoked=0 AND s.expires_at>?2 ORDER BY d.id LIMIT 1", delivery_table(job)),params![job.id,now],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional()?;
         let result = if let Some((device_id, endpoint, p256dh, auth, device_revision)) = next {
             let token = Uuid::new_v4().to_string();
-            tx.execute("UPDATE push_deliveries SET status='leased',attempts=attempts+1,lease_token=?3,lease_until=?4 WHERE reminder_id=?1 AND device_id=?2",params![job.id,device_id,token,now+10])?;
+            tx.execute(&format!("UPDATE {} SET status='leased',attempts=attempts+1,lease_token=?3,lease_until=?4 WHERE reminder_id=?1 AND device_id=?2", delivery_table(job)),params![job.id,device_id,token,now+10])?;
             Some(Delivery {
                 device_id,
                 device_revision,
@@ -504,7 +507,7 @@ impl Store {
         Ok(result)
     }
     fn push_delivery_live(&self, job: &ReminderJob, d: &Delivery, now: i64) -> Result<bool, Error> {
-        Ok(self.push_allowed(job,now)? && self.conn.query_row("SELECT EXISTS(SELECT 1 FROM push_deliveries p JOIN push_devices d ON d.id=p.device_id JOIN auth_sessions s ON s.id=d.session_id WHERE p.reminder_id=?1 AND p.device_id=?2 AND p.lease_token=?3 AND p.status='leased' AND p.lease_until>?4 AND d.active=1 AND d.revision=?5 AND s.revoked=0 AND s.expires_at>?4)",params![job.id,d.device_id,d.token,now,d.device_revision],|r|r.get(0))?)
+        Ok(crate::notifications::quiet_until(&self.notification_preferences(&job.recipient)?,now)?.is_none() && self.push_allowed(job,now)? && self.conn.query_row(&format!("SELECT EXISTS(SELECT 1 FROM {} p JOIN push_devices d ON d.id=p.device_id JOIN auth_sessions s ON s.id=d.session_id WHERE p.reminder_id=?1 AND p.device_id=?2 AND p.lease_token=?3 AND p.status='leased' AND p.lease_until>?4 AND d.active=1 AND d.revision=?5 AND s.revoked=0 AND s.expires_at>?4)", delivery_table(job)),params![job.id,d.device_id,d.token,now,d.device_revision],|r|r.get(0))?)
     }
     fn finish_push(
         &mut self,
@@ -514,7 +517,7 @@ impl Store {
         now: i64,
     ) -> Result<(), Error> {
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
-        let owned:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM push_deliveries WHERE reminder_id=?1 AND device_id=?2 AND lease_token=?3 AND status='leased' AND lease_until>?4)",params![job.id,d.device_id,d.token,now],|r|r.get(0))?;
+        let owned:bool=tx.query_row(&format!("SELECT EXISTS(SELECT 1 FROM {} WHERE reminder_id=?1 AND device_id=?2 AND lease_token=?3 AND status='leased' AND lease_until>?4)", delivery_table(job)),params![job.id,d.device_id,d.token,now],|r|r.get(0))?;
         if !owned {
             return Err(Error::Conflict("push delivery lease expired".into()));
         }
@@ -524,7 +527,7 @@ impl Store {
             |r| r.get(0),
         )?;
         if current != d.device_revision {
-            tx.execute("UPDATE push_deliveries SET status='pending',attempts=MAX(0,attempts-1),available_at=?4,lease_token=NULL,lease_until=NULL WHERE reminder_id=?1 AND device_id=?2 AND lease_token=?3",params![job.id,d.device_id,d.token,now])?;
+            tx.execute(&format!("UPDATE {} SET status='pending',attempts=MAX(0,attempts-1),available_at=?4,lease_token=NULL,lease_until=NULL WHERE reminder_id=?1 AND device_id=?2 AND lease_token=?3", delivery_table(job)),params![job.id,d.device_id,d.token,now])?;
             tx.commit()?;
             return Ok(());
         }
@@ -540,16 +543,90 @@ impl Store {
             SendResult::Retry(n) => ("pending", n, Some("provider temporarily unavailable")),
             SendResult::Dead => ("dead", 0, Some("provider rejected delivery")),
         };
-        tx.execute("UPDATE push_deliveries SET status=?4,available_at=?5,lease_token=NULL,lease_until=NULL,last_error=?6 WHERE reminder_id=?1 AND device_id=?2 AND lease_token=?3 AND status='leased' AND lease_until>?7",params![job.id,d.device_id,d.token,status,now+delay,error,now])?;
+        tx.execute(&format!("UPDATE {} SET status=?4,available_at=?5,lease_token=NULL,lease_until=NULL,last_error=?6 WHERE reminder_id=?1 AND device_id=?2 AND lease_token=?3 AND status='leased' AND lease_until>?7", delivery_table(job)),params![job.id,d.device_id,d.token,status,now+delay,error,now])?;
         tx.commit()?;
         Ok(())
     }
     fn push_pending(&self, job: &ReminderJob, now: i64) -> Result<Option<i64>, Error> {
-        Ok(self.conn.query_row("SELECT MIN(MAX(p.available_at,COALESCE(p.lease_until,0))) FROM push_deliveries p JOIN push_devices d ON d.id=p.device_id JOIN auth_sessions s ON s.id=d.session_id WHERE p.reminder_id=?1 AND p.status IN ('pending','leased') AND d.active=1 AND s.revoked=0 AND s.expires_at>?2",params![job.id,now],|r|r.get(0))?)
+        Ok(self.conn.query_row(&format!("SELECT MIN(MAX(p.available_at,COALESCE(p.lease_until,0))) FROM {} p JOIN push_devices d ON d.id=p.device_id JOIN auth_sessions s ON s.id=d.session_id WHERE p.reminder_id=?1 AND p.status IN ('pending','leased') AND d.active=1 AND s.revoked=0 AND s.expires_at>?2", delivery_table(job)),params![job.id,now],|r|r.get(0))?)
     }
     fn defer_push(&mut self, job: &ReminderJob, at: Option<i64>, now: i64) -> Result<(), Error> {
-        self.conn.execute("UPDATE reminder_outbox SET status=?4,available_at=?5,attempts=MAX(0,attempts-1),lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE id=?1 AND status='leased' AND lease_owner=?2 AND lease_token=?3 AND lease_until>?6",params![job.id,job.lease_owner,job.lease_token,if at.is_some(){"pending"}else{"cancelled"},at.unwrap_or(now),now])?;
+        self.conn.execute(&format!("UPDATE {} SET status=?4,available_at=?5,attempts=MAX(0,attempts-1),lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE id=?1 AND status='leased' AND lease_owner=?2 AND lease_token=?3 AND lease_until>?6", parent_table(job)),params![job.id,job.lease_owner,job.lease_token,if at.is_some(){"pending"}else{"cancelled"},at.unwrap_or(now),now])?;
         Ok(())
+    }
+}
+// Digest jobs use the existing private transport envelope, with a namespaced
+// outbox ID and no task ID. No reminder row or synthetic task is persisted.
+fn digest_job(job: &ReminderJob) -> bool {
+    job.id.starts_with("push-digest:")
+}
+fn delivery_table(job: &ReminderJob) -> &'static str {
+    if digest_job(job) {
+        "push_digest_deliveries"
+    } else {
+        "push_deliveries"
+    }
+}
+fn parent_table(job: &ReminderJob) -> &'static str {
+    if digest_job(job) {
+        "push_digest_outbox"
+    } else {
+        "reminder_outbox"
+    }
+}
+impl Store {
+    fn digest_clock(
+        &self,
+        job: &ReminderJob,
+        now: i64,
+    ) -> Result<crate::notifications::DigestTiming, Error> {
+        let (kind, period): (String, String) = self.conn.query_row(
+            "SELECT kind,period FROM push_digest_outbox WHERE id=?1",
+            [&job.id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        crate::notifications::digest_timing(
+            &self.notification_preferences(&job.recipient)?,
+            &kind,
+            &period,
+            now,
+        )
+    }
+    fn push_digest_allowed(&self, job: &ReminderJob, now: i64) -> Result<bool, Error> {
+        let row: Option<(String,String)> = self.conn.query_row("SELECT kind,period FROM push_digest_outbox WHERE id=?1 AND user_id=?2 AND status='leased' AND lease_owner=?3 AND lease_token=?4 AND lease_until>?5",params![job.id,job.recipient,job.lease_owner,job.lease_token,now],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+        let Some((kind, period)) = row else {
+            return Ok(false);
+        };
+        let prefs = self.notification_preferences(&job.recipient)?;
+        if !(if kind == "daily" {
+            prefs.push_daily_opt_in
+        } else {
+            prefs.push_weekly_opt_in
+        }) {
+            return Ok(false);
+        }
+        if crate::notifications::digest_timing(&prefs, &kind, &period, now)?
+            != crate::notifications::DigestTiming::Ready
+        {
+            return Ok(false);
+        }
+        Ok(self.conn.query_row("SELECT EXISTS(SELECT 1 FROM push_preferences WHERE user_id=?1 AND opt_in=1) AND EXISTS(SELECT 1 FROM push_devices d JOIN auth_sessions s ON s.id=d.session_id WHERE d.user_id=?1 AND d.active=1 AND s.revoked=0 AND s.expires_at>?3) AND EXISTS(SELECT 1 FROM actor_list_access a JOIN lists l ON l.id=a.list_id WHERE a.actor_id=?1 AND a.rank>=1 AND l.archived=0 AND l.id NOT IN(SELECT value FROM json_each(?2)))",params![job.recipient,serde_json::to_string(&prefs.list_opt_out).unwrap(),now],|r|r.get(0))?)
+    }
+    fn claim_push_digest(&mut self, owner: &str, now: i64) -> Result<Option<ReminderJob>, Error> {
+        Ok(self
+            .claim_digest_channel(owner, now, true)?
+            .map(|d| ReminderJob {
+                id: d.id,
+                recipient: d.user,
+                task_id: String::new(),
+                schedule_revision: 0,
+                channel: Channel::Push,
+                at: now,
+                attempts: 0,
+                lease_owner: d.owner,
+                lease_token: d.token,
+                lease_until: now + 60,
+            }))
     }
 }
 fn locked<T>(
@@ -580,27 +657,40 @@ async fn worker_tick_inner(
     let owner = format!("push:{}", Uuid::new_v4());
     let now = Utc::now().timestamp();
     let jobs = locked(store, |s| {
-        s.claim_reminders_channel(&owner, now, 1, Channel::Push)
+        s.queue_push_digests(now)?;
+        let mut jobs = s.claim_reminders_channel(&owner, now, 1, Channel::Push)?;
+        if let Some(digest) = s.claim_push_digest(&owner, now)? {
+            jobs.push(digest);
+        }
+        Ok(jobs)
     })?;
     let mut report = PushReport::default();
     for job in jobs {
         let now = Utc::now().timestamp();
-        if !locked(store, |s| s.push_allowed(&job, now))? {
-            locked(store, |s| s.defer_push(&job, None, now))?;
-            report.cancelled += 1;
-            continue;
-        }
         let prefs = locked(store, |s| s.notification_preferences(&job.recipient))?;
         if let Some(at) = crate::notifications::quiet_until(&prefs, now)? {
             locked(store, |s| s.defer_push(&job, Some(at), now))?;
             report.deferred += 1;
             continue;
         }
-        // Stop claims after forty seconds, leaving room for DNS + one request
-        // inside the sixty-second parent lease. Remaining devices resume later.
+        if digest_job(&job)
+            && let crate::notifications::DigestTiming::Defer(at) =
+                locked(store, |s| s.digest_clock(&job, now))?
+        {
+            locked(store, |s| s.defer_push(&job, Some(at), now))?;
+            report.deferred += 1;
+            continue;
+        }
+        if !locked(store, |s| s.push_allowed(&job, now))? {
+            locked(store, |s| s.defer_push(&job, None, now))?;
+            report.cancelled += 1;
+            continue;
+        }
+        // Two channel jobs share a bounded tick. Ten seconds per job leaves room
+        // for DNS/HTTP and shutdown within the sixty-second parent leases.
         let started = std::time::Instant::now();
         for _ in 0..10 {
-            if started.elapsed() >= Duration::from_secs(40) {
+            if started.elapsed() >= Duration::from_secs(10) {
                 break;
             }
             let Some(d) = locked(store, |s| {
@@ -628,7 +718,20 @@ async fn worker_tick_inner(
             })?;
         }
         let now = Utc::now().timestamp();
-        if !locked(store, |s| s.push_allowed(&job, now))? {
+        let wait = locked(store, |s| {
+            if digest_job(&job) {
+                Ok(match s.digest_clock(&job, now)? {
+                    crate::notifications::DigestTiming::Defer(at) => Some(at),
+                    _ => None,
+                })
+            } else {
+                crate::notifications::quiet_until(&s.notification_preferences(&job.recipient)?, now)
+            }
+        })?;
+        if let Some(at) = wait {
+            locked(store, |s| s.defer_push(&job, Some(at), now))?;
+            report.deferred += 1;
+        } else if !locked(store, |s| s.push_allowed(&job, now))? {
             locked(store, |s| s.defer_push(&job, None, now))?;
             report.cancelled += 1;
         } else if let Some(at) = locked(store, |s| s.push_pending(&job, now))? {
@@ -636,7 +739,12 @@ async fn worker_tick_inner(
             report.deferred += 1;
         } else {
             locked(store, |s| {
-                s.acknowledge_reminder(&job.id, &job.lease_owner, &job.lease_token, now)
+                if digest_job(&job) {
+                    s.conn.execute("UPDATE push_digest_outbox SET status='sent',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE id=?1 AND status='leased' AND lease_owner=?2 AND lease_token=?3 AND lease_until>?4",params![job.id,job.lease_owner,job.lease_token,now])?;
+                    Ok(())
+                } else {
+                    s.acknowledge_reminder(&job.id, &job.lease_owner, &job.lease_token, now)
+                }
             })?;
         }
     }
@@ -862,8 +970,76 @@ mod tests {
         assert!(s.claim_push_delivery(&job, now).unwrap().is_some());
     }
 
+    #[test]
+    fn push_digests_are_period_unique_channel_independent_and_live_authorized() {
+        use crate::notifications::{DigestTiming, Preferences, digest_timing};
+        use chrono::Datelike;
+        let (mut s, _, device) = fixture();
+        let now = Utc::now().timestamp();
+        let prefs = Preferences {
+            push_daily_opt_in: true,
+            push_weekly_opt_in: true,
+            daily_time: "00:00".into(),
+            weekly_time: "00:00".into(),
+            weekly_day: Utc::now().weekday().number_from_monday(),
+            ..Default::default()
+        };
+        s.set_notification_preferences("dev", prefs.clone())
+            .unwrap();
+        assert_eq!(s.queue_digests(now).unwrap(), 0); // Email remains opted out.
+        assert_eq!(s.queue_push_digests(now).unwrap(), 2);
+        assert_eq!(s.queue_push_digests(now).unwrap(), 0);
+        let job = s.claim_push_digest("digest-worker", now).unwrap().unwrap();
+        assert!(s.push_allowed(&job, now).unwrap());
+        let delivery = s.claim_push_delivery(&job, now).unwrap().unwrap();
+        assert!(s.push_delivery_live(&job, &delivery, now).unwrap());
+        s.revoke_push_device("dev", &device).unwrap();
+        assert!(!s.push_delivery_live(&job, &delivery, now).unwrap());
+        s.register_push_device(
+            "dev",
+            "synthetic-session",
+            input("https://fcm.googleapis.com/synthetic"),
+        )
+        .unwrap();
+        assert!(s.push_allowed(&job, now).unwrap());
+        let mut muted = prefs.clone();
+        muted.list_opt_out = s.lists("dev").unwrap().into_iter().map(|l| l.id).collect();
+        s.set_notification_preferences("dev", muted).unwrap();
+        assert!(!s.push_allowed(&job, now).unwrap());
+        s.set_notification_preferences("dev", prefs.clone())
+            .unwrap();
+        s.conn
+            .execute("DELETE FROM memberships WHERE user_id='dev'", [])
+            .unwrap();
+        s.conn
+            .execute("DELETE FROM workspace_members WHERE user_id='dev'", [])
+            .unwrap();
+        assert!(!s.push_allowed(&job, now).unwrap());
+        let monday = chrono::DateTime::parse_from_rfc3339("2026-10-26T12:00:00Z")
+            .unwrap()
+            .timestamp();
+        let prefs = Preferences {
+            daily_time: "13:00".into(),
+            ..Default::default()
+        };
+        assert!(matches!(
+            digest_timing(&prefs, "daily", "2026-10-26", monday).unwrap(),
+            DigestTiming::Defer(_)
+        ));
+        assert_eq!(
+            digest_timing(&Preferences::default(), "daily", "2026-10-25", monday).unwrap(),
+            DigestTiming::Cancel
+        );
+    }
     #[tokio::test]
     async fn partial_http_failure_retries_only_failed_device_and_gone_disables() {
+        partial_http_case(false).await;
+    }
+    #[tokio::test]
+    async fn digest_partial_http_failure_does_not_replay_successful_device() {
+        partial_http_case(true).await;
+    }
+    async fn partial_http_case(digest: bool) {
         use axum::{Router, routing::post};
         use std::sync::atomic::{AtomicUsize, Ordering};
         let good = Arc::new(AtomicUsize::new(0));
@@ -901,10 +1077,31 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let base = format!("http://{}", listener.local_addr().unwrap());
         let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-        let (mut s, job, id) = fixture();
+        let (mut s, reminder, id) = fixture();
+        let job = if digest {
+            s.conn
+                .execute("UPDATE reminder_outbox SET status='cancelled'", [])
+                .unwrap();
+            let now = Utc::now().timestamp();
+            s.set_notification_preferences(
+                "dev",
+                crate::notifications::Preferences {
+                    push_daily_opt_in: true,
+                    daily_time: "00:00".into(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            s.queue_push_digests(now).unwrap();
+            s.claim_push_digest("fixture", now).unwrap().unwrap()
+        } else {
+            reminder
+        };
+        let deliveries = delivery_table(&job);
+        let outbox = parent_table(&job);
         // Release fixture lease for the actual worker and seed synthetic local
         // endpoints directly; production registration never permits HTTP.
-        s.conn.execute("UPDATE reminder_outbox SET status='pending',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE id=?1",[&job.id]).unwrap();
+        s.conn.execute(&format!("UPDATE {outbox} SET status='pending',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE id=?1"),[&job.id]).unwrap();
         s.conn
             .execute(
                 "UPDATE push_devices SET endpoint=?1 WHERE id=?2",
@@ -950,7 +1147,7 @@ mod tests {
             let retry_at: i64 = s
                 .conn
                 .query_row(
-                    "SELECT available_at FROM push_deliveries WHERE device_id=?1",
+                    &format!("SELECT available_at FROM {deliveries} WHERE device_id=?1"),
                     [retry_id],
                     |r| r.get(0),
                 )
@@ -967,13 +1164,13 @@ mod tests {
             assert!(!active);
             s.conn
                 .execute(
-                    "UPDATE push_deliveries SET available_at=0 WHERE status='pending'",
+                    &format!("UPDATE {deliveries} SET available_at=0 WHERE status='pending'"),
                     [],
                 )
                 .unwrap();
             s.conn
                 .execute(
-                    "UPDATE reminder_outbox SET available_at=0 WHERE id=?1",
+                    &format!("UPDATE {outbox} SET available_at=0 WHERE id=?1"),
                     [&job.id],
                 )
                 .unwrap();
@@ -989,12 +1186,12 @@ mod tests {
                 .unwrap()
                 .conn
                 .query_row(
-                    "SELECT status FROM reminder_outbox WHERE id=?1",
+                    &format!("SELECT status FROM {outbox} WHERE id=?1"),
                     [&job.id],
                     |r| r.get::<_, String>(0)
                 )
                 .unwrap(),
-            "delivered"
+            if digest { "sent" } else { "delivered" }
         );
         server.abort();
     }
@@ -1061,6 +1258,19 @@ mod tests {
         assert_eq!(value["url"], format!("/tasks/{}", job.task_id));
         assert_eq!(value.as_object().unwrap().len(), 3);
         assert!(!String::from_utf8(plain).unwrap().contains("Private"));
+        let mut digest = job.clone();
+        digest.id = format!("push-digest:{}", Uuid::new_v4());
+        digest.task_id.clear();
+        assert!(matches!(
+            config().send(&d, &digest, None).await.unwrap(),
+            SendResult::Sent
+        ));
+        let (_, bytes) = rx.recv().await.unwrap();
+        let plain = ece::decrypt(&key.raw_components().unwrap(), &auth, &bytes).unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&plain).unwrap();
+        assert_eq!(value["title"], "Todoer summary");
+        assert_eq!(value["url"], "/review");
+        assert_eq!(value.as_object().unwrap().len(), 3);
         server.abort();
     }
 }
