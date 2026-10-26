@@ -14,25 +14,69 @@ No production cutover, push, or deployment is authorized.
 - List authorization is the boundary for tasks/discussion/attachments/search/feeds.
 - No claim of MCP client compatibility until an actual client has connected. Protocol implementation must target a published revision, not moving draft docs.
 
-## Checklist (unchecked means unfinished, not implicitly deferred)
+## Current implementation checklist
 
-- [x] Inspect git status/instructions; dedicated branch; read-only SQLite backup for legacy runtime.
-- [ ] Legacy design screens and interaction evidence; phone/tablet/desktop comparison.
-- [ ] Rust vertical slice: persistent lists/tasks, inline add/edit/complete, batch, conflicts, live updates, draft retention.
-- [ ] Google invite-only login; secure revocable sessions; scoped hashed agent credentials.
-- [ ] Workspaces/lists/sections, arbitrary hierarchy, ordering, tags/references/backlinks.
-- [ ] Sharing and audience-change acknowledgement; isolation/revocation tests.
-- [ ] Search, structured filters, cursors, breadcrumbs, selected fields.
-- [ ] Activity/trash/restore/authorized compensating undo.
-- [ ] REST/OpenAPI, Rust CLI, remote MCP discovery/auth, installable skill; six agent scenarios.
-- [ ] Comments, private S3 attachments and lifecycle.
-- [ ] Recurrence, DST-safe reminders, durable jobs, SMTP/digests/web push.
-- [ ] Optional OpenRouter capture/drafting, guarded previews and budgets.
-- [ ] PWA install/update, account-scoped cached reading and durable offline capture.
-- [ ] All review/planning screens, favorites/settings, weekly statistics.
-- [ ] Non-destructive legacy import, reconciliation, all exports/ZIP/roundtrip.
-- [ ] Litestream/complete restore, Compose, release/CI/private runner safeguards.
-- [ ] Cross-browser visual/accessibility and integration/performance evidence.
+Checked means the bounded implementation exists with the evidence below. It does
+not mean production acceptance, deployment approval, complete interface parity,
+or verification on every browser/device. Unchecked items remain required work.
+
+- [x] Independent Rust database, strict legacy-schema rejection, transactional migrations, persistent list/task operations, retry-safe capture and revision conflicts.
+- [x] Native task UI, inline editing, nested checklists, sibling ordering, SSE invalidation, preserved drafts and canonical task links.
+- [x] Google OIDC implementation, invite-only registration, durable revocable sessions, scoped hashed REST/MCP credentials and public-client OAuth/PKCE.
+- [x] Workspace roles, inherited/restricted/direct list access, invitations, sections, tags, stable references and authorized backlinks.
+- [x] Owner-reviewed cross-workspace list moves with audience acknowledgment, policy hash, task revision fencing and preserved sections/direct guests.
+- [x] Structured authorized multi-entity search, filters, cursors, projections and breadcrumbs; activity, trash/restore and guarded single-edit undo.
+- [x] REST/OpenAPI, Rust CLI, remote MCP, installable skill and actual official-SDK/CLI synthetic scenarios for their documented surfaces.
+- [x] Comment retry/CAS/history, private S3 upload intents, checksum finalization, authenticated downloads and soft deletion.
+- [x] Scheduling editor, bounded nested recurrence, durable reminder outbox, SMTP reminders/email digests and session-bound encrypted Web Push reminders.
+- [ ] Daily/weekly push digests: currently email-only; push reminder delivery does not satisfy this feature.
+- [ ] Optional OpenRouter assistance: new domain/HTTP/UI files are in active integration; do not count source presence as passing integration evidence.
+- [x] PWA manifest/update lifecycle, account-scoped recent-list cached reading and durable offline capture/replay.
+- [x] Today/upcoming/recurring/review screens, favorites/settings and durable observed overdue trends.
+- [x] Non-destructive legacy reconciliation, explicit identity mapping, JSON/text/CSV/ZIP export and verified object-byte ZIP restore.
+- [x] Local backup/restore, isolated Litestream/S3 recovery, separate Compose image and prepared release/private-runner safeguards.
+- [ ] Final interface parity audit: recent workspace-move and weekly-review operations are not yet represented in CLI/MCP and the checked-in OpenAPI document.
+- [ ] Final broad visual/accessibility, physical-device/WebKit, concurrent/persistent-storage performance and production-service acceptance.
+
+## Audit snapshot and evidence (2026-10-26)
+
+This is a documentation/code audit after `cd5579d`, `8d6a264`, `21dba9d` and
+`786dd12`; active uncommitted work can be newer. No expensive build or external
+service check was run for this audit. Earlier test counts below are historical
+snapshots, not current totals or evidence for files added afterward.
+
+| Area | Implementation and observed evidence | Remaining verification or limits |
+| --- | --- | --- |
+| Identity, invitations, sharing | [Authentication](authentication.md), signed local OIDC/key rotation, durable production-mode cookie/CSRF/revocation tests; workspace/native sharing browser checks | Real Google tenant/callback and hosted MCP connector acceptance remain external. Implementation is present; credentials are needed for those checks, not to finish the code. |
+| Tasks, metadata, moves | [Move contract](sharing-moves.md); 11 workspace plus 9 taxonomy tests at move integration, followed by a passing same-parent stale-order regression; six move browser checks; twelve metadata browser checks plus two Enter-key checks, Chromium/Firefox | WebKit and physical devices unverified. List move rejects workspace-less legacy lists. It retains object keys rather than copying blobs. |
+| Agents and search | [Agent workflow](agent-workflow.md), [search](search.md); actual official Python SDK OAuth/refresh and all 21 registered bearer tools, isolated CLI/Moto checks | New list-workspace move and `/api/v1/review` lack full agent/OpenAPI parity. An official SDK session is not acceptance by every hosted connector. |
+| Comments and files | [Attachments](attachments.md); real local HTTP PUT/HEAD/GET, digest verification, retry/finalize and revocation checks against isolated Moto | Production S3 provider/permissions/retention and real legacy object completeness remain external. No automatic blob garbage collection or attachment-backup guarantee from SQLite alone. |
+| Scheduling/notifications | [Scheduling](scheduling.md), [notifications](notifications.md), [push](push.md); seven scheduling scenarios per Chromium/Firefox, local SMTP capture and encrypted HTTP push receiver tests | Real SMTP receipt and Apple/Google/Mozilla device delivery unverified. Push digests are unfinished. External-send crash ambiguity remains; no exactly-once delivery claim. |
+| PWA | [PWA](pwa.md); emulated phone/tablet/desktop Chromium/Firefox, offline reload, actual browser restart and single logical capture replay | No physical iOS/Home Screen or WebKit acceptance. Closed-app background sync is not promised; disconnected cached copies cannot be remotely erased. |
+| Review/statistics | [Statistics](statistics.md), current authorized `/review` and `/api/v1/review`, durable observation worker | No fabricated historical backlog: pre-observation days and older imported completion evidence remain absent. New increment needs its own browser/release acceptance. |
+| Migration/recovery/release | [Migration/export](migration-export.md), [replication](replication.md), [deployment](deployment.md); isolated real-copy reconciliation, checksummed ZIP roundtrip, local amd64 Docker/Compose/Litestream recovery | No production cutover, registry push, remote CI run, ARM verification or restore of the user's complete real object corpus. Rebuild/retest the image after new increments. |
+| Performance | [Performance probe](performance.md), synthetic in-memory 10,000 tasks and query-plan-backed subtree fix | Whole-list materialization, no virtualized UI, one serialized SQLite connection. No current-feature end-to-end/concurrency/persistent-WAL/mobile memory acceptance. |
+
+### Documentation corrections still needed
+
+Some focused runbooks describe earlier increments: `pwa.md` still says production
+authentication and push subscriptions do not exist; `notifications.md` still says
+push transport is unimplemented; `performance.md` says comments are not in the
+schema; `ci.md` calls production authentication an implementation blocker. Those
+claims are superseded by current code and the evidence links above. Their old
+measurements remain historical evidence, not measurements of the expanded app.
+The CLI scheduling examples also retain an old root-leaf-only recurrence limit;
+the common operation now supports bounded nested root checklists. Update those
+runbooks with their feature owners before final handoff.
+
+### Changed-file privacy check
+
+A read-only scan of 30 changed/untracked paths at this snapshot found no database,
+environment, private-key, identity-map or screenshot filenames. Added text matched
+none of the checked private-key delimiters, common provider/AWS key prefixes or
+non-example email patterns. No values were printed. This is a narrow heuristic
+check of the working diff, not a complete secret/personal-data or git-history
+audit; ignored local evidence and original databases were not opened.
 
 ## Initial verification
 
@@ -85,8 +129,9 @@ Evidence: signed local OIDC provider and key-rotation tests; production-mode
 cookie/CSRF/scoped-token/revocation HTTP tests; actual official Python MCP SDK
 OAuth flow over an isolated loopback server (including refresh and tool calls).
 See `authentication.md`. Google tenant/hosted connector checks remain external.
-Invitations, task-to-section assignment, full sharing UX and cross-workspace list
-moves remain unfinished; section metadata alone does not complete hierarchy.
+At this historical increment, invitations, task-to-section assignment and list
+moves were unfinished. Later increments below and the current checklist
+supersede that status.
 
 Current integrated verification: `make rust-check` passes (78 unit tests, nine
 HTTP/backup integration tests; four external-service probes are separately
@@ -125,10 +170,10 @@ SMTP transport is exercised against an isolated aiosmtpd capture service.
   other channel's reminders. Push encryption/VAPID and partial device retries are
   checked against local real HTTP endpoints; physical devices remain unverified.
 
-Unfinished: all-interface parity and complete browser editors, favorites,
-workspace-changing list moves, OpenRouter assistance, full notification/product
-polish, production Compose/release and complete recovery runbooks, final broad
-browser/performance verification. Required features are not silently deferred.
+Historical remaining-work snapshot: later commits supplied browser editors,
+favorites, workspace-changing list moves, Compose/release configuration and
+recovery runbooks. Current unresolved work is listed at the top, including
+interface parity, assistance integration, push digests and final acceptance.
 
 Latest backend integration: `cargo test --locked --lib` passes 129 active tests;
 eight explicit service/performance probes remain separate. `cargo clippy
