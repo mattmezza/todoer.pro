@@ -1,0 +1,109 @@
+name: Publish isolated Rust rebuild
+on:
+  push:
+    tags: ['rebuild-v*']
+permissions:
+  contents: read
+concurrency:
+  group: rebuild-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  checks:
+    if: github.repository == 'mattmezza/todoer.pro'
+    runs-on: ${{ fromJSON(vars.TODOER_RELEASE_RUNNER_LABELS || '["self-hosted","todoer-private"]') }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate release policy and source ancestry
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_BRANCH: ${{ vars.TODOER_RELEASE_BRANCH || github.event.repository.default_branch }}
+        run: |
+          set -eu
+          python3 scripts/rebuild-release-prepare.py self-test
+          git tag --list 'rebuild-v*' > "$RUNNER_TEMP/rebuild-tags.txt"
+          python3 scripts/rebuild-release-prepare.py policy --repository "$REPOSITORY" --tag "$RELEASE_TAG" --tags-file "$RUNNER_TEMP/rebuild-tags.txt" --release-branch "origin/$RELEASE_BRANCH"
+      - name: Check locked Rust workspace
+        run: |
+          set -eu
+          cargo fmt --all -- --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked --workspace
+  publish:
+    needs: checks
+    if: github.repository == 'mattmezza/todoer.pro'
+    runs-on: ${{ fromJSON(vars.TODOER_RELEASE_RUNNER_LABELS || '["self-hosted","todoer-private"]') }}
+    timeout-minutes: 45
+    outputs:
+      digest: ${{ steps.image.outputs.digest }}
+      image: ${{ steps.policy.outputs.image }}
+    concurrency:
+      group: rebuild-image-publish
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Resolve isolated image tags
+        id: policy
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_BRANCH: ${{ vars.TODOER_RELEASE_BRANCH || github.event.repository.default_branch }}
+        run: |
+          set -eu
+          git tag --list 'rebuild-v*' > "$RUNNER_TEMP/rebuild-tags.txt"
+          python3 scripts/rebuild-release-prepare.py policy --repository "$REPOSITORY" --tag "$RELEASE_TAG" --tags-file "$RUNNER_TEMP/rebuild-tags.txt" --release-branch "origin/$RELEASE_BRANCH" --github-output "$GITHUB_OUTPUT"
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build checked image and publish version plus commit tags
+        id: image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: deploy/rebuild/Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: mode=max
+          sbom: true
+          tags: |
+            ${{ steps.policy.outputs.image }}:${{ steps.policy.outputs.version }}
+            ${{ steps.policy.outputs.image }}:sha-${{ steps.policy.outputs.revision }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/mattmezza/todoer.pro
+            org.opencontainers.image.revision=${{ steps.policy.outputs.revision }}
+            org.opencontainers.image.version=${{ steps.policy.outputs.version }}
+            org.opencontainers.image.title=Todoer isolated Rust rebuild
+      - name: Refresh tags with the checkout action's scoped read token
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Promote latest only after a fresh stable-version check
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+          IMAGE: ${{ steps.policy.outputs.image }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -eu
+          git tag --list 'rebuild-v*' > "$RUNNER_TEMP/rebuild-tags-current.txt"
+          python3 scripts/rebuild-release-prepare.py policy --repository "$REPOSITORY" --tag "$RELEASE_TAG" --tags-file "$RUNNER_TEMP/rebuild-tags-current.txt" > "$RUNNER_TEMP/rebuild-policy.json"
+          latest=$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1]))["latest"]).lower())' "$RUNNER_TEMP/rebuild-policy.json")
+          if [ "$latest" = true ]; then
+            docker buildx imagetools create --prefer-index=false --tag "$IMAGE:latest" "$IMAGE@$DIGEST"
+          fi
+          printf 'Published isolated rebuild: `%s@%s`\n' "$IMAGE" "$DIGEST" >> "$GITHUB_STEP_SUMMARY"
+          printf 'No server deployment or repository write was performed.\n' >> "$GITHUB_STEP_SUMMARY"
