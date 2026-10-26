@@ -15,6 +15,7 @@ async function currentScope(clientId) {
 const STATIC = [
   '/assets/app.css',
   '/assets/app.js',
+  '/assets/discussion.js',
   '/assets/offline.js',
   '/assets/pwa.js',
   '/assets/manifest.webmanifest',

@@ -150,7 +150,7 @@ async fn resource_metadata(State(s): State<AppState>) -> Response {
     Json(json!({"resource":canonical(&s),"authorization_servers":[s.origin.trim_end_matches('/')],"scopes_supported":["tasks:read","tasks:write"],"bearer_methods_supported":["header"]})).into_response()
 }
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
+// RFC 7591 metadata extensions must be tolerated; only supported security fields are applied.
 struct Registration {
     client_name: String,
     redirect_uris: Vec<String>,

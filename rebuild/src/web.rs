@@ -1,3 +1,13 @@
+#[path = "auth_web.rs"]
+mod browser_auth;
+#[path = "discussion_web.rs"]
+mod discussion_http;
+#[path = "oauth_web.rs"]
+mod oauth_http;
+#[path = "workspace_web.rs"]
+mod organization;
+#[path = "scheduling_web.rs"]
+mod scheduling_http;
 use crate::core::{Capture, Change, Error, List, Store, Task};
 use askama::Template;
 use axum::{
@@ -16,6 +26,8 @@ use tower_http::services::ServeDir;
 #[derive(Clone)]
 pub struct AppState {
     store: Arc<Mutex<Store>>,
+    production: Option<Arc<browser_auth::ProductionAuth>>,
+    storage: Option<Arc<crate::object_storage::ObjectStorage>>,
     token_hash: [u8; 32],
     sessions: Arc<Mutex<std::collections::HashMap<[u8; 32], std::time::Instant>>>,
     csrf: String,
@@ -26,6 +38,8 @@ impl AppState {
     pub fn new(store: Arc<Mutex<Store>>, token: String, origin: String) -> Self {
         Self {
             store,
+            production: None,
+            storage: None,
             token_hash: Sha256::digest(token.as_bytes()).into(),
             sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
             csrf: uuid::Uuid::new_v4().to_string(),
@@ -33,11 +47,18 @@ impl AppState {
             stopping: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
+    pub fn with_storage(mut self, storage: Option<crate::object_storage::ObjectStorage>) -> Self {
+        self.storage = storage.map(Arc::new);
+        self
+    }
     pub fn request_shutdown(&self) {
         self.stopping
             .store(true, std::sync::atomic::Ordering::SeqCst);
     }
-    fn auth(&self, h: &HeaderMap, write: bool) -> Result<&'static str, ApiError> {
+    fn auth(&self, h: &HeaderMap, write: bool) -> Result<String, ApiError> {
+        if self.production.is_some() {
+            return self.production_actor(h, write, false);
+        }
         if let Some(token) = h
             .get(header::AUTHORIZATION)
             .and_then(|v| v.to_str().ok())
@@ -49,7 +70,7 @@ impl AppState {
                 .zip(self.token_hash)
                 .fold(0u8, |a, (x, y)| a | (x ^ y));
             if diff == 0 {
-                return Ok("dev");
+                return Ok("dev".into());
             }
         }
         let cookie_ok = session_cookie(h).is_some_and(|value| {
@@ -70,7 +91,7 @@ impl AppState {
                     "Reload before saving".into(),
                 ));
             }
-            return Ok("dev");
+            return Ok("dev".into());
         }
         Err(ApiError(
             StatusCode::UNAUTHORIZED,
@@ -100,6 +121,7 @@ impl AppState {
         .map_err(Into::into)
     }
 }
+#[derive(Debug)]
 pub struct ApiError(
     pub(crate) StatusCode,
     pub(crate) &'static str,
@@ -135,13 +157,13 @@ pub fn router(state: AppState) -> Router {
         .route("/", get(home))
         .route("/sw.js", get(service_worker))
         .route("/signin", get(signin).post(login))
+        .route("/auth/google", get(browser_auth::google_start))
+        .route("/auth/google/callback", get(browser_auth::google_callback))
         .route("/logout", post(logout))
         .route("/capture", post(capture_form))
         .route("/lists/{id}", get(page))
-        .route(
-            "/health",
-            get(|| async { Json(json!({"status":"ok","mode":"development-only"})) }),
-        )
+        .route("/tasks/{id}", get(task_link))
+        .route("/health", get(|| async { Json(json!({"status":"ok"})) }))
         .route("/ready", get(ready))
         .route("/api/v1/lists", get(lists))
         .route("/api/v1/lists/{id}/tasks", get(tasks))
@@ -166,6 +188,10 @@ pub fn router(state: AppState) -> Router {
         .nest_service("/assets", ServeDir::new("rebuild/assets"))
         .nest_service("/legacy-assets", ServeDir::new("public"))
         .layer(DefaultBodyLimit::max(128 * 1024))
+        .merge(oauth_http::routes())
+        .merge(organization::routes())
+        .merge(discussion_http::routes())
+        .merge(scheduling_http::routes())
         .with_state(state.clone())
         .merge(
             crate::mcp::router(state.clone())
@@ -173,10 +199,22 @@ pub fn router(state: AppState) -> Router {
         )
         .layer(axum::middleware::from_fn(response_security))
 }
-async fn home() -> Redirect {
-    Redirect::to("/lists/groceries")
+async fn home(State(s): State<AppState>, h: HeaderMap) -> Result<Redirect, ApiError> {
+    let Ok(actor) = s.auth(&h, false) else {
+        return Ok(Redirect::to("/signin"));
+    };
+    let lists = s.run(move |db| db.lists(&actor)).await?;
+    Ok(Redirect::to(
+        &lists
+            .first()
+            .map(|list| format!("/lists/{}", list.id))
+            .unwrap_or_else(|| "/signin".into()),
+    ))
 }
 async fn signin(State(s): State<AppState>) -> Html<String> {
+    if s.production.is_some() {
+        return Html(r#"<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in · Todoer</title><link rel="stylesheet" href="/assets/app.css"><main class="login"><a class="brand" href="/">todoer<span>.pro</span></a><h1>Your tasks, clearly.</h1><p>Sign in with an invited Google account.</p><a class="primary" href="/auth/google">Continue with Google</a></main></html>"#.into());
+    }
     Html(format!(
         r#"<!doctype html><html lang="en"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign in · Todoer</title><link rel="stylesheet" href="/assets/app.css"><main class="login"><a class="brand" href="/">todoer<span>.pro</span></a><h1>Your day, with a little more clarity.</h1><p>This isolated rebuild uses synthetic data. Google sign-in is still being built.</p><form method="post" action="/signin"><input type="hidden" name="csrf" value="{}"><button class="primary">Enter development workspace</button></form><p class="muted">Local development only · no access to your existing account</p></main></html>"#,
         s.csrf
@@ -192,11 +230,14 @@ async fn login(
     h: HeaderMap,
     Form(f): Form<Login>,
 ) -> Result<Response, ApiError> {
-    if f.csrf != s.csrf
-        || h.get(header::ORIGIN)
-            .and_then(|v| v.to_str().ok())
-            .is_some_and(|o| o != s.origin)
-    {
+    if s.production.is_some() {
+        return Err(ApiError(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "Development login is disabled".into(),
+        ));
+    }
+    if f.csrf != s.csrf_for(&h) || !s.origin_ok(&h) {
         return Err(ApiError(
             StatusCode::FORBIDDEN,
             "csrf",
@@ -238,6 +279,37 @@ async fn login(
 }
 async fn logout(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
     s.auth(&h, true)?;
+    if let Some(auth) = &s.production {
+        let cookie = h
+            .get(header::COOKIE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        let token = cookie
+            .split(';')
+            .find_map(|v| v.trim().strip_prefix("todoer_session="))
+            .ok_or(crate::auth::AuthError::Unauthorized)?;
+        auth.store
+            .lock()
+            .map_err(|_| crate::auth::AuthError::Unauthorized)?
+            .revoke_session(token)?;
+        let mut response = Redirect::to("/signin").into_response();
+        for name in ["todoer_session", "todoer_csrf"] {
+            response.headers_mut().append(
+                header::SET_COOKIE,
+                format!(
+                    "{name}=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/{}",
+                    if s.origin.starts_with("https://") {
+                        "; Secure"
+                    } else {
+                        ""
+                    }
+                )
+                .parse()
+                .unwrap(),
+            );
+        }
+        return Ok(response);
+    }
     if let Some(value) = session_cookie(&h) {
         let hash: [u8; 32] = Sha256::digest(value.as_bytes()).into();
         if let Ok(mut sessions) = s.sessions.lock() {
@@ -261,32 +333,90 @@ struct ListPage {
     tasks: Vec<Task>,
     csrf: String,
     capture_key: String,
+    account_id: String,
+    development: bool,
+    can_write: bool,
 }
 #[derive(Template)]
 #[template(path = "tasks.html")]
 struct TaskRows {
     tasks: Vec<Task>,
+    can_write: bool,
+}
+#[derive(Deserialize, Default)]
+struct ListQuery {
+    task: Option<String>,
+    section: Option<String>,
+}
+async fn task_link(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Redirect, ApiError> {
+    let actor = s.auth(&h, false)?;
+    let task = s
+        .run(move |db| {
+            db.subtree(&actor, &id)?
+                .into_iter()
+                .find(|t| t.id == id || t.reference == id)
+                .ok_or(Error::NotFound)
+        })
+        .await?;
+    Ok(Redirect::to(&format!(
+        "/lists/{}?task={}",
+        task.list_id, task.id
+    )))
 }
 async fn page(
     State(s): State<AppState>,
     h: HeaderMap,
     Path(id): Path<String>,
+    Query(q): Query<ListQuery>,
 ) -> Result<Response, ApiError> {
-    if s.auth(&h, false).is_err() {
+    let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
+    };
+    if let Some(target) = q.task {
+        let reader = actor.clone();
+        let task = s
+            .run(move |db| {
+                db.subtree(&reader, &target)?
+                    .into_iter()
+                    .find(|t| t.id == target || t.reference == target)
+                    .ok_or(Error::NotFound)
+            })
+            .await?;
+        if task.list_id != id {
+            return Ok(
+                Redirect::to(&format!("/lists/{}?task={}", task.list_id, task.id)).into_response(),
+            );
+        }
     }
-    let lists = s.run(|db| db.lists("dev")).await?;
+    let _section = q.section;
+    let account_id = actor.clone();
+    let list_actor = actor.clone();
+    let lists = s.run(move |db| db.lists(&list_actor)).await?;
     let list = lists.iter().find(|l| l.id == id).cloned().ok_or(ApiError(
         StatusCode::NOT_FOUND,
         "not_found",
         "List not found".into(),
     ))?;
-    let tasks = s.run(move |db| db.tasks("dev", &id)).await?;
+    let (tasks, can_write) = s
+        .run(move |db| {
+            Ok((
+                db.tasks(&actor, &id)?,
+                db.list_permission(&actor, &id)? >= 2,
+            ))
+        })
+        .await?;
     let html = ListPage {
         lists,
         list,
         tasks,
-        csrf: s.csrf.clone(),
+        csrf: s.csrf_for(&h),
+        account_id: account_id.clone(),
+        development: s.production.is_none(),
+        can_write,
         capture_key: uuid::Uuid::new_v4().to_string(),
     }
     .render()
@@ -300,7 +430,10 @@ async fn page(
     Ok((
         [
             (header::CACHE_CONTROL, "no-store"),
-            (header::HeaderName::from_static("x-todoer-account"), "dev"),
+            (
+                header::HeaderName::from_static("x-todoer-account"),
+                account_id.as_str(),
+            ),
         ],
         Html(html),
     )
@@ -311,34 +444,43 @@ async fn task_fragment(
     h: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Html<String>, ApiError> {
-    s.auth(&h, false)?;
-    let tasks = s.run(move |db| db.tasks("dev", &id)).await?;
-    Ok(Html(TaskRows { tasks }.render().map_err(|_| {
-        ApiError(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "template",
-            "Render failed".into(),
-        )
-    })?))
+    let actor = s.auth(&h, false)?;
+    let (tasks, can_write) = s
+        .run(move |db| {
+            Ok((
+                db.tasks(&actor, &id)?,
+                db.list_permission(&actor, &id)? >= 2,
+            ))
+        })
+        .await?;
+    Ok(Html(TaskRows { tasks, can_write }.render().map_err(
+        |_| {
+            ApiError(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "template",
+                "Render failed".into(),
+            )
+        },
+    )?))
 }
 async fn lists(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Vec<List>>, ApiError> {
-    s.auth(&h, false)?;
-    Ok(Json(s.run(|db| db.lists("dev")).await?))
+    let actor = s.auth(&h, false)?;
+    Ok(Json(s.run(move |db| db.lists(&actor)).await?))
 }
 async fn tasks(
     State(s): State<AppState>,
     h: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<Task>>, ApiError> {
-    s.auth(&h, false)?;
-    Ok(Json(s.run(move |db| db.tasks("dev", &id)).await?))
+    let actor = s.auth(&h, false)?;
+    Ok(Json(s.run(move |db| db.tasks(&actor, &id)).await?))
 }
 async fn capture(
     State(s): State<AppState>,
     h: HeaderMap,
     Input(c): Input<Capture>,
 ) -> Result<Json<Vec<Task>>, ApiError> {
-    s.auth(&h, true)?;
+    let actor = s.auth(&h, true)?;
     let key = h
         .get("idempotency-key")
         .and_then(|v| v.to_str().ok())
@@ -349,7 +491,7 @@ async fn capture(
             "Idempotency-Key required (1–200 characters)".into(),
         ))?
         .to_owned();
-    Ok(Json(s.run(move |db| db.capture("dev", &key, c)).await?))
+    Ok(Json(s.run(move |db| db.capture(&actor, &key, c)).await?))
 }
 async fn update(
     State(s): State<AppState>,
@@ -357,16 +499,16 @@ async fn update(
     Path(id): Path<String>,
     Input(c): Input<Change>,
 ) -> Result<Json<Task>, ApiError> {
-    s.auth(&h, true)?;
-    Ok(Json(s.run(move |db| db.update("dev", &id, c)).await?))
+    let actor = s.auth(&h, true)?;
+    Ok(Json(s.run(move |db| db.update(&actor, &id, c)).await?))
 }
 async fn subtree(
     State(s): State<AppState>,
     h: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Json<Vec<Task>>, ApiError> {
-    s.auth(&h, false)?;
-    Ok(Json(s.run(move |db| db.subtree("dev", &id)).await?))
+    let actor = s.auth(&h, false)?;
+    Ok(Json(s.run(move |db| db.subtree(&actor, &id)).await?))
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -382,11 +524,11 @@ async fn move_task(
     Path(id): Path<String>,
     Input(c): Input<Move>,
 ) -> Result<Json<Task>, ApiError> {
-    s.auth(&h, true)?;
+    let actor = s.auth(&h, true)?;
     Ok(Json(
         s.run(move |db| {
             db.move_subtree(
-                "dev",
+                &actor,
                 &id,
                 &c.destination,
                 c.revision,
@@ -407,8 +549,8 @@ async fn changes(
     h: HeaderMap,
     Query(q): Query<Since>,
 ) -> Result<Json<Vec<Value>>, ApiError> {
-    s.auth(&h, false)?;
-    Ok(Json(s.run(move |db| db.changes("dev", q.after)).await?))
+    let actor = s.auth(&h, false)?;
+    Ok(Json(s.run(move |db| db.changes(&actor, q.after)).await?))
 }
 
 #[derive(Deserialize)]
@@ -430,11 +572,11 @@ async fn search(
     h: HeaderMap,
     Query(q): Query<SearchQuery>,
 ) -> Result<Json<Vec<Task>>, ApiError> {
-    s.auth(&h, false)?;
+    let actor = s.auth(&h, false)?;
     Ok(Json(
         s.run(move |db| {
             db.search(
-                "dev",
+                &actor,
                 &q.query,
                 q.list.as_deref(),
                 q.complete,
@@ -456,9 +598,9 @@ async fn move_preview(
     Path(id): Path<String>,
     Query(q): Query<PreviewQuery>,
 ) -> Result<Json<Value>, ApiError> {
-    s.auth(&h, false)?;
+    let actor = s.auth(&h, false)?;
     Ok(Json(
-        s.run(move |db| db.move_preview("dev", &id, &q.destination))
+        s.run(move |db| db.move_preview(&actor, &id, &q.destination))
             .await?,
     ))
 }
@@ -477,18 +619,23 @@ async fn mcp_auth(
         return ApiError(StatusCode::FORBIDDEN, "origin", "Untrusted origin".into())
             .into_response();
     }
-    if req.headers().get(header::AUTHORIZATION).is_none() {
-        return ApiError(
-            StatusCode::UNAUTHORIZED,
-            "unauthorized",
-            "Development MCP requires a Todoer bearer token; OAuth discovery is not implemented"
-                .into(),
-        )
-        .into_response();
-    }
-    match s.auth(req.headers(), true) {
+    match s.mcp_actor(req.headers()) {
         Ok(_) => next.run(req).await,
-        Err(e) => e.into_response(),
+        Err(e) => {
+            let mut response = e.into_response();
+            if response.status() == StatusCode::UNAUTHORIZED && s.production.is_some() {
+                response.headers_mut().insert(
+                    header::WWW_AUTHENTICATE,
+                    format!(
+                        "Bearer resource_metadata=\"{}/.well-known/oauth-protected-resource/mcp\"",
+                        s.origin
+                    )
+                    .parse()
+                    .unwrap(),
+                );
+            }
+            response
+        }
     }
 }
 
@@ -504,8 +651,8 @@ struct Revision {
     revision: i64,
 }
 async fn trash_tasks(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Vec<Task>>, ApiError> {
-    s.auth(&h, false)?;
-    Ok(Json(s.run(|db| db.trash_tasks("dev")).await?))
+    let actor = s.auth(&h, false)?;
+    Ok(Json(s.run(move |db| db.trash_tasks(&actor)).await?))
 }
 async fn trash_task(
     State(s): State<AppState>,
@@ -513,9 +660,9 @@ async fn trash_task(
     Path(id): Path<String>,
     Input(c): Input<Revision>,
 ) -> Result<Json<Task>, ApiError> {
-    s.auth(&h, true)?;
+    let actor = s.auth(&h, true)?;
     Ok(Json(
-        s.run(move |db| db.trash("dev", &id, c.revision)).await?,
+        s.run(move |db| db.trash(&actor, &id, c.revision)).await?,
     ))
 }
 async fn restore_task(
@@ -524,9 +671,9 @@ async fn restore_task(
     Path(id): Path<String>,
     Input(c): Input<Revision>,
 ) -> Result<Json<Task>, ApiError> {
-    s.auth(&h, true)?;
+    let actor = s.auth(&h, true)?;
     Ok(Json(
-        s.run(move |db| db.restore("dev", &id, c.revision)).await?,
+        s.run(move |db| db.restore(&actor, &id, c.revision)).await?,
     ))
 }
 async fn undo(
@@ -535,16 +682,16 @@ async fn undo(
     Path(seq): Path<i64>,
     Input(c): Input<Revision>,
 ) -> Result<Json<Task>, ApiError> {
-    s.auth(&h, true)?;
+    let actor = s.auth(&h, true)?;
     Ok(Json(
-        s.run(move |db| db.undo_update("dev", seq, c.revision))
+        s.run(move |db| db.undo_update(&actor, seq, c.revision))
             .await?,
     ))
 }
 async fn capabilities(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Value>, ApiError> {
     s.auth(&h, false)?;
     Ok(Json(
-        json!({"version":"0.1.0-dev","mode":"development-only","interfaces":["rest","cli","mcp-development"],"operations":["lists.read","tasks.read","capture","tasks.update","subtree.read","subtree.move","move.preview","search","changes","trash","restore","undo.update"],"limits":{"capture_batch":100,"search_limit":100,"changes_page":1000,"title_characters":500,"description_bytes":100000},"search":{"matching":"unicode-token-prefix","fuzzy":false,"sort":"id"},"production_auth":false}),
+        json!({"version":"0.1.0-dev","mode":"development-only","interfaces":["rest","cli","mcp-development"],"operations":["lists.read","tasks.read","capture","tasks.update","subtree.read","subtree.move","move.preview","search","changes","trash","restore","undo.update"],"limits":{"capture_batch":100,"search_limit":100,"changes_page":1000,"title_characters":500,"description_bytes":100000},"search":{"matching":"unicode-token-prefix","fuzzy":false,"sort":"id"},"production_auth":s.production.is_some()}),
     ))
 }
 async fn openapi() -> impl IntoResponse {
@@ -575,14 +722,14 @@ async fn search_page(
     h: HeaderMap,
     Query(q): Query<SearchQuery>,
 ) -> Result<Response, ApiError> {
-    if s.auth(&h, false).is_err() {
+    let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
-    }
+    };
     let query = q.query.clone();
     let tasks = s
         .run(move |db| {
             db.search(
-                "dev",
+                &actor,
                 &q.query,
                 q.list.as_deref(),
                 q.complete,
@@ -595,30 +742,30 @@ async fn search_page(
         title: "Search".into(),
         mode: "search".into(),
         query,
-        csrf: s.csrf,
+        csrf: s.csrf_for(&h),
         tasks,
         events: vec![],
     })
 }
 async fn trash_page(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
-    if s.auth(&h, false).is_err() {
+    let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
-    }
-    let tasks = s.run(|db| db.trash_tasks("dev")).await?;
+    };
+    let tasks = s.run(move |db| db.trash_tasks(&actor)).await?;
     render_review(ReviewPage {
         title: "Trash".into(),
         mode: "trash".into(),
         query: String::new(),
-        csrf: s.csrf,
+        csrf: s.csrf_for(&h),
         tasks,
         events: vec![],
     })
 }
 async fn activity_page(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
-    if s.auth(&h, false).is_err() {
+    let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
-    }
-    let values = s.run(|db| db.changes("dev", 0)).await?;
+    };
+    let values = s.run(move |db| db.changes(&actor, 0)).await?;
     let events = values
         .into_iter()
         .rev()
@@ -636,7 +783,7 @@ async fn activity_page(State(s): State<AppState>, h: HeaderMap) -> Result<Respon
         title: "Activity".into(),
         mode: "activity".into(),
         query: String::new(),
-        csrf: s.csrf,
+        csrf: s.csrf_for(&h),
         tasks: vec![],
         events,
     })
@@ -678,7 +825,8 @@ async fn response_security(req: axum::extract::Request, next: axum::middleware::
     res.headers_mut()
         .insert("x-content-type-options", "nosniff".parse().unwrap());
     res.headers_mut()
-        .insert("referrer-policy", "same-origin".parse().unwrap());
+        .entry("referrer-policy")
+        .or_insert("same-origin".parse().unwrap());
     res.headers_mut().insert("content-security-policy","default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'".parse().unwrap());
     res
 }
@@ -696,12 +844,24 @@ async fn service_worker() -> impl IntoResponse {
     )
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Feed {
+    #[serde(default)]
+    after: i64,
+    list_id: Option<String>,
+}
 async fn events(
     State(s): State<AppState>,
     h: HeaderMap,
-    Query(q): Query<Since>,
+    Query(q): Query<Feed>,
 ) -> Result<impl IntoResponse, ApiError> {
-    s.auth(&h, false)?;
+    let actor = s.auth(&h, false)?;
+    if let Some(list) = q.list_id.clone()
+        && s.run(move |db| db.list_permission(&actor, &list)).await? < 1
+    {
+        return Err(Error::Forbidden.into());
+    }
     let last = h
         .get("last-event-id")
         .and_then(|v| v.to_str().ok())
@@ -709,23 +869,41 @@ async fn events(
         .unwrap_or(q.after)
         .max(0);
     let stream = futures_util::stream::unfold(
-        (s, h, last, false),
-        |(s, h, mut cursor, ended)| async move {
+        (s, h, last, false, q.list_id),
+        |(s, h, mut cursor, ended, list)| async move {
             if ended || s.stopping.load(std::sync::atomic::Ordering::SeqCst) {
                 return None;
             }
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            if s.auth(&h, false).is_err() {
-                return Some((
-                    Ok::<_, std::convert::Infallible>(
-                        axum::response::sse::Event::default()
-                            .event("session-expired")
-                            .data("{}"),
-                    ),
-                    (s, h, cursor, true),
-                ));
+            let actor = match s.auth(&h, false) {
+                Ok(actor) => actor,
+                Err(_) => {
+                    return Some((
+                        Ok::<_, std::convert::Infallible>(
+                            axum::response::sse::Event::default()
+                                .event("session-expired")
+                                .data("{}"),
+                        ),
+                        (s, h, cursor, true, list),
+                    ));
+                }
+            };
+            if let Some(id) = list.clone() {
+                let checked_actor = actor.clone();
+                if !s
+                    .run(move |db| db.list_permission(&checked_actor, &id))
+                    .await
+                    .is_ok_and(|rank| rank >= 1)
+                {
+                    return Some((
+                        Ok(axum::response::sse::Event::default()
+                            .event("access-revoked")
+                            .data("{}")),
+                        (s, h, cursor, true, list),
+                    ));
+                }
             }
-            let values = s.run(move |db| db.changes("dev", cursor)).await;
+            let values = s.run(move |db| db.changes(&actor, cursor)).await;
             let data = match values {
                 Ok(changes) => {
                     for v in &changes {
@@ -740,7 +918,7 @@ async fn events(
                     .event("changes")
                     .id(cursor.to_string())
                     .data(data.to_string())),
-                (s, h, cursor, false),
+                (s, h, cursor, false, list),
             ))
         },
     );
@@ -758,8 +936,12 @@ async fn ready(State(s): State<AppState>) -> Result<Json<Value>, ApiError> {
             "Shutting down".into(),
         ));
     }
-    s.run(|db| db.lists("dev")).await?;
-    Ok(Json(json!({"ready":true,"mode":"development-only"})))
+    s.run(|db| {
+        db.conn.query_row("SELECT 1", [], |_| Ok(()))?;
+        Ok(())
+    })
+    .await?;
+    Ok(Json(json!({"ready":true})))
 }
 
 struct Input<T>(T);
@@ -790,12 +972,8 @@ async fn capture_form(
     h: HeaderMap,
     Form(f): Form<CaptureForm>,
 ) -> Result<Redirect, ApiError> {
-    s.auth(&h, false)?;
-    if f.csrf != s.csrf
-        || h.get(header::ORIGIN)
-            .and_then(|v| v.to_str().ok())
-            .is_some_and(|o| o != s.origin)
-    {
+    let actor = s.auth(&h, false)?;
+    if f.csrf != s.csrf_for(&h) || !s.origin_ok(&h) {
         return Err(ApiError(
             StatusCode::FORBIDDEN,
             "csrf",
@@ -805,7 +983,7 @@ async fn capture_form(
     let list = f.list_id.clone();
     s.run(move |db| {
         db.capture(
-            "dev",
+            &actor,
             &f.key,
             Capture {
                 list_id: f.list_id,

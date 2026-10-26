@@ -94,6 +94,7 @@ impl AuthStore {
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         conn.pragma_update(None, "foreign_keys", true)?;
         conn.execute_batch(include_str!("../migrations/004_auth.sql"))?;
+        conn.execute_batch(include_str!("../migrations/007_auth_oauth.sql"))?;
         Ok(Self { conn })
     }
     pub fn memory() -> Result<Self, AuthError> {

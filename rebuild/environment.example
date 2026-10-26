@@ -1,0 +1,13 @@
+# Independent Rust database. Never point this at the Python database.
+TODOER_RUST_DB=/var/lib/todoer/todoer-rust.db
+TODOER_RUST_PORT=8092
+TODOER_RUST_BIND=127.0.0.1
+TODOER_PUBLIC_URL=https://tasks.example.invalid
+TODOER_GOOGLE_CLIENT_ID=replace-with-google-web-client-id
+TODOER_GOOGLE_CLIENT_SECRET=replace-with-google-client-secret
+# Exact verified emails allowed to REGISTER; empty means no new registrations.
+# Identity remains Google issuer+subject. Removing an entry doesn't delete an account.
+TODOER_REGISTRATION_ALLOWLIST=owner@example.invalid
+# Local synthetic mode only; disables Google/OAuth and always binds loopback.
+# TODOER_DEV_AUTH=1
+# TODOER_DEV_TOKEN=replace-with-at-least-24-random-characters

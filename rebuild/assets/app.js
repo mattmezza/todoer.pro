@@ -1,3 +1,4 @@
+import { mountDiscussion } from './discussion.js';
 import {
   enqueueCapture,
   replayCaptures,
@@ -10,9 +11,15 @@ const $ = (s) => document.querySelector(s);
 const csrf = $('meta[name="csrf-token"]').content;
 const list = document.body.dataset.list;
 const account = $('meta[name="account-id"]').content;
+const canWrite = document.body.dataset.canWrite === 'true';
 setupPwa(account);
 const dialog = $('#task-editor');
+dialog.addEventListener('close', () => {
+  discussionCleanup?.();
+  discussionCleanup = null;
+});
 let editor = null;
+let discussionCleanup = null;
 let editorBusy = false;
 let editorOpenSequence = 0;
 let cursor = 0;
@@ -20,7 +27,7 @@ let busy = false;
 let pendingRefresh = false;
 const inlineEditors = new Map();
 let restoreTaskFocus = null;
-const draftKey = `todoer:dev:draft:${list}`;
+const draftKey = `todoer:${account}:draft:${list}`;
 const input = $('#capture-title');
 input.value = sessionStorage.getItem(draftKey) || '';
 input.addEventListener('input', () => sessionStorage.setItem(draftKey, input.value));
@@ -29,6 +36,8 @@ function notice(text, error = false) {
   $('#notice').classList.toggle('error', error);
 }
 async function api(path, method = 'GET', body, extra = {}) {
+  if (method !== 'GET' && !canWrite)
+    throw new Error('You have read-only access to this list.');
   const response = await fetch(`/api/v1${path}`, {
     signal: AbortSignal.timeout?.(15000),
     method,
@@ -253,7 +262,7 @@ $('#task-list').addEventListener('click', async (e) => {
 function saveEditorDraft() {
   if (editor)
     sessionStorage.setItem(
-      `todoer:dev:edit:${editor.id}`,
+      `todoer:${account}:edit:${editor.id}`,
       JSON.stringify({
         title: $('#edit-title').value,
         description: $('#edit-description').value,
@@ -319,7 +328,7 @@ $('#edit-form').addEventListener('submit', async (e) => {
       title,
       description,
     });
-    sessionStorage.removeItem(`todoer:dev:edit:${task.id}`);
+    sessionStorage.removeItem(`todoer:${account}:edit:${task.id}`);
     release();
     if (dialog.open && editor?.id === task.id) {
       closeEditor();
@@ -363,14 +372,42 @@ $('#logout').onclick = async () => {
   }
 };
 if ('EventSource' in window) {
-  const events = new EventSource(`/api/v1/events?after=${cursor}`);
+  const events = new EventSource(
+    `/api/v1/events?after=${cursor}&list_id=${encodeURIComponent(list)}`,
+  );
   events.addEventListener('changes', (e) => {
     const data = JSON.parse(e.data);
     if (data.resync || data.cursor > cursor) {
+      discussionCleanup?.refresh?.();
       cursor = data.cursor || cursor;
       refresh();
     }
     $('#connection').textContent = 'Up to date';
+  });
+  events.addEventListener('access-revoked', async () => {
+    events.close();
+    saveEditorDraft();
+    await clearPwa(account);
+    $('#task-list').replaceChildren();
+    dialog.close();
+    $('#edit-title').value = '';
+    $('#edit-description').value = '';
+    $('#subtask-list').replaceChildren();
+    $('#editor-reference').textContent = '';
+    $('#discussion-container').replaceChildren();
+    document.querySelector('.list-description')?.remove();
+    document.querySelector('.breadcrumbs').replaceChildren();
+    editor = null;
+    $('#capture-form').hidden = true;
+    $('#quick-add').disabled = true;
+    document.querySelector('nav[aria-label="Lists"]').replaceChildren();
+    document.querySelector('h1').textContent = 'Access changed';
+    document.title = 'Access changed · Todoer';
+    $('#connection').textContent = 'Access removed';
+    notice(
+      'Your access to this list was removed. Unsaved drafts remain on this device under your account.',
+      true,
+    );
   });
   events.addEventListener('session-expired', () => {
     events.close();
@@ -433,13 +470,15 @@ async function openTask(id, push = true) {
   try {
     const tasks = await api(`/tasks/${id}/subtree`);
     if (sequence !== editorOpenSequence) return;
+    discussionCleanup?.();
+    discussionCleanup = null;
     editor = tasks.find((t) => t.id === id || t.reference === id) || tasks[0];
     if (!editor) throw new Error('Task not found');
     $('#edit-title').value = editor.title;
     $('#edit-description').value = editor.description;
     $('#editor-reference').textContent = `%${editor.reference}`;
     $('#edit-error').textContent = '';
-    const saved = sessionStorage.getItem(`todoer:dev:edit:${editor.id}`);
+    const saved = sessionStorage.getItem(`todoer:${account}:edit:${editor.id}`);
     if (saved) {
       const draft = JSON.parse(saved);
       $('#edit-title').value = draft.title;
@@ -448,7 +487,24 @@ async function openTask(id, push = true) {
       $('#edit-error').textContent =
         'Restored your unsaved draft. Saving checks its original revision.';
     }
+    for (const control of dialog.querySelectorAll('input,textarea'))
+      control.readOnly = !canWrite;
+    for (const selector of [
+      '#add-subtask',
+      '#move-task',
+      '#trash-task',
+      '#edit-form button[type="submit"]',
+    ])
+      $(selector).hidden = !canWrite;
+    document.querySelector('.subtask-add').hidden = !canWrite;
     renderChildren(tasks);
+    discussionCleanup = mountDiscussion({
+      taskId: editor.id,
+      csrf,
+      container: $('#discussion-container'),
+      accountId: account,
+      onConflict: (err) => notice(err.message, true),
+    });
     $('#move-destination').value = editor.list_id;
     if (!dialog.open) dialog.showModal();
     if (push)
@@ -474,6 +530,7 @@ function renderChildren(tasks) {
     const complete = document.createElement('button');
     complete.type = 'button';
     complete.className = 'child-complete';
+    complete.disabled = !canWrite;
     complete.textContent = child.complete ? '✓' : '○';
     complete.setAttribute(
       'aria-label',
@@ -620,7 +677,7 @@ async function renameInline(row, snapshot) {
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.textContent = 'Cancel';
-    const key = `todoer:dev:inline:${id}`;
+    const key = `todoer:${account}:inline:${id}`;
     const stash = () =>
       sessionStorage.setItem(key, JSON.stringify({ ...task, title: input.value }));
     input.oninput = stash;
@@ -676,7 +733,7 @@ async function renameInline(row, snapshot) {
   }
 }
 for (const row of $$('#task-list .task')) {
-  const saved = sessionStorage.getItem(`todoer:dev:inline:${row.dataset.id}`);
+  const saved = sessionStorage.getItem(`todoer:${account}:inline:${row.dataset.id}`);
   if (saved) {
     try {
       renameInline(row, JSON.parse(saved));

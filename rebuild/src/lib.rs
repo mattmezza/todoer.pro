@@ -1,4 +1,12 @@
+pub mod auth;
 pub mod core;
+pub mod discussion;
 pub mod markdown;
 pub mod mcp;
+pub mod notifications;
+pub mod object_storage;
+pub mod oidc;
+pub mod scheduling;
+pub mod taxonomy;
 pub mod web;
+pub mod workspace;
