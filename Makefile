@@ -27,3 +27,30 @@ build:  ## builds a docker image for specific env (e.g. make build env=local nam
 .PHONY: deploy
 deploy: build ## deploys a specific release onto specific env (e.g. make deploy env=prod name=v0.20)
 	./scripts/deploy.sh -e$(env)
+
+# Rust rebuild stays alongside the legacy app until an authorized cutover.
+.PHONY: rust-setup rust-dev rust-assets rust-format rust-lint rust-test rust-build rust-e2e rust-check
+rust-setup: ## install locked frontend dependencies and fetch Rust crates
+	npm ci
+	cargo fetch --locked
+rust-assets: ## compile Tailwind v4 and self-host htmx
+	npm run assets
+	cp node_modules/htmx.org/dist/htmx.min.js rebuild/assets/htmx.min.js
+rust-dev: rust-assets ## start isolated loopback Rust app; requires TODOER_DEV_AUTH/TODOER_DEV_TOKEN
+	mkdir -p .local/rebuild
+	cargo run --locked --bin todoer-server
+rust-format: ## format Rust source
+	cargo fmt --all
+rust-lint: ## deny compiler and Clippy warnings
+	cargo clippy --locked --all-targets -- -D warnings
+rust-test: ## core and HTTP integration tests
+	cargo test --locked
+rust-build: rust-assets ## build Rust binaries reproducibly
+	cargo build --locked --release
+rust-e2e: ## browser tests against already-running isolated Rust development server
+	npx playwright test
+rust-check: rust-assets ## format, lint, tests and debug build
+	cargo fmt --all -- --check
+	cargo clippy --locked --all-targets -- -D warnings
+	cargo test --locked
+	cargo build --locked
