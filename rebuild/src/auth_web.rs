@@ -7,7 +7,29 @@ use std::collections::HashMap;
 pub(super) struct ProductionAuth {
     pub store: Mutex<AuthStore>,
     pub oidc: GoogleOidc,
-    pending: Mutex<HashMap<[u8; 32], PendingLogin>>,
+    pending: Mutex<HashMap<[u8; 32], PendingSignIn>>,
+}
+struct PendingSignIn {
+    oidc: PendingLogin,
+    next: String,
+    invitation: Option<String>,
+}
+#[derive(Deserialize, Default)]
+pub(super) struct LoginContext {
+    pub next: Option<String>,
+    pub invitation: Option<String>,
+}
+pub(super) fn safe_next(value: Option<&str>) -> String {
+    value
+        .filter(|s| {
+            s.starts_with('/')
+                && !s.starts_with("//")
+                && !s.contains('\\')
+                && !s.chars().any(char::is_control)
+                && s.len() <= 2048
+        })
+        .unwrap_or("/")
+        .to_string()
 }
 fn cookie<'a>(h: &'a HeaderMap, name: &str) -> Option<&'a str> {
     h.get(header::COOKIE)?
@@ -122,12 +144,20 @@ impl AppState {
             .is_none_or(|origin| origin == self.origin)
     }
 }
-pub(super) async fn google_start(State(s): State<AppState>) -> Result<Response, ApiError> {
+pub(super) async fn google_start(
+    State(s): State<AppState>,
+    Query(context): Query<LoginContext>,
+) -> Result<Response, ApiError> {
     let auth = s.production.as_ref().ok_or(ApiError(
         StatusCode::NOT_FOUND,
         "not_found",
         "Google login is disabled in development mode".into(),
     ))?;
+    if let Some(token) = context.invitation.clone() {
+        let signer = s.invitations.clone().ok_or(AuthError::Forbidden)?;
+        s.run(move |db| db.check_invitation(&token, None, &signer))
+            .await?;
+    }
     let start = auth.oidc.begin_login();
     let binding = uuid::Uuid::new_v4().to_string();
     let hash = Sha256::digest(binding.as_bytes()).into();
@@ -138,7 +168,7 @@ pub(super) async fn google_start(State(s): State<AppState>) -> Result<Response, 
             "Sign-in unavailable".into(),
         )
     })?;
-    pending.retain(|_, v| !v.is_expired());
+    pending.retain(|_, v| !v.oidc.is_expired());
     if pending.len() >= 512 {
         return Err(ApiError(
             StatusCode::TOO_MANY_REQUESTS,
@@ -146,7 +176,14 @@ pub(super) async fn google_start(State(s): State<AppState>) -> Result<Response, 
             "Try signing in later".into(),
         ));
     }
-    pending.insert(hash, start.pending);
+    pending.insert(
+        hash,
+        PendingSignIn {
+            oidc: start.pending,
+            next: safe_next(context.next.as_deref()),
+            invitation: context.invitation,
+        },
+    );
     let mut response = Redirect::temporary(&start.authorization_url).into_response();
     response.headers_mut().append(
         header::SET_COOKIE,
@@ -194,7 +231,7 @@ pub(super) async fn google_callback(
     let identity = auth
         .oidc
         .complete_login(
-            pending,
+            pending.oidc,
             q.state.as_deref().unwrap_or(""),
             q.code.as_deref().unwrap_or(""),
         )
@@ -209,16 +246,40 @@ pub(super) async fn google_callback(
     let email = identity
         .registration_email()
         .map_err(|_| AuthError::Forbidden)?;
-    let (user, grant) = {
+    if let Some(token) = pending.invitation.clone() {
+        let signer = s.invitations.clone().ok_or(AuthError::Forbidden)?;
+        let email = email.to_owned();
+        s.run(move |db| db.check_invitation(&token, Some(&email), &signer))
+            .await?;
+    }
+    let user = {
         let mut store = auth.store.lock().map_err(|_| AuthError::Unauthorized)?;
-        let user = store.accept_identity(&identity.issuer, &identity.subject, email, true)?;
-        let grant = store.issue_session(&user.id, 43200)?;
-        (user, grant)
+        if pending.invitation.is_some() {
+            store.accept_invited_identity(&identity.issuer, &identity.subject, email)?
+        } else {
+            store.accept_identity(&identity.issuer, &identity.subject, email, true)?
+        }
     };
+    if let Some(token) = pending.invitation {
+        let actor = user.id.clone();
+        let signer = s.invitations.clone().ok_or(AuthError::Forbidden)?;
+        let email = email.to_owned();
+        s.run(move |db| db.claim_invitation(&actor, &token, &email, &signer))
+            .await?;
+    }
+    let grant = auth
+        .store
+        .lock()
+        .map_err(|_| AuthError::Unauthorized)?
+        .issue_session(&user.id, 43200)?;
     // New users receive a private destination using normal authorized operations.
     let actor = user.id;
     s.run(move |store| {
-        if store.lists(&actor)?.is_empty() {
+        if store
+            .destination_preferences(&actor)?
+            .iter()
+            .all(|p| p.key != "inbox")
+        {
             let workspace = store.create_workspace(
                 &actor,
                 crate::workspace::WorkspaceInput {
@@ -226,7 +287,7 @@ pub(super) async fn google_callback(
                     description: String::new(),
                 },
             )?;
-            store.create_list(
+            let inbox = store.create_list(
                 &actor,
                 crate::workspace::CreateList {
                     workspace_id: workspace.id,
@@ -235,11 +296,12 @@ pub(super) async fn google_callback(
                     restricted: false,
                 },
             )?;
+            store.set_destination_preference(&actor, "inbox", &inbox.id)?;
         }
         Ok(())
     })
     .await?;
-    let mut response = Redirect::to("/").into_response();
+    let mut response = Redirect::to(&pending.next).into_response();
     let secure = if s.origin.starts_with("https://") {
         "; Secure"
     } else {

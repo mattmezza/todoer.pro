@@ -53,15 +53,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .into(),
             );
         }
-        let auth = todoer::auth::AuthStore::open(&path)?;
-        for address in env::var("TODOER_REGISTRATION_ALLOWLIST")
+        let mut auth = todoer::auth::AuthStore::open(&path)?;
+        let allowlist = env::var("TODOER_REGISTRATION_ALLOWLIST")
             .unwrap_or_default()
             .split(',')
             .map(str::trim)
             .filter(|s| !s.is_empty())
-        {
-            auth.allow_email(address)?;
-        }
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        auth.replace_allowlist(&allowlist)?;
         let oidc = todoer::oidc::GoogleOidc::discover(todoer::oidc::GoogleConfig {
             client_id: env::var("TODOER_GOOGLE_CLIENT_ID")?,
             client_secret: env::var("TODOER_GOOGLE_CLIENT_SECRET")?,
@@ -79,7 +79,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let storage = todoer::object_storage::S3Config::from_env()?
         .map(todoer::object_storage::ObjectStorage::new)
         .transpose()?;
-    let state = state.with_storage(storage);
+    let signer_key = env::var("TODOER_SERVER_KEY").or_else(|error| {
+        if development {
+            Ok(format!(
+                "{}{}",
+                uuid::Uuid::new_v4().simple(),
+                uuid::Uuid::new_v4().simple()
+            ))
+        } else {
+            Err(error)
+        }
+    })?;
+    let state = state.with_invitations(todoer::invitations::InvitationSigner::new(
+        &signer_key,
+        if development {
+            format!("http://127.0.0.1:{port}")
+        } else {
+            env::var("TODOER_PUBLIC_URL")?
+                .trim_end_matches('/')
+                .to_owned()
+        },
+    )?);
+    let state = state
+        .with_storage(storage)
+        .with_push(todoer::push::PushTransport::from_env()?);
+    let push_worker = state.start_push_worker();
     let notifications = todoer::notifications::Notifications::from_env()?;
     let worker = notifications.map(|config| state.start_notification_worker(config));
     let listener = tokio::net::TcpListener::bind((bind, port)).await?;
@@ -110,6 +134,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .await?;
     state.request_shutdown();
+    if let Some(worker) = push_worker {
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(30), worker).await;
+    }
     if let Some(worker) = worker {
         let _ = tokio::time::timeout(std::time::Duration::from_secs(30), worker).await;
     }

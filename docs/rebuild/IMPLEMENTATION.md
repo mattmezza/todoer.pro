@@ -55,10 +55,10 @@ was altered. Personal data/screenshots must remain under ignored `.local/`.
 - [x] Read-only legacy copy running; synthetic desktop/phone reference screens in ignored `.local/rebuild/`.
 - [x] Shared Rust operations, versioned transactional migrations, independent SQLite WAL database; legacy schema rejected before writes.
 - [x] List/task HTML slice, task detail URLs, nested checklists, completion rules, subtree move with access-change acknowledgement.
-- [x] REST, Rust CLI, twelve direct application-layer MCP tools, accurate OpenAPI and capabilities; official Python MCP SDK HTTP check.
+- [x] REST, Rust CLI, fifteen direct application-layer MCP tools, accurate OpenAPI and capabilities; official Python MCP SDK HTTP check.
 - [x] Atomic 1–100 capture, payload-bound retry keys, revision conflicts, current-permission history/search/replay checks.
 - [x] FTS5 Unicode token-prefix title/description search, completed filter, ID keyset pagination. No fuzzy matching claim.
-- [x] Task trash/restore groups, actor IDs (human/agent client attribution remains unfinished), single-edit compensating undo that refuses newer work.
+- [x] Task trash/restore groups, human/credential-client actor attribution, single-edit compensating undo that refuses newer work.
 - [x] Sanitized CommonMark; safe image-free description display.
 - [x] SSE invalidation, open draft retention, session draft recovery, optimistic completion rollback, keyboard quick-add.
 - [x] Scoped recent-list cache and durable offline capture queue; manifest/icons; explicit worker update lifecycle.
@@ -67,12 +67,10 @@ was altered. Personal data/screenshots must remain under ignored `.local/`.
 - [x] Private-runner branch/PR checks prepared, fork-job guard; not executed remotely.
 - [x] Synthetic 10,000-task performance probe and query-plan-backed subtree fix.
 
-These do **not** complete the grouped checklist above. In particular, production
-Google/session/agent authorization, full workspace/section/tag/reference/sharing
-models, scheduling, notifications, attachments/discussion, all planning screens,
-exports/legacy importer, OpenRouter, push, Litestream and production release
-remain unfinished. External credentials are not the reason these implementations
-are unfinished. Do not cut over or deploy this increment.
+These increments do **not** complete the grouped checklist above. The entries
+below record later integration work; remaining product and operational gaps are
+explicit. External credentials are not the reason unfinished code remains
+unfinished. Do not cut over or deploy this branch yet.
 
 ## Identity and sharing increment
 
@@ -97,3 +95,46 @@ in both Chromium and Firefox. A native-select overflow found on phones was fixed
 and native checkboxes retain their visual size inside wrapping form labels.
 Local S3 protocol and Axum upload/download tests use a private Moto fixture;
 SMTP transport is exercised against an isolated aiosmtpd capture service.
+
+## Invitations, agent transactions, search and recovery increment
+
+- Email-bound seven-day invitations use a persistent server signing key and hashed
+  credentials, current owner checks, explicit access acknowledgement, atomic claim
+  and durable SMTP outbox. Google callback verifies the current signed email before
+  registration/claim; it never merges identities by email. Owner forms support link
+  creation and pending-link revocation. Three domain tests plus a real Axum router
+  test exercise retries, payload conflicts, wrong email, expiry, key rotation and
+  revocation. These local tests do not constitute a real Google tenant check.
+- Bulk previews invoke the same operations inside a rollback transaction; applying
+  checks the stored proposal/hash, complete expected state and current permissions.
+  Nested operation transactions use SQLite savepoints. Eighteen MCP tools include
+  preview/apply and saved destinations. An actual official SDK OAuth session tests
+  discovery, consent/PKCE, exchange, refresh, scoped tools and retry semantics.
+- Invitations do not replace a new user's private Inbox. The callback creates a
+  private destination and saves its explicit `inbox` preference, even if the user
+  already received direct access to someone else's list.
+- Structured multi-entity search adds authorized comments, tags, references,
+  attachment metadata, filters, projections and query-bound cursors. FTS supplies
+  candidates; document-local scoring avoids leaking private global index counts
+  through bm25 ranking. See `search.md` for exact behavior and measured limits.
+- Non-destructive legacy reconciliation is exercised against the ignored actual
+  SQLite copy, with source checksum unchanged. Known orphan hierarchy/deleted
+  owners require explicit recovery acknowledgement; preserved source archives
+  exclude authentication secrets. See `migration-export.md` for tested behavior.
+- Separate SMTP and push channel claiming prevents one worker from consuming the
+  other channel's reminders. Push encryption/VAPID and partial device retries are
+  checked against local real HTTP endpoints; physical devices remain unverified.
+
+Unfinished: all-interface parity and complete browser editors, favorites,
+workspace-changing list moves, OpenRouter assistance, full notification/product
+polish, production Compose/release and complete recovery runbooks, final broad
+browser/performance verification. Required features are not silently deferred.
+
+Latest backend integration: `cargo test --locked --lib` passes 129 active tests;
+eight explicit service/performance probes remain separate. `cargo clippy
+--all-targets -- -D warnings` passed before the next agent-surface extension.
+The recurrence editor passes seven actual-browser scenarios in each of Chromium
+and Firefox. A regression test confirms already delivered reminder instants are
+not requeued by unrelated schedule edits. Favorites are user-scoped and live
+permission-filtered; list color changes use the normal list revision. Account
+exports now include visible favorites/default destinations and empty workspaces.

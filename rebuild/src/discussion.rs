@@ -2,7 +2,7 @@
 //! SQLite transactions; finalization rechecks current permissions and revision.
 use crate::core::{self, Error, Store, Task};
 use crate::object_storage::VerifiedObject;
-use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 pub const MAX_ATTACHMENT_BYTES: u64 = 25 * 1024 * 1024;
@@ -60,7 +60,7 @@ pub struct UploadIntent {
     #[serde(skip_serializing)]
     pub(crate) object_key: String,
     #[serde(skip_serializing)]
-    creator_id: String,
+    pub(crate) creator_id: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Attachment {
@@ -117,7 +117,12 @@ fn task_access(c: &Connection, actor: &str, id: &str, rank: i64) -> Result<Task,
     core::access_rank(c, actor, &task.list_id, rank)?;
     Ok(task)
 }
-fn owner_or_author(c: &Connection, actor: &str, task: &Task, author: &str) -> Result<(), Error> {
+pub(crate) fn owner_or_author(
+    c: &Connection,
+    actor: &str,
+    task: &Task,
+    author: &str,
+) -> Result<(), Error> {
     let (user, _) = core::actor_identity(c, actor)?;
     if user == author {
         return Ok(());
@@ -269,9 +274,7 @@ impl Store {
         input: NewComment,
     ) -> Result<Comment, Error> {
         body_valid(&input.body)?;
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let task = task_access(&tx, actor, task, 2)?;
         if key.trim().is_empty() || key.len() > 200 {
             return Err(Error::Invalid(
@@ -332,9 +335,7 @@ impl Store {
         input: EditComment,
     ) -> Result<Comment, Error> {
         body_valid(&input.body)?;
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let old = comment_raw(&tx, id)?;
         let task = task_access(&tx, actor, &old.task_id, 2)?;
         owner_or_author(&tx, actor, &task, &old.author_id)?;
@@ -362,9 +363,7 @@ impl Store {
         id: &str,
         expected_revision: i64,
     ) -> Result<Comment, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let old = comment_raw(&tx, id)?;
         let task = task_access(&tx, actor, &old.task_id, 2)?;
         owner_or_author(&tx, actor, &task, &old.author_id)?;
@@ -403,9 +402,7 @@ impl Store {
                 "SHA-256 must be 64 hexadecimal characters".into(),
             ));
         }
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let task = task_access(&tx, actor, task, 2)?;
         comment_belongs(&tx, input.comment_id.as_deref(), &task.id)?;
         let (user, client) = core::actor_identity(&tx, actor)?;
@@ -429,9 +426,7 @@ impl Store {
         actor: &str,
         verified: VerifiedObject,
     ) -> Result<Attachment, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let (intent, task) = intent_access(&tx, actor, &verified.intent_id)?;
         if intent.object_key != verified.object_key
             || intent.size != verified.size
@@ -487,9 +482,7 @@ impl Store {
         id: &str,
         expected_revision: i64,
     ) -> Result<Attachment, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let old = attachment_raw(&tx, id)?;
         let task = task_access(&tx, actor, &old.task_id, 2)?;
         owner_or_author(&tx, actor, &task, &old.creator_id)?;

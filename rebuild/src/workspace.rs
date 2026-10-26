@@ -1,7 +1,7 @@
 //! Workspace policies and list/section administration. Direct list grants do not
 //! imply workspace membership: external known users see only their shared list.
 use crate::core::{Error, List, Store};
-use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
@@ -330,9 +330,7 @@ impl Store {
         input: WorkspaceInput,
     ) -> Result<Workspace, Error> {
         validate(&input.title, &input.description)?;
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let owner = crate::core::actor_user(&tx, actor, 3)?;
         let id = Uuid::new_v4().to_string();
         tx.execute(
@@ -353,9 +351,7 @@ impl Store {
         id: &str,
         change: WorkspaceChange,
     ) -> Result<Workspace, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         require_workspace(&tx, actor, id, 3)?;
         let old = workspace_raw(&tx, id)?;
         check_revision(old.revision, change.revision)?;
@@ -402,9 +398,7 @@ impl Store {
         revision: i64,
         acknowledge_access_change: bool,
     ) -> Result<Workspace, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         require_workspace(&tx, actor, workspace, 3)?;
         check_revision(workspace_raw(&tx, workspace)?.revision, revision)?;
         user_exists(&tx, user)?;
@@ -438,9 +432,7 @@ impl Store {
         user: &str,
         revision: i64,
     ) -> Result<Workspace, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         require_workspace(&tx, actor, workspace, 3)?;
         check_revision(workspace_raw(&tx, workspace)?.revision, revision)?;
         preserve_owner(&tx, workspace, user, false)?;
@@ -457,9 +449,7 @@ impl Store {
     }
     pub fn create_list(&mut self, actor: &str, input: CreateList) -> Result<List, Error> {
         validate(&input.title, &input.description)?;
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         require_workspace(
             &tx,
             actor,
@@ -499,9 +489,7 @@ impl Store {
         id: &str,
         change: ListChange,
     ) -> Result<List, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         require_list(&tx, actor, id, 2)?;
         let old = list_raw(&tx, id)?;
         check_revision(old.revision, change.revision)?;
@@ -524,9 +512,7 @@ impl Store {
         revision: i64,
         acknowledge_access_change: bool,
     ) -> Result<List, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         list_owner(&tx, actor, id)?;
         check_revision(list_raw(&tx, id)?.revision, revision)?;
         let before = policy_audience(&tx, None, Some(id))?;
@@ -552,9 +538,7 @@ impl Store {
         revision: i64,
         acknowledge_access_change: bool,
     ) -> Result<List, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         list_owner(&tx, actor, id)?;
         check_revision(list_raw(&tx, id)?.revision, revision)?;
         user_exists(&tx, user)?;
@@ -580,9 +564,7 @@ impl Store {
         user: &str,
         revision: i64,
     ) -> Result<List, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         list_owner(&tx, actor, id)?;
         check_revision(list_raw(&tx, id)?.revision, revision)?;
         if tx.execute(
@@ -610,9 +592,7 @@ impl Store {
         input: SectionInput,
     ) -> Result<Section, Error> {
         validate(&input.title, &input.description)?;
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         require_list(&tx, actor, list, 2)?;
         let id = Uuid::new_v4().to_string();
         tx.execute("INSERT INTO sections(id,list_id,title,description,position) VALUES(?1,?2,?3,?4,(SELECT COALESCE(MAX(position),-1)+1 FROM sections WHERE list_id=?2))",params![id,list,input.title.trim(),input.description])?;
@@ -627,9 +607,7 @@ impl Store {
         id: &str,
         change: SectionChange,
     ) -> Result<Section, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let old = section_raw(&tx, id)?;
         require_list(&tx, actor, &old.list_id, 2)?;
         check_revision(old.revision, change.revision)?;
@@ -651,9 +629,7 @@ impl Store {
         revision: i64,
         ids: &[String],
     ) -> Result<Workspace, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         require_workspace(&tx, actor, workspace, 3)?;
         check_revision(workspace_raw(&tx, workspace)?.revision, revision)?;
         let current = {
@@ -679,9 +655,7 @@ impl Store {
         revision: i64,
         ids: &[String],
     ) -> Result<List, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         require_list(&tx, actor, list, 2)?;
         check_revision(list_raw(&tx, list)?.revision, revision)?;
         let current = {

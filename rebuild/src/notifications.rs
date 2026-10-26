@@ -427,6 +427,14 @@ impl Notifications {
             test_recipient,
         }))
     }
+    pub(crate) async fn send_invitation(
+        &self,
+        id: &str,
+        email: &str,
+        link: &str,
+    ) -> Result<(), Error> {
+        self.send(id,Delivery{to:self.test_recipient.as_deref().unwrap_or(email).to_owned(),subject:"Invitation to Todoer".into(),body:format!("You have been invited to a private Todoer workspace or list.\nSign in with the invited Google email to review your access.\n\n{link}\n\nThis invitation expires after seven days. If you did not expect it, you can ignore this message.")}).await
+    }
     async fn send(&self, id: &str, delivery: Delivery) -> Result<(), Error> {
         let message = Message::builder()
             .from(self.from.clone())
@@ -464,7 +472,7 @@ enum Decision {
     Defer(i64),
     Cancel,
 }
-fn quiet_until(prefs: &Preferences, now: i64) -> Result<Option<i64>, Error> {
+pub(crate) fn quiet_until(prefs: &Preferences, now: i64) -> Result<Option<i64>, Error> {
     let tz = zone(&prefs.timezone)?;
     let instant = Utc
         .timestamp_opt(now, 0)
@@ -582,9 +590,7 @@ impl Store {
         Ok(())
     }
     pub fn queue_digests(&mut self, now: i64) -> Result<usize, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let users = {
             let mut q = tx.prepare(
                 "SELECT user_id,document FROM notification_preferences ORDER BY user_id LIMIT 1000",
@@ -640,9 +646,7 @@ struct DigestJob {
 }
 impl Store {
     fn claim_digest(&mut self, owner: &str, now: i64) -> Result<Option<DigestJob>, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         tx.execute("UPDATE digest_outbox SET status='dead',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE attempts>=5 AND (status='pending' OR status='leased' AND lease_until<=?1)",[now])?;
         let job:Option<(String,String,String,String)>=tx.query_row("SELECT id,user_id,kind,period FROM digest_outbox WHERE attempts<5 AND available_at<=?1 AND (status='pending' OR status='leased' AND lease_until<=?1) ORDER BY available_at,id LIMIT 1",[now],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
         let Some((id, user, kind, period)) = job else {
@@ -802,7 +806,7 @@ impl Store {
         Ok(())
     }
 }
-async fn database<T: Send + 'static>(
+pub(crate) async fn database<T: Send + 'static>(
     store: &Arc<Mutex<Store>>,
     work: impl FnOnce(&mut Store) -> Result<T, Error> + Send + 'static,
 ) -> Result<T, Error> {
@@ -839,7 +843,9 @@ pub(crate) async fn worker_tick_until(
         let actor = owner.clone();
         let now = Utc::now().timestamp();
         let job = database(store, move |db| {
-            Ok(db.claim_reminders(&actor, now, 1)?.pop())
+            Ok(db
+                .claim_reminders_channel(&actor, now, 1, Channel::Email)?
+                .pop())
         })
         .await?;
         let Some(job) = job else { break };

@@ -243,6 +243,12 @@ impl Store {
             (9, include_str!("../migrations/009_discussion.sql")),
             (10, include_str!("../migrations/010_notifications.sql")),
             (11, include_str!("../migrations/011_taxonomy.sql")),
+            (12, include_str!("../migrations/012_transfer.sql")),
+            (13, include_str!("../migrations/013_invitations.sql")),
+            (14, include_str!("../migrations/014_agent_ops.sql")),
+            (15, include_str!("../migrations/015_push.sql")),
+            (16, include_str!("../migrations/016_search.sql")),
+            (17, include_str!("../migrations/017_navigation.sql")),
         ] {
             let applied: bool = tx.query_row(
                 "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=?1)",
@@ -341,9 +347,7 @@ impl Store {
         key: &str,
         request: Capture,
     ) -> Result<Vec<Task>, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         access_rank(&tx, actor, &request.list_id, 2)?;
         if key.trim().is_empty() || key.len() > 200 {
             return Err(Error::Invalid(
@@ -425,9 +429,7 @@ impl Store {
         descendants(&self.conn, &t.id)
     }
     pub fn update(&mut self, actor: &str, id: &str, change: Change) -> Result<Task, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let t = task(&tx, id)?;
         access_rank(&tx, actor, &t.list_id, 2)?;
         if t.revision != change.revision {
@@ -479,9 +481,7 @@ impl Store {
     }
     /// Compensate one update event, never a whole cascade or a newer edit.
     pub fn undo_update(&mut self, actor: &str, seq: i64, revision: i64) -> Result<Task, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let (encoded, original_actor, before): (String, String, Option<String>) = tx
             .query_row(
                 "SELECT event,actor,before_event FROM history WHERE seq=?1",
@@ -547,9 +547,7 @@ impl Store {
         Ok(q.query_map([actor], task_row)?.collect::<Result<_, _>>()?)
     }
     pub fn trash(&mut self, actor: &str, id: &str, revision: i64) -> Result<Task, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let root = task(&tx, id)?;
         access_rank(&tx, actor, &root.list_id, 2)?;
         if root.revision != revision {
@@ -564,9 +562,7 @@ impl Store {
         Ok(result)
     }
     pub fn restore(&mut self, actor: &str, id: &str, revision: i64) -> Result<Task, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let root = raw_task(&tx, id)?;
         access_rank(&tx, actor, &root.list_id, 2)?;
         if root.revision != revision {
@@ -633,9 +629,7 @@ impl Store {
         revision: i64,
         acknowledge_access_change: bool,
     ) -> Result<Task, Error> {
-        let tx = self
-            .conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let t = task(&tx, id)?;
         access_rank(&tx, actor, &t.list_id, 2)?;
         access_rank(&tx, actor, destination, 2)?;
@@ -1180,7 +1174,7 @@ mod tests {
                 .conn
                 .query_row("SELECT COUNT(*) FROM schema_migrations", [], |r| r.get(0))
                 .unwrap();
-            assert_eq!(count, 11);
+            assert_eq!(count, 17);
         }
         {
             let s = Store::open(path.to_str().unwrap()).unwrap();

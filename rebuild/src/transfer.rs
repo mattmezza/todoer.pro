@@ -78,6 +78,8 @@ const BUSINESS: &[&str] = &[
     "recurrence_occurrences",
     "history",
     "notification_preferences",
+    "favorites",
+    "agent_destination_preferences",
     "reference_sources",
     "reference_edges",
     "transfer_sources",
@@ -178,9 +180,12 @@ impl Store {
         let mut workspaces = Vec::new();
         for w in rows(&self.conn, "workspaces", "", &[])? {
             let id = string(&w, "id")?;
-            if lists.iter().any(|l| l["workspace_id"] == id)
-                && self.workspace_permission(actor, id)? >= 1
-            {
+            let include = match &scope {
+                ExportScope::Account => true,
+                ExportScope::Workspace(selected) => selected == id,
+                ExportScope::List(_) => lists.iter().any(|l| l["workspace_id"] == id),
+            };
+            if include && self.workspace_permission(actor, id)? >= 1 {
                 workspaces.push(w)
             }
         }
@@ -324,6 +329,32 @@ impl Store {
                     "WHERE user_id=?1",
                     &[&user],
                 )?,
+            );
+        }
+        if matches!(scope, ExportScope::Account) && !actor.starts_with("credential:") {
+            let favorites = rows(&self.conn, "favorites", "WHERE user_id=?1", &[&user])?
+                .into_iter()
+                .filter(
+                    |row| match (row["target_kind"].as_str(), row["target_id"].as_str()) {
+                        (Some("list"), Some(id)) => list_ids.contains(id),
+                        (Some("workspace"), Some(id)) => workspace_ids.contains(id),
+                        _ => false,
+                    },
+                )
+                .collect();
+            tables.insert("favorites".into(), favorites);
+            tables.insert(
+                "agent_destination_preferences".into(),
+                selected(
+                    rows(
+                        &self.conn,
+                        "agent_destination_preferences",
+                        "WHERE user_id=?1",
+                        &[&user],
+                    )?,
+                    "list_id",
+                    &list_ids,
+                ),
             );
         }
         let mut archives = Vec::new();

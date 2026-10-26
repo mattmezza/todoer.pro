@@ -46,6 +46,7 @@ async fn schedule(
     Ok(Json(s.run(move |db| db.get_schedule(&a, &id)).await?).into_response())
 }
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ScheduleInput {
     revision: i64,
     schedule: Schedule,
@@ -54,7 +55,7 @@ async fn set_schedule(
     State(s): State<AppState>,
     h: HeaderMap,
     Path(id): Path<String>,
-    Json(input): Json<ScheduleInput>,
+    Input(input): Input<ScheduleInput>,
 ) -> Result<Response, ApiError> {
     let a = s.auth(&h, true)?;
     Ok(Json(
@@ -64,6 +65,7 @@ async fn set_schedule(
     .into_response())
 }
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct SeriesInput {
     revision: i64,
     spec: RecurrenceSpec,
@@ -72,7 +74,7 @@ async fn start_series(
     State(s): State<AppState>,
     h: HeaderMap,
     Path(id): Path<String>,
-    Json(input): Json<SeriesInput>,
+    Input(input): Input<SeriesInput>,
 ) -> Result<Response, ApiError> {
     let a = s.auth(&h, true)?;
     Ok((
@@ -105,6 +107,7 @@ async fn occurrences(
     Ok(Json(s.run(move |db| db.occurrences(&a, &id)).await?).into_response())
 }
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct StateInput {
     revision: i64,
     state: SeriesState,
@@ -113,7 +116,7 @@ async fn series_state(
     State(s): State<AppState>,
     h: HeaderMap,
     Path(id): Path<String>,
-    Json(input): Json<StateInput>,
+    Input(input): Input<StateInput>,
 ) -> Result<Response, ApiError> {
     let a = s.auth(&h, true)?;
     Ok(Json(
@@ -125,6 +128,7 @@ async fn series_state(
     .into_response())
 }
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Revision {
     revision: i64,
 }
@@ -132,7 +136,7 @@ async fn skip(
     State(s): State<AppState>,
     h: HeaderMap,
     Path(id): Path<String>,
-    Json(input): Json<Revision>,
+    Input(input): Input<Revision>,
 ) -> Result<Response, ApiError> {
     let a = s.auth(&h, true)?;
     Ok(Json(
@@ -152,7 +156,7 @@ async fn preferences(State(s): State<AppState>, h: HeaderMap) -> Result<Response
 async fn set_preferences(
     State(s): State<AppState>,
     h: HeaderMap,
-    Json(input): Json<Preferences>,
+    Input(input): Input<Preferences>,
 ) -> Result<Response, ApiError> {
     if h.contains_key(header::AUTHORIZATION) {
         return Err(Error::Forbidden.into());
@@ -454,6 +458,18 @@ pub(super) fn spawn_worker(
             interval.tick().await;
             if state.stopping.load(std::sync::atomic::Ordering::SeqCst) {
                 break;
+            }
+            if let Some(signer) = &state.invitations
+                && crate::invitations::deliver_invitation_mail(
+                    &state.store,
+                    &config,
+                    signer,
+                    &state.stopping,
+                )
+                .await
+                .is_err()
+            {
+                eprintln!("invitation delivery state unavailable; durable jobs retained");
             }
             if crate::notifications::worker_tick_until(
                 &state.store,

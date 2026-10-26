@@ -962,3 +962,24 @@ input[type='checkbox'] {
 .completed-filter {
   min-height: 44px;
 }
+.list-color-blue {
+  color: #60a5fa;
+}
+.list-color-green {
+  color: #34d399;
+}
+.list-color-amber {
+  color: #fbbf24;
+}
+.list-color-red {
+  color: #fb7185;
+}
+.list-color-violet {
+  color: #a78bfa;
+}
+.list-color-pink {
+  color: #f472b6;
+}
+.list-color-gray {
+  color: var(--muted);
+}
