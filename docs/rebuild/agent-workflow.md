@@ -36,7 +36,7 @@ Use `--json` for scripts: successful response bodies are printed unchanged to st
 
 The CLI calls `/api/v1/search`, `/api/v1/lists`, `/api/v1/lists/{id}/tasks`, `/api/v1/capture`, `/api/v1/tasks/{id}`, `/api/v1/tasks/{id}/subtree`, `/api/v1/tasks/{id}/move-preview?destination=...`, `/api/v1/tasks/{id}/move`, and `/api/v1/changes?after=N`. Capture sends `Idempotency-Key`; all requests send bearer authentication. No remote MCP transport is implied by these endpoints.
 
-The official Python MCP SDK check is available as `uv run --no-project scripts/rebuild-mcp-check.py`. It pins `mcp==2.3.0` with inline script metadata, leaving project dependencies unchanged. Set `TODOER_TOKEN` and optionally `TODOER_MCP_URL` (default `http://127.0.0.1:8092/mcp`) before running it against the development server. The check initializes a real HTTP MCP session, lists the tools, resolves the inbox, retries an identical capture, and reads the resulting subtree. Each run creates one synthetic inbox task with a fresh idempotency key.
+The official Python MCP SDK check is available as `uv run --no-project scripts/rebuild-mcp-check.py`. It pins `mcp==2.3.0` with inline script metadata, leaving project dependencies unchanged. Set `TODOER_TOKEN` and optionally `TODOER_MCP_URL` (default `http://127.0.0.1:8092/mcp`) before running it against the development server. The check initializes a real HTTP MCP session, lists the tools, resolves the inbox, retries an identical capture, and reads the resulting subtree before checking the implemented compact operations. Each run creates a synthetic inbox task and tag, with a fresh capture key; the optional attachment fixture also creates and soft-deletes a synthetic file.
 
 The check requires the implemented tool subset, including bulk preview/apply and saved destinations. It exercises initialization, destination resolution, identical capture retry, subtree read, edit, guarded undo, trash, restore, destination preferences, bulk dry-run, guarded apply, retry, and rollback. SDK 2.3.0 currently logs `Session termination failed: 202` when this rmcp transport acknowledges session cleanup; the request assertions complete and the check exits successfully.
 
@@ -103,3 +103,69 @@ todoer references backlinks list LIST_ID
 Resolve returns zero, one, or multiple accessible choices; choose explicitly when ambiguous. Occurrences come from the saved description/comment parser, excluding code and existing links. Binding requires the current source task/comment revision, increments it, and preserves other stable bindings. A target must still be an accessible exact candidate for the original token. Backlinks recheck both target and source access. These commands never expose another workspace's inaccessible candidates.
 
 MCP adds three compact tools: `query` takes the canonical structured query, `organize_tasks` takes an `action` discriminated by `op`, and `references` takes a reference action. Their complete schemas are returned by `list_tools` and share the checked-in OpenAPI schemas. The original `search` tool remains available for its older task-only contract. Query cursors bind filters, actor, access and index state: on `resync_required`, restart without a cursor. See [structured search](search.md) and [references](references.md) for limits and exact semantics.
+
+Scheduling uses `schedule_tasks` in MCP and typed CLI commands:
+
+```sh
+todoer schedule get TASK_ID
+todoer schedule set TASK_ID --revision TASK_REVISION --body '{"planned":{"kind":"date","date":"2026-10-26"},"due":{"kind":"timed","local":"2026-10-27T16:00:00","timezone":"Europe/Zurich"},"priority":2,"reminders":[]}'
+todoer schedule start ROOT_LEAF_ID --revision TASK_REVISION --body '{"rule":{"kind":"daily","interval_days":1},"start_local":"2026-10-27T16:00:00","timezone":"Europe/Zurich","count":5}'
+todoer schedule series SERIES_ID
+todoer schedule state SERIES_ID --revision SERIES_REVISION paused
+todoer schedule state SERIES_ID --revision SERIES_REVISION active
+todoer schedule occurrences SERIES_ID
+todoer schedule skip TASK_ID --revision TASK_REVISION
+todoer schedule planning --from 2026-10-26 --to 2026-11-01
+todoer schedule statistics --from 2026-10-26
+```
+
+Schedule set replaces the entire schedule: omitted planned/due/priority values clear them, and omitted reminders become empty. Task scheduling/start/skip use the task revision; series state changes use the series revision. Recurrence supports unfinished root leaves; the common operation enforces this rule, local-time validity, and live access. Planning returns `{tasks,truncated}` with at most 100 compact tasks and no description bodies. Series listing similarly returns `{series,truncated}` capped at 100. Use structured queries for paginated date/status exploration. Reminder transport configuration and actual delivery remain server concerns; setting a reminder does not prove delivery.
+
+Comments and files share the `task_activity` MCP tool and these CLI commands:
+
+```sh
+todoer comments list TASK_ID --after 0 --limit 20
+todoer comments list TASK_ID --full
+todoer comments add TASK_ID --key UNIQUE_RETRY_KEY 'Review #Inbox'
+todoer comments get COMMENT_ID
+todoer comments edit COMMENT_ID --revision COMMENT_REVISION 'Reviewed text'
+todoer comments delete COMMENT_ID --revision COMMENT_REVISION
+todoer files list TASK_ID
+todoer files upload TASK_ID --file ./report.pdf --dry-run
+todoer files upload TASK_ID --file ./report.pdf
+todoer files resume INTENT_ID --file ./report.pdf
+todoer files info ATTACHMENT_ID
+todoer files download ATTACHMENT_ID --output ./verified-report.pdf
+todoer files delete ATTACHMENT_ID --revision ATTACHMENT_REVISION
+```
+
+Comment creation retries use the same key and exact body. Editing/deleting uses independent comment revisions and the common author-or-owner moderation rule. Compact comment lists return 300-character excerpts, cursor `next_after_seq`, and `page_limit`; full-body pages cap at 10 comments, while excerpt pages accept 1–50. An explicit comment get returns one full saved body. Attachment lists cap at 100 records with a `truncated` flag; structured filename queries can locate additional authorized IDs.
+
+File transfer accepts regular files up to 25 MiB, computes SHA-256 locally, creates an intent, sends the exact bytes through the authenticated REST proxy, and finalizes only after the shared storage verifier confirms size and digest. Dry-run reads/checks the local file and prints its size/hash without contacting the server. On interruption the error includes the intent ID; resume requires the same size/hash. `files intent TASK_ID --body '{"filename":"report.pdf","size":123,"sha256":"64_HEX_CHARACTERS"}'` exposes the bounded direct-upload plan for a separate uploader. `files finalize INTENT_ID --revision INTENT_REVISION` (alias `files confirm`) verifies and completes that upload; it never trusts a client assertion that bytes were uploaded. File bytes are not kept in a hidden CLI cache. Signed upload URLs are temporary credentials and must not be logged.
+
+Downloads verify the declared size and SHA-256 before writing and refuse an existing output path. Transfer requests time out after 60 seconds; ordinary single requests retain their 30-second timeout. Transfer JSON output is the final metadata/result; single API responses retain their original response body. Soft deletion removes attachment metadata from reads while retaining object bytes under the server's documented retention policy.
+
+MCP attachment operations accept metadata/intents, not inline binary bodies. A checked `file_link` returns metadata plus an authenticated application download URL and explicitly reports `mcp_oauth_credential_accepted:false`. Download requires a browser session or a separate REST-audience credential; a production MCP OAuth token cannot be copied into the REST CLI to cross that audience boundary. The isolated development adapter is a shared synthetic fixture. The MCP client can use the signed upload plan with a separate HTTP uploader, then request verified finalization.
+
+`manage_access` groups organization and sharing operations in MCP. The existing workspace/list/section CLI commands and `access --body` use the same authority checks. Access expansion requires explicit acknowledgement; missing acknowledgement or stale workspace/list revisions returns conflict. Invitations are email-bound grants and may queue email delivery:
+
+```sh
+todoer invitations list workspace WORKSPACE_ID
+todoer invitations create workspace WORKSPACE_ID person@example.invalid --role viewer --key UNIQUE_RETRY_KEY --acknowledge-access-change
+todoer invitations revoke INVITATION_ID
+```
+
+Invitation retries must retain the target, email, role and key. Creating or revoking an invitation does not sign in its recipient or claim access; acceptance keeps the browser/Google proof flow. Scoped read/write credentials do not gain workspace administration or personal credential-management authority. Workspace member output from the compact access adapter caps at 100 entries with a `truncated` flag.
+
+The compact adapters are `POST /api/v1/agent/schedule`, `/activity`, and `/access`; their exact discriminated action schemas and response unions are in OpenAPI. The official SDK checks exercise actual scheduling/planning/statistics, comment retry/edit/delete, and access reads in addition to taxonomy/bulk. Set `TODOER_TEST_ATTACHMENTS=1` only with an isolated loopback S3 fixture to also exercise signed upload, SHA-256 finalization/retry, checked link metadata, listing and soft deletion. The test refuses a non-loopback object endpoint. These checks create synthetic records and do not establish compatibility with every connector or production object service.
+
+Observed on 2026-10-26: the official OAuth SDK check passed with inbox-only consent, scheduling/planning/statistics, comment operations and actual token refresh. A separate bearer SDK check passed all 21 registered tools and real signed attachment operations against Moto 5.1.17. An isolated CLI HTTP/Moto check passed scheduling/recurrence, comments, a 256 KiB upload/resume/finalize/download with digest checks and overwrite refusal, plus acknowledged invitation creation/retry/list/revocation. Moto is an emulator; production storage acceptance remains separate.
+
+Reproduce the isolated CLI, SDK and storage check with:
+
+```sh
+cargo build --manifest-path rebuild/Cargo.toml --bin todoer --bin todoer-server
+uv run --no-project scripts/rebuild-agent-check.py
+```
+
+This script launches its own temporary development server/database and pinned Moto fixture on free loopback ports, strips inherited Todoer configuration, uses only synthetic credentials, and removes its processes/data afterward. It requires `uv`, a Python 3.11 runtime for Moto, and local socket access; Moto packages may be downloaded into uv's cache. Fixture HTTP logs are suppressed so temporary signed upload URLs are not recorded.

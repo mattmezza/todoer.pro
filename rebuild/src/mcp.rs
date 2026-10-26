@@ -76,8 +76,44 @@ fn bulk_operations_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema
 fn api_schema(name: &str) -> schemars::Schema {
     let document: serde_json::Value =
         serde_json::from_str(include_str!("../openapi.json")).expect("valid checked-in OpenAPI");
-    schemars::Schema::try_from(document["components"]["schemas"][name].clone())
-        .expect("standalone API schema")
+    fn inline(
+        value: &serde_json::Value,
+        document: &serde_json::Value,
+        depth: usize,
+    ) -> serde_json::Value {
+        assert!(depth < 32, "acyclic bounded API schemas");
+        match value {
+            serde_json::Value::Object(map) => {
+                if let Some(reference) = map.get("$ref").and_then(|v| v.as_str()) {
+                    return inline(
+                        document
+                            .pointer(reference.strip_prefix('#').expect("local schema reference"))
+                            .expect("existing schema reference"),
+                        document,
+                        depth + 1,
+                    );
+                }
+                serde_json::Value::Object(
+                    map.iter()
+                        .map(|(k, v)| (k.clone(), inline(v, document, depth + 1)))
+                        .collect(),
+                )
+            }
+            serde_json::Value::Array(items) => serde_json::Value::Array(
+                items
+                    .iter()
+                    .map(|v| inline(v, document, depth + 1))
+                    .collect(),
+            ),
+            _ => value.clone(),
+        }
+    }
+    schemars::Schema::try_from(inline(
+        &document["components"]["schemas"][name],
+        &document,
+        0,
+    ))
+    .expect("valid API schema")
 }
 fn query_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
     api_schema("StructuredQuery")
@@ -104,6 +140,33 @@ struct OrganizeInput {
 #[serde(deny_unknown_fields)]
 struct ReferenceInput {
     #[schemars(schema_with = "reference_schema")]
+    action: serde_json::Value,
+}
+fn schedule_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    api_schema("ScheduleAction")
+}
+fn activity_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    api_schema("ActivityAction")
+}
+fn access_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    api_schema("AccessAction")
+}
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ScheduleToolInput {
+    #[schemars(schema_with = "schedule_schema")]
+    action: serde_json::Value,
+}
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ActivityToolInput {
+    #[schemars(schema_with = "activity_schema")]
+    action: serde_json::Value,
+}
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct AccessToolInput {
+    #[schemars(schema_with = "access_schema")]
     action: serde_json::Value,
 }
 #[derive(Deserialize, JsonSchema)]
@@ -214,6 +277,75 @@ impl TodoerMcp {
 
 #[tool_router]
 impl TodoerMcp {
+    #[tool(
+        description = "Read/replace task scheduling (planned date, zoned due time, priority, reminders), manage root-leaf recurrence and pause/resume/stop/skip, or read explicit-date planning and weekly statistics. Use action.op; schedule set/start/skip use task revision, series_state uses series revision. Replacing a schedule clears omitted fields. No browser settings or credentials are changed."
+    )]
+    async fn schedule_tasks(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<ScheduleToolInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
+        result(
+            self.state
+                .run(move |db| {
+                    let action = serde_json::from_value(p.action).map_err(|_| {
+                        Error::Invalid("invalid schedule action; consult schema".into())
+                    })?;
+                    crate::web::agent_features::scheduling(db, &actor, action)
+                })
+                .await,
+        )
+    }
+    #[tool(
+        description = "Read/write authorized task comments and attachment metadata, create/resign bounded upload intents, verify/finalize uploaded objects, or return a checked download link. Comments default to300-character excerpts; explicit get reads one full comment. Never accepts/returns binary file bodies or object keys. Upload uses declared size/SHA256 and common server verification. Download links require a browser session or separate REST credential; MCP OAuth credentials are not accepted by REST."
+    )]
+    async fn task_activity(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<ActivityToolInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
+        let action = match serde_json::from_value(p.action) {
+            Ok(action) => action,
+            Err(_) => {
+                return result::<()>(Err(Error::Invalid(
+                    "invalid activity action; consult schema".into(),
+                )
+                .into()));
+            }
+        };
+        result(crate::web::agent_features::activity(self.state.clone(), actor, action).await)
+    }
+    #[tool(
+        description = "Create authorized workspaces/lists/sections, inspect/administer sharing, or create/list/revoke email-bound invitations. Grants and visibility expansion require explicit acknowledge_access_change and appropriate admin scope; revisions are workspace/list revisions. Invite requires retry-safe idempotency_key and may queue invitation email delivery. Never claims an invitation or bypasses Google/browser proof."
+    )]
+    async fn manage_access(
+        &self,
+        ctx: RequestContext<RoleServer>,
+        Parameters(p): Parameters<AccessToolInput>,
+    ) -> CallToolResult {
+        let actor = match self.actor(&ctx) {
+            Ok(actor) => actor,
+            Err(error) => return result::<()>(Err(error)),
+        };
+        let action = match serde_json::from_value(p.action) {
+            Ok(action) => action,
+            Err(_) => {
+                return result::<()>(Err(Error::Invalid(
+                    "invalid access action; consult schema".into(),
+                )
+                .into()));
+            }
+        };
+        result(crate::web::agent_features::access(self.state.clone(), actor, action).await)
+    }
     #[tool(
         description = "Search authorized tasks, comments, attachment filenames, tags, sections, lists and workspaces with Unicode literal token prefixes. Structured filters include scope, status (default open), tags, dates in stored local timezone, priority and recurrence. Bounded projection and stable cursors; resync_required means restart. No fuzzy or semantic search."
     )]

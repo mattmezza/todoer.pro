@@ -12,6 +12,7 @@ and token exchange belong to the official SDK OAuthClientProvider.
 """
 
 import asyncio
+import hashlib
 import ipaddress
 import json
 import os
@@ -338,6 +339,180 @@ async def main():
                 assert any(
                     item["source_id"] == current["id"] for item in backlinks
                 )
+                current = (await call("read_subtree", {"id": current["id"]}))[
+                    0
+                ]
+                access_info = await call(
+                    "manage_access",
+                    {"action": {"op": "list_info", "list_id": "inbox"}},
+                )
+                assert access_info["id"] == "inbox"
+                state = await call(
+                    "schedule_tasks",
+                    {
+                        "action": {
+                            "op": "set",
+                            "id": current["id"],
+                            "revision": current["revision"],
+                            "schedule": {
+                                "planned": {
+                                    "kind": "date",
+                                    "date": "2026-10-26",
+                                },
+                                "due": {
+                                    "kind": "timed",
+                                    "local": "2026-10-27T16:00:00",
+                                    "timezone": "Europe/Zurich",
+                                },
+                                "priority": 2,
+                                "reminders": [],
+                            },
+                        }
+                    },
+                )
+                assert state["schedule"]["priority"] == 2
+                planning = await call(
+                    "schedule_tasks",
+                    {
+                        "action": {
+                            "op": "planning",
+                            "from": "2026-10-26",
+                            "to": "2026-10-28",
+                        }
+                    },
+                )
+                assert any(
+                    item["task"]["id"] == current["id"]
+                    for item in planning["tasks"]
+                )
+                statistics = await call(
+                    "schedule_tasks",
+                    {"action": {"op": "statistics", "from": "2026-10-26"}},
+                )
+                assert statistics["scheduled_open"] >= 1
+                comment_action = {
+                    "op": "comment_create",
+                    "task_id": current["id"],
+                    "idempotency_key": f"sdk-comment-{uuid.uuid4()}",
+                    "body": "Synthetic SDK comment #Inbox",
+                }
+                comment = await call(
+                    "task_activity", {"action": comment_action}
+                )
+                assert comment == await call(
+                    "task_activity", {"action": comment_action}
+                )
+                comments = await call(
+                    "task_activity",
+                    {"action": {"op": "comments", "task_id": current["id"]}},
+                )
+                assert any(
+                    item["id"] == comment["id"]
+                    and "body_excerpt" in item
+                    and "body" not in item
+                    for item in comments["comments"]
+                )
+                edited = await call(
+                    "task_activity",
+                    {
+                        "action": {
+                            "op": "comment_edit",
+                            "id": comment["id"],
+                            "revision": comment["revision"],
+                            "body": "Reviewed SDK comment",
+                        }
+                    },
+                )
+                assert edited["revision"] == comment["revision"] + 1
+                deleted = await call(
+                    "task_activity",
+                    {
+                        "action": {
+                            "op": "comment_delete",
+                            "id": edited["id"],
+                            "revision": edited["revision"],
+                        }
+                    },
+                )
+                assert deleted["deleted"]
+                if os.environ.get("TODOER_TEST_ATTACHMENTS") == "1":
+                    data = b"Synthetic MCP attachment fixture"
+                    upload = await call(
+                        "task_activity",
+                        {
+                            "action": {
+                                "op": "upload_create",
+                                "task_id": current["id"],
+                                "input": {
+                                    "filename": "sdk-check.txt",
+                                    "size": len(data),
+                                    "sha256": hashlib.sha256(data).hexdigest(),
+                                },
+                            }
+                        },
+                    )
+                    endpoint = urlsplit(upload["upload"]["url"])
+                    assert endpoint.scheme == "http" and endpoint.hostname in {
+                        "127.0.0.1",
+                        "localhost",
+                        "::1",
+                    }
+                    async with httpx2.AsyncClient(timeout=30) as binary_client:
+                        uploaded = await binary_client.put(
+                            upload["upload"]["url"],
+                            headers=upload["upload"]["headers"],
+                            content=data,
+                        )
+                        assert uploaded.is_success
+                    finalize = {
+                        "op": "upload_finalize",
+                        "id": upload["intent"]["id"],
+                        "revision": upload["intent"]["revision"],
+                    }
+                    attachment = await call(
+                        "task_activity", {"action": finalize}
+                    )
+                    assert attachment == await call(
+                        "task_activity", {"action": finalize}
+                    )
+                    link = await call(
+                        "task_activity",
+                        {
+                            "action": {
+                                "op": "file_link",
+                                "id": attachment["id"],
+                            }
+                        },
+                    )
+                    assert (
+                        link["mcp_oauth_credential_accepted"] is False
+                        and "object_key" not in link["attachment"]
+                    )
+                    assert (
+                        urlsplit(link["download_url"]).netloc
+                        == urlsplit(url).netloc
+                    )
+                    files = await call(
+                        "task_activity",
+                        {"action": {"op": "files", "task_id": current["id"]}},
+                    )
+                    assert any(
+                        item["id"] == attachment["id"]
+                        for item in files["attachments"]
+                    )
+                    await call(
+                        "task_activity",
+                        {
+                            "action": {
+                                "op": "file_delete",
+                                "id": attachment["id"],
+                                "revision": attachment["revision"],
+                            }
+                        },
+                    )
+                    print(
+                        "MCP SDK attachment check passed: signed local upload, SHA256 verification, finalize retry, checked link metadata, authorized list and soft deletion"
+                    )
                 PHASE = "scope-denial"
                 denied = await session.call_tool(
                     "search", {"list": "groceries"}
@@ -364,7 +539,7 @@ async def main():
                         "OAuth MCP SDK refresh passed: replacement refresh token stored; browser consent unchanged"
                     )
                 print(
-                    "OAuth MCP SDK check passed: discovery, registration, PKCE consent, token exchange, tools, capture retry, subtree, saved destination, bulk preview/apply/retry, tags, structured query, reference bind/backlinks, list-scope denial"
+                    "OAuth MCP SDK check passed: discovery, registration, PKCE consent, token exchange, tools, capture retry, subtree, saved destination, bulk preview/apply/retry, tags, structured query, reference bind/backlinks, scheduling/planning/statistics, comment retry/edit/delete, list-scope denial"
                 )
     return 0
 
