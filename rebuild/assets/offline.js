@@ -32,14 +32,24 @@ function validScope(scope) {
   if (typeof scope !== 'string' || !scope)
     throw new Error('An account scope is required');
 }
-export async function enqueueCapture(scope, list_id, title) {
+export async function enqueueCapture(
+  scope,
+  list_id,
+  title,
+  description = '',
+  section_id = null,
+) {
   validScope(scope);
   const key = crypto.randomUUID();
   const record = {
     id: `${scope}:${key}`,
     scope,
     key,
-    payload: { list_id, tasks: [{ title, description: '', parent_id: null }] },
+    payload: {
+      list_id,
+      tasks: [{ title, description, parent_id: null }],
+      ...(section_id ? { section_id } : {}),
+    },
     createdAt: Date.now(),
     status: 'pending',
     leaseUntil: 0,

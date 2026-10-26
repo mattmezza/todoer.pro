@@ -1,0 +1,24 @@
+{
+  "version": "2.2.0",
+  "repository": "https://github.com/tailwindlabs/heroicons",
+  "sha256": {
+    "home": "bf22818e3638f217e824ff26c8ffaf2ef014803982ca7c430e6c3c20915b185a",
+    "inbox": "b8403f003a21d927fd0be3217626f53bd47fdaa1e6b519586aba963325cba9f5",
+    "plus": "f3bd7870b4ac4bcb2153705981bdd9663f185c4563af496998803e245aca0d54",
+    "plus-circle": "ea0dc73a314cfae25f36f2b26589973ffb26f67e21a9c64c77fd3b7803425ae3",
+    "bars-3": "0e76cceaeef6685444adf1ccb47d743d791d30e19181289ce19d3fb5e5c7ed74",
+    "magnifying-glass": "3566eaf416d279baea18ebc5ccb5a9500f646a1afd42d1dc04f48581e24797eb",
+    "user-circle": "e7b3b12455abf9c50021cd2fe1dd7de469d80f04c3eb011a142e0c126083ce95",
+    "chevron-up-down": "d6b1c12060e27ba6cd94041ef5df9a22169cc0b6ba30e25109c4c3060d9d7375",
+    "chevron-down": "2eacb6cecd8f1ab845a2a8417074b0dab9fd9612cdf56d76be45b82adb2933f5",
+    "ellipsis-horizontal": "dd9980eb9dab3e27e0c8507182fea76f156e35a6221c55713454054de550de6c",
+    "x-mark": "f44f8d4070a779c324f07a199122b4cc8686b5a8d9705727dc38d0cfd3bb27ec",
+    "arrow-long-left": "dc1b18c4a993c75042563d30920af979a23492e82d1f874611a4b98224662773",
+    "pencil-square": "21da72fcd66af3e386d554259ff8517124d0a2270975ffa3a69b5aa926959d4c",
+    "arrow-right": "2602a360312e14dc92da066780fed8e0b5eaf65e196b7d82b0e7cb5aed817015",
+    "trash": "54ec722a29978d7f64a81d6222e071f88b42d80179216b3b5beccfa9e1ec2135",
+    "link": "ffdc20f6386b3a50f581fbcc3bb79df69096f3f82127876aa6189342c6eca2f5",
+    "arrow-up-tray": "db18c4af25690e8c6fbd510786b897ede74af0b21142b7f52e24eb44190518cc",
+    "check": "a38b003121485ad864240dd3145324deae133485f3ed28a8a9d99747912c5f18"
+  }
+}

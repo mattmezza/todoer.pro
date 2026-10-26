@@ -1,14 +1,11 @@
+import { mountCaptures } from './capture-ui.js';
+import './site.js';
+import { mountListUi } from './list-ui.js';
 import { mountDiscussion } from './discussion.js';
 import { mountScheduling } from './scheduling.js';
 import { mountTaskMetadata } from './task-metadata.js';
 import { mountTaskOrdering } from './task-order.js';
-import {
-  enqueueCapture,
-  replayCaptures,
-  listPending,
-  clearAccount,
-  discardCapture,
-} from './offline.js';
+import { replayCaptures, listPending, clearAccount, discardCapture } from './offline.js';
 import { setupPwa, clearPwa } from './pwa.js';
 const $ = (s) => document.querySelector(s);
 const csrf = $('meta[name="csrf-token"]').content;
@@ -16,6 +13,13 @@ const list = document.body.dataset.list;
 const account = $('meta[name="account-id"]').content;
 const canWrite = document.body.dataset.canWrite === 'true';
 setupPwa(account);
+function restoreMainCapture() {
+  const slot = document.querySelector('[data-main-capture-slot]');
+  if (slot && !document.querySelector('#capture-form'))
+    slot.append(document.querySelector('#main-capture-template').content.cloneNode(true));
+}
+restoreMainCapture();
+document.body.addEventListener('htmx:afterSwap', restoreMainCapture);
 const dialog = $('#task-editor');
 dialog.addEventListener('close', () => {
   discussionCleanup?.();
@@ -53,7 +57,7 @@ for (const type of ['pointerup', 'pointercancel'])
     true,
   );
 let editorOpenSequence = 0;
-let cursor = 0;
+let cursor = Number(document.body.dataset.cursor) || 0;
 let busy = false;
 let pendingRefresh = false;
 const inlineEditors = new Map();
@@ -61,7 +65,7 @@ let restoreTaskFocus = null;
 const draftKey = `todoer:${account}:draft:${list}`;
 const input = $('#capture-title');
 input.value = sessionStorage.getItem(draftKey) || '';
-input.addEventListener('input', () => sessionStorage.setItem(draftKey, input.value));
+
 function notice(text, error = false) {
   $('#notice').textContent = text;
   $('#notice').classList.toggle('error', error);
@@ -97,9 +101,13 @@ function draftActive() {
     taskPointerDown ||
     editorOpening ||
     inlineEditors.size > 0 ||
-    Boolean($('#task-list details[open]')) ||
+    Boolean($('#task-list .task-actions[open]')) ||
     dialog.open ||
-    input.value.length > 0 ||
+    [
+      ...document.querySelectorAll(
+        '.inline-capture:not([hidden]) input[name=title],.inline-capture:not([hidden]) textarea',
+      ),
+    ].some((field) => field.value.length > 0) ||
     busy ||
     Boolean(window.getSelection()?.toString())
   );
@@ -157,11 +165,11 @@ document.body.addEventListener('htmx:responseError', () =>
 );
 $('#show-completed').onchange = (e) =>
   $('#task-list').classList.toggle('hide-completed', !e.target.checked);
-$('#nav-toggle').onclick = () => {
-  const open = $('#navigation').classList.toggle('open');
-  $('#nav-toggle').setAttribute('aria-expanded', String(open));
+
+$('#quick-add').onclick = () => {
+  $('#capture-form').hidden = false;
+  $('#capture-title')?.focus();
 };
-$('#quick-add').onclick = () => input.focus();
 document.addEventListener('keydown', (e) => {
   if (
     e.key === 'n' &&
@@ -172,7 +180,8 @@ document.addEventListener('keydown', (e) => {
     !dialog.open
   ) {
     e.preventDefault();
-    input.focus();
+    $('#capture-form').hidden = false;
+    $('#capture-title')?.focus();
   }
 });
 let replaying = false;
@@ -217,33 +226,21 @@ async function replay() {
     replaying = false;
   }
 }
-$('#capture-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const title = input.value.trim();
-  if (!title || busy) return;
-  busy = true;
-  const button = e.target.querySelector('button');
-  button.disabled = true;
-  try {
-    await enqueueCapture(account, list, title);
-    if (input.value.trim() === title) {
-      input.value = '';
-      sessionStorage.removeItem(draftKey);
-    }
-    notice('Capture saved on this device.');
+mountCaptures({
+  account,
+  listId: list,
+  canWrite,
+  notice,
+  onQueued: async () => {
     await showPending();
     if (navigator.onLine) await replay();
-  } catch (err) {
-    notice(
-      `Could not save capture: ${err.message}. Keep this draft and try again.`,
-      true,
-    );
-  } finally {
-    busy = false;
-    button.disabled = false;
-    input.focus();
+  },
+  setBusy: (value) => {
+    busy = value;
+  },
+  onSettled: () => {
     if (pendingRefresh) refresh();
-  }
+  },
 });
 $('#retry-captures').onclick = replay;
 window.addEventListener('online', replay);
@@ -262,7 +259,9 @@ $('#task-list').addEventListener('click', async (e) => {
     row.classList.toggle('is-complete', complete);
     button.setAttribute('aria-pressed', String(complete));
     const previous = button.innerHTML;
-    button.textContent = complete ? '✓' : '';
+    button.innerHTML = complete
+      ? '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#check"/></svg>'
+      : '';
     try {
       const task = await api(`/tasks/${row.dataset.id}`, 'PATCH', {
         revision: Number(row.dataset.revision),
@@ -270,6 +269,25 @@ $('#task-list').addEventListener('click', async (e) => {
       });
       row.dataset.revision = task.revision;
       row.dataset.complete = task.complete;
+      const section = row.closest('.task-section');
+      if (section) {
+        const rows = [...section.querySelectorAll('.task')],
+          parents = new Set(rows.map((r) => r.dataset.parentId).filter(Boolean)),
+          leaves = rows.filter((r) => !parents.has(r.dataset.id)),
+          completed = leaves.filter((r) => r.dataset.complete === 'true').length,
+          progress = leaves.length ? Math.floor((completed * 100) / leaves.length) : 0;
+        section
+          .querySelector('.section-heading')
+          ?.style.setProperty('--progress', `${progress}%`);
+        const label = section.querySelector('.section-progress');
+        if (label) {
+          label.textContent = `${progress}%`;
+          label.setAttribute(
+            'aria-label',
+            `${completed} of ${leaves.length} leaf tasks complete`,
+          );
+        }
+      }
       button.setAttribute(
         'aria-label',
         `${task.complete ? 'Reopen' : 'Complete'} ${task.title}`,
@@ -395,44 +413,19 @@ $('#edit-form').addEventListener('submit', async (e) => {
     if (!closed) settleEditorRoute();
   }
 });
-$('#logout').onclick = async () => {
-  const pending = await listPending(account);
-  if (
-    pending.length &&
-    !confirm(
-      `${pending.length} capture(s) have not synced. Signing out clears their local copies. Sync first or confirm to discard and sign out.`,
-    )
-  )
-    return;
-  try {
-    const response = await fetch('/logout', {
-      method: 'POST',
-      headers: { 'X-CSRF-Token': csrf },
-    });
-    if (!response.ok) throw new Error('Sign-out failed');
-    await clearAccount(account);
-    await clearPwa(account);
-    for (const key of Object.keys(sessionStorage))
-      if (key.startsWith('todoer:')) sessionStorage.removeItem(key);
-    location.href = '/signin';
-  } catch {
-    notice(
-      'Reconnect to sign out and revoke this session. Local captures are preserved.',
-      true,
-    );
-  }
-};
+
 if ('EventSource' in window) {
   const events = new EventSource(
     `/api/v1/events?after=${cursor}&list_id=${encodeURIComponent(list)}`,
   );
   events.addEventListener('changes', (e) => {
     const data = JSON.parse(e.data);
-    if (data.resync || data.cursor > cursor) {
+    if (data.resync || (data.cursor > cursor && data.count > 0)) {
       discussionCleanup?.refresh?.();
       cursor = data.cursor || cursor;
       refresh();
     }
+    cursor = Math.max(cursor, data.cursor || cursor);
     $('#connection').textContent = 'Up to date';
   });
   events.addEventListener('access-revoked', async () => {
@@ -476,7 +469,8 @@ if ('EventSource' in window) {
       const changes = await api(`/changes?after=${cursor}`);
       if (changes.length) {
         cursor = Math.max(cursor, ...changes.map((c) => c.seq));
-        refresh();
+        if (changes.some((c) => c.task?.list_id === list || c.source_list_id === list))
+          refresh();
       }
       $('#connection').textContent = 'Up to date';
     } catch {
@@ -774,10 +768,9 @@ mountTaskOrdering({
   onError: (message) => notice(message, true),
   hasActiveDraft: () =>
     dialog.open ||
-    taskPointerDown ||
     editorOpening ||
     inlineEditors.size > 0 ||
-    Boolean(input.value) ||
+    Boolean(document.querySelector('#capture-title')?.value) ||
     Boolean(window.getSelection()?.toString()),
 });
 async function renameInline(row, snapshot) {
@@ -857,7 +850,7 @@ async function renameInline(row, snapshot) {
         form.removeAttribute('aria-busy');
       }
     };
-    input.focus();
+    $('#capture-title')?.focus();
     input.select();
   } catch (err) {
     if (inlineEditors.get(id) === null) inlineEditors.delete(id);
@@ -874,3 +867,5 @@ for (const row of $$('#task-list .task')) {
 }
 
 document.body.dataset.ready = 'true';
+
+mountListUi({ api, notice, listId: list, csrf });
