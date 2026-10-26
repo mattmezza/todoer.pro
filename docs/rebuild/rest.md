@@ -46,3 +46,11 @@ also use the error envelope. Malformed URL query/path/form extraction may still
 use Axum's plain error responses. The browser quick-add form has an authenticated,
 CSRF-checked native POST fallback so capturing during script startup cannot
 silently turn into an unhandled GET navigation.
+
+Each HTTP response supplies a server-generated `X-Request-Id`, also recorded in
+structured request logs and task/discussion activity events created by that
+request. Client-supplied request IDs are ignored. Background or direct domain
+operations have a null request ID; actor and credential attribution still apply.
+Request logs contain method, status and elapsed time, without URLs, bodies,
+cookies or authorization headers. Nested blocking operations restore their
+request context even after a panic, preventing cross-request attribution.

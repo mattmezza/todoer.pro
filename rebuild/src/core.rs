@@ -173,7 +173,7 @@ pub(crate) fn event(
         [&t.id],
         |row| row.get(0),
     )?;
-    let value = serde_json::json!({"kind":kind,"task":t,"actor":user,"client":credential,"countable_leaf":leaf,"attribution":if credential.is_some(){"agent"}else{"human"}});
+    let value = serde_json::json!({"kind":kind,"task":t,"actor":user,"client":credential,"countable_leaf":leaf,"request_id":crate::audit::request_id(),"attribution":if credential.is_some(){"agent"}else{"human"}});
     c.execute(
         "INSERT INTO history(list_id,event,actor,before_event) VALUES(?1,?2,?3,?4)",
         params![
@@ -215,6 +215,29 @@ fn audience_change(
     let added = c.query_row("SELECT COUNT(*) FROM effective_list_access d WHERE d.list_id=?1 AND NOT EXISTS(SELECT 1 FROM effective_list_access s WHERE s.list_id=?2 AND s.user_id=d.user_id)", params![destination, source], |r| r.get(0))?;
     Ok((count(source)?, count(destination)?, added))
 }
+const MIGRATIONS: &[(i64, &str)] = &[
+    (1, include_str!("../migrations/001.sql")),
+    (2, include_str!("../migrations/002.sql")),
+    (3, include_str!("../migrations/003.sql")),
+    (4, include_str!("../migrations/004_auth.sql")),
+    (5, include_str!("../migrations/005_workspace.sql")),
+    (6, include_str!("../migrations/006_credentials.sql")),
+    (7, include_str!("../migrations/007_auth_oauth.sql")),
+    (8, include_str!("../migrations/008_scheduling.sql")),
+    (9, include_str!("../migrations/009_discussion.sql")),
+    (10, include_str!("../migrations/010_notifications.sql")),
+    (11, include_str!("../migrations/011_taxonomy.sql")),
+    (12, include_str!("../migrations/012_transfer.sql")),
+    (13, include_str!("../migrations/013_invitations.sql")),
+    (14, include_str!("../migrations/014_agent_ops.sql")),
+    (15, include_str!("../migrations/015_push.sql")),
+    (16, include_str!("../migrations/016_search.sql")),
+    (17, include_str!("../migrations/017_navigation.sql")),
+    (18, include_str!("../migrations/018_stats.sql")),
+    (19, include_str!("../migrations/019_assist.sql")),
+    (20, include_str!("../migrations/020_subtree.sql")),
+    (21, include_str!("../migrations/021_push_digests.sql")),
+];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {
         let mut conn = Connection::open(path)?;
@@ -225,31 +248,24 @@ impl Store {
                 "legacy Todoer database detected; use a separate rebuild database".into(),
             ));
         }
+        let versioned:bool=conn.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_migrations')",[],|r|r.get(0))?;
+        if versioned {
+            let newest: i64 = conn.query_row(
+                "SELECT COALESCE(MAX(version),0) FROM schema_migrations",
+                [],
+                |r| r.get(0),
+            )?;
+            if newest > MIGRATIONS.last().unwrap().0 {
+                return Err(Error::Invalid("Database schema is newer than this executable; restore a compatible recovery point or use the newer application".into()));
+            }
+        }
         if path != ":memory:" {
             conn.pragma_update(None, "journal_mode", "WAL")?;
         }
         conn.pragma_update(None, "foreign_keys", true)?;
         let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         tx.execute_batch("CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")?;
-        for (version, sql) in [
-            (1, include_str!("../migrations/001.sql")),
-            (2, include_str!("../migrations/002.sql")),
-            (3, include_str!("../migrations/003.sql")),
-            (4, include_str!("../migrations/004_auth.sql")),
-            (5, include_str!("../migrations/005_workspace.sql")),
-            (6, include_str!("../migrations/006_credentials.sql")),
-            (7, include_str!("../migrations/007_auth_oauth.sql")),
-            (8, include_str!("../migrations/008_scheduling.sql")),
-            (9, include_str!("../migrations/009_discussion.sql")),
-            (10, include_str!("../migrations/010_notifications.sql")),
-            (11, include_str!("../migrations/011_taxonomy.sql")),
-            (12, include_str!("../migrations/012_transfer.sql")),
-            (13, include_str!("../migrations/013_invitations.sql")),
-            (14, include_str!("../migrations/014_agent_ops.sql")),
-            (15, include_str!("../migrations/015_push.sql")),
-            (16, include_str!("../migrations/016_search.sql")),
-            (17, include_str!("../migrations/017_navigation.sql")),
-        ] {
+        for &(version, sql) in MIGRATIONS {
             let applied: bool = tx.query_row(
                 "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version=?1)",
                 [version],
@@ -446,6 +462,7 @@ impl Store {
             return Err(Error::Invalid("description too long".into()));
         }
         if change.complete == Some(true) {
+            crate::scheduling::validate_recurrence_completion(&tx, &t.id, change.complete_subtree)?;
             let children = descendants(&tx, &t.id)?;
             if !change.complete_subtree && children.iter().any(|c| c.id != t.id && !c.complete) {
                 return Err(Error::Conflict(
@@ -971,6 +988,21 @@ mod tests {
         assert!(matches!(result, Err(Error::Forbidden)));
     }
     #[test]
+    fn newer_schema_is_rejected_before_any_database_mutation() {
+        let path = std::env::temp_dir().join(format!("todoer-future-{}.db", Uuid::new_v4()));
+        {
+            let c = Connection::open(&path).unwrap();
+            c.execute_batch("CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY);INSERT INTO schema_migrations VALUES(9999);").unwrap();
+        }
+        let before = std::fs::read(&path).unwrap();
+        assert!(
+            matches!(Store::open(path.to_str().unwrap()),Err(Error::Invalid(message)) if message.contains("newer"))
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert!(!std::path::Path::new(&format!("{}-wal", path.display())).exists());
+        std::fs::remove_file(path).unwrap();
+    }
+    #[test]
     fn legacy_database_is_rejected_without_schema_changes() {
         let path = std::env::temp_dir().join(format!("todoer-legacy-{}.db", Uuid::new_v4()));
         {
@@ -1174,7 +1206,7 @@ mod tests {
                 .conn
                 .query_row("SELECT COUNT(*) FROM schema_migrations", [], |r| r.get(0))
                 .unwrap();
-            assert_eq!(count, 17);
+            assert_eq!(count, MIGRATIONS.len() as i64);
         }
         {
             let s = Store::open(path.to_str().unwrap()).unwrap();

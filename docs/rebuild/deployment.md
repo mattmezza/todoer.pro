@@ -224,3 +224,13 @@ References: [Docker environment files](https://docs.docker.com/compose/how-tos/e
 [official Rust image](https://hub.docker.com/_/rust/),
 [Litestream sidecars](https://litestream.io/guides/docker/) and
 [GitHub package publishing permissions](https://docs.github.com/en/packages/managing-github-packages-using-github-actions-workflows/publishing-and-installing-a-package-with-github-actions).
+
+Apply database migrations explicitly before a controlled local release with
+`TODOER_RUST_DB=/absolute/path/to/backed-up-rebuild.db make rust-migrate`.
+This command opens only the rebuild database, applies pending numbered migrations
+transactionally, and exits without a listener, Google configuration or workers.
+Normal startup also applies pending migrations. Both paths reject a legacy schema
+and reject an already newer rebuild schema before changing WAL mode or data.
+Take a complete database/attachment recovery point before upgrading. An older
+binary is not a schema downgrade; restore a compatible database recovery point
+and its retained blobs into isolated storage before any authorized rollback.
