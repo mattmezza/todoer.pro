@@ -531,10 +531,10 @@ impl Store {
                 "restore the root of this trash operation".into(),
             ));
         }
-        if let Some(ref parent) = root.parent_id {
-            if task(&tx, parent).is_err() {
-                return Err(Error::Conflict("restore the parent first".into()));
-            }
+        if let Some(ref parent) = root.parent_id
+            && task(&tx, parent).is_err()
+        {
+            return Err(Error::Conflict("restore the parent first".into()));
         }
         let members = {
             let mut q = tx.prepare(&format!(
