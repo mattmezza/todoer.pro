@@ -1,0 +1,3 @@
+[workspace]
+members = ["rebuild"]
+resolver = "3"
