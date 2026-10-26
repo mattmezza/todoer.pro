@@ -90,6 +90,12 @@ pub struct GoogleOidc {
     http: reqwest::Client,
 }
 impl GoogleOidc {
+    /// Offline construction for isolated route tests only. Empty keys cannot
+    /// authenticate a real token; production callers must use discovery.
+    #[cfg(test)]
+    pub(crate) fn test_fixture() -> Self {
+        tests::isolated_client()
+    }
     pub async fn discover(config: GoogleConfig) -> Result<Self, OidcError> {
         let redirect = validate_config(&config)?;
         let http = reqwest::Client::builder()
@@ -242,7 +248,7 @@ mod tests {
     }
     // Offline metadata creates no trust bypass in production discovery. Empty
     // signing keys deliberately cannot validate any ID token.
-    fn isolated_client() -> GoogleOidc {
+    pub(super) fn isolated_client() -> GoogleOidc {
         client_for_token("http://127.0.0.1:1/token")
     }
     fn client_for_token(endpoint: &str) -> GoogleOidc {
@@ -340,6 +346,105 @@ mod tests {
         assert_eq!(fields["code_verifier"], verifier);
         assert_eq!(fields["code"], "synthetic-code");
         assert_eq!(fields["grant_type"], "authorization_code");
+        server.abort();
+    }
+    #[tokio::test]
+    async fn signed_mock_tokens_verify_identity_and_reject_claim_attacks() {
+        use axum::{Json, Router, extract::State, routing::post};
+        use openidconnect::{
+            AccessToken, PrivateSigningKey,
+            core::{
+                CoreIdToken, CoreIdTokenClaims, CoreJsonWebKeySet, CoreJwsSigningAlgorithm,
+                CoreRsaPrivateSigningKey,
+            },
+        };
+        use rsa::pkcs1::EncodeRsaPrivateKey;
+        use std::sync::{Arc, Mutex};
+        // Generate a fresh key in memory. No private test key is checked in or
+        // written to disk, and these keys are never accepted by production.
+        let rsa = rsa::RsaPrivateKey::new(&mut rand::rngs::OsRng, 2048).unwrap();
+        let pem = rsa.to_pkcs1_pem(Default::default()).unwrap();
+        let key = CoreRsaPrivateSigningKey::from_pem(&pem, None).unwrap();
+        let response_token = Arc::new(Mutex::new(String::new()));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}/token", listener.local_addr().unwrap());
+        let router = Router::new().route("/token", post(|State(token): State<Arc<Mutex<String>>>| async move {
+            Json(serde_json::json!({"access_token":"synthetic-access","token_type":"Bearer","id_token":token.lock().unwrap().clone()}))
+        })).with_state(response_token.clone());
+        let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
+        let mut client = client_for_token(&endpoint);
+        let metadata: CoreProviderMetadata = serde_json::from_value(serde_json::json!({
+            "issuer": GOOGLE_ISSUER,
+            "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+            "token_endpoint": endpoint,
+            "jwks_uri": "http://127.0.0.1:1/jwks",
+            "response_types_supported": ["code"],
+            "subject_types_supported": ["public"],
+            "id_token_signing_alg_values_supported": ["RS256"]
+        }))
+        .unwrap();
+        let metadata = metadata.set_jwks(CoreJsonWebKeySet::new(vec![key.as_verification_key()]));
+        let configuration = config("http://127.0.0.1:8092/auth/google/callback");
+        let redirect = validate_config(&configuration).unwrap();
+        client.client = CoreClient::from_provider_metadata(
+            metadata,
+            ClientId::new(configuration.client_id),
+            Some(ClientSecret::new(configuration.client_secret)),
+        )
+        .set_redirect_uri(redirect);
+        for case in [
+            "valid",
+            "nonce",
+            "audience",
+            "issuer",
+            "expired",
+            "access_hash",
+        ] {
+            let pending = client.begin_login().pending;
+            let state = pending.state.secret().clone();
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            let claims: CoreIdTokenClaims = serde_json::from_value(serde_json::json!({
+                "iss": if case == "issuer" { "https://attacker.example" } else { GOOGLE_ISSUER },
+                "sub":"stable-google-subject", "aud": if case == "audience" { "wrong-client" } else { "test-client" },
+                "iat": now-10, "exp": if case == "expired" { now-1 } else { now+300 },
+                "nonce": if case == "nonce" { "wrong-nonce" } else { pending.nonce.secret() },
+                "email":"verified@example.test", "email_verified":true, "name":"Synthetic User"
+            })).unwrap();
+            let signed = CoreIdToken::new(
+                claims,
+                &key,
+                CoreJwsSigningAlgorithm::RsaSsaPkcs1V15Sha256,
+                Some(&AccessToken::new(if case == "access_hash" {
+                    "substituted-access".into()
+                } else {
+                    "synthetic-access".into()
+                })),
+                None,
+            )
+            .unwrap();
+            *response_token.lock().unwrap() = signed.to_string();
+            let outcome = client
+                .complete_login(pending, &state, "synthetic-code")
+                .await;
+            if case == "valid" {
+                let identity = outcome.unwrap();
+                assert_eq!(identity.issuer, GOOGLE_ISSUER);
+                assert_eq!(identity.subject, "stable-google-subject");
+                assert_eq!(
+                    identity.registration_email().unwrap(),
+                    "verified@example.test"
+                );
+                assert_eq!(identity.display_name.as_deref(), Some("Synthetic User"));
+            } else {
+                assert!(
+                    matches!(outcome, Err(OidcError::InvalidIdentity)),
+                    "case {case}"
+                );
+            }
+        }
         server.abort();
     }
     #[test]
