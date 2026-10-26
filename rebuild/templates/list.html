@@ -3,7 +3,7 @@
 <head><meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false}'><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="color-scheme" content="dark light"><meta name="account-id" content="{{ account_id }}"><link rel="manifest" href="/assets/manifest.webmanifest"><link rel="apple-touch-icon" href="/legacy-assets/icon512_rounded.png"><meta name="theme-color" content="#030712"><meta name="csrf-token" content="{{ csrf }}"><title>#{{ list.title }} · Todoer</title><link rel="icon" href="/legacy-assets/favicon.png"><link rel="stylesheet" href="/assets/app.css"><script src="/assets/htmx.min.js" defer></script><script type="module" src="/assets/app.js"></script></head>
 <body data-ready="false" data-can-write="{{ can_write }}" data-list="{{ list.id }}">
 <a class="skip" href="#main">Skip to tasks</a>
-<header class="mobile-header"><a href="/" class="brand">todoer<span>.pro</span></a><button aria-label="Toggle navigation" id="nav-toggle" aria-expanded="false">☰</button></header>
+<header class="mobile-header"><a href="/" class="brand">todoer<span>.pro</span></a><button aria-label="Toggle navigation" id="nav-toggle" aria-expanded="false">☰</button><a class="nav-link" href="/capture?list={{ list.id }}" aria-label="Add a task">+ Add</a></header>
 <aside id="navigation" aria-label="Main navigation">
 <a href="/" class="brand">todoer<span>.pro</span></a>
 <div class="identity"><span class="avatar">T</span><div>{% if development %}Development workspace<small>Local, isolated data</small>{% else %}Your workspace<small>Private by default</small>{% endif %}</div></div>

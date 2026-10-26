@@ -1,4 +1,7 @@
 import { mountDiscussion } from './discussion.js';
+import { mountScheduling } from './scheduling.js';
+import { mountTaskMetadata } from './task-metadata.js';
+import { mountTaskOrdering } from './task-order.js';
 import {
   enqueueCapture,
   replayCaptures,
@@ -17,10 +20,38 @@ const dialog = $('#task-editor');
 dialog.addEventListener('close', () => {
   discussionCleanup?.();
   discussionCleanup = null;
+  schedulingCleanup?.();
+  schedulingCleanup = null;
+  metadataCleanup?.();
+  metadataCleanup = null;
 });
 let editor = null;
 let discussionCleanup = null;
+let schedulingCleanup = null;
+let metadataCleanup = null;
 let editorBusy = false;
+let editorOpening = false;
+let taskPointerDown = false;
+// Do not replace a row between pointerdown and click. Firefox otherwise drops
+// a click when a live update removes its original event target.
+document.addEventListener(
+  'pointerdown',
+  (event) => {
+    taskPointerDown = Boolean(event.target.closest?.('#task-list'));
+  },
+  true,
+);
+for (const type of ['pointerup', 'pointercancel'])
+  document.addEventListener(
+    type,
+    () => {
+      setTimeout(() => {
+        taskPointerDown = false;
+        if (pendingRefresh && !draftActive()) refresh();
+      }, 0);
+    },
+    true,
+  );
 let editorOpenSequence = 0;
 let cursor = 0;
 let busy = false;
@@ -63,6 +94,8 @@ async function api(path, method = 'GET', body, extra = {}) {
 }
 function draftActive() {
   return (
+    taskPointerDown ||
+    editorOpening ||
     inlineEditors.size > 0 ||
     Boolean($('#task-list details[open]')) ||
     dialog.open ||
@@ -251,6 +284,24 @@ $('#task-list').addEventListener('click', async (e) => {
     } finally {
       button.disabled = false;
     }
+  } else if (e.target.closest('[data-action="complete-subtree"]')) {
+    row.querySelector('details')?.removeAttribute('open');
+    if (!canWrite || !confirm('Complete this task and every unfinished subtask?')) return;
+    const button = e.target.closest('button');
+    button.disabled = true;
+    try {
+      await api(`/tasks/${row.dataset.id}`, 'PATCH', {
+        revision: Number(row.dataset.revision),
+        complete: true,
+        complete_subtree: true,
+      });
+      notice('Checklist completed.');
+      await refresh(true);
+    } catch (error) {
+      notice(error.message, true);
+    } finally {
+      button.disabled = false;
+    }
   } else if (e.target.closest('[data-action="rename"]')) {
     row.querySelector('details')?.removeAttribute('open');
     await renameInline(row);
@@ -395,6 +446,8 @@ if ('EventSource' in window) {
     $('#subtask-list').replaceChildren();
     $('#editor-reference').textContent = '';
     $('#discussion-container').replaceChildren();
+    $('#schedule-container').replaceChildren();
+    $('#metadata-container').replaceChildren();
     document.querySelector('.list-description')?.remove();
     document.querySelector('.breadcrumbs').replaceChildren();
     editor = null;
@@ -467,11 +520,16 @@ $('#trash-task').onclick = async () => {
 async function openTask(id, push = true) {
   if (editorBusy) return;
   const sequence = ++editorOpenSequence;
+  editorOpening = true;
   try {
     const tasks = await api(`/tasks/${id}/subtree`);
     if (sequence !== editorOpenSequence) return;
     discussionCleanup?.();
     discussionCleanup = null;
+    schedulingCleanup?.();
+    schedulingCleanup = null;
+    metadataCleanup?.();
+    metadataCleanup = null;
     editor = tasks.find((t) => t.id === id || t.reference === id) || tasks[0];
     if (!editor) throw new Error('Task not found');
     $('#edit-title').value = editor.title;
@@ -505,6 +563,63 @@ async function openTask(id, push = true) {
       accountId: account,
       onConflict: (err) => notice(err.message, true),
     });
+    const scheduledTaskId = editor.id;
+    schedulingCleanup = mountScheduling({
+      taskId: scheduledTaskId,
+      accountId: account,
+      csrf,
+      canWrite,
+      container: $('#schedule-container'),
+      getRevision: () =>
+        editor?.id === scheduledTaskId && !editorBusy ? editor.revision : null,
+      onSaved: (expected, revision) => {
+        if (editor?.id !== scheduledTaskId || editor.revision !== expected) return false;
+        editor.revision = revision;
+        if (sessionStorage.getItem(`todoer:${account}:edit:${editor.id}`))
+          saveEditorDraft();
+        pendingRefresh = true;
+        return true;
+      },
+      beginWrite: () => {
+        if (editorBusy) throw new Error('Wait for the current save.');
+        return freezeEditor();
+      },
+      onConflict: (error) => notice(error.message || String(error), true),
+    });
+    metadataCleanup = mountTaskMetadata({
+      taskId: scheduledTaskId,
+      accountId: account,
+      csrf,
+      canWrite,
+      container: $('#metadata-container'),
+      getRevision: () =>
+        editor?.id === scheduledTaskId && !editorBusy ? editor.revision : null,
+      onSaved: (expected, revision) => {
+        if (editor?.id !== scheduledTaskId || editor.revision !== expected) return false;
+        editor.revision = revision;
+        if (sessionStorage.getItem(`todoer:${account}:edit:${editor.id}`))
+          saveEditorDraft();
+        pendingRefresh = true;
+        return true;
+      },
+      onTaskChanged: (task) => {
+        if (
+          editor?.id === scheduledTaskId &&
+          task.id === scheduledTaskId &&
+          task.revision === editor.revision
+        )
+          editor = { ...editor, ...task };
+      },
+      hasUnsavedBrief: () =>
+        editor?.id !== scheduledTaskId ||
+        $('#edit-title').value !== editor.title ||
+        $('#edit-description').value !== editor.description,
+      beginWrite: () => {
+        if (editorBusy) throw new Error('Wait for the current save.');
+        return freezeEditor();
+      },
+      onConflict: (error) => notice(error.message || String(error), true),
+    });
     $('#move-destination').value = editor.list_id;
     if (!dialog.open) dialog.showModal();
     if (push)
@@ -512,6 +627,8 @@ async function openTask(id, push = true) {
     $('#edit-title').focus();
   } catch (err) {
     notice(err.message, true);
+  } finally {
+    if (sequence === editorOpenSequence) editorOpening = false;
   }
 }
 function renderChildren(tasks) {
@@ -648,6 +765,21 @@ $('#move-task').onclick = async () => {
   }
 };
 
+mountTaskOrdering({
+  container: $('#task-list'),
+  listId: list,
+  canWrite,
+  request: api,
+  onChanged: () => refresh(),
+  onError: (message) => notice(message, true),
+  hasActiveDraft: () =>
+    dialog.open ||
+    taskPointerDown ||
+    editorOpening ||
+    inlineEditors.size > 0 ||
+    Boolean(input.value) ||
+    Boolean(window.getSelection()?.toString()),
+});
 async function renameInline(row, snapshot) {
   const id = row.dataset.id;
   if (inlineEditors.has(id)) return;

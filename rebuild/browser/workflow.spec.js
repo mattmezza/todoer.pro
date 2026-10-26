@@ -169,9 +169,12 @@ test('search, trash, restore, activity and guarded undo use real operations', as
   await expect(page.locator('#notice')).toContainText('Edit undone');
   await page.goto(`/search?query=${encodeURIComponent(title)}`);
   await expect(page.locator('article').filter({ hasText: title })).toHaveCount(1);
-  await expect(
-    page.locator('.markdown strong').filter({ hasText: 'Safe brief' }),
-  ).toBeVisible();
+  // Search shows escaped snippets; the task view renders the safe Markdown brief.
+  expect(await page.locator('main script').count()).toBe(0);
+  await page.goto('/lists/groceries');
+  await expect(page.locator(`[data-id="${task.id}"] .markdown strong`)).toHaveText(
+    'Safe brief',
+  );
   expect(await page.locator('main script').count()).toBe(0);
   await page.goto(`/lists/groceries?task=${task.id}`);
   page.once('dialog', (d) => d.accept());
@@ -358,4 +361,23 @@ test('quick capture has a real native form fallback before scripts load', async 
   } finally {
     await context.close();
   }
+});
+
+test('live row replacement waits until a pointer click opens details', async ({
+  page,
+}) => {
+  await signin(page);
+  const title = page.locator('.task-title').first();
+  await title.scrollIntoViewIfNeeded();
+  const box = await title.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  const swapped = await page.evaluate(() => {
+    const detail = { target: document.querySelector('#task-list'), shouldSwap: true };
+    document.body.dispatchEvent(new CustomEvent('htmx:beforeSwap', { detail }));
+    return detail.shouldSwap;
+  });
+  expect(swapped).toBe(false);
+  await page.mouse.up();
+  await expect(page.locator('#task-editor')).toBeVisible();
 });
