@@ -10,6 +10,13 @@ Checks run `npm ci`, `make rust-check` (assets, formatting, Clippy with warnings
 
 Browser, CLI, and optional MCP checks share a loopback-only server on port 8092 with a new synthetic SQLite database under `RUNNER_TEMP`. Port 8092 must be free. The development-only fixture token is public test data, not a deployment credential. The server starts only for the checks and a shell trap terminates it and removes the temporary database. The workflow neither accesses the legacy database nor requests production secrets.
 
-Permissions are limited to `contents: read`; checkout does not persist its credentials. There are no image-publishing, release, or deployment steps. The prepared workflow is a development validation gate. Rust production release remains blocked by production authentication, migration/cutover validation, and the other outstanding acceptance work; passing it does not authorize deployment.
+Permissions are limited to `contents: read`; checkout does not persist its credentials. There are no image-publishing, release, or deployment steps. The prepared workflow is a development validation gate. Production OIDC/session/scoped-credential code is implemented and locally tested;
+real tenant and hosted connector checks remain external acceptance work. A
+separate release workflow and isolated amd64 Docker/Compose/Litestream rehearsal
+are documented in [deployment](deployment.md). This development workflow does
+not publish or deploy, and passing it does not authorize production cutover.
+Final current-image, complete real-data/object recovery, service/device and
+migration acceptance remain necessary. The workflow itself has not been run on
+the remote private runner as part of the observed local work.
 
 GitHub documents [job conditions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif) and [self-hosted runner labels](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/use-in-a-workflow). Checkout's [official usage documentation](https://github.com/actions/checkout/blob/main/README.md) documents `persist-credentials: false`; this workflow follows the repository's existing checkout v4 convention.

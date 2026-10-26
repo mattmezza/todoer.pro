@@ -109,7 +109,7 @@ Scheduling uses `schedule_tasks` in MCP and typed CLI commands:
 ```sh
 todoer schedule get TASK_ID
 todoer schedule set TASK_ID --revision TASK_REVISION --body '{"planned":{"kind":"date","date":"2026-10-26"},"due":{"kind":"timed","local":"2026-10-27T16:00:00","timezone":"Europe/Zurich"},"priority":2,"reminders":[]}'
-todoer schedule start ROOT_LEAF_ID --revision TASK_REVISION --body '{"rule":{"kind":"daily","interval_days":1},"start_local":"2026-10-27T16:00:00","timezone":"Europe/Zurich","count":5}'
+todoer schedule start ROOT_TASK_ID --revision TASK_REVISION --body '{"rule":{"kind":"daily","interval_days":1},"start_local":"2026-10-27T16:00:00","timezone":"Europe/Zurich","count":5}'
 todoer schedule series SERIES_ID
 todoer schedule state SERIES_ID --revision SERIES_REVISION paused
 todoer schedule state SERIES_ID --revision SERIES_REVISION active
@@ -119,7 +119,13 @@ todoer schedule planning --from 2026-10-26 --to 2026-11-01
 todoer schedule statistics --from 2026-10-26
 ```
 
-Schedule set replaces the entire schedule: omitted planned/due/priority values clear them, and omitted reminders become empty. Task scheduling/start/skip use the task revision; series state changes use the series revision. Recurrence supports unfinished root leaves; the common operation enforces this rule, local-time validity, and live access. Planning returns `{tasks,truncated}` with at most 100 compact tasks and no description bodies. Series listing similarly returns `{series,truncated}` capped at 100. Use structured queries for paginated date/status exploration. Reminder transport configuration and actual delivery remain server concerns; setting a reminder does not prove delivery.
+Schedule set replaces the entire schedule: omitted planned/due/priority values clear them, and omitted reminders become empty. Task scheduling/start/skip use the task revision; series state changes use the series revision. Recurrence supports unfinished root tasks with bounded nested checklists of at
+most 500 live tasks. The common operation enforces the bound, local-time validity,
+and live access. Recurring checklist completion requires explicit subtree
+completion, including when its children are already complete. Successors receive
+new task IDs while copying hierarchy, order, tags, sections and schedules;
+comments/files stay on their original occurrence. See [scheduling](scheduling.md)
+for skip, pause/resume and historical reopening behavior. Planning returns `{tasks,truncated}` with at most 100 compact tasks and no description bodies. Series listing similarly returns `{series,truncated}` capped at 100. Use structured queries for paginated date/status exploration. Reminder transport configuration and actual delivery remain server concerns; setting a reminder does not prove delivery.
 
 Comments and files share the `task_activity` MCP tool and these CLI commands:
 
@@ -159,7 +165,7 @@ Invitation retries must retain the target, email, role and key. Creating or revo
 
 The compact adapters are `POST /api/v1/agent/schedule`, `/activity`, and `/access`; their exact discriminated action schemas and response unions are in OpenAPI. The official SDK checks exercise actual scheduling/planning/statistics, comment retry/edit/delete, and access reads in addition to taxonomy/bulk. Set `TODOER_TEST_ATTACHMENTS=1` only with an isolated loopback S3 fixture to also exercise signed upload, SHA-256 finalization/retry, checked link metadata, listing and soft deletion. The test refuses a non-loopback object endpoint. These checks create synthetic records and do not establish compatibility with every connector or production object service.
 
-Observed on 2026-10-26: the official OAuth SDK check passed with inbox-only consent, scheduling/planning/statistics, comment operations and actual token refresh. A separate bearer SDK check passed all 21 registered tools and real signed attachment operations against Moto 5.1.17. An isolated CLI HTTP/Moto check passed scheduling/recurrence, comments, a 256 KiB upload/resume/finalize/download with digest checks and overwrite refusal, plus acknowledged invitation creation/retry/list/revocation. Moto is an emulator; production storage acceptance remains separate.
+Historical integration observation on 2026-10-26 (not rerun by the later runbook audit): the official OAuth SDK check passed with inbox-only consent, scheduling/planning/statistics, comment operations and actual token refresh. A separate bearer SDK check passed all 21 registered tools and real signed attachment operations against Moto 5.1.17. An isolated CLI HTTP/Moto check passed scheduling/recurrence, comments, a 256 KiB upload/resume/finalize/download with digest checks and overwrite refusal, plus acknowledged invitation creation/retry/list/revocation. Moto is an emulator; production storage acceptance remains separate.
 
 Reproduce the isolated CLI, SDK and storage check with:
 
@@ -169,3 +175,10 @@ uv run --no-project scripts/rebuild-agent-check.py
 ```
 
 This script launches its own temporary development server/database and pinned Moto fixture on free loopback ports, strips inherited Todoer configuration, uses only synthetic credentials, and removes its processes/data afterward. It requires `uv`, a Python 3.11 runtime for Moto, and local socket access; Moto packages may be downloaded into uv's cache. Fixture HTTP logs are suppressed so temporary signed upload URLs are not recorded.
+
+Documentation status: examples above describe the implemented compact interfaces
+and their recorded checks, not a claim that every later HTML/REST operation has
+agent parity. Consult the current OpenAPI/tool schemas and delivery ledger for
+new move/review/assistance increments. Recorded SDK tests use the official Python
+client and synthetic local services; real hosted connector, Google tenant and
+production-storage acceptance remain separate.
