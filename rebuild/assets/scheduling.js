@@ -52,11 +52,15 @@ export function mountScheduling({
     ['3', 'Low'],
   ]);
   const reminders = el('div', { 'data-reminders': '' });
-  const addReminder = el('button', { type: 'button', class: 'primary' }, 'Add reminder');
+  const addReminder = el(
+    'button',
+    { type: 'button', class: 'secondary min-h-11' },
+    'Add reminder',
+  );
   const save = el('button', { type: 'submit', class: 'primary' }, 'Save schedule');
   const reload = el(
     'button',
-    { type: 'button', class: 'primary' },
+    { type: 'button', class: 'secondary min-h-11' },
     'Load saved schedule',
   );
   const rule = select('rule', [
@@ -94,7 +98,7 @@ export function mountScheduling({
   );
   const discardRecurrence = el(
     'button',
-    { type: 'button', class: 'primary' },
+    { type: 'button', class: 'secondary min-h-11' },
     'Discard recurrence draft',
   );
   const seriesLink = el(
@@ -341,7 +345,11 @@ export function mountScheduling({
     at.required = true;
     const timezone = input('text', 'reminder_timezone', values.timezone || defaultZone);
     timezone.required = true;
-    const remove = el('button', { type: 'button', class: 'primary' }, 'Remove reminder');
+    const remove = el(
+      'button',
+      { type: 'button', class: 'secondary min-h-11' },
+      'Remove reminder',
+    );
     remove.hidden = !canWrite;
     remove.addEventListener('click', () => {
       if (busy || !canWrite) return;

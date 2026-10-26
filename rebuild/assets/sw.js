@@ -16,6 +16,10 @@ const STATIC = [
   '/assets/app.css',
   '/assets/app.js',
   '/assets/discussion.js',
+  '/assets/push.js',
+  '/assets/scheduling.js',
+  '/assets/task-metadata.js',
+  '/assets/task-order.js',
   '/assets/offline.js',
   '/assets/pwa.js',
   '/assets/manifest.webmanifest',
@@ -185,3 +189,64 @@ self.addEventListener('fetch', (event) => {
     })(),
   );
 });
+
+self.addEventListener('push', (event) => {
+  event.waitUntil(
+    (async () => {
+      // Payloads deliberately contain no task title or brief. A session-scoped
+      // subscription is disabled server-side at logout; stale local accounts
+      // must not display notifications received after an account switch.
+      if (!(await persistedScope())) return;
+      let payload;
+      try {
+        payload = event.data?.json();
+      } catch {
+        return;
+      }
+      if (!payload || !notificationPath(payload.url)) return;
+      const summary = payload.url === '/review';
+      await self.registration.showNotification(
+        summary ? 'Todoer summary' : 'Todoer reminder',
+        {
+          body: summary
+            ? 'Open Todoer for your review.'
+            : 'Open Todoer to review your reminder.',
+          icon: '/legacy-assets/favicon.png',
+          badge: '/legacy-assets/favicon.png',
+          tag:
+            typeof payload.intent_id === 'string'
+              ? payload.intent_id.slice(0, 150)
+              : undefined,
+          data: { url: payload.url },
+        },
+      );
+    })(),
+  );
+});
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    (async () => {
+      const path = event.notification.data?.url;
+      if (!notificationPath(path) || !(await persistedScope())) return;
+      const url = new URL(path, self.location.origin).href;
+      for (const client of await self.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      })) {
+        if (new URL(client.url).origin !== self.location.origin) continue;
+        await client.navigate(url);
+        await client.focus();
+        return;
+      }
+      await self.clients.openWindow(url);
+    })(),
+  );
+});
+
+function notificationPath(path) {
+  return (
+    path === '/review' ||
+    (typeof path === 'string' && /^\/tasks\/[a-zA-Z0-9-]+$/.test(path))
+  );
+}
