@@ -362,3 +362,8 @@ dist
 .envrc
 .tmux-session
 .claude/
+
+# Rust rebuild: isolated data, browser evidence, and build outputs
+/target/
+/.local/
+/rebuild/assets/app.css
