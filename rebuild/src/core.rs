@@ -134,10 +134,34 @@ fn reopen(c: &Connection, id: &str) -> Result<(), Error> {
     }
     Ok(())
 }
+fn audience_change(
+    c: &Connection,
+    source: &str,
+    destination: &str,
+) -> Result<(i64, i64, i64), Error> {
+    let count = |list: &str| -> Result<i64, Error> {
+        Ok(c.query_row(
+            "SELECT COUNT(*) FROM memberships WHERE list_id=?1",
+            [list],
+            |r| r.get(0),
+        )?)
+    };
+    let added = c.query_row("SELECT COUNT(*) FROM memberships d WHERE d.list_id=?1 AND NOT EXISTS(SELECT 1 FROM memberships s WHERE s.list_id=?2 AND s.user_id=d.user_id)", params![destination, source], |r| r.get(0))?;
+    Ok((count(source)?, count(destination)?, added))
+}
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {
         let conn = Connection::open(path)?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
+        let legacy: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='spaces') OR EXISTS(SELECT 1 FROM pragma_table_info('users') WHERE name='uuid')", [], |r| r.get(0))?;
+        if legacy {
+            return Err(Error::Invalid(
+                "legacy Todoer database detected; use a separate rebuild database".into(),
+            ));
+        }
+        if path != ":memory:" {
+            conn.pragma_update(None, "journal_mode", "WAL")?;
+        }
         conn.execute_batch(include_str!("../migrations/001.sql"))?;
         Ok(Self { conn })
     }
@@ -196,7 +220,13 @@ impl Store {
                     "idempotency key reused with different payload".into(),
                 ));
             }
-            return serde_json::from_str(&response).map_err(|e| Error::Invalid(e.to_string()));
+            let result: Vec<Task> =
+                serde_json::from_str(&response).map_err(|e| Error::Invalid(e.to_string()))?;
+            for original in &result {
+                let current = task(&tx, &original.id)?;
+                access(&tx, actor, &current.list_id)?;
+            }
+            return Ok(result);
         }
         if request.tasks.is_empty() || request.tasks.len() > 100 {
             return Err(Error::Invalid("capture requires 1–100 tasks".into()));
@@ -220,8 +250,18 @@ impl Store {
                 n.parent_id = Some(p.id);
             }
             position += 1;
-            let id = Uuid::new_v4().to_string();
-            let reference = format!("T-{}", &id[..8]);
+            let (id, reference) = loop {
+                let id = Uuid::new_v4().to_string();
+                let reference = format!("T-{}", &id[..8]);
+                let exists: bool = tx.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM tasks WHERE id=?1 OR reference=?2)",
+                    params![id, reference],
+                    |r| r.get(0),
+                )?;
+                if !exists {
+                    break (id, reference);
+                }
+            };
             tx.execute("INSERT INTO tasks(id,reference,list_id,parent_id,title,description,position) VALUES(?1,?2,?3,?4,?5,?6,?7)",params![id,reference,request.list_id,n.parent_id,n.title.trim(),n.description,position])?;
             let t = task(&tx, &id)?;
             reopen(&tx, &id)?;
@@ -293,12 +333,28 @@ impl Store {
         tx.commit()?;
         Ok(updated)
     }
+    pub fn move_preview(
+        &self,
+        actor: &str,
+        id: &str,
+        destination: &str,
+    ) -> Result<serde_json::Value, Error> {
+        let t = task(&self.conn, id)?;
+        access(&self.conn, actor, &t.list_id)?;
+        access(&self.conn, actor, destination)?;
+        let (source_members, destination_members, added_members) =
+            audience_change(&self.conn, &t.list_id, destination)?;
+        Ok(
+            serde_json::json!({"destination": destination, "audience_broadens": added_members > 0, "source_members": source_members, "destination_members": destination_members, "added_members": added_members}),
+        )
+    }
     pub fn move_subtree(
         &mut self,
         actor: &str,
         id: &str,
         destination: &str,
         revision: i64,
+        acknowledge_access_change: bool,
     ) -> Result<Task, Error> {
         let tx = self
             .conn
@@ -311,6 +367,9 @@ impl Store {
         }
         if t.list_id == destination {
             return Ok(t);
+        }
+        if audience_change(&tx, &t.list_id, destination)?.2 > 0 && !acknowledge_access_change {
+            return Err(Error::Conflict("destination adds members who can access this subtree; inspect move_preview and set acknowledge_access_change=true to confirm".into()));
         }
         let mut pos: i64 = tx.query_row(
             "SELECT COALESCE(MAX(position),0) FROM tasks WHERE list_id=?1",
@@ -329,7 +388,7 @@ impl Store {
         Ok(moved)
     }
     pub fn changes(&self, actor: &str, after: i64) -> Result<Vec<serde_json::Value>, Error> {
-        let mut q=self.conn.prepare("SELECT h.seq,h.event FROM history h JOIN memberships m ON m.list_id=h.list_id WHERE m.user_id=?1 AND h.seq>?2 ORDER BY h.seq LIMIT 1000")?;
+        let mut q=self.conn.prepare("SELECT h.seq,h.event FROM history h JOIN memberships m ON m.list_id=h.list_id JOIN tasks t ON t.id=json_extract(h.event,'$.task.id') JOIN memberships live ON live.list_id=t.list_id AND live.user_id=m.user_id WHERE m.user_id=?1 AND h.seq>?2 ORDER BY h.seq LIMIT 1000")?;
         let rows = q.query_map(params![actor, after], |r| {
             Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
         })?;
@@ -489,11 +548,11 @@ mod tests {
             .unwrap();
         assert!(!root.complete);
         assert!(matches!(
-            s.move_subtree("dev", &root.id, "private", root.revision),
+            s.move_subtree("dev", &root.id, "private", root.revision, false),
             Err(Error::Forbidden)
         ));
         let moved = s
-            .move_subtree("dev", &root.id, "groceries", root.revision)
+            .move_subtree("dev", &root.id, "groceries", root.revision, false)
             .unwrap();
         assert_eq!(moved.list_id, "groceries");
         let tree = s.subtree("dev", &root.id).unwrap();
@@ -574,5 +633,84 @@ mod tests {
             .is_err()
         );
         assert!(s.tasks("dev", "groceries").unwrap().is_empty());
+    }
+    #[test]
+    fn broadened_move_requires_explicit_acknowledgement() {
+        let mut s = db();
+        let root = capture(&mut s, "root", None);
+        s.conn
+            .execute("INSERT INTO memberships VALUES('groceries','other')", [])
+            .unwrap();
+        let preview = s.move_preview("dev", &root.id, "groceries").unwrap();
+        assert_eq!(preview["audience_broadens"], true);
+        assert_eq!(preview["added_members"], 1);
+        let before = s.changes("dev", 0).unwrap().len();
+        assert!(matches!(
+            s.move_subtree("dev", &root.id, "groceries", root.revision, false),
+            Err(Error::Conflict(_))
+        ));
+        assert_eq!(s.tasks("dev", "inbox").unwrap().len(), 1);
+        assert_eq!(s.changes("dev", 0).unwrap().len(), before);
+        assert!(matches!(
+            s.move_preview("dev", &root.id, "private"),
+            Err(Error::Forbidden)
+        ));
+        s.move_subtree("dev", &root.id, "groceries", root.revision, true)
+            .unwrap();
+        assert_eq!(s.tasks("other", "groceries").unwrap().len(), 1);
+    }
+    #[test]
+    fn moved_tasks_recheck_history_and_idempotency_permissions() {
+        let mut s = db();
+        let root = capture(&mut s, "root", None);
+        s.conn
+            .execute("INSERT INTO memberships VALUES('private','dev')", [])
+            .unwrap();
+        s.move_subtree("dev", &root.id, "private", 1, true).unwrap();
+        s.conn
+            .execute(
+                "DELETE FROM memberships WHERE list_id='private' AND user_id='dev'",
+                [],
+            )
+            .unwrap();
+        assert!(s.changes("dev", 0).unwrap().is_empty());
+        let result = s.capture(
+            "dev",
+            "root",
+            Capture {
+                list_id: "inbox".into(),
+                tasks: vec![NewTask {
+                    title: "Task".into(),
+                    parent_id: None,
+                    description: String::new(),
+                }],
+            },
+        );
+        assert!(matches!(result, Err(Error::Forbidden)));
+    }
+    #[test]
+    fn legacy_database_is_rejected_without_schema_changes() {
+        let path = std::env::temp_dir().join(format!("todoer-legacy-{}.db", Uuid::new_v4()));
+        {
+            let c = Connection::open(&path).unwrap();
+            c.execute_batch("CREATE TABLE users(uuid TEXT PRIMARY KEY);")
+                .unwrap();
+        }
+        assert!(matches!(
+            Store::open(path.to_str().unwrap()),
+            Err(Error::Invalid(_))
+        ));
+        {
+            let c = Connection::open(&path).unwrap();
+            let count: i64 = c
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table'",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(count, 1);
+        }
+        std::fs::remove_file(path).unwrap();
     }
 }
