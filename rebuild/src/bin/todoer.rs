@@ -23,6 +23,17 @@ struct Args {
 #[derive(Subcommand)]
 enum Command {
     List,
+    /// Weekly review with live permissions and counting/coverage notes.
+    Review {
+        #[arg(long)]
+        from: Option<String>,
+        #[arg(long)]
+        to: Option<String>,
+        #[arg(long)]
+        list: Option<String>,
+        #[arg(long)]
+        workspace: Option<String>,
+    },
     /// Workspace administration. JSON write bodies require current revisions.
     Workspace {
         #[command(subcommand)]
@@ -160,8 +171,15 @@ enum Command {
         #[arg(long)]
         revision: i64,
     },
+    /// Bounded projected subtree page (default50/max100); opt into description.
     Subtree {
         id: String,
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+        #[arg(long, value_delimiter = ',')]
+        fields: Vec<String>,
+        #[arg(long)]
+        cursor: Option<String>,
     },
     Move {
         id: String,
@@ -239,6 +257,18 @@ enum WorkspaceCommand {
 #[derive(Subcommand)]
 enum ListCommand {
     All,
+    /// Review audience and tag changes before moving the entire list.
+    MovePreview {
+        id: String,
+        #[arg(long)]
+        destination_workspace: String,
+    },
+    /// Apply the exact reviewed revisions and policy hash (ListWorkspaceMoveInput JSON).
+    Move {
+        id: String,
+        #[arg(long)]
+        body: String,
+    },
     Get {
         id: String,
     },
@@ -865,6 +895,20 @@ fn workspace_request(command: WorkspaceCommand) -> Result<RequestSpec, (i32, Str
 fn list_request(command: ListCommand) -> Result<RequestSpec, (i32, String)> {
     Ok(match command {
         ListCommand::All => read_request("/lists".into()),
+        ListCommand::MovePreview {
+            id,
+            destination_workspace,
+        } => (
+            Method::POST,
+            format!("/lists/{}/workspace-move/preview", segment(&id)),
+            Some(json!({"destination_workspace_id":destination_workspace})),
+            None,
+        ),
+        ListCommand::Move { id, body } => write_request(
+            Method::POST,
+            format!("/lists/{}/workspace-move", segment(&id)),
+            body,
+        )?,
         ListCommand::Get { id } => read_request(format!("/lists/{}", segment(&id))),
         ListCommand::Create { body } => write_request(Method::POST, "/lists".into(), body)?,
         ListCommand::Edit { id, body } => {
@@ -949,6 +993,24 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
     }
     let mut query_pairs: Vec<(String, String)> = Vec::new();
     let (method, path, body, key) = match args.command {
+        Command::Review {
+            from,
+            to,
+            list,
+            workspace,
+        } => {
+            for (key, value) in [
+                ("from", from),
+                ("to", to),
+                ("list", list),
+                ("workspace", workspace),
+            ] {
+                if let Some(value) = value {
+                    query_pairs.push((key.into(), value));
+                }
+            }
+            read_request("/review".into())
+        }
         Command::Workspace { command } => workspace_request(command)?,
         Command::Lists { command } => list_request(command)?,
         Command::Sections { command } => section_request(command)?,
@@ -1083,12 +1145,23 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             Some(json!({"revision": revision, "complete": false})),
             None,
         ),
-        Command::Subtree { id } => (
-            Method::GET,
-            format!("/tasks/{}/subtree", segment(&id)),
-            None,
-            None,
-        ),
+        Command::Subtree {
+            id,
+            limit,
+            fields,
+            cursor,
+        } => {
+            let mut body = json!({"limit":limit,"cursor":cursor});
+            if !fields.is_empty() {
+                body["fields"] = json!(fields);
+            }
+            (
+                Method::POST,
+                format!("/tasks/{}/subtree/query", segment(&id)),
+                Some(body),
+                None,
+            )
+        }
         Command::Move {
             id,
             destination,

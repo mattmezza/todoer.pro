@@ -180,7 +180,20 @@ async def main():
                     PHASE = f"tool-{name}"
                     response = await session.call_tool(name, arguments)
                     assert not response.is_error, f"Tool failed: {name}"
-                    return tool_json(response)
+                    value = tool_json(response)
+                    if name == "read_subtree":
+                        assert value["root_id"] == arguments["id"]
+                        assert len(value["items"]) <= arguments.get(
+                            "limit", 50
+                        )
+                        assert value["snapshot"]["root_revision"] >= 1
+                        assert value["context"]["breadcrumbs"]
+                        assert all(
+                            "description" not in item
+                            for item in value["items"]
+                        )
+                        return value["items"]
+                    return value
 
                 resolved = await call(
                     "resolve_destination", {"destination": "inbox"}
@@ -390,6 +403,42 @@ async def main():
                     {"action": {"op": "statistics", "from": "2026-10-26"}},
                 )
                 assert statistics["scheduled_open"] >= 1
+                review = await call(
+                    "schedule_tasks",
+                    {
+                        "action": {
+                            "op": "review",
+                            "from": "2026-10-26",
+                            "to": "2026-11-01",
+                            "list_id": "inbox",
+                        }
+                    },
+                )
+                assert len(review["daily"]) == 7 and review["notes"]
+                denied = await session.call_tool(
+                    "schedule_tasks",
+                    {
+                        "action": {
+                            "op": "review",
+                            "from": "2026-10-26",
+                            "to": "2026-11-01",
+                            "list_id": "groceries",
+                        }
+                    },
+                )
+                assert denied.is_error
+                denied_move = await session.call_tool(
+                    "manage_access",
+                    {
+                        "action": {
+                            "op": "list_move_preview",
+                            "list_id": "inbox",
+                            "destination_workspace_id": "not-an-authorized-workspace",
+                        }
+                    },
+                )
+                assert denied_move.is_error
+
                 comment_action = {
                     "op": "comment_create",
                     "task_id": current["id"],
@@ -539,7 +588,7 @@ async def main():
                         "OAuth MCP SDK refresh passed: replacement refresh token stored; browser consent unchanged"
                     )
                 print(
-                    "OAuth MCP SDK check passed: discovery, registration, PKCE consent, token exchange, tools, capture retry, subtree, saved destination, bulk preview/apply/retry, tags, structured query, reference bind/backlinks, scheduling/planning/statistics, comment retry/edit/delete, list-scope denial"
+                    "OAuth MCP SDK check passed: discovery, registration, PKCE consent, token exchange, tools, capture retry, subtree, saved destination, bulk preview/apply/retry, tags, structured query, reference bind/backlinks, scheduling/planning/statistics/review, bounded subtree projection, scoped workspace-move denial, comment retry/edit/delete, list-scope denial"
                 )
     return 0
 

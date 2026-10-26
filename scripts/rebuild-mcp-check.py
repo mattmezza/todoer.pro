@@ -7,7 +7,8 @@
 
 Run: uv run --no-project scripts/rebuild-mcp-check.py
 Requires TODOER_TOKEN; TODOER_MCP_URL defaults to http://127.0.0.1:8092/mcp.
-Creates one synthetic inbox task per run. Never prints credentials.
+Creates synthetic tasks, a tag, two owned workspaces and a movable list.
+Never prints credentials.
 """
 
 import asyncio
@@ -27,7 +28,16 @@ async def tool(session, name, arguments):
     response = await session.call_tool(name, arguments)
     assert not response.is_error, f"{name} returned a tool error"
     text = next(item.text for item in response.content if item.type == "text")
-    return json.loads(text)
+    value = json.loads(text)
+    if name == "read_subtree":
+        assert value["root_id"] == arguments["id"]
+        assert len(value["items"]) <= arguments.get("limit", 50)
+        assert value["snapshot"]["root_revision"] >= 1
+        assert value["context"]["breadcrumbs"]
+        if "description" not in arguments.get("fields", []):
+            assert all("description" not in item for item in value["items"])
+        return value["items"]
+    return value
 
 
 async def main():
@@ -373,6 +383,99 @@ async def main():
                     {"action": {"op": "statistics", "from": "2026-10-26"}},
                 )
                 assert statistics["scheduled_open"] >= 1
+                review = await tool(
+                    session,
+                    "schedule_tasks",
+                    {
+                        "action": {
+                            "op": "review",
+                            "from": "2026-10-26",
+                            "to": "2026-11-01",
+                            "list_id": "inbox",
+                        }
+                    },
+                )
+                assert len(review["daily"]) == 7 and review["notes"]
+                assert all(
+                    not item["task"]["description"]
+                    for item in review["upcoming"]
+                )
+                source = await tool(
+                    session,
+                    "manage_access",
+                    {
+                        "action": {
+                            "op": "workspace_create",
+                            "input": {
+                                "title": f"SDK source {uuid.uuid4().hex[:8]}"
+                            },
+                        }
+                    },
+                )
+                destination = await tool(
+                    session,
+                    "manage_access",
+                    {
+                        "action": {
+                            "op": "workspace_create",
+                            "input": {
+                                "title": f"SDK destination {uuid.uuid4().hex[:8]}"
+                            },
+                        }
+                    },
+                )
+                moving = await tool(
+                    session,
+                    "manage_access",
+                    {
+                        "action": {
+                            "op": "list_create",
+                            "input": {
+                                "workspace_id": source["id"],
+                                "title": "Synthetic movable list",
+                                "restricted": True,
+                            },
+                        }
+                    },
+                )
+                preview = await tool(
+                    session,
+                    "manage_access",
+                    {
+                        "action": {
+                            "op": "list_move_preview",
+                            "list_id": moving["id"],
+                            "destination_workspace_id": destination["id"],
+                        }
+                    },
+                )
+                move_input = {
+                    key: preview[key]
+                    for key in (
+                        "destination_workspace_id",
+                        "list_revision",
+                        "source_workspace_revision",
+                        "destination_workspace_revision",
+                        "policy_hash",
+                    )
+                }
+                move_input["acknowledge_access_change"] = False
+                moved = await tool(
+                    session,
+                    "manage_access",
+                    {
+                        "action": {
+                            "op": "list_move",
+                            "list_id": moving["id"],
+                            "input": move_input,
+                        }
+                    },
+                )
+                assert (
+                    moved["id"] == moving["id"]
+                    and moved["revision"] > moving["revision"]
+                )
+
                 comment_action = {
                     "op": "comment_create",
                     "task_id": current["id"],
@@ -503,8 +606,77 @@ async def main():
                     print(
                         "MCP SDK attachment check passed: signed local upload, SHA256 verification, finalize retry, checked link metadata, authorized list and soft deletion"
                     )
+
+                child = (
+                    await tool(
+                        session,
+                        "capture",
+                        {
+                            "list_id": "inbox",
+                            "idempotency_key": f"subtree-child-{uuid.uuid4()}",
+                            "tasks": [
+                                {
+                                    "title": "Synthetic subtree child",
+                                    "description": "Explicit-only context",
+                                    "parent_id": current["id"],
+                                }
+                            ],
+                        },
+                    )
+                )[0]
+                projection = {
+                    "id": current["id"],
+                    "limit": 1,
+                    "fields": ["title", "revision"],
+                }
+                first_response = await session.call_tool(
+                    "read_subtree", projection
+                )
+                assert not first_response.is_error
+                first_page = json.loads(
+                    next(
+                        item.text
+                        for item in first_response.content
+                        if item.type == "text"
+                    )
+                )
+                assert first_page["has_more"] and first_page["next_cursor"]
+                assert (
+                    len(first_page["items"]) == 1
+                    and "description" not in first_page["items"][0]
+                )
+                next_response = await session.call_tool(
+                    "read_subtree",
+                    {**projection, "cursor": first_page["next_cursor"]},
+                )
+                assert not next_response.is_error
+                next_page = json.loads(
+                    next(
+                        item.text
+                        for item in next_response.content
+                        if item.type == "text"
+                    )
+                )
+                assert (
+                    next_page["items"][0]["id"] == child["id"]
+                    and next_page["items"][0]["depth"] == 1
+                )
+                await tool(
+                    session,
+                    "update_task",
+                    {
+                        "id": child["id"],
+                        "revision": child["revision"],
+                        "title": "Synthetic subtree changed",
+                    },
+                )
+                stale = await session.call_tool(
+                    "read_subtree",
+                    {**projection, "cursor": first_page["next_cursor"]},
+                )
+                assert stale.is_error
                 print(
-                    f"MCP SDK check passed: initialize, {len(names)} tools, resolve, capture/retry, subtree, edit, undo, trash, restore, saved destination, bulk preview/apply/retry/rollback, tags, structured query, reference bind/backlinks, scheduling/planning/statistics, comment retry/edit/delete"
+                    f"MCP SDK check passed: initialize, {len(names)} tools, resolve, capture/retry, subtree, edit, undo, trash, restore, saved destination, bulk preview/apply/retry/rollback, tags, structured query, reference bind/backlinks, scheduling/planning/statistics/review, owner workspace-list move, bounded subtree projection, comment retry/edit/delete"
                 )
     return 0
 

@@ -176,10 +176,22 @@ struct ApplyChangesInput {
     expected_hash: String,
     idempotency_key: String,
 }
+fn subtree_fields_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::Schema::try_from(json!({"anyOf":[{"type":"array","items":{"enum":["reference","list_id","title","description","complete","revision","position"]}},{"type":"null"}]})).expect("subtree fields schema")
+}
+fn subtree_limit() -> usize {
+    50
+}
 #[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-struct TaskId {
+struct SubtreeInput {
     id: String,
+    #[serde(default = "subtree_limit")]
+    #[schemars(range(min = 1, max = 100))]
+    limit: usize,
+    #[schemars(schema_with = "subtree_fields_schema")]
+    fields: Option<Vec<String>>,
+    cursor: Option<String>,
 }
 #[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -278,7 +290,7 @@ impl TodoerMcp {
 #[tool_router]
 impl TodoerMcp {
     #[tool(
-        description = "Read/replace task scheduling (planned date, zoned due time, priority, reminders), manage root-leaf recurrence and pause/resume/stop/skip, or read explicit-date planning and weekly statistics. Use action.op; schedule set/start/skip use task revision, series_state uses series revision. Replacing a schedule clears omitted fields. No browser settings or credentials are changed."
+        description = "Read/replace task scheduling (planned date, zoned due time, priority, reminders), manage root-leaf recurrence and pause/resume/stop/skip, or read explicit-date planning, weekly statistics and review (action.op review, explicit from/to; optional list_id/workspace_id). Review omits upcoming task descriptions and retains counting/coverage notes. Use action.op; schedule set/start/skip use task revision, series_state uses series revision. Replacing a schedule clears omitted fields. No browser settings or credentials are changed."
     )]
     async fn schedule_tasks(
         &self,
@@ -324,7 +336,7 @@ impl TodoerMcp {
         result(crate::web::agent_features::activity(self.state.clone(), actor, action).await)
     }
     #[tool(
-        description = "Create authorized workspaces/lists/sections, inspect/administer sharing, or create/list/revoke email-bound invitations. Grants and visibility expansion require explicit acknowledge_access_change and appropriate admin scope; revisions are workspace/list revisions. Invite requires retry-safe idempotency_key and may queue invitation email delivery. Never claims an invitation or bypasses Google/browser proof."
+        description = "Create authorized workspaces/lists/sections, inspect/administer sharing, preview/apply whole-list moves between workspaces, or create/list/revoke email-bound invitations. list_move_preview returns all list/source/destination revisions and policy_hash; list_move requires that exact reviewed snapshot and owner access to both workspaces. Grants and visibility expansion require explicit acknowledge_access_change and appropriate admin scope; revisions are workspace/list revisions. Invite requires retry-safe idempotency_key and may queue invitation email delivery. Never claims an invitation or bypasses Google/browser proof."
     )]
     async fn manage_access(
         &self,
@@ -551,18 +563,34 @@ impl TodoerMcp {
         )
     }
     #[tool(
-        description = "Read a task and its descendants, including IDs, parent links and current revisions."
+        description = "Read a bounded preorder subtree page: limit defaults50/max100, response max256KiB, explicit field projection and stable cursor. Always returns id/parent_id/depth; defaults reference/title/complete/revision/position, description opt-in. Returns items/context/snapshot/has_more/next_cursor. Reuse identical fields with cursor; any relevant mutation requires restart on resync_required. Ancestor context is authorized and bounded. Fetch a deeper root if maximum traversal depth256 is exceeded."
     )]
     async fn read_subtree(
         &self,
         ctx: RequestContext<RoleServer>,
-        Parameters(p): Parameters<TaskId>,
+        Parameters(p): Parameters<SubtreeInput>,
     ) -> CallToolResult {
         let actor = match self.actor(&ctx) {
             Ok(actor) => actor,
             Err(error) => return result::<()>(Err(error)),
         };
-        result(self.state.run(move |db| db.subtree(&actor, &p.id)).await)
+        result(
+            self.state
+                .run(move |db| {
+                    let mut read = crate::subtree_query::SubtreeRead {
+                        limit: p.limit,
+                        cursor: p.cursor,
+                        ..Default::default()
+                    };
+                    if let Some(fields) = p.fields {
+                        read.fields = serde_json::from_value(json!(fields)).map_err(|_| {
+                            Error::Invalid("invalid subtree field projection".into())
+                        })?;
+                    }
+                    db.read_subtree(&actor, &p.id, read)
+                })
+                .await,
+        )
     }
     #[tool(
         description = "Update a task using its current revision. Set complete_subtree explicitly to complete descendants. On conflict re-read before retrying."

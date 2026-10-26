@@ -34,9 +34,9 @@ Before moving a subtree, use `move-preview` to inspect whether the destination a
 
 Use `--json` for scripts: successful response bodies are printed unchanged to stdout. Human output shows task completion, identifiers, titles, and revisions. Errors go to stderr. Exit codes are 0 for success, 2 for invalid CLI arguments or HTTP validation errors, 3 for missing credentials or HTTP authentication/authorization errors, 4 for HTTP revision/conflict errors, and 1 for other failures. Network requests time out after 30 seconds and redirects are not followed.
 
-The CLI calls `/api/v1/search`, `/api/v1/lists`, `/api/v1/lists/{id}/tasks`, `/api/v1/capture`, `/api/v1/tasks/{id}`, `/api/v1/tasks/{id}/subtree`, `/api/v1/tasks/{id}/move-preview?destination=...`, `/api/v1/tasks/{id}/move`, and `/api/v1/changes?after=N`. Capture sends `Idempotency-Key`; all requests send bearer authentication. No remote MCP transport is implied by these endpoints.
+The CLI calls `/api/v1/search`, `/api/v1/lists`, `/api/v1/lists/{id}/tasks`, `/api/v1/capture`, `/api/v1/tasks/{id}`, `/api/v1/tasks/{id}/subtree/query`, `/api/v1/tasks/{id}/move-preview?destination=...`, `/api/v1/tasks/{id}/move`, and `/api/v1/changes?after=N`. Capture sends `Idempotency-Key`; all requests send bearer authentication. No remote MCP transport is implied by these endpoints.
 
-The official Python MCP SDK check is available as `uv run --no-project scripts/rebuild-mcp-check.py`. It pins `mcp==2.3.0` with inline script metadata, leaving project dependencies unchanged. Set `TODOER_TOKEN` and optionally `TODOER_MCP_URL` (default `http://127.0.0.1:8092/mcp`) before running it against the development server. The check initializes a real HTTP MCP session, lists the tools, resolves the inbox, retries an identical capture, and reads the resulting subtree before checking the implemented compact operations. Each run creates a synthetic inbox task and tag, with a fresh capture key; the optional attachment fixture also creates and soft-deletes a synthetic file.
+The official Python MCP SDK check is available as `uv run --no-project scripts/rebuild-mcp-check.py`. It pins `mcp==2.3.0` with inline script metadata, leaving project dependencies unchanged. Set `TODOER_TOKEN` and optionally `TODOER_MCP_URL` (default `http://127.0.0.1:8092/mcp`) before running it against the development server. The check initializes a real HTTP MCP session, lists the tools, resolves the inbox, retries an identical capture, and reads the resulting subtree before checking the implemented compact operations. Each run creates synthetic inbox tasks, a tag, two owned workspaces and a movable list, with fresh capture keys; the optional attachment fixture also creates and soft-deletes a synthetic file.
 
 The check requires the implemented tool subset, including bulk preview/apply and saved destinations. It exercises initialization, destination resolution, identical capture retry, subtree read, edit, guarded undo, trash, restore, destination preferences, bulk dry-run, guarded apply, retry, and rollback. SDK 2.3.0 currently logs `Session termination failed: 202` when this rmcp transport acknowledges session cleanup; the request assertions complete and the check exits successfully.
 
@@ -182,3 +182,25 @@ agent parity. Consult the current OpenAPI/tool schemas and delivery ledger for
 new move/review/assistance increments. Recorded SDK tests use the official Python
 client and synthetic local services; real hosted connector, Google tenant and
 production-storage acceptance remain separate.
+
+## Bounded subtree pages, review, and moving a whole list
+
+`todoer subtree TASK_ID` now calls `POST /api/v1/tasks/{id}/subtree/query`. It returns a page with `items`, `context`, `snapshot`, `has_more`, and `next_cursor`. The default is 50 items (maximum 100), with a 256-KiB response cap. IDs, parent IDs and depth are always present. Default optional fields are reference, title, completion, revision and position; descriptions require explicit projection. This changes the earlier CLI/MCP array response to a bounded page. Legacy REST `GET .../subtree` remains available for the existing browser flow.
+
+```sh
+todoer --json subtree TASK_ID --limit 25 --fields title,revision,complete
+todoer --json subtree TASK_ID --limit 25 --fields title,revision,complete --cursor CURSOR
+todoer --json subtree TASK_ID --fields title,description,revision
+todoer --json review --from 2026-10-26 --to 2026-11-01 --list LIST_ID
+todoer --json lists move-preview LIST_ID --destination-workspace DESTINATION_WORKSPACE_ID
+```
+
+`read_subtree` is the same bounded MCP page, with optional `limit`, `fields`, and `cursor`. Reuse the same root and projection when paging. Mutation makes a cursor stale (`resync_required`); restart rather than combining snapshots. Ancestor context is authorization checked and bounded, with explicit omitted/truncated markers. Extremely deep trees require reading a deeper root.
+
+`todoer review` calls the implemented weekly-review REST endpoint. Omitted dates default to the current local week; `--workspace` and `--list` restrict the scope. It retains counting and coverage notes: completion counts distinct recorded leaf work, older history can be incomplete, planned-versus-completed uses current leaf schedules, and overdue trends contain actual observations rather than invented historical zeroes. MCP `schedule_tasks` adds `{action:{op:"review",from:"YYYY-MM-DD",to:"YYYY-MM-DD",list_id:null|ID,workspace_id:null|ID}}`; explicit dates are required there. The compact MCP/agent response clears upcoming task descriptions and retains the notes.
+
+Whole-list moves use existing stable IDs and common authorization. Both workspaces require live owner access; a credential restricted to only one workspace/list cannot move the whole list. `manage_access` supports `list_move_preview` with `list_id` and `destination_workspace_id`, then `list_move` with `list_id` and an `input` object containing the preview's `destination_workspace_id`, `list_revision`, `source_workspace_revision`, `destination_workspace_revision`, and `policy_hash`. Expanded access additionally requires `acknowledge_access_change:true` after reviewing the full audience. The CLI apply command is `todoer lists move LIST_ID --body 'JSON'` with that same exact input. Never replace stale revisions blindly or infer acknowledgement from an old preview. List contents, sections, comments/files, reference IDs, and audit history remain under the common atomic move operation.
+
+Optional assistance REST endpoints and their privacy/budget/review contract are documented in [assist.md](assist.md). Agent clients do not receive server provider keys or silently classify captures.
+
+On 2026-10-26, the updated isolated official-SDK/CLI/Moto fixture passed with bounded projected subtree pages, a successful continuation and stale-cursor refusal, weekly review, owner list-workspace move, and the existing capture/bulk/organization/scheduling/discussion/attachment/invitation assertions. This is local interoperability evidence with synthetic data and Moto, not a production-provider or universal-client claim.
