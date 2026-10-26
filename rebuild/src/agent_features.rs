@@ -4,7 +4,9 @@ use crate::{
     discussion::{EditComment, NewComment, UploadInput},
     invitations::InviteInput,
     scheduling::{RecurrenceSpec, Schedule, SeriesState},
-    workspace::{CreateList, ListRole, SectionInput, WorkspaceInput, WorkspaceRole},
+    workspace::{
+        CreateList, ListRole, ListWorkspaceMoveInput, SectionInput, WorkspaceInput, WorkspaceRole,
+    },
 };
 use serde::Serialize;
 fn default_limit() -> i64 {
@@ -51,6 +53,12 @@ pub(crate) enum ScheduleAction {
     },
     Statistics {
         from: String,
+    },
+    Review {
+        from: String,
+        to: String,
+        list_id: Option<String>,
+        workspace_id: Option<String>,
     },
 }
 impl ScheduleAction {
@@ -108,6 +116,31 @@ pub(crate) fn scheduling(
             Ok(json!({"tasks":tasks,"truncated":truncated}))
         }
         ScheduleAction::Statistics { from } => value(db.weekly_statistics(actor, &from)?),
+        ScheduleAction::Review {
+            from,
+            to,
+            list_id,
+            workspace_id,
+        } => {
+            let mut review = db.weekly_review(
+                actor,
+                crate::statistics::ReviewRange {
+                    from,
+                    to,
+                    list_id,
+                    workspace_id,
+                },
+                chrono::Utc::now().timestamp(),
+            )?;
+            for commitment in &mut review.upcoming {
+                commitment.task.description.clear();
+            }
+            review.notes.push(
+                "Agent review omits task descriptions; read an individual task for full context."
+                    .into(),
+            );
+            value(review)
+        }
     }
 }
 #[derive(Deserialize)]
@@ -298,6 +331,14 @@ pub(crate) enum AccessAction {
     ListInfo {
         list_id: String,
     },
+    ListMovePreview {
+        list_id: String,
+        destination_workspace_id: String,
+    },
+    ListMove {
+        list_id: String,
+        input: ListWorkspaceMoveInput,
+    },
     ListGrant {
         list_id: String,
         user_id: String,
@@ -384,6 +425,13 @@ pub(crate) async fn access(
             revision,
         } => value(db.remove_workspace_member(&actor, &workspace_id, &user_id, revision)?),
         AccessAction::ListInfo { list_id } => value(db.list_info(&actor, &list_id)?),
+        AccessAction::ListMovePreview {
+            list_id,
+            destination_workspace_id,
+        } => value(db.list_workspace_move_preview(&actor, &list_id, &destination_workspace_id)?),
+        AccessAction::ListMove { list_id, input } => {
+            value(db.move_list_workspace(&actor, &list_id, input)?)
+        }
         AccessAction::ListGrant {
             list_id,
             user_id,

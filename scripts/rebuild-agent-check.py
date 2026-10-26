@@ -146,6 +146,74 @@ def main():
                 'cli-features',
                 'CLI synthetic features',
             )[0]
+
+            page = cli(
+                'subtree',
+                task['id'],
+                '--limit',
+                '1',
+                '--fields',
+                'title,revision',
+            )
+            assert page['items'][0]['title'] == task['title']
+            assert (
+                'description' not in page['items'][0] and not page['has_more']
+            )
+            review = cli(
+                'review',
+                '--from',
+                '2026-10-26',
+                '--to',
+                '2026-11-01',
+                '--list',
+                'inbox',
+            )
+            assert len(review['daily']) == 7 and review['notes']
+            source = cli(
+                'workspace', 'create', '--body', '{"title":"CLI move source"}'
+            )
+            destination = cli(
+                'workspace',
+                'create',
+                '--body',
+                '{"title":"CLI move destination"}',
+            )
+            moving = cli(
+                'lists',
+                'create',
+                '--body',
+                json.dumps(
+                    {
+                        'workspace_id': source['id'],
+                        'title': 'CLI movable list',
+                        'restricted': True,
+                    }
+                ),
+            )
+            preview = cli(
+                'lists',
+                'move-preview',
+                moving['id'],
+                '--destination-workspace',
+                destination['id'],
+            )
+            move_input = {
+                key: preview[key]
+                for key in (
+                    'destination_workspace_id',
+                    'list_revision',
+                    'source_workspace_revision',
+                    'destination_workspace_revision',
+                    'policy_hash',
+                )
+            }
+            moved = cli(
+                'lists', 'move', moving['id'], '--body', json.dumps(move_input)
+            )
+            assert (
+                moved['id'] == moving['id']
+                and moved['revision'] > moving['revision']
+            )
             state = cli(
                 'schedule',
                 'set',
@@ -343,7 +411,7 @@ def main():
                 'revoked'
             ]
             print(
-                'CLI real HTTP + Moto check passed: schedules/planning/statistics/recurrence, comments/retry/edit/delete, SHA256 upload/resume/finalize/download/no-overwrite/delete, acknowledged invitation/retry/list/revoke'
+                'CLI real HTTP + Moto check passed: bounded projected subtree, weekly review, owner list-workspace move, schedules/planning/statistics/recurrence, comments/retry/edit/delete, SHA256 upload/resume/finalize/download/no-overwrite/delete, acknowledged invitation/retry/list/revoke'
             )
         finally:
             stop(server)

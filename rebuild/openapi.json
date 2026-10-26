@@ -7929,6 +7929,9 @@
                       "items": {
                         "$ref": "#/components/schemas/Occurrence"
                       }
+                    },
+                    {
+                      "$ref": "#/components/schemas/WeeklyReview"
                     }
                   ]
                 }
@@ -8006,7 +8009,7 @@
             }
           }
         },
-        "description": "Common scheduling operations. Set replaces the schedule and uses task revision; series_state uses series revision. Planning and series_list return at most100 compact records with truncated flag. Dates are explicit; no personal preferences are exposed to scoped clients."
+        "description": "Common scheduling operations. Set replaces the schedule and uses task revision; series_state uses series revision. Planning and series_list return at most100 compact records with truncated flag. Dates are explicit; no personal preferences are exposed to scoped clients. Review uses explicit from/to plus optional list_id/workspace_id, preserves counting notes and coverage, and omits upcoming task descriptions (empty strings)."
       }
     },
     "/api/v1/agent/activity": {
@@ -8161,6 +8164,9 @@
                         "revoked"
                       ],
                       "additionalProperties": false
+                    },
+                    {
+                      "$ref": "#/components/schemas/ListWorkspaceMovePreview"
                     }
                   ]
                 }
@@ -8238,7 +8244,7 @@
             }
           }
         },
-        "description": "Common organization/sharing/invitation operations. Workspace members list capped100 with truncated flag. Grants and expanded audiences need explicit acknowledgement and live admin authority. Invite requires idempotency key and may queue email; it does not claim/accept an invitation."
+        "description": "Common organization/sharing/invitation operations. Workspace members list capped100 with truncated flag. Grants and expanded audiences need explicit acknowledgement and live admin authority. Invite requires idempotency key and may queue email; it does not claim/accept an invitation. list_move_preview/list_move require live owners in both workspaces and exact reviewed list/source/destination revisions and policy_hash; visibility expansion must be acknowledged."
       }
     },
     "/api/v1/tasks/{id}/uploads": {
@@ -9745,6 +9751,1418 @@
             }
           }
         ]
+      }
+    },
+    "/api/v1/lists/{id}/workspace-move/preview": {
+      "post": {
+        "operationId": "previewListWorkspaceMove",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListWorkspaceMovePreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, preview, budget or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid JSON input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListWorkspaceMoveDestination"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Owner review of complete effective audience and tag mappings. Requires live owner access to both workspaces; scoped credentials cannot move whole lists."
+      }
+    },
+    "/api/v1/lists/{id}/workspace-move": {
+      "post": {
+        "operationId": "moveListWorkspace",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/List"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, preview, budget or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid JSON input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListWorkspaceMoveInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Moves the existing list and contents atomically using exact reviewed revisions/policy_hash. Broadened access requires explicit acknowledgement. Stable task/list/section IDs are preserved."
+      }
+    },
+    "/api/v1/review": {
+      "get": {
+        "operationId": "weeklyReview",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeeklyReview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, preview, budget or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid JSON input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "list",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Live-authorized review in the user timezone. Defaults to current local Monday through Sunday; explicit ranges contain at most366 dates. Completion counts recorded distinct leaf tasks, with coverage/history caveats in notes. Upcoming returns at most20 tasks; overdue trend contains real observations, never reconstructed zero-filled history. Response is no-store/private."
+      }
+    },
+    "/api/v1/assist/status": {
+      "get": {
+        "operationId": "assistStatus",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "capture_always_available": {
+                      "const": true
+                    },
+                    "classification_is_suggestion_only": {
+                      "const": true
+                    },
+                    "draft_requires_review": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "enabled",
+                    "capture_always_available",
+                    "classification_is_suggestion_only",
+                    "draft_requires_review"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, preview, budget or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid JSON input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assist/capture": {
+      "post": {
+        "operationId": "assistCapture",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistCaptureReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, preview, budget or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid JSON input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistCaptureInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Commits exact original text before returning. Never calls a provider. Deterministic explicit destination, unambiguous literal rules, then saved default/Inbox. Retry is actor/key/payload bound."
+      }
+    },
+    "/api/v1/assist/classify": {
+      "post": {
+        "operationId": "assistClassify",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/AssistSuggestion"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AssistUnavailable"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, preview, budget or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid JSON input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistClassifyInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Explicit visible suggestion only; task revision and write-authorized candidate IDs are rechecked. Sends captured text and at most20 short destination titles. Never moves/splits/schedules tasks. Two-second HTTP timeout; durable budget reservation; no automatic retry."
+      }
+    },
+    "/api/v1/assist/drafts": {
+      "post": {
+        "operationId": "assistDraft",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/AssistGeneratedDraft"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AssistUnavailable"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, preview, budget or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid JSON input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistDraftInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Only the brief is sent externally. Strict output creates an editable preview, never tasks. No invented scheduling fields. Eight-second HTTP timeout; durable budget reservation; no automatic retry."
+      }
+    },
+    "/api/v1/assist/drafts/{id}/review": {
+      "post": {
+        "operationId": "assistReview",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistDraftPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, preview, budget or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid JSON input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistReviewInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Explicitly reviews edited payload, validates common destination permissions, binds current audience/revision hash, and renews ten-minute expiry. Aggregate payload at most64KiB, max50tasks/depth5."
+      }
+    },
+    "/api/v1/assist/apply": {
+      "post": {
+        "operationId": "assistApply",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistApplied"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, preview, budget or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid JSON input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistApplyInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Executes only the server-stored reviewed payload with exact revision/hash and current permissions. Revision1 generated previews require review first. Entire list/task creation and history/idempotency are atomic. Retry-safe apply checks live access again."
+      }
+    },
+    "/api/v1/assist/rules": {
+      "get": {
+        "operationId": "assistRules",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AssistRule"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, preview, budget or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid JSON input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "description": "Personal admin/browser-only rules; live write-access filtered. At most20 rules."
+      },
+      "put": {
+        "operationId": "assistSetRule",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistRule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, preview, budget or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid JSON input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistRuleInput"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/assist/rules/{id}": {
+      "delete": {
+        "operationId": "assistDeleteRule",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "deleted"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stale revision, preview, budget or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid JSON input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "description": "Required for cookie-authenticated writes.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/tasks/{id}/subtree/query": {
+      "post": {
+        "operationId": "querySubtree",
+        "description": "Bounded authorized flat preorder page. Default50/max100 items and256KiB response, default field projection excludes descriptions. Context is bounded32KiB and marks omitted ancestor titles. Cursor binds root/list snapshots, list sequence, and identical projection; mutations require restart on resync_required. Traversal deeper than256 errors with instructions to use a deeper root. Legacy GET subtree remains unchanged.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubtreeRead"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubtreePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, live authorization or stale snapshot conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Validation, live authorization or stale snapshot conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Validation, live authorization or stale snapshot conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Validation, live authorization or stale snapshot conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Validation, live authorization or stale snapshot conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation, live authorization or stale snapshot conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs": {
+      "get": {
+        "operationId": "jobStatus",
+        "description": "Read-only account-private reminder/digest/invitation operational visibility. Requires browser session or unscoped admin credential; resource-bound grants cannot enumerate account jobs. No transport secrets, recipient addresses, task text, retry/discard action or raw provider errors. Opaque cursor is bound to user/status; default25/max100 items. Response no-store/private.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "",
+                "pending",
+                "leased",
+                "delivered",
+                "sent",
+                "cancelled",
+                "dead",
+                "failed"
+              ]
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account-private operational statuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid pagination/status or missing account-wide authority",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid pagination/status or missing account-wide authority",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid pagination/status or missing account-wide authority",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid pagination/status or missing account-wide authority",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -11881,6 +13299,16 @@
             "items": {
               "type": "string"
             }
+          },
+          "push_daily_opt_in": {
+            "type": "boolean",
+            "default": false,
+            "description": "Independent push digest opt-in; default false. Uses the corresponding daily/weekly time and existing quiet hours."
+          },
+          "push_weekly_opt_in": {
+            "type": "boolean",
+            "default": false,
+            "description": "Independent push digest opt-in; default false. Uses the corresponding daily/weekly time and existing quiet hours."
           }
         }
       },
@@ -13011,6 +14439,47 @@
               "from"
             ],
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "review"
+              },
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "list_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "workspace_id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "op",
+              "from",
+              "to"
+            ],
+            "additionalProperties": false
           }
         ]
       },
@@ -13891,6 +15360,48 @@
               "id"
             ],
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "list_move_preview"
+              },
+              "list_id": {
+                "type": "string"
+              },
+              "destination_workspace_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "op",
+              "list_id",
+              "destination_workspace_id"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "list_move"
+              },
+              "list_id": {
+                "type": "string"
+              },
+              "input": {
+                "$ref": "#/components/schemas/ListWorkspaceMoveInput"
+              }
+            },
+            "required": [
+              "op",
+              "list_id",
+              "input"
+            ],
+            "additionalProperties": false
           }
         ]
       },
@@ -14228,6 +15739,1116 @@
           "url"
         ],
         "additionalProperties": false
+      },
+      "ListMoveAudienceChange": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string"
+          },
+          "before_rank": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "after_rank": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "user_id",
+          "before_rank",
+          "after_rank"
+        ]
+      },
+      "ListMoveTagMapping": {
+        "type": "object",
+        "properties": {
+          "source_tag_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "destination_tag_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination_tag_revision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "source_tag_id",
+          "name",
+          "destination_tag_id",
+          "destination_tag_revision"
+        ]
+      },
+      "ListWorkspaceMovePreview": {
+        "type": "object",
+        "properties": {
+          "list_id": {
+            "type": "string"
+          },
+          "source_workspace_id": {
+            "type": "string"
+          },
+          "destination_workspace_id": {
+            "type": "string"
+          },
+          "list_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source_workspace_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "destination_workspace_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "restricted": {
+            "type": "boolean"
+          },
+          "audience": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ListMoveAudienceChange"
+            }
+          },
+          "audience_broadens": {
+            "type": "boolean"
+          },
+          "task_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tag_mapping": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ListMoveTagMapping"
+            }
+          },
+          "policy_hash": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "list_id",
+          "source_workspace_id",
+          "destination_workspace_id",
+          "list_revision",
+          "source_workspace_revision",
+          "destination_workspace_revision",
+          "restricted",
+          "audience",
+          "audience_broadens",
+          "task_count",
+          "tag_mapping",
+          "policy_hash"
+        ]
+      },
+      "ListWorkspaceMoveInput": {
+        "type": "object",
+        "properties": {
+          "destination_workspace_id": {
+            "type": "string"
+          },
+          "list_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source_workspace_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "destination_workspace_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "policy_hash": {
+            "type": "string"
+          },
+          "acknowledge_access_change": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "destination_workspace_id",
+          "list_revision",
+          "source_workspace_revision",
+          "destination_workspace_revision",
+          "policy_hash"
+        ],
+        "additionalProperties": false
+      },
+      "ListWorkspaceMoveDestination": {
+        "type": "object",
+        "properties": {
+          "destination_workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "destination_workspace_id"
+        ],
+        "additionalProperties": false
+      },
+      "ReviewCompletionDay": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "completed_leaf": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "date",
+          "completed_leaf"
+        ]
+      },
+      "ReviewCommitment": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "$ref": "#/components/schemas/Task"
+          },
+          "on": {
+            "type": "string"
+          },
+          "planned": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "due": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "task",
+          "on",
+          "planned",
+          "due"
+        ]
+      },
+      "OverdueObservation": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "overdue_leaf": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "observed_lists": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "current_lists": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "first_observed_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "last_observed_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "complete_coverage": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "date",
+          "overdue_leaf",
+          "observed_lists",
+          "current_lists",
+          "first_observed_at",
+          "last_observed_at",
+          "complete_coverage"
+        ]
+      },
+      "WeeklyReview": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "today": {
+            "type": "string"
+          },
+          "completed_leaf": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "planned_leaf": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "planned_completed_leaf": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "overdue_now": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "upcoming_total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "upcoming": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewCommitment"
+            }
+          },
+          "daily": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewCompletionDay"
+            }
+          },
+          "overdue_trend": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OverdueObservation"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "timezone",
+          "today",
+          "completed_leaf",
+          "planned_leaf",
+          "planned_completed_leaf",
+          "overdue_now",
+          "upcoming_total",
+          "upcoming",
+          "daily",
+          "overdue_trend",
+          "notes"
+        ]
+      },
+      "AssistCaptureInput": {
+        "type": "object",
+        "properties": {
+          "idempotency_key": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "description": "Exact original UTF-8 text, 1–10240 bytes; one task, no semantic splitting."
+          },
+          "list_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "AssistCaptureReceipt": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "$ref": "#/components/schemas/Task"
+          },
+          "route_source": {
+            "type": "string"
+          },
+          "original_text_preserved": {
+            "const": true
+          }
+        },
+        "required": [
+          "task",
+          "route_source",
+          "original_text_preserved"
+        ]
+      },
+      "AssistClassifyInput": {
+        "type": "object",
+        "properties": {
+          "idempotency_key": {
+            "type": "string"
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "task_id",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "AssistDraftTarget": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "existing_list"
+              },
+              "list_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "list_id"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "const": "new_list"
+              },
+              "workspace_id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string",
+                "default": ""
+              },
+              "restricted": {
+                "type": "boolean",
+                "default": true
+              }
+            },
+            "required": [
+              "kind",
+              "workspace_id",
+              "title"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "AssistDraftTask": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "description": {
+            "type": "string",
+            "default": "",
+            "description": "At most10240 UTF-8 bytes."
+          },
+          "parent_index": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Zero-based earlier task index; maximum tree depth5."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "AssistDraftPayload": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "$ref": "#/components/schemas/AssistDraftTarget"
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistDraftTask"
+            },
+            "minItems": 1,
+            "maxItems": 50
+          }
+        },
+        "required": [
+          "target",
+          "tasks"
+        ],
+        "additionalProperties": false
+      },
+      "AssistDraftPreview": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/AssistDraftPayload"
+          },
+          "expected_hash": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "payload",
+          "expected_hash",
+          "expires_at"
+        ]
+      },
+      "AssistDraftInput": {
+        "type": "object",
+        "properties": {
+          "idempotency_key": {
+            "type": "string"
+          },
+          "brief": {
+            "type": "string",
+            "description": "1–10240 UTF-8 bytes. Only this brief is sent for drafting."
+          },
+          "target": {
+            "$ref": "#/components/schemas/AssistDraftTarget"
+          }
+        },
+        "required": [
+          "idempotency_key",
+          "brief",
+          "target"
+        ],
+        "additionalProperties": false
+      },
+      "AssistReviewInput": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/AssistDraftPayload"
+          }
+        },
+        "required": [
+          "revision",
+          "payload"
+        ],
+        "additionalProperties": false
+      },
+      "AssistApplyInput": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expected_hash": {
+            "type": "string"
+          },
+          "idempotency_key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "preview_id",
+          "revision",
+          "expected_hash",
+          "idempotency_key"
+        ],
+        "additionalProperties": false
+      },
+      "AssistApplied": {
+        "type": "object",
+        "properties": {
+          "list_id": {
+            "type": "string"
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          }
+        },
+        "required": [
+          "list_id",
+          "tasks"
+        ]
+      },
+      "AssistRuleInput": {
+        "type": "object",
+        "properties": {
+          "prefix": {
+            "type": "string",
+            "description": "Literal case-sensitive prefix, 1–100 bytes."
+          },
+          "list_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prefix",
+          "list_id"
+        ],
+        "additionalProperties": false
+      },
+      "AssistRule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "list_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "prefix",
+          "list_id"
+        ]
+      },
+      "AssistUnavailable": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "disabled",
+              "unavailable"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "manual_capture_available": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "AssistSuggestion": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "const": "suggestion"
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "title"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "applied": {
+            "const": false
+          }
+        },
+        "required": [
+          "status",
+          "task_id",
+          "revision",
+          "destination",
+          "applied"
+        ]
+      },
+      "AssistGeneratedDraft": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "const": "draft"
+          },
+          "preview": {
+            "$ref": "#/components/schemas/AssistDraftPreview"
+          },
+          "suggested_list_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "preview",
+          "suggested_list_title"
+        ]
+      },
+      "SubtreeField": {
+        "enum": [
+          "reference",
+          "list_id",
+          "title",
+          "description",
+          "complete",
+          "revision",
+          "position"
+        ]
+      },
+      "SubtreeRead": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubtreeField"
+            },
+            "default": [
+              "reference",
+              "title",
+              "complete",
+              "revision",
+              "position"
+            ]
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "SubtreeSnapshot": {
+        "type": "object",
+        "properties": {
+          "root_revision": {
+            "type": "integer"
+          },
+          "list_revision": {
+            "type": "integer"
+          },
+          "list_sequence": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "root_revision",
+          "list_revision",
+          "list_sequence"
+        ]
+      },
+      "SubtreeBreadcrumb": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "title_omitted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "parent_id",
+          "reference",
+          "revision",
+          "title_omitted"
+        ]
+      },
+      "SubtreeContext": {
+        "type": "object",
+        "properties": {
+          "breadcrumbs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubtreeBreadcrumb"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "before_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "breadcrumbs",
+          "truncated",
+          "before_id"
+        ]
+      },
+      "SubtreeItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "depth": {
+            "type": "integer"
+          },
+          "reference": {
+            "type": "string"
+          },
+          "list_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "id",
+          "parent_id",
+          "depth"
+        ]
+      },
+      "SubtreePage": {
+        "type": "object",
+        "properties": {
+          "root_id": {
+            "type": "string"
+          },
+          "list_id": {
+            "type": "string"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/SubtreeSnapshot"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubtreeField"
+            }
+          },
+          "context": {
+            "$ref": "#/components/schemas/SubtreeContext"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubtreeItem"
+            },
+            "maxItems": 100
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "root_id",
+          "list_id",
+          "snapshot",
+          "fields",
+          "context",
+          "items",
+          "has_more",
+          "next_cursor"
+        ]
+      },
+      "JobStatus": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "enum": [
+              "email_digest",
+              "invitation",
+              "push_digest",
+              "reminder"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "attempts": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "available_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "devices_pending": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "devices_sent": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "devices_dead": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "devices_failed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lease_until": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "format": "int64"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "enum": [
+                  "subscription_expired",
+                  "provider_temporarily_unavailable",
+                  "provider_rejected_delivery",
+                  "delivery_failed_or_ambiguous",
+                  "retry_exhausted",
+                  "device_delivery_failed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "source",
+          "id",
+          "kind",
+          "channel",
+          "status",
+          "attempts",
+          "available_at",
+          "devices_pending",
+          "devices_sent",
+          "devices_dead",
+          "devices_failed",
+          "lease_until",
+          "failure_code"
+        ]
+      },
+      "JobPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobStatus"
+            },
+            "maxItems": 100
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
       }
     }
   }
