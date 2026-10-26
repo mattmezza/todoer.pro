@@ -1,0 +1,19 @@
+-- Entirely synthetic. No account data from the actual legacy copy belongs here.
+CREATE TABLE users(uuid TEXT PRIMARY KEY,sid TEXT,name TEXT,email TEXT,password TEXT,disabled INTEGER,confirm_code TEXT,created TEXT,updated TEXT,totp_secret TEXT);
+CREATE TABLE spaces(uuid TEXT PRIMARY KEY,sid TEXT,title TEXT,descr TEXT,creator TEXT,created TEXT,updated TEXT,"default" INTEGER,archived INTEGER);
+CREATE TABLE lists(uuid TEXT PRIMARY KEY,sid TEXT,title TEXT,descr TEXT,color TEXT,space TEXT,creator TEXT,created TEXT,updated TEXT,"default" INTEGER,archived INTEGER,sort_by TEXT);
+CREATE TABLE sections(uuid TEXT PRIMARY KEY,sid TEXT,"order" INTEGER,"default" INTEGER,title TEXT,creator TEXT,created TEXT,updated TEXT,list TEXT,archived INTEGER);
+CREATE TABLE tasks(uuid TEXT PRIMARY KEY,sid TEXT,"order" INTEGER,title TEXT,descr TEXT,complete INTEGER,completed TEXT,created TEXT,updated TEXT,section TEXT,archived INTEGER,due_date TEXT,tags TEXT,priority INTEGER);
+CREATE TABLE subtasks(uuid TEXT PRIMARY KEY,sid TEXT,"order" INTEGER,title TEXT,descr TEXT,complete INTEGER,completed TEXT,created TEXT,updated TEXT,task TEXT,parent TEXT,priority INTEGER,due_date TEXT,tags TEXT);
+CREATE TABLE comments(uuid TEXT PRIMARY KEY,sid TEXT,content TEXT,author TEXT,created TEXT,updated TEXT,task TEXT);
+CREATE TABLE attachments(uuid TEXT PRIMARY KEY,sid TEXT,mime TEXT,fname TEXT,size INTEGER,created TEXT,task TEXT);
+CREATE TABLE user_settings(uuid TEXT PRIMARY KEY,sid TEXT,creator TEXT,key TEXT,value TEXT,created TEXT,updated TEXT);
+INSERT INTO users VALUES('00000000-0000-4000-8000-000000000001','user001','Synthetic owner','synthetic@example.invalid','SECRET-PASSWORD',0,'SECRET-CODE','2026-01-01 10:00:00',NULL,'SECRET-TOTP');
+INSERT INTO spaces VALUES('00000000-0000-4000-8000-000000000002','space01','Synthetic workspace','Space description','00000000-0000-4000-8000-000000000001','2026-01-01 10:00:00',NULL,1,0);
+INSERT INTO lists VALUES('00000000-0000-4000-8000-000000000003','list001','Synthetic list','List description','FF0000','00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000001','2026-01-01 10:00:00',NULL,1,0,'manual');
+INSERT INTO sections VALUES('00000000-0000-4000-8000-000000000004','sect001',1,1,'Synthetic section','00000000-0000-4000-8000-000000000001','2026-01-01 10:00:00',NULL,'00000000-0000-4000-8000-000000000003',0);
+INSERT INTO tasks VALUES('00000000-0000-4000-8000-000000000005','task001',1,'=CSV formula-like title','Task description',0,NULL,'2026-01-01 10:00:00',NULL,'00000000-0000-4000-8000-000000000004',0,'2026-10-30','one,two',2);
+INSERT INTO subtasks VALUES('00000000-0000-4000-8000-000000000006','subt001',1,'Synthetic child','Child description',0,NULL,'2026-01-01 10:00:00',NULL,'00000000-0000-4000-8000-000000000005',NULL,1,'2026-10-29','one');
+INSERT INTO subtasks VALUES('00000000-0000-4000-8000-000000000007','subt002',1,'Synthetic grandchild','Nested description',1,'2026-01-02 10:00:00','2026-01-01 10:00:00',NULL,'00000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000000006',NULL,NULL,'');
+INSERT INTO comments VALUES('00000000-0000-4000-8000-000000000008','comm001','Synthetic comment','00000000-0000-4000-8000-000000000001','2026-01-01 10:00:00',NULL,'00000000-0000-4000-8000-000000000005');
+INSERT INTO user_settings VALUES('00000000-0000-4000-8000-000000000009','sett001','00000000-0000-4000-8000-000000000001','ai_api_key','SECRET-AI','2026-01-01 10:00:00',NULL);
