@@ -111,6 +111,17 @@ struct ChangesInput {
     after: i64,
 }
 
+#[derive(Deserialize, JsonSchema)]
+struct TaskRevision {
+    id: String,
+    revision: i64,
+}
+#[derive(Deserialize, JsonSchema)]
+struct UndoInput {
+    seq: i64,
+    revision: i64,
+}
+
 #[tool_router]
 impl TodoerMcp {
     #[tool(
@@ -240,6 +251,42 @@ impl TodoerMcp {
                         p.after.as_deref(),
                     )
                 })
+                .await,
+        )
+    }
+    #[tool(
+        description = "List accessible trashed tasks. Use current revisions and the original trash operation root when restoring."
+    )]
+    async fn trash_tasks(&self) -> CallToolResult {
+        result(self.state.run(|db| db.trash_tasks("dev")).await)
+    }
+    #[tool(
+        description = "Trash a task and its active descendants atomically using the root current revision. This hides the subtree from active task reads and search."
+    )]
+    async fn trash_task(&self, Parameters(p): Parameters<TaskRevision>) -> CallToolResult {
+        result(
+            self.state
+                .run(move |db| db.trash("dev", &p.id, p.revision))
+                .await,
+        )
+    }
+    #[tool(
+        description = "Restore a trashed subtree using the original trash operation root ID and its exact current revision. Independently trashed descendants remain separate; re-read on conflict."
+    )]
+    async fn restore_task(&self, Parameters(p): Parameters<TaskRevision>) -> CallToolResult {
+        result(
+            self.state
+                .run(move |db| db.restore("dev", &p.id, p.revision))
+                .await,
+        )
+    }
+    #[tool(
+        description = "Compensate one eligible individual update event by sequence. Requires the original actor, current access, and the exact current task revision unchanged since that event. Never undoes a whole cascade or overwrites newer work."
+    )]
+    async fn undo_update(&self, Parameters(p): Parameters<UndoInput>) -> CallToolResult {
+        result(
+            self.state
+                .run(move |db| db.undo_update("dev", p.seq, p.revision))
                 .await,
         )
     }
