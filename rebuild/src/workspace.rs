@@ -934,6 +934,277 @@ impl Store {
     }
 }
 
+/// Reviewed, bounded section move. Member identifiers remain private.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SectionMovePreview {
+    pub section_id: String,
+    pub source_list_id: String,
+    pub destination_list_id: String,
+    pub section_revision: i64,
+    pub source_list_revision: i64,
+    pub destination_list_revision: i64,
+    pub assigned_task_count: usize,
+    pub affected_task_count: usize,
+    pub other_section_assignments_cleared: usize,
+    pub source_members: i64,
+    pub destination_members: i64,
+    pub added_members: i64,
+    pub audience_broadens: bool,
+    pub policy_hash: String,
+}
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SectionMoveInput {
+    pub destination_list_id: String,
+    pub section_revision: i64,
+    pub source_list_revision: i64,
+    pub destination_list_revision: i64,
+    pub policy_hash: String,
+    #[serde(default)]
+    pub acknowledge_access_change: bool,
+}
+#[derive(Debug, Serialize)]
+struct SectionMoveTask {
+    id: String,
+    parent: Option<String>,
+    list: String,
+    revision: i64,
+    deleted: bool,
+    position: i64,
+    section: Option<String>,
+}
+struct SectionMovePlan {
+    preview: SectionMovePreview,
+    tasks: Vec<SectionMoveTask>,
+    roots: Vec<(String, i64)>,
+}
+fn section_move_plan(
+    c: &Connection,
+    actor: &str,
+    id: &str,
+    destination: &str,
+) -> Result<SectionMovePlan, Error> {
+    use sha2::{Digest, Sha256};
+    let section = section_raw(c, id)?;
+    require_list(c, actor, &section.list_id, 2)?;
+    require_list(c, actor, destination, 2)?;
+    if section.list_id == destination {
+        return Err(Error::Invalid("choose a different destination list".into()));
+    }
+    let source_list = list_raw(c, &section.list_id)?;
+    let destination_list = list_raw(c, destination)?;
+    let mut q=c.prepare("WITH RECURSIVE affected(id) AS (
+        SELECT task_id FROM task_locations WHERE section_id=?1
+        UNION SELECT t.id FROM tasks t INDEXED BY tasks_parent JOIN affected a ON t.parent_id=a.id
+        LIMIT 501
+    ) SELECT t.id,t.parent_id,t.list_id,t.revision,t.deleted_at IS NOT NULL,t.position,l.section_id
+      FROM affected a JOIN tasks t ON t.id=a.id LEFT JOIN task_locations l ON l.task_id=t.id ORDER BY t.position,t.id")?;
+    let tasks = q
+        .query_map([id], |r| {
+            Ok(SectionMoveTask {
+                id: r.get(0)?,
+                parent: r.get(1)?,
+                list: r.get(2)?,
+                revision: r.get(3)?,
+                deleted: r.get(4)?,
+                position: r.get(5)?,
+                section: r.get(6)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    if tasks.len() > 500 {
+        return Err(Error::Invalid(
+            "section move affects more than 500 tasks; move smaller groups first".into(),
+        ));
+    }
+    if tasks.iter().any(|t| t.list != section.list_id) {
+        return Err(Error::Invalid(
+            "section contains invalid cross-list task ancestry".into(),
+        ));
+    }
+    let by_id: HashMap<_, _> = tasks.iter().map(|t| (t.id.as_str(), t)).collect();
+    // Prove all bounded components terminate before invoking the ordinary subtree mover.
+    for task in &tasks {
+        let mut seen = HashSet::new();
+        let mut node = Some(task);
+        while let Some(current) = node {
+            if !seen.insert(current.id.as_str()) {
+                return Err(Error::Invalid(
+                    "section contains cyclic task ancestry".into(),
+                ));
+            }
+            node = current
+                .parent
+                .as_deref()
+                .and_then(|p| by_id.get(p).copied());
+        }
+    }
+    let roots = tasks
+        .iter()
+        .filter(|t| t.parent.as_deref().is_none_or(|p| !by_id.contains_key(p)))
+        .map(|t| {
+            if t.deleted {
+                Err(Error::Conflict(
+                    "restore trashed standalone section tasks before moving this section".into(),
+                ))
+            } else {
+                Ok((t.id.clone(), t.revision))
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let assigned_task_count = tasks
+        .iter()
+        .filter(|t| t.section.as_deref() == Some(id))
+        .count();
+    let stored_assigned: i64 = c.query_row(
+        "SELECT count(*) FROM task_locations WHERE section_id=?1",
+        [id],
+        |r| r.get(0),
+    )?;
+    if stored_assigned as usize != assigned_task_count {
+        return Err(Error::Invalid(
+            "section contains invalid task locations".into(),
+        ));
+    }
+    let audiences = |list: &str| -> Result<Vec<(String, i64)>, Error> {
+        let mut q = c.prepare(
+            "SELECT user_id,rank FROM effective_list_access WHERE list_id=?1 ORDER BY user_id",
+        )?;
+        Ok(q.query_map([list], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<Result<Vec<_>, _>>()?)
+    };
+    let source_audience = audiences(&section.list_id)?;
+    let destination_audience = audiences(destination)?;
+    let source_users: HashSet<_> = source_audience.iter().map(|(id, _)| id.as_str()).collect();
+    let added_members = destination_audience
+        .iter()
+        .filter(|(id, _)| !source_users.contains(id.as_str()))
+        .count() as i64;
+    let ids =
+        serde_json::to_string(&tasks.iter().map(|t| t.id.as_str()).collect::<Vec<_>>()).unwrap();
+    let mut q=c.prepare("SELECT tt.task_id,t.id,t.name,t.revision FROM task_tags tt JOIN tags t ON t.id=tt.tag_id WHERE tt.task_id IN(SELECT value FROM json_each(?1)) ORDER BY tt.task_id,t.id")?;
+    let tags = q
+        .query_map([&ids], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, i64>(3)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut q=c.prepare("SELECT id,name,revision FROM tags WHERE scope=(SELECT CASE WHEN workspace_id IS NULL THEN 'list:'||id ELSE 'workspace:'||workspace_id END FROM lists WHERE id=?2) AND normalized_name IN(SELECT t.normalized_name FROM tags t JOIN task_tags tt ON tt.tag_id=t.id WHERE tt.task_id IN(SELECT value FROM json_each(?1))) ORDER BY id")?;
+    let destination_tags = q
+        .query_map(params![ids, destination], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, i64>(2)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    let sequences:(i64,i64)=c.query_row("SELECT (SELECT coalesce(max(seq),0) FROM history WHERE list_id=?1),(SELECT coalesce(max(seq),0) FROM history WHERE list_id=?2)",params![section.list_id,destination],|r|Ok((r.get(0)?,r.get(1)?)))?;
+    let policy = serde_json::to_vec(&(
+        actor,
+        &section,
+        &source_list,
+        &destination_list,
+        &tasks,
+        &source_audience,
+        &destination_audience,
+        &tags,
+        &destination_tags,
+        sequences,
+    ))
+    .unwrap();
+    let policy_hash = format!("{:x}", Sha256::digest(policy));
+    let preview = SectionMovePreview {
+        section_id: id.into(),
+        source_list_id: section.list_id,
+        destination_list_id: destination.into(),
+        section_revision: section.revision,
+        source_list_revision: source_list.revision,
+        destination_list_revision: destination_list.revision,
+        assigned_task_count,
+        affected_task_count: tasks.len(),
+        other_section_assignments_cleared: tasks
+            .iter()
+            .filter(|t| t.section.as_deref().is_some_and(|s| s != id))
+            .count(),
+        source_members: source_audience.len() as i64,
+        destination_members: destination_audience.len() as i64,
+        added_members,
+        audience_broadens: added_members > 0,
+        policy_hash,
+    };
+    Ok(SectionMovePlan {
+        preview,
+        tasks,
+        roots,
+    })
+}
+impl Store {
+    pub fn section_move_preview(
+        &self,
+        actor: &str,
+        id: &str,
+        destination: &str,
+    ) -> Result<SectionMovePreview, Error> {
+        let tx = self.conn.unchecked_transaction()?;
+        let plan = section_move_plan(&tx, actor, id, destination)?;
+        tx.commit()?;
+        Ok(plan.preview)
+    }
+    pub fn move_section(
+        &mut self,
+        actor: &str,
+        id: &str,
+        input: SectionMoveInput,
+    ) -> Result<Section, Error> {
+        let mut write = crate::agent_ops::StoreWrite::new(self)?;
+        let plan = section_move_plan(&write.conn, actor, id, &input.destination_list_id)?;
+        let p = &plan.preview;
+        if p.section_revision != input.section_revision
+            || p.source_list_revision != input.source_list_revision
+            || p.destination_list_revision != input.destination_list_revision
+            || p.policy_hash != input.policy_hash
+        {
+            return Err(Error::Conflict(
+                "section move preview changed; review a fresh preview".into(),
+            ));
+        }
+        if p.audience_broadens && !input.acknowledge_access_change {
+            return Err(Error::Conflict("destination adds readers; review the section move preview and acknowledge_access_change".into()));
+        }
+        for (root, revision) in &plan.roots {
+            write.move_subtree(
+                actor,
+                root,
+                &input.destination_list_id,
+                *revision,
+                input.acknowledge_access_change,
+            )?;
+        }
+        write.conn.execute("UPDATE sections SET list_id=?2,position=(SELECT coalesce(max(position),-1)+1 FROM sections WHERE list_id=?2),revision=revision+1 WHERE id=?1",params![id,input.destination_list_id])?;
+        crate::slugs::section(&write.conn, id)?;
+        for task in &plan.tasks {
+            if task.section.as_deref() == Some(id) {
+                write.conn.execute(
+                    "INSERT INTO task_locations(task_id,section_id) VALUES(?1,?2)",
+                    params![task.id, id],
+                )?;
+            }
+            let moved = crate::core::raw_task(&write.conn, &task.id)?;
+            crate::core::event(&write.conn, &moved, "section_move", actor, None)?;
+        }
+        bump_list(&write.conn, &p.source_list_id)?;
+        bump_list(&write.conn, &p.destination_list_id)?;
+        let result = section_raw(&write.conn, id)?;
+        write.commit()?;
+        Ok(result)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1706,6 +1977,336 @@ mod tests {
                     .get::<_, String>(0))
                 .unwrap(),
             from.id
+        );
+    }
+}
+
+#[cfg(test)]
+mod section_move_tests {
+    use super::*;
+    use crate::core::{Capture, Change, NewTask, raw_task};
+    fn fixture() -> (Store, List, List, Section) {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let mut make_list = |name: &str| {
+            let w = db
+                .create_workspace(
+                    "dev",
+                    WorkspaceInput {
+                        title: name.into(),
+                        description: String::new(),
+                    },
+                )
+                .unwrap();
+            db.create_list(
+                "dev",
+                CreateList {
+                    workspace_id: w.id,
+                    title: name.into(),
+                    description: String::new(),
+                    restricted: false,
+                },
+            )
+            .unwrap()
+        };
+        let source = make_list("Source");
+        let destination = make_list("Destination");
+        let section = db
+            .create_section(
+                "dev",
+                &source.id,
+                SectionInput {
+                    title: "Next Steps".into(),
+                    description: "Preserved description".into(),
+                },
+            )
+            .unwrap();
+        (db, source, destination, section)
+    }
+    fn add(db: &mut Store, list: &str, parent: Option<String>, name: &str) -> crate::core::Task {
+        db.capture(
+            "dev",
+            &Uuid::new_v4().to_string(),
+            Capture {
+                list_id: list.into(),
+                tasks: vec![NewTask {
+                    title: name.into(),
+                    parent_id: parent,
+                    description: "Synthetic content".into(),
+                }],
+            },
+        )
+        .unwrap()
+        .remove(0)
+    }
+    fn input(p: &SectionMovePreview, ack: bool) -> SectionMoveInput {
+        SectionMoveInput {
+            destination_list_id: p.destination_list_id.clone(),
+            section_revision: p.section_revision,
+            source_list_revision: p.source_list_revision,
+            destination_list_revision: p.destination_list_revision,
+            policy_hash: p.policy_hash.clone(),
+            acknowledge_access_change: ack,
+        }
+    }
+    #[test]
+    fn moves_nested_hidden_tasks_locations_tags_comments_and_attachment_metadata() {
+        let (mut db, source, destination, section) = fixture();
+        db.create_section(
+            "dev",
+            &destination.id,
+            SectionInput {
+                title: section.title.clone(),
+                description: String::new(),
+            },
+        )
+        .unwrap();
+        let root = add(&mut db, &source.id, None, "Root");
+        let child = add(&mut db, &source.id, Some(root.id.clone()), "Child");
+        let grand = add(
+            &mut db,
+            &source.id,
+            Some(child.id.clone()),
+            "Hidden grandchild",
+        );
+        db.set_section("dev", &root.id, root.revision, Some(section.id.clone()))
+            .unwrap();
+        let current = raw_task(&db.conn, &root.id).unwrap();
+        db.set_task_tags(
+            "dev",
+            &root.id,
+            current.revision,
+            vec![crate::taxonomy::TagSelector::Name("Urgent".into())],
+        )
+        .unwrap();
+        let destination_tag = db.create_tag("dev", &destination.id, "Urgent").unwrap();
+        let current = raw_task(&db.conn, &grand.id).unwrap();
+        db.trash("dev", &grand.id, current.revision).unwrap();
+        db.conn.execute("INSERT INTO comments(id,task_id,author_id,body) VALUES('section-move-comment',?1,'dev','Synthetic retained comment')",[&root.id]).unwrap();
+        db.conn.execute("INSERT INTO upload_intents(id,task_id,creator_id,filename,size,sha256,staging_key,object_key,expires_at) VALUES('section-move-intent',?1,'dev','synthetic.txt',1,?2,'synthetic/staging','synthetic/immutable',unixepoch()+3600)",params![root.id,"0".repeat(64)]).unwrap();
+        db.conn.execute("INSERT INTO attachments(id,intent_id,task_id,creator_id,filename,size,sha256,object_key) VALUES('section-move-file','section-move-intent',?1,'dev','synthetic.txt',1,?2,'synthetic/immutable')",params![root.id,"0".repeat(64)]).unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO memberships VALUES(?1,'other')",
+                [&destination.id],
+            )
+            .unwrap();
+        let preview = db
+            .section_move_preview("dev", &section.id, &destination.id)
+            .unwrap();
+        assert_eq!(preview.affected_task_count, 3);
+        assert_eq!(preview.assigned_task_count, 3);
+        assert!(preview.audience_broadens);
+        let before_history: i64 = db
+            .conn
+            .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
+            .unwrap();
+        assert!(matches!(
+            db.move_section("dev", &section.id, input(&preview, false)),
+            Err(Error::Conflict(_))
+        ));
+        assert_eq!(
+            db.conn
+                .query_row("SELECT count(*) FROM history", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            before_history
+        );
+        let moved = db
+            .move_section("dev", &section.id, input(&preview, true))
+            .unwrap();
+        assert_eq!(moved.id, section.id);
+        assert_eq!(moved.list_id, destination.id);
+        assert_eq!(moved.description, section.description);
+        assert_eq!(
+            db.entity_slugs("dev").unwrap().sections[&section.id],
+            "next-steps-2"
+        );
+        for task in [&root, &child, &grand] {
+            let after = raw_task(&db.conn, &task.id).unwrap();
+            assert_eq!(after.list_id, destination.id);
+            assert_eq!(after.reference, task.reference);
+            assert_eq!(after.parent_id, task.parent_id);
+            let location: String = db
+                .conn
+                .query_row(
+                    "SELECT section_id FROM task_locations WHERE task_id=?1",
+                    [&task.id],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert_eq!(location, section.id);
+        }
+        assert_eq!(db.trash_tasks("dev").unwrap()[0].id, grand.id);
+        assert_eq!(
+            db.task_tags("dev", &root.id).unwrap()[0].id,
+            destination_tag.id
+        );
+        let retained:(String,String)=db.conn.query_row("SELECT c.task_id,a.object_key FROM comments c JOIN attachments a ON a.task_id=c.task_id WHERE c.id='section-move-comment'",[],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+        assert_eq!(retained, (root.id, "synthetic/immutable".into()));
+        let events: i64 = db
+            .conn
+            .query_row(
+                "SELECT count(*) FROM history WHERE json_extract(event,'$.kind')='section_move'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(events, 3);
+        assert!(
+            db.conn
+                .query_row(
+                    "SELECT NOT EXISTS(SELECT 1 FROM pragma_foreign_key_check)",
+                    [],
+                    |r| r.get::<_, bool>(0)
+                )
+                .unwrap()
+        );
+    }
+    #[test]
+    fn edited_descendants_acl_changes_and_lost_permission_invalidate_preview() {
+        let (mut db, source, destination, section) = fixture();
+        let root = add(&mut db, &source.id, None, "Root");
+        let child = add(&mut db, &source.id, Some(root.id.clone()), "Child");
+        db.set_section("dev", &root.id, root.revision, Some(section.id.clone()))
+            .unwrap();
+        let preview = db
+            .section_move_preview("dev", &section.id, &destination.id)
+            .unwrap();
+        let current = raw_task(&db.conn, &child.id).unwrap();
+        db.update(
+            "dev",
+            &child.id,
+            Change {
+                revision: current.revision,
+                title: Some("Changed after preview".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(matches!(
+            db.move_section("dev", &section.id, input(&preview, true)),
+            Err(Error::Conflict(_))
+        ));
+        let preview = db
+            .section_move_preview("dev", &section.id, &destination.id)
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO memberships VALUES(?1,'other')",
+                [&destination.id],
+            )
+            .unwrap();
+        assert!(matches!(
+            db.move_section("dev", &section.id, input(&preview, true)),
+            Err(Error::Conflict(_))
+        ));
+        assert!(matches!(
+            db.section_move_preview("other", &section.id, &destination.id),
+            Err(Error::Forbidden)
+        ));
+        let preview = db
+            .section_move_preview("dev", &section.id, &destination.id)
+            .unwrap();
+        db.conn.execute("DELETE FROM workspace_members WHERE workspace_id=(SELECT workspace_id FROM lists WHERE id=?1) AND user_id='dev'",[&destination.id]).unwrap();
+        assert!(matches!(
+            db.move_section("dev", &section.id, input(&preview, true)),
+            Err(Error::Forbidden)
+        ));
+        assert_eq!(db.sections("dev", &source.id).unwrap()[0].id, section.id);
+    }
+    #[test]
+    fn later_root_failure_rolls_back_all_earlier_common_moves() {
+        let (mut db, source, destination, section) = fixture();
+        let a = add(&mut db, &source.id, None, "First");
+        let b = add(&mut db, &source.id, None, "Second");
+        for t in [&a, &b] {
+            db.set_section("dev", &t.id, t.revision, Some(section.id.clone()))
+                .unwrap();
+        }
+        let preview = db
+            .section_move_preview("dev", &section.id, &destination.id)
+            .unwrap();
+        let before: i64 = db
+            .conn
+            .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
+            .unwrap();
+        db.conn.execute_batch(&format!("CREATE TRIGGER synthetic_section_move_failure BEFORE UPDATE OF list_id ON tasks WHEN new.id='{}' AND new.list_id='{}' BEGIN SELECT RAISE(ABORT,'synthetic later-root failure'); END;",b.id,destination.id)).unwrap();
+        assert!(matches!(
+            db.move_section("dev", &section.id, input(&preview, false)),
+            Err(Error::Database(_))
+        ));
+        for t in [&a, &b] {
+            assert_eq!(raw_task(&db.conn, &t.id).unwrap().list_id, source.id);
+        }
+        assert_eq!(
+            section_raw(&db.conn, &section.id).unwrap().list_id,
+            source.id
+        );
+        assert_eq!(
+            db.conn
+                .query_row("SELECT count(*) FROM history", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            before
+        );
+        assert_eq!(
+            db.entity_slugs("dev").unwrap().sections[&section.id],
+            "next-steps"
+        );
+        assert!(db.conn.is_autocommit());
+    }
+    #[test]
+    fn empty_section_moves_and_trashed_standalone_roots_fail_explicitly() {
+        let (mut db, source, destination, section) = fixture();
+        assert!(
+            db.section_move_preview("dev", &section.id, &source.id)
+                .is_err()
+        );
+        let p = db
+            .section_move_preview("dev", &section.id, &destination.id)
+            .unwrap();
+        assert_eq!(p.affected_task_count, 0);
+        db.move_section("dev", &section.id, input(&p, false))
+            .unwrap();
+        let root = add(&mut db, &destination.id, None, "Trashed standalone");
+        db.set_section("dev", &root.id, root.revision, Some(section.id.clone()))
+            .unwrap();
+        let current = raw_task(&db.conn, &root.id).unwrap();
+        db.trash("dev", &root.id, current.revision).unwrap();
+        assert!(matches!(
+            db.section_move_preview("dev", &section.id, &source.id),
+            Err(Error::Conflict(_))
+        ));
+    }
+    #[test]
+    fn oversized_groups_and_list_scoped_credentials_fail_before_writing() {
+        let (mut db, source, destination, section) = fixture();
+        db.conn.execute("INSERT INTO auth_agents(id,user_id,token_hash,audience,permissions,list_ids,expires_at) VALUES('section-source-only','dev','synthetic-section-hash','https://synthetic.invalid/api/v1','[\"write\"]',?1,unixepoch()+3600)",[serde_json::to_string(&vec![&source.id]).unwrap()]).unwrap();
+        assert!(matches!(
+            db.section_move_preview(
+                "credential:section-source-only",
+                &section.id,
+                &destination.id
+            ),
+            Err(Error::Forbidden)
+        ));
+        let tx = db.conn.transaction().unwrap();
+        for i in 0..501 {
+            let id = format!("section-bounded-{i}");
+            tx.execute("INSERT INTO tasks(id,reference,list_id,title,position) VALUES(?1,?1,?2,'Synthetic bounded task',?3)",params![id,source.id,i]).unwrap();
+            tx.execute(
+                "INSERT INTO task_locations VALUES(?1,?2)",
+                params![id, section.id],
+            )
+            .unwrap();
+        }
+        tx.commit().unwrap();
+        assert!(matches!(
+            db.section_move_preview("dev", &section.id, &destination.id),
+            Err(Error::Invalid(_))
+        ));
+        assert_eq!(
+            section_raw(&db.conn, &section.id).unwrap().list_id,
+            source.id
         );
     }
 }
