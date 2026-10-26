@@ -62,7 +62,10 @@ const BUSINESS: &[&str] = &[
     "users",
     "workspaces",
     "workspace_members",
+    "workspace_lifecycle",
+    "workspace_lifecycle_events",
     "lists",
+    "list_references",
     "memberships",
     "membership_roles",
     "sections",
@@ -163,6 +166,23 @@ impl Store {
             "WHERE id IN(SELECT list_id FROM actor_list_access WHERE actor_id=?1 AND rank>=1)",
             &[&actor],
         )?;
+        let owned_trash: BTreeSet<String> = if matches!(scope, ExportScope::Account)
+            && !actor.starts_with("credential:")
+        {
+            rows(&self.conn,"workspace_lifecycle","WHERE deleted_at IS NOT NULL AND workspace_id IN(SELECT workspace_id FROM workspace_members WHERE user_id=?1 AND role='owner')",&[&user])?.into_iter().filter_map(|r|r["workspace_id"].as_str().map(str::to_owned)).collect()
+        } else {
+            BTreeSet::new()
+        };
+        if !owned_trash.is_empty() {
+            for row in rows(&self.conn, "lists", "", &[])? {
+                if row["workspace_id"]
+                    .as_str()
+                    .is_some_and(|id| owned_trash.contains(id))
+                {
+                    lists.push(row);
+                }
+            }
+        }
         match &scope {
             ExportScope::Account => {}
             ExportScope::List(id) => {
@@ -187,7 +207,10 @@ impl Store {
                 ExportScope::Workspace(selected) => selected == id,
                 ExportScope::List(_) => lists.iter().any(|l| l["workspace_id"] == id),
             };
-            if include && self.workspace_permission(actor, id)? >= 1 {
+            if include
+                && (owned_trash.contains(id)
+                    || self.workspace_permission(actor, id).unwrap_or(0) >= 1)
+            {
                 workspaces.push(w)
             }
         }
@@ -207,6 +230,8 @@ impl Store {
         tables.insert("workspaces".into(), workspaces);
         tables.insert("tasks".into(), tasks);
         for (table, key, allowed) in [
+            ("list_references", "list_id", &list_ids),
+            ("workspace_lifecycle", "workspace_id", &workspace_ids),
             ("sections", "list_id", &list_ids),
             ("comments", "task_id", &task_ids),
             ("attachments", "task_id", &task_ids),
@@ -266,10 +291,18 @@ impl Store {
         tables.insert("history".into(), history);
         let mut owned_workspaces = BTreeSet::new();
         for id in &workspace_ids {
-            if self.workspace_permission(actor, id)? >= 3 {
+            if owned_trash.contains(id) || self.workspace_permission(actor, id).unwrap_or(0) >= 3 {
                 owned_workspaces.insert(id.clone());
             }
         }
+        tables.insert(
+            "workspace_lifecycle_events".into(),
+            selected(
+                rows(&self.conn, "workspace_lifecycle_events", "", &[])?,
+                "workspace_id",
+                &owned_workspaces,
+            ),
+        );
         tables.insert(
             "workspace_members".into(),
             selected(
@@ -304,7 +337,7 @@ impl Store {
             "history",
         ] {
             for row in tables.get(table).into_iter().flatten() {
-                for key in ["user_id", "author_id", "creator_id", "actor"] {
+                for key in ["user_id", "author_id", "creator_id", "actor", "actor_id"] {
                     if let Some(value) = row[key].as_str() {
                         user_ids.insert(value.into());
                     }
@@ -728,6 +761,7 @@ pub fn import_bundle(
                     "owner_id",
                     "recipient",
                     "actor",
+                    "actor_id",
                 ] {
                     if let Some(value) = row[key].as_str()
                         && !value.starts_with("credential:")
@@ -2482,5 +2516,83 @@ mod tests {
         std::fs::remove_file(path).unwrap();
         std::fs::remove_file(source_path).unwrap();
         server.abort();
+    }
+}
+
+#[cfg(test)]
+mod lifecycle_export_tests {
+    use super::*;
+    #[test]
+    fn account_archive_roundtrip_preserves_owned_workspace_trash_colors_and_short_references() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let w = db
+            .create_workspace(
+                "dev",
+                crate::workspace::WorkspaceInput {
+                    title: "Archived project".into(),
+                    description: "Retained brief".into(),
+                },
+            )
+            .unwrap();
+        let list = db
+            .create_list_with_color(
+                "dev",
+                crate::workspace::CreateList {
+                    workspace_id: w.id.clone(),
+                    title: "Retained list".into(),
+                    description: String::new(),
+                    restricted: false,
+                },
+                Some("#123456".into()),
+            )
+            .unwrap();
+        let reference = db.list_reference("dev", &list.id).unwrap();
+        let revision = db.workspace("dev", &w.id).unwrap().revision;
+        db.change_workspace_lifecycle("dev", &w.id, revision, "archive", None)
+            .unwrap();
+        let revision = db.workspace("dev", &w.id).unwrap().revision;
+        db.change_workspace_lifecycle("dev", &w.id, revision, "delete", Some(&w.title))
+            .unwrap();
+        let bundle = db.export_bundle("dev", ExportScope::Account).unwrap();
+        assert!(bundle.tables["lists"].iter().any(|r| r["id"] == list.id));
+        assert!(
+            bundle.tables["workspace_lifecycle"]
+                .iter()
+                .any(|r| r["workspace_id"] == w.id && !r["deleted_at"].is_null())
+        );
+        let other = db.export_bundle("other", ExportScope::Account).unwrap();
+        assert!(!other.tables["workspaces"].iter().any(|r| r["id"] == w.id));
+        let mut target = Store::memory().unwrap();
+        import_bundle(&mut target, &bundle, &IdentityMap::default(), true).unwrap();
+        assert_eq!(
+            target
+                .conn
+                .query_row(
+                    "SELECT reference FROM list_references WHERE list_id=?1",
+                    [&list.id],
+                    |r| r.get::<_, String>(0)
+                )
+                .unwrap(),
+            reference
+        );
+        assert_eq!(
+            target
+                .conn
+                .query_row("SELECT color_hex FROM lists WHERE id=?1", [&list.id], |r| r
+                    .get::<_, String>(0))
+                .unwrap(),
+            "#123456"
+        );
+        assert!(
+            target
+                .conn
+                .query_row(
+                    "SELECT deleted_at IS NOT NULL FROM workspace_lifecycle WHERE workspace_id=?1",
+                    [w.id],
+                    |r| r.get::<_, bool>(0)
+                )
+                .unwrap()
+        );
     }
 }
