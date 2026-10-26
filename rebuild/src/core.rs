@@ -1,5 +1,6 @@
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
 use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]
@@ -242,6 +243,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
         23,
         include_str!("../migrations/023_workspace_lifecycle.sql"),
     ),
+    (24, include_str!("../migrations/024_capture_defaults.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {
@@ -278,6 +280,9 @@ impl Store {
             )?;
             if !applied {
                 tx.execute_batch(sql)?;
+                if version == 24 {
+                    crate::defaults::backfill(&tx)?;
+                }
                 if version == 1 {
                     tx.execute("INSERT INTO tasks_fts(tasks_fts) VALUES('rebuild')", [])?;
                 }
@@ -424,8 +429,8 @@ impl Store {
             }
             position += 1;
             let (id, reference) = loop {
-                let id = Uuid::new_v4().to_string();
-                let reference = format!("T-{}", &id[..8]);
+                let id = crate::defaults::entity_id(&tx, "tasks", "t")?;
+                let reference = id.clone();
                 let exists: bool = tx.query_row(
                     "SELECT EXISTS(SELECT 1 FROM tasks WHERE id=?1 OR reference=?2)",
                     params![id, reference],
@@ -436,6 +441,10 @@ impl Store {
                 }
             };
             tx.execute("INSERT INTO tasks(id,reference,list_id,parent_id,title,description,position) VALUES(?1,?2,?3,?4,?5,?6,?7)",params![id,reference,request.list_id,n.parent_id,n.title.trim(),n.description,position])?;
+            if n.parent_id.is_none() {
+                tx.execute("INSERT INTO task_locations(task_id,section_id) SELECT ?1,section_id FROM list_defaults WHERE list_id=?2",params![id,request.list_id])?;
+            }
+            crate::defaults::public_id(&tx, "task", &id)?;
             let t = task(&tx, &id)?;
             reopen(&tx, &id, actor)?;
             event(&tx, &t, "create", actor, None)?;

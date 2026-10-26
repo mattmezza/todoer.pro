@@ -70,6 +70,10 @@ const BUSINESS: &[&str] = &[
     "membership_roles",
     "sections",
     "tasks",
+    "list_defaults",
+    "workspace_defaults",
+    "user_defaults",
+    "entity_public_ids",
     "task_locations",
     "tags",
     "task_tags",
@@ -231,6 +235,7 @@ impl Store {
         tables.insert("tasks".into(), tasks);
         for (table, key, allowed) in [
             ("list_references", "list_id", &list_ids),
+            ("list_defaults", "list_id", &list_ids),
             ("workspace_lifecycle", "workspace_id", &workspace_ids),
             ("sections", "list_id", &list_ids),
             ("comments", "task_id", &task_ids),
@@ -245,6 +250,50 @@ impl Store {
                 selected(rows(&self.conn, table, "", &[])?, key, allowed),
             );
         }
+        tables.insert(
+            "workspace_defaults".into(),
+            rows(&self.conn, "workspace_defaults", "", &[])?
+                .into_iter()
+                .filter(|r| {
+                    r["workspace_id"]
+                        .as_str()
+                        .is_some_and(|id| workspace_ids.contains(id))
+                        && r["list_id"]
+                            .as_str()
+                            .is_some_and(|id| list_ids.contains(id))
+                })
+                .collect(),
+        );
+        tables.insert(
+            "user_defaults".into(),
+            rows(&self.conn, "user_defaults", "WHERE user_id=?1", &[&user])?
+                .into_iter()
+                .filter(|r| {
+                    r["workspace_id"]
+                        .as_str()
+                        .is_some_and(|id| workspace_ids.contains(id))
+                })
+                .collect(),
+        );
+        let section_ids = ids(tables.get("sections").unwrap(), "id");
+        tables.insert(
+            "entity_public_ids".into(),
+            rows(&self.conn, "entity_public_ids", "", &[])?
+                .into_iter()
+                .filter(|r| {
+                    let allowed = match r["kind"].as_str() {
+                        Some("workspace") => &workspace_ids,
+                        Some("list") => &list_ids,
+                        Some("section") => &section_ids,
+                        Some("task") => &task_ids,
+                        _ => return false,
+                    };
+                    r["entity_id"]
+                        .as_str()
+                        .is_some_and(|id| allowed.contains(id))
+                })
+                .collect(),
+        );
         let attachment_ids = ids(tables.get("attachments").unwrap(), "intent_id");
         tables.insert(
             "upload_intents".into(),

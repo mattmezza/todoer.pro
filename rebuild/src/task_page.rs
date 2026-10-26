@@ -3,7 +3,7 @@ use super::*;
 use crate::subtree_query::{SubtreeRead, TaskField};
 
 pub(super) fn routes() -> Router<AppState> {
-    Router::new().route("/tasks/{id}", get(page))
+    Router::new().route("/tasks/{id}", get(legacy_page))
 }
 struct Crumb {
     label: String,
@@ -31,6 +31,28 @@ struct TaskPage {
     section_id: String,
     has_more: bool,
 }
+async fn legacy_page(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    let Ok(actor) = s.auth(&h, false) else {
+        return Ok(Redirect::to("/signin").into_response());
+    };
+    let requested = id.clone();
+    let alias = s
+        .run(move |db| {
+            let id = crate::defaults::resolve(&db.conn, "task", &id)?;
+            let task = crate::core::task(&db.conn, &id)?;
+            crate::core::access_rank(&db.conn, &actor, &task.list_id, 1)?;
+            crate::defaults::public_id(&db.conn, "task", &task.id)
+        })
+        .await?;
+    if requested == alias {
+        return page(State(s), h, Path(requested)).await;
+    }
+    Ok(Redirect::to(&format!("/tasks/{alias}")).into_response())
+}
 async fn page(
     State(s): State<AppState>,
     h: HeaderMap,
@@ -47,6 +69,10 @@ async fn page(
         }
         Err(e) => return Err(e),
     };
+    let alias = id.clone();
+    let id = s
+        .run(move |db| crate::defaults::resolve(&db.conn, "task", &alias))
+        .await?;
     let csrf = s.csrf_for(&h);
     let a = actor.clone();
     let page = s
@@ -86,6 +112,11 @@ async fn page(
             }
             let section_id = db.task_section(&a, &section_root.id)?.unwrap_or_default();
             if !section_id.is_empty()
+                && !db.conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM list_defaults WHERE section_id=?1)",
+                    [&section_id],
+                    |r| r.get::<_, bool>(0),
+                )?
                 && let Some(section) = db
                     .sections(&a, &task.list_id)?
                     .into_iter()

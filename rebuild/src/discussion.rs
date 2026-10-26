@@ -306,7 +306,7 @@ impl Store {
             return Ok(original);
         }
         let (user, _) = core::actor_identity(&tx, actor)?;
-        let id = Uuid::new_v4().to_string();
+        let id = crate::defaults::entity_id(&tx, "comments", "m")?;
         tx.execute(
             "INSERT INTO comments(id,task_id,author_id,body) VALUES(?1,?2,?3,?4)",
             params![id, task.id, user, input.body],
@@ -406,7 +406,7 @@ impl Store {
         let task = task_access(&tx, actor, task, 2)?;
         comment_belongs(&tx, input.comment_id.as_deref(), &task.id)?;
         let (user, client) = core::actor_identity(&tx, actor)?;
-        let id = Uuid::new_v4().to_string();
+        let id = crate::defaults::entity_id(&tx, "upload_intents", "i")?;
         let staging = format!("staging/{}", Uuid::new_v4());
         let object = format!("objects/{}", Uuid::new_v4());
         tx.execute("INSERT INTO upload_intents(id,task_id,comment_id,creator_id,client_id,filename,size,sha256,staging_key,object_key,expires_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",params![id,task.id,input.comment_id,user,client,filename,input.size as i64,input.sha256.to_ascii_lowercase(),staging,object,now()+INTENT_TTL_SECONDS])?;
@@ -445,7 +445,7 @@ impl Store {
         if intent.expires_at <= now() {
             return Err(Error::Conflict("upload intent expired".into()));
         }
-        let id = Uuid::new_v4().to_string();
+        let id = crate::defaults::entity_id(&tx, "attachments", "a")?;
         tx.execute("INSERT INTO attachments(id,intent_id,task_id,comment_id,creator_id,filename,size,sha256,object_key) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",params![id,intent.id,intent.task_id,intent.comment_id,intent.creator_id,intent.filename,intent.size as i64,intent.sha256,intent.object_key])?;
         tx.execute(
             "UPDATE upload_intents SET finalized_at=unixepoch(),revision=revision+1 WHERE id=?1",

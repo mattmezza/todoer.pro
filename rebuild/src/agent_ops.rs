@@ -602,7 +602,8 @@ fn destination(c: &Connection, actor: &str, id: &str) -> Result<Destination, Err
             |r| r.get(0),
         )
         .optional()?;
-    let id = reference_id.as_deref().unwrap_or(id);
+    let resolved = crate::defaults::resolve(c, "list", reference_id.as_deref().unwrap_or(id))?;
+    let id = resolved.as_str();
     access_rank(c, actor, id, 1)?;
     c.query_row(
         "SELECT id,title FROM lists WHERE id=?1 AND archived=0",

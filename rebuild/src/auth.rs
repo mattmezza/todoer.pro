@@ -177,7 +177,7 @@ impl AuthStore {
             return Err(AuthError::Forbidden);
         }
         let identity = Identity {
-            id: Uuid::new_v4().to_string(),
+            id: crate::defaults::short_id("u"),
             name: "Todoer user".into(),
         };
         tx.execute(
@@ -188,6 +188,16 @@ impl AuthStore {
             "INSERT INTO auth_identities(issuer,subject,user_id,email) VALUES(?1,?2,?3,?4)",
             params![issuer, subject, identity.id, address],
         )?;
+        if tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='user_defaults')",
+            [],
+            |r| r.get::<_, bool>(0),
+        )? {
+            crate::defaults::user(&tx, &identity.id).map_err(|e| match e {
+                crate::core::Error::Database(e) => AuthError::Database(e),
+                other => AuthError::Invalid(other.to_string()),
+            })?;
+        }
         tx.commit()?;
         Ok(identity)
     }
