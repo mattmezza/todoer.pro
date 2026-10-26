@@ -237,6 +237,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (19, include_str!("../migrations/019_assist.sql")),
     (20, include_str!("../migrations/020_subtree.sql")),
     (21, include_str!("../migrations/021_push_digests.sql")),
+    (22, include_str!("../migrations/022_slugs.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {
@@ -282,6 +283,7 @@ impl Store {
                 )?;
             }
         }
+        crate::slugs::backfill(&tx)?;
         tx.commit()?;
         Ok(Self { conn })
     }
@@ -289,7 +291,10 @@ impl Store {
         Self::open(":memory:")
     }
     pub fn seed_dev(&mut self) -> Result<(), Error> {
-        self.conn.execute_batch("INSERT OR IGNORE INTO users VALUES('dev','alice'),('other','bob'); INSERT OR IGNORE INTO lists(id,title) VALUES('inbox','Inbox'),('groceries','Groceries'),('private','Private'); INSERT OR IGNORE INTO memberships VALUES('inbox','dev'),('groceries','dev'),('private','other');")?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
+        tx.execute_batch("INSERT OR IGNORE INTO users VALUES('dev','alice'),('other','bob'); INSERT OR IGNORE INTO lists(id,title) VALUES('inbox','Inbox'),('groceries','Groceries'),('private','Private'); INSERT OR IGNORE INTO memberships VALUES('inbox','dev'),('groceries','dev'),('private','other');")?;
+        crate::slugs::backfill(&tx)?;
+        tx.commit()?;
         Ok(())
     }
     pub fn lists(&self, actor: &str) -> Result<Vec<List>, Error> {
