@@ -1,3 +1,4 @@
+import { mountStructure } from './task-structure.js';
 import { confirmAction } from './confirm.js';
 import { mountActivity } from './activity-panel.js';
 const docks = new WeakMap();
@@ -106,7 +107,7 @@ export function openTaskSettings(root, selected = 'planning') {
 async function openSettings(listId, selected, kind, taskRoot) {
   const workspace = kind === 'workspace';
   const task = kind === 'task';
-  if (task && selected === 'references') selected = 'planning';
+  if (task && (selected === 'references' || (selected === 'structure' && !taskRoot?.dataset.parentId))) selected = 'planning';
   if (!workspace && !task && selected !== 'sharing') selected = 'sharing';
   const stash = taskRoot?.querySelector('[data-task-advanced]');
   const heading = task ? 'Task details' : workspace ? 'Space settings' : 'List settings';
@@ -149,7 +150,7 @@ async function openSettings(listId, selected, kind, taskRoot) {
   let doc;
   let stopActivity = () => {};
   function choose(tab) {
-    if (task && tab === 'references') tab = 'planning';
+    if (task && (tab === 'references' || (tab === 'structure' && !taskRoot.dataset.parentId))) tab = 'planning';
     stopActivity();
     selected = tab;
     for (const button of tabs.children) {
@@ -164,7 +165,11 @@ async function openSettings(listId, selected, kind, taskRoot) {
       stopActivity = mountActivity(content, workspace ? 'workspace' : task ? 'task' : 'list', listId);
       return;
     }
-    const metadataTab = task && ['tags', 'structure', 'references'].includes(tab);
+    if (task && tab === 'structure') {
+      stopActivity = mountStructure(content, listId);
+      return;
+    }
+    const metadataTab = task && tab === 'tags';
     const section = doc?.querySelector(
       `[data-panel-section="${metadataTab ? 'references' : tab}"]`,
     );
@@ -198,7 +203,7 @@ async function openSettings(listId, selected, kind, taskRoot) {
     ? [
         ['planning', 'Planning'],
         ['tags', 'Tags'],
-        ['structure', 'Structure'],
+        ...(taskRoot.dataset.parentId ? [['structure', 'Structure']] : []),
         ['activity', 'Activity'],
       ]
     : workspace

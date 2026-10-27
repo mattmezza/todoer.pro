@@ -360,6 +360,14 @@ export function mountTaskPage(root, { embedded = false } = {}) {
   function updateView() {
     if (!alive) return;
     showCompletion();
+    root.dataset.parentId = task.parent_id || '';
+    let promote = get('.task-context-menu [data-task-promote]');
+    if (!promote) {
+      promote = document.createElement('button');promote.type = 'button';
+      promote.dataset.taskPromote = id;promote.innerHTML = '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#arrow-up"/></svg><span>Move to parent…</span>';
+      get('.task-context-menu > div').append(promote);
+    }
+    promote.hidden = !canWrite || !task.parent_id;
     get('[data-edit-title]').textContent = task.title;
     if (!embedded) document.title = `${task.title} · Todoer`;
     const complete = get('[data-root-complete]');
@@ -439,6 +447,15 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         link.href = `/tasks/${encodeURIComponent(child.id)}`;
         link.textContent = child.title;
         line.append(complete, link);
+        if (canWrite) {
+          const menu = document.createElement('details');menu.className = 'entity-menu task-child-menu';
+          const summary = document.createElement('summary');summary.setAttribute('aria-label', `Actions for ${child.title}`);
+          summary.innerHTML = '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#more"/></svg>';
+          const actions = document.createElement('div');actions.className = 'menu-items';
+          const promote = document.createElement('button');promote.type = 'button';promote.dataset.taskPromote = child.id;promote.textContent = 'Move to parent…';
+          actions.append(promote);menu.append(summary, actions);line.append(menu);
+        }
+
         const nested = byParent.get(child.id) || [];
         if (nested.length) {
           const counts = nextCursor ? loadedCounts(child.id) : leafCounts(child.id);
@@ -447,6 +464,8 @@ export function mountTaskPage(root, { embedded = false } = {}) {
           progress.textContent = `${counts[0]}/${counts[1]} ${nextCursor ? 'loaded items' : 'leaf items'}`;
           line.append(progress);
         }
+        const childMenu = line.querySelector('.task-child-menu');
+        if (childMenu) line.append(childMenu);
         row.append(line);
         if (nested.length) {
           const list = document.createElement('ol');
@@ -466,6 +485,18 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         ? `${[...children.values()].filter((item) => item.complete).length}/${children.size} loaded items complete; load remaining items for leaf progress`
         : `${counts[0]}/${counts[1]} leaf items complete`
       : '';
+    let completionLine = get('[data-subtask-completion-line]');
+    if (!completionLine) {
+      completionLine = document.createElement('progress');
+      completionLine.dataset.subtaskCompletionLine = '';
+      completionLine.className = 'space-completion-line task-subtask-completion-line';
+      completionLine.setAttribute('aria-label', 'Sub-task leaf completion');
+      get('[data-child-progress]').closest('.section-heading').after(completionLine);
+    }
+    completionLine.hidden = !!nextCursor || !counts[1];
+    completionLine.max = counts[1] || 1;
+    completionLine.value = counts[0];
+    completionLine.title = `${counts[0]}/${counts[1]} leaf items complete`;
     get('[data-load-more]').hidden = !nextCursor;
   }
   async function loadChildren(cursor = null) {

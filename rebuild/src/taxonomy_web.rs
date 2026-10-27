@@ -11,6 +11,7 @@ pub(super) fn routes() -> Router<AppState> {
         .route("/api/v1/tasks/{id}/tags", get(task_tags).put(set_tags))
         .route("/api/v1/tasks/{id}/section", get(section).put(set_section))
         .route("/api/v1/tasks/{id}/reparent", post(reparent))
+        .route("/api/v1/tasks/{id}/promote", post(promote))
         .route("/api/v1/lists/{id}/task-order", post(reorder))
         .route("/api/v1/references/resolve", get(resolve))
         .route("/api/v1/references/autocomplete", get(autocomplete))
@@ -713,4 +714,22 @@ mod tests {
         .await;
         assert_eq!(private["choices"], json!([]));
     }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PromoteInput {
+    snapshot: crate::subtree_query::SubtreeSnapshot,
+}
+async fn promote(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+    Input(input): Input<PromoteInput>,
+) -> Result<Json<Task>, ApiError> {
+    let actor = s.auth(&h, true)?;
+    Ok(Json(
+        s.run(move |db| db.promote_subtree(&actor, &id, input.snapshot))
+            .await?,
+    ))
 }

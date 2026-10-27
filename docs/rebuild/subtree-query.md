@@ -13,3 +13,16 @@ Relative traversal depth is limited to 256 and ordering paths to 64 KiB. Encount
 Traversal seeks only the first child and next sibling at each step using the live parent/position/ID index. Recursive queue ordering yields preorder without materializing all descendants or all children of a wide parent. Resume seeds are the last node's first child and the next sibling at each ancestor level, bounded by depth. Metadata ancestry/context queries have fixed bounds; there is no per-item database query from Rust. Selected task JSON is constructed only for the bounded page candidates. At most `limit+1` candidates are emitted by the walk; the extra row detects continuation. Queue size depends on hierarchy depth, not subtree width.
 
 Implementation references: SQLite documents [recursive queue ordering and LIMIT](https://www.sqlite.org/lang_with.html) and [octet_length metadata behavior](https://www.sqlite.org/lang_corefunc.html). The ordinary complete-subtree mutation API remains unchanged; this reader is for bounded agent/API inspection.
+
+## Move up one level
+
+`POST /api/v1/tasks/{id}/promote` accepts `{ "snapshot": ... }` from a subtree
+read. It promotes the selected task to its current parent's parent, or to list
+top level, appending after existing siblings while retaining all descendants.
+Write access is required. Confirmation checks the root revision, list revision
+and list history sequence in the same transaction as the move; changes since
+the preview return 409. Top-level tasks cannot be promoted.
+
+The Structure tab appears on sub-tasks and shows a read-only, paginated tree.
+Move to parent actions live in task menus and preview the complete moved subtree
+before confirmation.

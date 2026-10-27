@@ -6897,3 +6897,15 @@ form[data-list-edit] .inline-actions, .space-inline-editor > div,
 .omnibar-copy-reference:hover, .omnibar-copy-reference:focus-visible, .omnibar-copy-reference[data-copied] { background: var(--hover); color: var(--text); }
 .omnibar-copy-reference .ui-icon { width: 15px; height: 15px; }
 @media (max-width: 480px) { .omnibar-copy-reference { gap: 4px; font-size: 11px; padding-inline: 5px; } }
+.task-structure-tree, .task-structure-tree ul { list-style: none; margin: 0; padding: 0; }
+.task-structure-tree ul { margin-left: 10px; padding-left: 18px; border-left: 1px solid var(--line); }
+.task-structure-tree a { display: block; padding: 8px 10px; border-radius: 5px; color: var(--muted); overflow-wrap: anywhere; }
+.task-structure-tree a:hover, .task-structure-tree a[aria-current] { color: var(--text); background: var(--hover); }
+.task-structure-tree a[aria-current] { font-weight: 600; }
+.task-structure-tree a.is-complete { text-decoration: line-through; }
+.task-promote-tree { max-height: 45vh; overflow: auto; margin: 20px 0; }
+.task-promote-tree > strong { display: block; margin-bottom: 8px; }
+.task-child-menu { margin-left: auto; flex: 0 0 auto; }
+.task-child-menu > summary { display: grid; place-items: center; width: 32px; height: 32px; cursor: pointer; }
+.task-subtask-completion-line { margin: 8px 0 18px; height: 2px; opacity: .65; }
+.task-subtask-completion-line[hidden] { display: none; }
