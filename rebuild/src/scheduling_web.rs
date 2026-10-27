@@ -225,6 +225,8 @@ struct PlanningPage {
     sidebar: super::Sidebar,
     title: String,
     timezone: String,
+    account_timezone: String,
+    range: String,
     body: String,
     tabs: String,
     today: String,
@@ -233,6 +235,7 @@ struct PlanningPage {
 #[derive(Deserialize, Default)]
 struct CalendarQuery {
     range: Option<String>,
+    tz: Option<String>,
 }
 fn calendar_range(
     today: chrono::NaiveDate,
@@ -278,12 +281,17 @@ fn calendar_range(
         _ => return Err(Error::Invalid("Unknown planning range".into())),
     })
 }
-async fn calendar(s: AppState, h: HeaderMap, key: String) -> Result<Response, ApiError> {
+async fn calendar(
+    s: AppState,
+    h: HeaderMap,
+    key: String,
+    timezone: Option<String>,
+) -> Result<Response, ApiError> {
     let a = s.auth(&h, false)?;
     let actor = a.clone();
     let prefs = s.run(move |db| db.notification_preferences(&actor)).await?;
-    let tz: chrono_tz::Tz = prefs
-        .timezone
+    let timezone = timezone.unwrap_or_else(|| prefs.timezone.clone());
+    let tz: chrono_tz::Tz = timezone
         .parse()
         .map_err(|_| Error::Invalid("Invalid timezone".into()))?;
     let today = Utc::now().with_timezone(&tz).date_naive();
@@ -322,7 +330,7 @@ async fn calendar(s: AppState, h: HeaderMap, key: String) -> Result<Response, Ap
     ] {
         let (_, _, caption) = calendar_range(today, tab, prefs.week_start)?;
         tabs.push_str(&format!(
-            "<a href=\"/today?range={tab}\" {}>{caption}</a>",
+            "<a href=\"/today?range={tab}&amp;tz={timezone}\" {}>{caption}</a>",
             if tab == key {
                 "aria-current=\"page\""
             } else {
@@ -340,7 +348,9 @@ async fn calendar(s: AppState, h: HeaderMap, key: String) -> Result<Response, Ap
         tabs,
         today: today.to_string(),
         week_start: prefs.week_start,
-        timezone: prefs.timezone,
+        timezone,
+        account_timezone: prefs.timezone,
+        range: key,
         body,
     };
     let rendered = template
@@ -353,10 +363,10 @@ async fn today(
     h: HeaderMap,
     Query(q): Query<CalendarQuery>,
 ) -> Result<Response, ApiError> {
-    calendar(s, h, q.range.unwrap_or_else(|| "today".into())).await
+    calendar(s, h, q.range.unwrap_or_else(|| "today".into()), q.tz).await
 }
 async fn upcoming(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
-    calendar(s, h, "upcoming".into()).await
+    calendar(s, h, "upcoming".into(), None).await
 }
 async fn recurring(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
     let a = s.auth(&h, false)?;
@@ -427,22 +437,16 @@ async fn notification_page(State(s): State<AppState>, h: HeaderMap) -> Result<Re
     let a = s.auth(&h, false)?;
     let actor = a.clone();
     let prefs = s.run(move |db| db.notification_preferences(&actor)).await?;
-    let lists = s.run(move |db| db.lists(&a)).await?;
+    let lists = s.run(move |db| {
+        let mut query = db.conn.prepare("SELECT l.id,l.title,CASE WHEN l.workspace_id IS NULL THEN 'Personal lists' WHEN wa.rank>=1 THEN w.title ELSE 'Shared with you' END FROM lists l JOIN actor_list_access a ON a.list_id=l.id AND a.actor_id=?1 AND a.rank>=1 LEFT JOIN workspaces w ON w.id=l.workspace_id LEFT JOIN actor_workspace_access wa ON wa.workspace_id=w.id AND wa.actor_id=?1 WHERE l.archived=0 ORDER BY lower(l.title),l.id")?;
+        Ok(query.query_map([&a], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?)))?.collect::<Result<Vec<_>,_>>()?)
+    }).await?;
     let mut mutes = String::new();
-    for list in lists {
-        mutes.push_str(&format!(
-            "<label><input type=\"checkbox\" name=\"mute_{}\" value=\"yes\" {}>{}</label><br>",
-            esc(&list.id),
-            if prefs.list_opt_out.contains(&list.id) {
-                "checked"
-            } else {
-                ""
-            },
-            esc(&list.title)
-        ));
+    for (id, title, space) in lists {
+        mutes.push_str(&format!("<label data-mute-label data-space=\"{}\"><input type=\"checkbox\" name=\"mute_{}\" value=\"yes\" {}><span data-mute-title>{}</span><small>{}</small></label>",esc(&space),esc(&id),if prefs.list_opt_out.contains(&id) { "checked" } else { "" },esc(&title),esc(&space)));
     }
     let body = format!(
-        "<form method=\"post\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><label>IANA timezone <input name=\"timezone\" value=\"{}\" required></label><p><label><input type=\"checkbox\" name=\"email_opt_in\" {}>Email reminders and digests to my verified sign-in email</label></p><label>Quiet hours start <input type=\"time\" name=\"quiet_start\" value=\"{}\"></label><label>Quiet hours end <input type=\"time\" name=\"quiet_end\" value=\"{}\"></label><p>Equal quiet-hour times mute all hours. Leave both blank to disable quiet hours.</p><p><label><input type=\"checkbox\" name=\"daily_opt_in\" {}>Daily email summary</label><label><input type=\"checkbox\" name=\"push_daily_opt_in\" {}>Daily push summary</label><input type=\"time\" name=\"daily_time\" value=\"{}\"></p><p><label><input type=\"checkbox\" name=\"weekly_opt_in\" {}>Weekly email summary</label><label><input type=\"checkbox\" name=\"push_weekly_opt_in\" {}>Weekly push summary</label><label>Weekday (Monday=1)<input type=\"number\" name=\"weekly_day\" min=\"1\" max=\"7\" value=\"{}\"></label><input type=\"time\" name=\"weekly_time\" value=\"{}\"></p><fieldset><legend>Mute notifications from these lists</legend>{}</fieldset><button class=\"primary\">Save notification preferences</button></form><p>Email requires configured SMTP. Push requires configured VAPID and an enabled, signed-in device. <a href=\"/settings/devices\">Manage push devices</a>. Email and push opt-ins are independent; both use the times above.</p>",
+        "<form method=\"post\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><label>IANA timezone <input name=\"timezone\" value=\"{}\" required></label><p><label><input type=\"checkbox\" name=\"email_opt_in\" {}>Email reminders and digests to my verified sign-in email</label></p><label>Quiet hours start <input type=\"time\" name=\"quiet_start\" value=\"{}\"></label><label>Quiet hours end <input type=\"time\" name=\"quiet_end\" value=\"{}\"></label><p>Equal quiet-hour times mute all hours. Leave both blank to disable quiet hours.</p><p><label><input type=\"checkbox\" name=\"daily_opt_in\" {}>Daily email summary</label><label><input type=\"checkbox\" name=\"push_daily_opt_in\" {}>Daily push summary</label><input type=\"time\" name=\"daily_time\" value=\"{}\"></p><p><label><input type=\"checkbox\" name=\"weekly_opt_in\" {}>Weekly email summary</label><label><input type=\"checkbox\" name=\"push_weekly_opt_in\" {}>Weekly push summary</label><label>Weekday (Monday=1)<input type=\"number\" name=\"weekly_day\" min=\"1\" max=\"7\" value=\"{}\"></label><input type=\"time\" name=\"weekly_time\" value=\"{}\"></p><fieldset data-muted-lists><legend>Muted lists</legend><div data-mute-choices>{}</div></fieldset><button class=\"primary\">Save notification preferences</button></form><p>Email requires configured SMTP. Push requires configured VAPID and an enabled, signed-in device. <a href=\"/settings/devices\">Manage push devices</a>. Email and push opt-ins are independent; both use the times above.</p>",
         esc(&s.csrf_for(&h)),
         esc(&prefs.timezone),
         if prefs.email_opt_in { "checked" } else { "" },

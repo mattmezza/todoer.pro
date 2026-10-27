@@ -6152,3 +6152,139 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
     font-size: 24px;
   }
 }
+.settings-page main {
+  font-family: var(--font-sans);
+  font-size: 16px;
+}
+.settings-screen-content :is(p, label, td, th, input, select),
+.settings-page .general-settings :is(p, label, input, select) {
+  font-size: 16px;
+}
+.settings-screen-content .muted,
+.settings-page .general-settings .muted {
+  font-size: 14px;
+}
+.settings-page .assist-main h1 {
+  font-family: var(--font-sans);
+}
+[data-mute-choices] {
+  max-height: 240px;
+  overflow-y: auto;
+}
+.muted-list-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 14px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.muted-list-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--hover);
+  font-size: 14px;
+}
+.muted-list-pill small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.muted-list-pill button {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  font-size: 18px;
+  line-height: 20px;
+  color: var(--muted);
+}
+[data-muted-lists] > input {
+  width: 100%;
+}
+.mute-search-results {
+  display: grid;
+  max-height: 280px;
+  overflow-y: auto;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px;
+}
+.mute-search-results > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 14px;
+}
+.mute-search-results > button:hover {
+  background: var(--hover);
+}
+.mute-search-results small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.settings-screen-content .muted-list-hint,
+.settings-screen-content .mute-search-results p {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 10px 0 0;
+}
+
+.planning-zone {
+  position: relative;
+  width: fit-content;
+  margin-top: 12px;
+}
+.planning-zone summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  color: #94a3b8;
+}
+.planning-zone summary::-webkit-details-marker {
+  display: none;
+}
+.planning-zone summary:hover {
+  color: #e2e8f0;
+}
+.planning-zone form {
+  position: absolute;
+  z-index: 20;
+  top: 24px;
+  left: 0;
+  width: min(320px, 80vw);
+  padding: 16px;
+  background: #101722;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px #0008;
+}
+.planning-zone label {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.planning-zone input {
+  width: 100%;
+  font-size: 14px;
+}
+.planning-zone form div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.planning-zone small {
+  display: block;
+  margin-top: 12px;
+  color: #94a3b8;
+  font-size: 12px;
+}
