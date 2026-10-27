@@ -6944,3 +6944,7 @@ form[data-list-edit] .inline-actions, .space-inline-editor > div,
 .structure-current-label { margin-left: auto; flex: 0 0 auto; padding-left: 10px; color: var(--muted); font-size: 11px; font-weight: 400; }
 .task-structure-view .is-complete { text-decoration: none; }
 .task-structure-view .is-complete .structure-task-title { text-decoration: line-through; }
+.space-list-card { position: relative; overflow: hidden; }
+.space-list-card progress { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; margin: 0; border-radius: 0; }
+.space-list-card progress::-webkit-progress-value { background: var(--list-color, #3b82f6); border-radius: 0; }
+.space-list-card progress::-moz-progress-bar { background: var(--list-color, #3b82f6); border-radius: 0; }
