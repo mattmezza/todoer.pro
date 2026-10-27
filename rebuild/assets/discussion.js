@@ -316,21 +316,23 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
     if (!form) return;
     const description = form.querySelector('[data-file-selection]');
     const button = form.querySelector('[data-file-upload]');
-    const target = form.querySelector('[data-file-target]');
+    const choose = form.querySelector('[data-file-choose]');
     const abandon = form.querySelector('[data-file-abandon]');
     if (!fileState) {
       description.textContent = hashing ? 'Calculating file checksum…' : '';
-      button.textContent = 'Upload file';
-      button.disabled = hashing;
-      target.disabled = false;
+      description.hidden = !hashing;
+      button.hidden = true;
+      choose.disabled = hashing;
+      form.querySelector('[data-file-input]').disabled = hashing;
       abandon.hidden = true;
       return;
     }
     description.textContent = fileState.file
       ? `${fileState.name} · ${fileState.size} bytes`
       : `Reselect ${fileState.name} (${fileState.size} bytes) to resume its saved upload intent.`;
-    target.value = fileState.commentId || '';
-    target.disabled = Boolean(fileState.intent) || fileState.busy;
+    description.hidden = false;
+    choose.disabled = Boolean(fileState.busy) || hashing;
+    button.hidden = Boolean(fileState.busy) || hashing || (!fileState.file && fileState.phase !== 'finalize');
     button.textContent =
       fileState.phase === 'finalize'
         ? 'Retry finalization'
@@ -356,7 +358,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
       .join('');
   }
   async function chooseFile(file) {
-    if (!file) return;
+    if (!file || hashing || fileState?.busy) return false;
     const version = ++selectionVersion;
     hashing = true;
     updateFileUi();
@@ -397,10 +399,11 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
         sha256: hash,
         intent: null,
         phase: 'upload',
-        commentId: get('[data-file-target]')?.value || null,
+        commentId: null,
       };
     persistFile();
     updateFileUi();
+    return true;
   }
   function uploadBytes(intent, file) {
     return new Promise((resolve, reject) => {
@@ -463,7 +466,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
     updateFileUi();
     try {
       if (!state.intent) {
-        state.commentId = get('[data-file-target]')?.value || null;
+        state.commentId = null;
         const result = await request(
           `/api/v1/tasks/${encodeURIComponent(taskId)}/uploads`,
           'POST',
@@ -532,19 +535,13 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
   async function onChange(event) {
     if (event.target.matches('[data-file-input]')) {
       try {
-        await chooseFile(event.target.files[0]);
+        if (await chooseFile(event.target.files[0])) await sendFile();
       } catch (error) {
         notice(error.message, true);
       }
-    } else if (
-      event.target.matches('[data-file-target]') &&
-      fileState &&
-      !fileState.intent
-    ) {
-      fileState.commentId = event.target.value || null;
-      persistFile();
     }
   }
+
   function onSubmit(event) {
     const form = event.target;
     if (!form.matches('[data-new-comment],[data-comment-form],[data-file-form]')) return;
@@ -611,6 +608,10 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
     }
   }
   async function onClick(event) {
+    if (event.target.closest('[data-file-choose]')) {
+      get('[data-file-input]')?.click();
+      return;
+    }
     const button = event.target.closest('button');
     if (!button) return;
     if (button.matches('[data-comment-composer-close]')) {
@@ -748,19 +749,6 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
         const target = get('[data-comment-items]');
         button.remove();
         target.append(...items.childNodes);
-        const select = get('[data-file-target]');
-        if (select)
-          for (const article of all('[data-comment-id]'))
-            if (
-              ![...select.options].some(
-                (option) => option.value === article.dataset.commentId,
-              )
-            ) {
-              const option = document.createElement('option');
-              option.value = article.dataset.commentId;
-              option.textContent = `Comment ${article.dataset.commentSeq}`;
-              select.append(option);
-            }
         for (const time of target.querySelectorAll('[data-created-at]')) {
           formatTime(time);
         }
@@ -795,6 +783,49 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
       event.target.closest('form').querySelector('[data-comment-cancel]').click();
     }
   }
+  const dropZone = document.createElement('div');
+  dropZone.className = 'attachment-drop-zone';
+  dropZone.hidden = true;
+  dropZone.textContent = 'Drop a file to attach to this task';
+  dropZone.setAttribute('aria-hidden', 'true');
+  document.body.append(dropZone);
+  let dragDepth = 0;
+  function acceptsDrag(event) {
+    return active && get('[data-file-form]') && event.dataTransfer?.types.includes('Files');
+  }
+  function onDragEnter(event) {
+    if (!acceptsDrag(event)) return;
+    event.preventDefault();
+    dragDepth++;
+    dropZone.hidden = false;
+  }
+  function onDragOver(event) {
+    if (!acceptsDrag(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = hashing || fileState?.busy ? 'none' : 'copy';
+  }
+  function onDragLeave(event) {
+    if (!acceptsDrag(event)) return;
+    if (--dragDepth <= 0) { dragDepth = 0; dropZone.hidden = true; }
+  }
+  async function onDrop(event) {
+    if (!acceptsDrag(event)) return;
+    event.preventDefault();
+    dragDepth = 0;
+    dropZone.hidden = true;
+    if (hashing || fileState?.busy) return;
+    if (event.dataTransfer.files.length !== 1) {
+      notice('Please attach one file at a time.', true);
+      return;
+    }
+    try {
+      if (await chooseFile(event.dataTransfer.files[0])) await sendFile();
+    } catch (error) { notice(error.message, true); }
+  }
+  document.addEventListener('dragenter', onDragEnter);
+  document.addEventListener('dragover', onDragOver);
+  document.addEventListener('dragleave', onDragLeave);
+  document.addEventListener('drop', onDrop);
   const savedUpload = read('upload');
   if (savedUpload?.intent) fileState = { ...savedUpload, file: null, busy: false };
   container.addEventListener('input', onInput);
@@ -813,6 +844,11 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
       )
         stashEdit(row);
     persistFile();
+    document.removeEventListener('dragenter', onDragEnter);
+    document.removeEventListener('dragover', onDragOver);
+    document.removeEventListener('dragleave', onDragLeave);
+    document.removeEventListener('drop', onDrop);
+    dropZone.remove();
     active = false;
     selectionVersion++;
     for (const controller of requests) controller.abort();
