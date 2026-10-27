@@ -21,6 +21,7 @@ const STATIC = [
   '/assets/space-overview.js',
   '/assets/notification-picker.js',
   '/assets/activity-panel.js',
+  '/assets/preferred-time.js',
   '/assets/search-omnibar.js',
   '/assets/confirm.js',
   '/assets/toast.js',

@@ -46,6 +46,7 @@ pub(super) fn routes() -> Router<AppState> {
             "/api/v1/workspaces/{id}",
             get(api_workspace).patch(api_update_workspace),
         )
+        .route("/api/v1/workspaces/{id}/people", get(api_people))
         .route(
             "/api/v1/workspaces/{id}/members",
             get(api_members).post(api_member),
@@ -150,6 +151,27 @@ async fn api_update_workspace(
         s.run(move |db| db.update_workspace(&actor, &id, input))
             .await?,
     ))
+}
+
+#[derive(Deserialize)]
+struct PeopleQuery {
+    #[serde(default)]
+    q: String,
+}
+async fn api_people(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+    Query(query): Query<PeopleQuery>,
+) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    let actor = s.auth(&h, false)?;
+    Ok(Json(s.run(move |db| {
+        if db.workspace_permission(&actor, &id)? < 3 { return Err(Error::Forbidden); }
+        let q = query.q.trim().to_lowercase();
+        let mut stmt = db.conn.prepare("SELECT DISTINCT u.id,u.name,coalesce(ai.email,'') FROM users u LEFT JOIN auth_identities ai ON ai.user_id=u.id WHERE lower(ai.email)=?1 OR (EXISTS(SELECT 1 FROM workspace_members m WHERE m.workspace_id=?2 AND m.user_id=u.id) AND (instr(lower(ai.email),?1)>0 OR instr(lower(u.name),?1)>0)) ORDER BY ai.email LIMIT 10")?;
+        let values = stmt.query_map(rusqlite::params![q,id], |r| Ok(serde_json::json!({"id":r.get::<_,String>(0)?,"name":r.get::<_,String>(1)?,"email":r.get::<_,String>(2)?})))?.collect::<Result<Vec<_>,_>>()?;
+        Ok(values)
+    }).await?))
 }
 async fn api_members(
     State(s): State<AppState>,
@@ -593,7 +615,7 @@ async fn space_page(
         for card in &mut lists { card.favorite = sidebar.favorite_ids.contains(&card.id); }
         let open = lists.iter().map(|l|l.open).sum();
         let completed = lists.iter().map(|l|l.completed).sum();
-        Ok(SpaceOverview { sidebar, workspace, reference, lists, open, completed, can_edit:rank>=2 })
+        Ok(SpaceOverview { sidebar, workspace, reference, lists, open, completed, can_edit:rank>=3 })
     }).await?;
     if requested != overview.reference {
         return Ok(Redirect::to(&format!("/space/{}", overview.reference)).into_response());
@@ -1175,6 +1197,41 @@ mod tests {
                 .to_vec(),
         )
         .unwrap()
+    }
+
+    #[tokio::test]
+    async fn member_email_lookup_requires_owner_and_does_not_enumerate_strangers() {
+        let (app, state) = app();
+        let id = state.run(|db| {
+            db.conn.execute("INSERT INTO auth_identities(issuer,subject,user_id,email) VALUES('test','guest','guest','guest@example.test')",[])?;
+            Ok(db.create_workspace("dev", WorkspaceInput { title:"Lookup".into(), description:String::new() })?.id)
+        }).await.unwrap();
+        let path = format!("/api/v1/workspaces/{id}/people?q=guest");
+        assert_eq!(
+            json_request(&app, "GET", &path, json!({}), false).await.0,
+            StatusCode::UNAUTHORIZED
+        );
+        let (status, result) = json_request(&app, "GET", &path, json!({}), true).await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(result.as_array().unwrap().is_empty());
+        let (_, result) = json_request(
+            &app,
+            "GET",
+            &format!("{path}%40example.test"),
+            json!({}),
+            true,
+        )
+        .await;
+        assert_eq!(result[0]["id"], "guest");
+        let (status, _) = json_request(
+            &app,
+            "GET",
+            "/api/v1/workspaces/unknown/people?q=guest%40example.test",
+            json!({}),
+            true,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
     }
     #[tokio::test]
     async fn sharing_acknowledgement_and_revisions_are_enforced_through_rest() {
