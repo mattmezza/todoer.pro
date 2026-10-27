@@ -5091,3 +5091,34 @@ button[aria-label$='actions']:is(:hover, :focus-visible) {
 .reference-sidebar .account-menu-panel .nav-heading {
   margin: 8px 12px 4px;
 }
+
+.list-settings-panel::backdrop {
+  transition:
+    background-color 100ms ease-out,
+    backdrop-filter 100ms ease-out;
+}
+.list-settings-panel[data-closing]::backdrop {
+  background-color: transparent;
+  backdrop-filter: blur(0);
+}
+@starting-style {
+  .list-settings-panel::backdrop {
+    background-color: transparent;
+    backdrop-filter: blur(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .list-settings-panel::backdrop {
+    transition: none;
+  }
+}
+
+.list-settings-panel .settings-content .tag-pills input.tag-inline-input {
+  border-radius: 999px;
+  min-height: 36px;
+  height: 36px;
+  padding: 6px 12px;
+  flex: 0 1 180px;
+  max-width: 100%;
+  background: transparent;
+}
