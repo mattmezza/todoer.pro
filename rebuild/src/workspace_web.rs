@@ -571,6 +571,9 @@ struct SpaceOverview {
     lists: Vec<SpaceListCard>,
     open: i64,
     completed: i64,
+    total: i64,
+    planned_today: usize,
+    planned_week: usize,
     can_edit: bool,
 }
 struct SpaceListCard {
@@ -615,7 +618,15 @@ async fn space_page(
         for card in &mut lists { card.favorite = sidebar.favorite_ids.contains(&card.id); }
         let open = lists.iter().map(|l|l.open).sum();
         let completed = lists.iter().map(|l|l.completed).sum();
-        Ok(SpaceOverview { sidebar, workspace, reference, lists, open, completed, can_edit:rank>=3 })
+        let prefs = db.notification_preferences(&actor)?;
+        let tz: chrono_tz::Tz = prefs.timezone.parse().map_err(|_| Error::Invalid("Invalid timezone".into()))?;
+        let today = chrono::Utc::now().with_timezone(&tz).date_naive();
+        let week = today - chrono::Duration::days(((chrono::Datelike::weekday(&today).number_from_monday()+7-prefs.week_start)%7).into());
+        let tasks = db.planning_timeline(&actor, &week.to_string(), &(week+chrono::Duration::days(6)).to_string())?;
+        let tasks = tasks.iter().filter(|row| lists.iter().any(|list| list.id == row.task.list_id)).collect::<Vec<_>>();
+        let planned_today = tasks.iter().filter(|row| row.dates.iter().any(|date| date == &today.to_string())).count();
+        let planned_week = tasks.len();
+        Ok(SpaceOverview { sidebar, workspace, reference, lists, open, completed, total:open+completed, planned_today, planned_week, can_edit:rank>=3 })
     }).await?;
     if requested != overview.reference {
         return Ok(Redirect::to(&format!("/space/{}", overview.reference)).into_response());

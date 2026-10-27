@@ -229,6 +229,8 @@ struct PlanningPage {
     range: String,
     body: String,
     tabs: String,
+    space_filters: String,
+    selected_spaces: String,
     today: String,
     week_start: u32,
 }
@@ -236,6 +238,7 @@ struct PlanningPage {
 struct CalendarQuery {
     range: Option<String>,
     tz: Option<String>,
+    spaces: Option<String>,
 }
 fn calendar_range(
     today: chrono::NaiveDate,
@@ -255,6 +258,7 @@ fn calendar_range(
             monday - Duration::days(1),
             "Prev week",
         ),
+        "week" => (monday, monday + Duration::days(6), "This week"),
         "wtn" => (monday, today, "Week so far"),
         "yesterday" => (
             today - Duration::days(1),
@@ -286,6 +290,7 @@ async fn calendar(
     h: HeaderMap,
     key: String,
     timezone: Option<String>,
+    selected_spaces: Option<String>,
 ) -> Result<Response, ApiError> {
     let a = s.auth(&h, false)?;
     let actor = a.clone();
@@ -297,8 +302,50 @@ async fn calendar(
     let today = Utc::now().with_timezone(&tz).date_naive();
     let (from, to, label) = calendar_range(today, &key, prefs.week_start)?;
     let sidebar_actor = a.clone();
-    let rows = s
-        .run(move |db| db.planning_timeline(&a, &from.to_string(), &to.to_string()))
+    let requested = selected_spaces.unwrap_or_default();
+    if requested.len() > 4096 {
+        return Err(Error::Invalid("Too many space filters".into()).into());
+    }
+    let (rows, spaces, selected) = s
+        .run(move |db| {
+            let available = db.workspaces(&a)?;
+            let mut selected = std::collections::BTreeSet::new();
+            for value in requested.split(',').filter(|v| !v.is_empty()) {
+                let id = crate::defaults::resolve(&db.conn, "workspace", value)?;
+                if !available.iter().any(|w| w.id == id) {
+                    return Err(Error::Invalid("Space filter is unavailable".into()));
+                }
+                selected.insert(id);
+            }
+            let mut rows = db.planning_timeline(&a, &from.to_string(), &to.to_string())?;
+            if !selected.is_empty() {
+                let mut stmt = db
+                    .conn
+                    .prepare("SELECT id,workspace_id FROM lists WHERE workspace_id IS NOT NULL")?;
+                let lists = stmt
+                    .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
+                    .collect::<Result<std::collections::HashMap<_, _>, _>>()?;
+                rows.retain(|row| {
+                    lists
+                        .get(&row.task.list_id)
+                        .is_some_and(|id| selected.contains(id))
+                });
+            }
+            let spaces = available
+                .into_iter()
+                .map(|w| {
+                    let alias = crate::defaults::public_id(&db.conn, "workspace", &w.id)?;
+                    Ok((alias, w.title, selected.contains(&w.id)))
+                })
+                .collect::<Result<Vec<_>, Error>>()?;
+            let selected = spaces
+                .iter()
+                .filter(|v| v.2)
+                .map(|v| v.0.clone())
+                .collect::<Vec<_>>()
+                .join(",");
+            Ok((rows, spaces, selected))
+        })
         .await?;
     let mut body = String::new();
     for row in rows {
@@ -330,12 +377,38 @@ async fn calendar(
     ] {
         let (_, _, caption) = calendar_range(today, tab, prefs.week_start)?;
         tabs.push_str(&format!(
-            "<a href=\"/today?range={tab}&amp;tz={timezone}\" {}>{caption}</a>",
+            "<a href=\"/today?range={tab}&amp;tz={timezone}&amp;spaces={selected}\" {}>{caption}</a>",
             if tab == key {
                 "aria-current=\"page\""
             } else {
                 ""
             }
+        ));
+    }
+    let mut space_filters = format!(
+        "<a href=\"/today?range={key}&amp;tz={timezone}\" {}>All spaces</a>",
+        if selected.is_empty() {
+            "aria-current=\"true\""
+        } else {
+            ""
+        }
+    );
+    let selected_ids = selected
+        .split(',')
+        .filter(|v| !v.is_empty())
+        .collect::<std::collections::BTreeSet<_>>();
+    for (id, title, active) in spaces {
+        let mut next = selected_ids.clone();
+        if active {
+            next.remove(id.as_str());
+        } else {
+            next.insert(id.as_str());
+        }
+        let next = next.into_iter().collect::<Vec<_>>().join(",");
+        space_filters.push_str(&format!(
+            "<a href=\"/today?range={key}&amp;tz={timezone}&amp;spaces={next}\" {}>{}</a>",
+            if active { "aria-current=\"true\"" } else { "" },
+            esc(&title)
         ));
     }
     let csrf = s.csrf_for(&h);
@@ -346,6 +419,8 @@ async fn calendar(
         sidebar,
         title: label.into(),
         tabs,
+        space_filters,
+        selected_spaces: selected,
         today: today.to_string(),
         week_start: prefs.week_start,
         timezone,
@@ -363,10 +438,17 @@ async fn today(
     h: HeaderMap,
     Query(q): Query<CalendarQuery>,
 ) -> Result<Response, ApiError> {
-    calendar(s, h, q.range.unwrap_or_else(|| "today".into()), q.tz).await
+    calendar(
+        s,
+        h,
+        q.range.unwrap_or_else(|| "today".into()),
+        q.tz,
+        q.spaces,
+    )
+    .await
 }
 async fn upcoming(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
-    calendar(s, h, "upcoming".into(), None).await
+    calendar(s, h, "upcoming".into(), None, None).await
 }
 async fn recurring(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
     let a = s.auth(&h, false)?;
