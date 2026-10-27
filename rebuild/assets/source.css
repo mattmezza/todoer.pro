@@ -6790,3 +6790,6 @@ body:has(.quiet-info) .task-play {
 }
 
 .planning-space-filters a:not(:first-child) { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.planning-space-filters { align-items: center; }
+.planning-space-filters a { display: inline-flex; align-items: center; line-height: 20px; }

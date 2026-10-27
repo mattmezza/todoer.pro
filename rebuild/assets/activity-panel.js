@@ -41,7 +41,7 @@ export function mountActivity(container, kind, id) {
   entries.className = 'activity-timeline';
   const more = document.createElement('button');
   more.type = 'button';
-  more.textContent = 'Load earlier changes';
+  more.textContent = 'Show more';
   more.className = 'activity-more';
   more.hidden = true;
   container.append(heading, message, entries, more);
@@ -50,7 +50,7 @@ export function mountActivity(container, kind, id) {
     more.disabled = true;
     try {
       const response = await fetch(
-        `/api/v1/${kind === 'workspace' ? 'workspaces' : 'tasks'}/${encodeURIComponent(id)}/activity${before ? `?before=${before}` : ''}`,
+        `/api/v1/${kind === 'workspace' ? 'workspaces' : kind === 'list' ? 'lists' : 'tasks'}/${encodeURIComponent(id)}/activity${before ? `?before=${before}` : ''}`,
         { cache: 'no-store', signal: controller.signal },
       );
       if (!response.ok)
@@ -77,7 +77,7 @@ export function mountActivity(container, kind, id) {
         );
         action.textContent = actions.map((value) => value[0]).join(' · ');
         row.append(action);
-        if (kind === 'workspace') {
+        if (kind !== 'task') {
           const link = document.createElement('a');
           link.href = `/tasks/${encodeURIComponent(item.task_id)}`;
           link.textContent = item.title;

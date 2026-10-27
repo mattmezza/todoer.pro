@@ -405,10 +405,20 @@ async fn calendar(
             next.insert(id.as_str());
         }
         let next = next.into_iter().collect::<Vec<_>>().join(",");
+        let display_title = title
+            .rsplit_once(' ')
+            .map_or(title.as_str(), |(name, suffix)| {
+                if suffix.len() == 8 && suffix.bytes().all(|c| c.is_ascii_hexdigit()) {
+                    name
+                } else {
+                    title.as_str()
+                }
+            })
+            .trim_start_matches('@');
         space_filters.push_str(&format!(
             "<a href=\"/today?range={key}&amp;tz={timezone}&amp;spaces={next}\" {}>@{}</a>",
             if active { "aria-current=\"true\"" } else { "" },
-            esc(&title)
+            esc(display_title)
         ));
     }
     let csrf = s.csrf_for(&h);
