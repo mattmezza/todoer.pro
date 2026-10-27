@@ -196,10 +196,11 @@ listDialog?.querySelector('form').addEventListener('submit', async (event) => {
   }
 });
 
-for (const image of document.querySelectorAll('[data-profile-avatar]'))
-  image.addEventListener('error', () => {
-    image.hidden = true;
-  });
+for (const image of document.querySelectorAll('[data-profile-avatar]')) {
+  const fallback = () => { image.hidden = true; };
+  image.addEventListener('error', fallback);
+  if (image.complete && image.naturalWidth === 0) fallback();
+}
 
 function applyMenuIcons() {
   for (const grip of document.querySelectorAll('.task-drag-grip svg:has(use)')) {

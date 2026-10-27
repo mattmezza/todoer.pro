@@ -281,8 +281,12 @@ pub(super) async fn google_callback(
     let issuer = identity.issuer.clone();
     let subject = identity.subject.clone();
     let picture = identity.picture_url.clone();
+    let display_name = identity.display_name.clone();
     s.run(move |store| {
         store.conn.execute("UPDATE auth_identities SET picture_url=?1 WHERE issuer=?2 AND subject=?3 AND user_id=?4", rusqlite::params![picture,issuer,subject,actor])?;
+        if let Some(name) = display_name.as_deref().map(str::trim).filter(|n| !n.is_empty() && n.chars().count() <= 200) {
+            store.conn.execute("UPDATE users SET name=?1 WHERE id=?2 AND name='Todoer user'", rusqlite::params![name,actor])?;
+        }
         store.ensure_user_defaults(&actor)
     })
         .await?;

@@ -47,7 +47,12 @@ pub(super) fn build_sidebar(
         |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?)),
     ).optional()?;
     let masked_email = profile.as_ref().and_then(|(_, email, _)| email.trim().split_once('@'))
-        .map(|(local, domain)| format!("{}***@{}", local.chars().next().unwrap_or('*'), domain))
+        .map(|(local, domain)| {
+            let chars = local.chars().collect::<Vec<_>>();
+            let leading = chars.iter().take(2).collect::<String>();
+            let trailing = if chars.len() >= 4 { chars[chars.len()-2..].iter().collect::<String>() } else { String::new() };
+            format!("{leading}***{trailing}@{domain}")
+        })
         .unwrap_or_else(|| "Local account".into());
     let avatar_url = match profile {
         Some((issuer, _, picture))
@@ -226,7 +231,7 @@ mod tests {
         let sidebar = build_sidebar(&db, "dev", &list.id, "synthetic-csrf".into()).unwrap();
         assert_eq!(sidebar.current_workspace_label, "@personal-work");
         let global = build_sidebar(&db, "dev", "", String::new()).unwrap();
-        assert_eq!(global.current_workspace_label, "U***@EXAMPLE.INVALID");
+        assert_eq!(global.current_workspace_label, "US***ER@EXAMPLE.INVALID");
         assert!(global.current_workspace_id.is_empty());
         assert_eq!(
             sidebar.avatar_url,
