@@ -59,6 +59,7 @@ pub(super) fn routes() -> Router<AppState> {
         .route("/api/v1/attachments/{id}", delete(delete_attachment))
         .route("/api/v1/attachments/{id}/delete", post(delete_attachment))
         .route("/api/v1/attachments/{id}/download", get(download))
+        .route("/api/v1/attachments/{id}/preview", get(preview))
         .route("/fragments/tasks/{id}/discussion", get(fragment))
 }
 #[derive(Deserialize)]
@@ -282,6 +283,26 @@ async fn download(
     h: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
+    serve_file(s, h, id, false).await
+}
+async fn preview(
+    State(s): State<AppState>, h: HeaderMap, Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    serve_file(s, h, id, true).await
+}
+fn preview_type(filename: &str) -> Option<&'static str> {
+    match filename.rsplit('.').next().unwrap_or("").to_ascii_lowercase().as_str() {
+        "pdf" => Some("application/pdf"),
+        "png" => Some("image/png"), "jpg" | "jpeg" => Some("image/jpeg"),
+        "gif" => Some("image/gif"), "webp" => Some("image/webp"),
+        "svg" => Some("image/svg+xml"),
+        "txt" | "md" | "csv" | "tsv" | "log" | "json" => Some("text/plain; charset=utf-8"),
+        "mp3" => Some("audio/mpeg"), "wav" => Some("audio/wav"),
+        "mp4" => Some("video/mp4"), "webm" => Some("video/webm"),
+        _ => None,
+    }
+}
+async fn serve_file(s: AppState, h: HeaderMap, id: String, preview: bool) -> Result<Response, ApiError> {
     let actor = s.auth(&h, false)?;
     let a = actor.clone();
     let lookup = id.clone();
@@ -290,11 +311,13 @@ async fn download(
     // A slow object read must not hand data to a now-revoked/deleted requester.
     let actor = s.auth(&h, false)?;
     let current = s.run(move |db| db.attachment(&actor, &id)).await?;
-    let disposition = crate::object_storage::content_disposition(&current.filename);
+    let mime = if preview { preview_type(&current.filename) } else { None };
+    let mut disposition = crate::object_storage::content_disposition(&current.filename);
+    if mime.is_some() { disposition = disposition.replacen("attachment;", "inline;", 1); }
     let mut response = bytes.into_response();
     response.headers_mut().insert(
         header::CONTENT_TYPE,
-        "application/octet-stream".parse().unwrap(),
+        mime.unwrap_or("application/octet-stream").parse().unwrap(),
     );
     response.headers_mut().insert(
         header::CONTENT_DISPOSITION,
@@ -312,12 +335,26 @@ async fn download(
     response
         .headers_mut()
         .insert("x-content-type-options", "nosniff".parse().unwrap());
+    response.headers_mut().insert("content-security-policy", "sandbox; default-src 'none'; style-src 'unsafe-inline'; media-src 'self'; img-src 'self' data:".parse().unwrap());
     Ok(response)
 }
 #[derive(Serialize)]
 struct FileView {
     record: Attachment,
     can_delete: bool,
+}
+impl FileView {
+    fn type_label(&self) -> String {
+        let ext = self.record.filename.rsplit('.').next().unwrap_or("");
+        if ext.len() <= 6 && ext.chars().all(|c| c.is_ascii_alphanumeric()) { ext.to_ascii_uppercase() } else { "FILE".into() }
+    }
+    fn size_label(&self) -> String {
+        let n = self.record.size as f64;
+        if n >= 1_048_576.0 { format!("{:.1} MB", n / 1_048_576.0) }
+        else if n >= 1024.0 { format!("{:.1} KB", n / 1024.0) }
+        else { format!("{} B", self.record.size) }
+    }
+    fn can_preview(&self) -> bool { preview_type(&self.record.filename).is_some() }
 }
 struct CommentView {
     author_name: String,
@@ -695,6 +732,15 @@ mod tests {
                 .as_ref(),
             bytes
         );
+        let preview_url = download.replace("/download", "/preview");
+        let response = app.clone().oneshot(Request::builder().uri(&preview_url)
+            .header("authorization", format!("Bearer {TOKEN}"))
+            .body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "text/plain; charset=utf-8");
+        assert!(response.headers()[header::CONTENT_DISPOSITION].to_str().unwrap().starts_with("inline;"));
+        assert!(response.headers()["content-security-policy"].to_str().unwrap().starts_with("sandbox;"));
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
         state
             .store
             .lock()

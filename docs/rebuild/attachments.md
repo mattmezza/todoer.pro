@@ -83,3 +83,19 @@ The default cap remains 25 MiB. A declared or observed oversized object returns 
 The ignored `object_storage::legacy_tests::local_legacy_source_reads_private_uuid_keys_and_computes_real_digest` protocol test uses the same isolated Moto fixture as above, but a separate source configuration and credential fixture. It seeds a private root UUID object and exercises actual signed HEAD/GET, expected and unknown-size reads, independently computed SHA-256, invalid-key refusal, size/oversize refusal and anonymous-read denial. Run it with the same `TODOER_TEST_S3_ENDPOINT` and `TODOER_TEST_S3_BUCKET` values. This source adapter and the destination adapter can be supplied separately to transfer code; neither implies that real production attachment bytes have already been migrated.
 
 Actual local source protocol result on 2026-10-26: one test passed in 0.04s, printing `legacy private S3 source: root UUID key, signed HEAD/GET, exact size, computed SHA-256, bad-key/size/oversize refusal and anonymous denial passed`. This is emulator-backed HTTP coverage, not evidence that real legacy objects were accessed.
+
+
+## Attachment cards and previews
+
+Task and comment attachments use file cards with a type badge, readable binary-scaled
+KB/MB size, download action and authorized removal action. Clicking a supported
+file opens `/api/v1/attachments/{id}/preview` in a separate tab. Preview supports
+PDF, PNG/JPEG/GIF/WebP/SVG, plain text/Markdown/CSV/TSV/log/JSON and common
+MP3/WAV/MP4/WebM formats; browser codec support still applies. Other types download.
+The preview route shares download authorization, checksum verification and the
+second access check after storage reads. It selects a fixed content type from an
+extension allowlist, uses inline disposition only for that allowlist, and sets
+CSP sandbox, nosniff and private/no-store headers. HTML and script files never
+receive executable inline content types. The download endpoint keeps its existing
+octet-stream attachment behavior. Local Chromium verified the cards and an SVG
+preview opening from a card against MinIO.
