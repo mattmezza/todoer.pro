@@ -1,13 +1,28 @@
 //! Transactional first-capture destinations and persistent public aliases.
 use crate::core::Error;
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use rusqlite::{Connection, OptionalExtension, params};
 
+/// Readable random identifiers; never used for security tokens.
+pub(crate) fn readable_id(length: usize) -> String {
+    const ALPHABET: &[u8] = b"abcdefghjkmnpqrstuvwxyz23456789";
+    let limit = 256 - 256 % ALPHABET.len();
+    let mut result = String::with_capacity(length);
+    while result.len() < length {
+        for (index, byte) in uuid::Uuid::new_v4().as_bytes().iter().enumerate() {
+            // UUID version and variant bytes contain fixed bits.
+            if index == 6 || index == 8 || usize::from(*byte) >= limit {
+                continue;
+            }
+            result.push(ALPHABET[usize::from(*byte) % ALPHABET.len()] as char);
+            if result.len() == length {
+                break;
+            }
+        }
+    }
+    result
+}
 pub fn short_id(prefix: &str) -> String {
-    format!(
-        "{prefix}_{}",
-        URL_SAFE_NO_PAD.encode(&uuid::Uuid::new_v4().as_bytes()[..9])
-    )
+    format!("{prefix}_{}", readable_id(12))
 }
 pub fn entity_id(c: &Connection, table: &str, prefix: &str) -> Result<String, Error> {
     // Table names are static call-site constants, never request input.
@@ -51,8 +66,7 @@ pub fn public_id(c: &Connection, kind: &str, id: &str) -> Result<String, Error> 
             {
                 return Ok(value);
             }
-            let candidate =
-                URL_SAFE_NO_PAD.encode(&uuid::Uuid::new_v4().as_bytes()[..6])[..7].to_owned();
+            let candidate = readable_id(7);
             if c.query_row(&format!("SELECT EXISTS(SELECT 1 FROM {entities} WHERE id=?1 UNION ALL SELECT 1 FROM entity_public_ids WHERE short_id=?1)"), [&candidate], |r| r.get::<_, bool>(0))? { continue; }
             c.execute(
                 &format!("INSERT OR IGNORE INTO {table}({column},short_id) VALUES(?1,?2)"),
@@ -597,5 +611,21 @@ mod tests {
         drop(auth);
         drop(db);
         let _ = std::fs::remove_file(path);
+    }
+}
+
+#[cfg(test)]
+mod readable_tests {
+    #[test]
+    fn new_ids_have_only_distinguishable_characters() {
+        for _ in 0..1000 {
+            let id = super::readable_id(7);
+            assert_eq!(id.len(), 7);
+            assert!(
+                id.bytes()
+                    .all(|b| b"abcdefghjkmnpqrstuvwxyz23456789".contains(&b))
+            );
+        }
+        assert_eq!(super::short_id("t").len(), 14);
     }
 }
