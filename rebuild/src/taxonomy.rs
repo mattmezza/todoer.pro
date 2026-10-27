@@ -728,7 +728,7 @@ fn exact_matches(
             id: if token.kind == "task" {
                 task(c, &token.query)?.id
             } else {
-                token.query.clone()
+                crate::defaults::resolve(c, token.kind, &token.query)?
             },
             label,
             context: String::new(),
@@ -892,6 +892,8 @@ fn target(
             .map(|title| (title, format!("/workspaces/{id}")))
         }
         "list" => {
+            let resolved = crate::defaults::resolve(c, "list", id)?;
+            let id = resolved.as_str();
             if access_rank(c, actor, id, 1).is_err() {
                 return Ok(None);
             }

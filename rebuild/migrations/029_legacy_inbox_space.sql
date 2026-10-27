@@ -1,0 +1,1 @@
+-- The migration hook assigns single-account legacy Inboxes to private Personal spaces.

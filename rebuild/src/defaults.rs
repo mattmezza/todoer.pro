@@ -32,11 +32,16 @@ fn prefix(kind: &str) -> Result<&'static str, Error> {
     }
 }
 pub fn public_id(c: &Connection, kind: &str, id: &str) -> Result<String, Error> {
-    if kind == "task" {
+    if kind == "task" || kind == "list" {
+        let (table, column, entities) = if kind == "task" {
+            ("task_public_ids", "task_id", "tasks")
+        } else {
+            ("list_public_ids", "list_id", "lists")
+        };
         loop {
             if let Some(value) = c
                 .query_row(
-                    "SELECT short_id FROM task_public_ids WHERE task_id=?1",
+                    &format!("SELECT short_id FROM {table} WHERE {column}=?1"),
                     [id],
                     |r| r.get(0),
                 )
@@ -46,10 +51,9 @@ pub fn public_id(c: &Connection, kind: &str, id: &str) -> Result<String, Error> 
             }
             let candidate =
                 URL_SAFE_NO_PAD.encode(&uuid::Uuid::new_v4().as_bytes()[..6])[..7].to_owned();
-            // Both namespaces remain valid forever; do not allocate over an old ID.
-            if c.query_row("SELECT EXISTS(SELECT 1 FROM tasks WHERE id=?1 OR reference=?1 UNION ALL SELECT 1 FROM entity_public_ids WHERE short_id=?1)", [&candidate], |r| r.get::<_, bool>(0))? { continue; }
+            if c.query_row(&format!("SELECT EXISTS(SELECT 1 FROM {entities} WHERE id=?1 UNION ALL SELECT 1 FROM entity_public_ids WHERE short_id=?1)"), [&candidate], |r| r.get::<_, bool>(0))? { continue; }
             c.execute(
-                "INSERT OR IGNORE INTO task_public_ids(task_id,short_id) VALUES(?1,?2)",
+                &format!("INSERT OR IGNORE INTO {table}({column},short_id) VALUES(?1,?2)"),
                 params![id, candidate],
             )?;
         }
@@ -84,10 +88,15 @@ pub fn public_id(c: &Connection, kind: &str, id: &str) -> Result<String, Error> 
     }
 }
 pub fn resolve(c: &Connection, kind: &str, id: &str) -> Result<String, Error> {
-    if kind == "task" {
+    if kind == "task" || kind == "list" {
+        let (table, column) = if kind == "task" {
+            ("task_public_ids", "task_id")
+        } else {
+            ("list_public_ids", "list_id")
+        };
         if let Some(value) = c
             .query_row(
-                "SELECT task_id FROM task_public_ids WHERE short_id=?1",
+                &format!("SELECT {column} FROM {table} WHERE short_id=?1"),
                 [id],
                 |r| r.get(0),
             )
@@ -103,6 +112,64 @@ pub fn resolve(c: &Connection, kind: &str, id: &str) -> Result<String, Error> {
     )
     .optional()?
     .unwrap_or_else(|| id.to_owned()))
+}
+/// Upgrade legacy single-account Inboxes without exposing them to another account.
+pub(crate) fn adopt_legacy_inboxes(c: &Connection) -> Result<(), Error> {
+    let candidates = c.prepare("SELECT l.id,min(m.user_id) FROM lists l JOIN memberships m ON m.list_id=l.id LEFT JOIN membership_roles mr ON mr.list_id=m.list_id AND mr.user_id=m.user_id WHERE l.workspace_id IS NULL AND l.archived=0 AND lower(trim(l.title))='inbox' GROUP BY l.id HAVING count(*)=1 AND min(coalesce(mr.role,'editor'))='editor'")?.query_map([], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?)))?.collect::<Result<Vec<_>,_>>()?;
+    for (inbox, user) in candidates {
+        let personal: Option<String> = c.query_row("SELECT w.id FROM workspaces w JOIN workspace_members m ON m.workspace_id=w.id LEFT JOIN workspace_lifecycle x ON x.workspace_id=w.id WHERE lower(w.title)='personal' AND m.user_id=?1 AND m.role='owner' AND x.deleted_at IS NULL AND coalesce(x.archived,0)=0 AND (SELECT count(*) FROM workspace_members m2 WHERE m2.workspace_id=w.id)=1 ORDER BY w.id LIMIT 1", [&user], |r| r.get(0)).optional()?;
+        let space = if let Some(id) = personal {
+            id
+        } else {
+            let id = entity_id(c, "workspaces", "s")?;
+            c.execute(
+                "INSERT INTO workspaces(id,title) VALUES(?1,'Personal')",
+                [&id],
+            )?;
+            c.execute(
+                "INSERT INTO workspace_members VALUES(?1,?2,'owner')",
+                params![id, user],
+            )?;
+            crate::slugs::workspace(c, &id)?;
+            public_id(c, "workspace", &id)?;
+            id
+        };
+        let previous: Option<String> = c
+            .query_row(
+                "SELECT list_id FROM workspace_defaults WHERE workspace_id=?1",
+                [&space],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if let Some(previous) = previous.as_ref() {
+            // Retain, but retire, a pristine empty Inbox created by the older bootstrap.
+            let pristine: bool = c.query_row("SELECT EXISTS(SELECT 1 FROM lists l WHERE l.id=?1 AND l.title='Inbox' AND l.description='' AND l.revision=1 AND l.color IS NULL AND l.color_hex IS NULL AND NOT EXISTS(SELECT 1 FROM tasks t WHERE t.list_id=l.id) AND (SELECT count(*) FROM sections s WHERE s.list_id=l.id)=1 AND NOT EXISTS(SELECT 1 FROM memberships m WHERE m.list_id=l.id AND m.user_id<>?2))", params![previous,user], |r| r.get(0))?;
+            if pristine {
+                c.execute(
+                    "UPDATE lists SET archived=1,revision=revision+1 WHERE id=?1",
+                    [previous],
+                )?;
+                c.execute("UPDATE entity_slugs SET slug='inbox-bootstrap-'||substr(entity_id,1,14) WHERE kind='list' AND entity_id=?1",[previous])?;
+                c.execute(
+                    "UPDATE workspace_defaults SET list_id=?1 WHERE workspace_id=?2",
+                    params![inbox, space],
+                )?;
+            }
+        } else {
+            c.execute(
+                "INSERT INTO workspace_defaults VALUES(?1,?2)",
+                params![space, inbox],
+            )?;
+        }
+        c.execute(
+            "UPDATE lists SET workspace_id=?1,restricted=1,revision=revision+1 WHERE id=?2",
+            params![space, inbox],
+        )?;
+        c.execute("INSERT INTO user_defaults(user_id,workspace_id) VALUES(?1,?2) ON CONFLICT(user_id) DO UPDATE SET workspace_id=excluded.workspace_id",params![user,space])?;
+        crate::slugs::list(c, &inbox)?;
+        list(c, &inbox)?;
+    }
+    Ok(())
 }
 pub fn list(c: &Connection, id: &str) -> Result<String, Error> {
     if let Some(section) = c
@@ -245,6 +312,46 @@ mod tests {
         workspace::{CreateList, WorkspaceInput},
     };
     #[test]
+    fn legacy_inbox_adoption_preserves_private_access_and_is_repeatable() {
+        let mut db = Store::open(":memory:").unwrap();
+        db.seed_dev().unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO membership_roles VALUES('inbox','dev','viewer')",
+                [],
+            )
+            .unwrap();
+        adopt_legacy_inboxes(&db.conn).unwrap();
+        let space: Option<String> = db
+            .conn
+            .query_row("SELECT workspace_id FROM lists WHERE id='inbox'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert!(space.is_none());
+        db.conn
+            .execute("DELETE FROM membership_roles WHERE list_id='inbox'", [])
+            .unwrap();
+        let count = db.tasks("dev", "inbox").unwrap().len();
+        adopt_legacy_inboxes(&db.conn).unwrap();
+        let space: String = db
+            .conn
+            .query_row("SELECT workspace_id FROM lists WHERE id='inbox'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        adopt_legacy_inboxes(&db.conn).unwrap();
+        assert_eq!(db.tasks("dev", "inbox").unwrap().len(), count);
+        assert!(db.tasks("other", "inbox").is_err());
+        let actual: String = db
+            .conn
+            .query_row("SELECT workspace_id FROM lists WHERE id='inbox'", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(actual, space);
+    }
+    #[test]
     fn workspace_and_list_creation_are_ready_for_first_capture() {
         let mut db = Store::open(":memory:").unwrap();
         db.seed_dev().unwrap();
@@ -385,6 +492,12 @@ mod tests {
         let mut db = Store::open(":memory:").unwrap();
         db.seed_dev().unwrap();
         let alias = public_id(&db.conn, "list", "private").unwrap();
+        assert_eq!(alias.len(), 7);
+        db.conn.execute("INSERT INTO entity_public_ids(kind,entity_id,short_id) VALUES('list','private','l_oldPrivateAlias')",[]).unwrap();
+        assert_eq!(
+            resolve(&db.conn, "list", "l_oldPrivateAlias").unwrap(),
+            "private"
+        );
         assert_eq!(public_id(&db.conn, "list", "private").unwrap(), alias);
         assert_eq!(resolve(&db.conn, "list", &alias).unwrap(), "private");
         assert!(

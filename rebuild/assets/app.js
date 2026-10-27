@@ -1,3 +1,4 @@
+import { stowInfo } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
 import { mountCaptures } from './capture-ui.js';
 import './site.js';
@@ -68,6 +69,10 @@ const input = $('#capture-title');
 input.value = sessionStorage.getItem(draftKey) || '';
 
 function notice(text, error = false) {
+  if (!error && stowInfo(text, 'list')) {
+    $('#notice').textContent = '';
+    return;
+  }
   $('#notice').textContent = text;
   $('#notice').classList.toggle('error', error);
 }
@@ -306,7 +311,7 @@ $('#task-list').addEventListener('click', async (e) => {
     row.querySelector('details')?.removeAttribute('open');
     if (
       !canWrite ||
-      !(await confirmAction('Complete this task and every unfinished subtask?'))
+      !(await confirmAction('Complete this task and every unfinished sub-task?'))
     )
       return;
     const button = e.target.closest('button');
@@ -491,7 +496,7 @@ $('#trash-task').onclick = async () => {
   if (!editor || editorBusy) return;
   if (
     !(await confirmAction(
-      'Move this task and its entire checklist to trash? Unsaved edits stay in your draft.',
+      'Move this task and all its sub-tasks to trash? Unsaved edits stay in your draft.',
     ))
   )
     return;
@@ -673,7 +678,7 @@ function renderChildren(tasks) {
     title.onclick = () => openTask(child.id);
     const deeper = document.createElement('span');
     deeper.textContent = tasks.some((t) => t.parent_id === child.id)
-      ? 'Open checklist →'
+      ? 'Open sub-tasks →'
       : '→';
     deeper.className = 'muted';
     row.append(complete, title, deeper);
@@ -739,7 +744,7 @@ $('#move-task').onclick = async () => {
     let acknowledge_access_change = false;
     if (preview.audience_broadens) {
       acknowledge_access_change = await confirmAction(
-        `This move gives ${preview.added_members} additional member(s) access to this task and its entire checklist. Allow this access change?`,
+        `This move gives ${preview.added_members} additional member(s) access to this task and all its sub-tasks. Allow this access change?`,
       );
       if (!acknowledge_access_change) return;
     }

@@ -1,8 +1,9 @@
 import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
-import { openListSettings } from './list-settings.js';
+import { openListSettings, setupTaskSettingsDock } from './list-settings.js';
 import { previewTaskMove } from './task-page.js';
 export function mountListUi({ api, notice, listId }) {
+  setupTaskSettingsDock(document.querySelector('main'), 'list', listId);
   const canWrite = document.body.dataset.canWrite === 'true';
   const edit = document.querySelector('[data-list-edit]');
   const sectionCreate = document.querySelector('[data-section-create]');

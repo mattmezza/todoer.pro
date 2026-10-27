@@ -248,6 +248,8 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (25, include_str!("../migrations/025_scoped_activity.sql")),
     (26, include_str!("../migrations/026_compact_task_ids.sql")),
     (27, include_str!("../migrations/027_identity_picture.sql")),
+    (28, include_str!("../migrations/028_compact_list_ids.sql")),
+    (29, include_str!("../migrations/029_legacy_inbox_space.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {
@@ -284,8 +286,11 @@ impl Store {
             )?;
             if !applied {
                 tx.execute_batch(sql)?;
-                if version == 26 {
+                if version == 28 {
                     crate::defaults::backfill(&tx)?;
+                }
+                if version == 29 {
+                    crate::defaults::adopt_legacy_inboxes(&tx)?;
                 }
                 if version == 1 {
                     tx.execute("INSERT INTO tasks_fts(tasks_fts) VALUES('rebuild')", [])?;

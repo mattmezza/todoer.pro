@@ -1,3 +1,4 @@
+import { stowInfo } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
 // Task scheduling is saved separately from the task brief. Every draft retains
 // its original task revision until an explicit save or discard.
@@ -16,6 +17,7 @@ export function mountScheduling({
     throw new Error('Scheduling requires a task, account and container');
   const prefix = `todoer:${encodeURIComponent(accountId)}:scheduling:${encodeURIComponent(taskId)}:`;
   const requests = new Set();
+  let autoSaveTimer;
   let active = true;
   let loading = false;
   let busy = false;
@@ -47,7 +49,7 @@ export function mountScheduling({
   const dueLocal = input('datetime-local', 'due_local');
   const dueZone = input('text', 'due_timezone', defaultZone);
   const priority = select('priority', [
-    ['', 'No priority'],
+    ['', 'Normal priority'],
     ['1', 'High'],
     ['2', 'Medium'],
     ['3', 'Low'],
@@ -136,7 +138,7 @@ export function mountScheduling({
     el(
       'p',
       { class: 'muted' },
-      'Available for an unfinished root task with no subtasks. Starting a series sets this task’s due date and time to the start below. Save schedule edits first. Existing series can be paused or stopped on the Recurring page.',
+      'Available for an unfinished root task with no sub-tasks. Starting a series sets this task’s due date and time to the start below. Finish editing the planning fields first. Existing series can be paused or stopped on the Recurring page.',
     ),
     label('Repeat rule', rule),
     label('Interval in days', interval),
@@ -153,7 +155,7 @@ export function mountScheduling({
   priorityGroup.append(el('legend', {}, 'Priority'));
   const priorityOptions = el('div', { class: 'priority-options' });
   for (const [value, text] of [
-    ['', 'None'],
+    ['', 'Normal'],
     ['3', 'Low'],
     ['2', 'Medium'],
     ['1', 'High'],
@@ -208,6 +210,52 @@ export function mountScheduling({
     wrapper.firstChild.replaceWith(caption);
     iconFor(caption, control === dueKind ? 'clock' : 'calendar');
   }
+  const plannedIntent = el('details', { class: 'planning-date-intent' });
+  const plannedSummary = el('summary');
+  const plannedCaption = el('span', {}, 'Set planned date');
+  iconFor(plannedSummary, 'calendar');
+  plannedSummary.append(plannedCaption);
+  const plannedLabel = planned.closest('label');
+  const plannedHelp = plannedLabel.nextElementSibling;
+  plannedLabel.before(plannedIntent);
+  plannedIntent.append(plannedSummary, plannedLabel, plannedHelp);
+  const dueIntent = el('details', { class: 'planning-date-intent' });
+  const dueSummary = el('summary');
+  const dueCaption = el('span', {}, 'Set due date');
+  iconFor(dueSummary, 'clock');
+  dueSummary.append(dueCaption);
+  const dueLabel = dueKind.closest('label');
+  dueLabel.before(dueIntent);
+  dueIntent.append(dueSummary, dueLabel, dueDate.closest('label'), timedRow);
+  plannedIntent.addEventListener('toggle', () => {
+    if (plannedIntent.open) planned.focus();
+  });
+  dueIntent.addEventListener('toggle', () => {
+    if (dueIntent.open) dueKind.focus();
+  });
+  function dateCaptions() {
+    const readable = (value) => {
+      if (!value) return '';
+      const date = new Date(value.includes('T') ? value : `${value}T12:00:00`);
+      return Number.isNaN(date.getTime())
+        ? value
+        : date.toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          });
+    };
+    plannedCaption.textContent = planned.value
+      ? `Planned · ${readable(planned.value)}`
+      : 'Set planned date';
+    const date =
+      dueKind.value === 'date'
+        ? dueDate.value
+        : dueKind.value === 'timed'
+          ? dueLocal.value
+          : '';
+    dueCaption.textContent = date ? `Due · ${readable(date)}` : 'Set due date';
+  }
   const reminderGroup = el('details', { class: 'planning-group' });
   const reminderSummary = el('summary', {}, 'Reminders');
   reminderGroup.append(reminderSummary);
@@ -244,14 +292,19 @@ export function mountScheduling({
   iconFor(save, 'check');
   iconFor(reload, 'arrow-uturn-left');
   iconFor(addReminder, 'plus');
-  reload.hidden = !(scheduleDraft || recurrenceDraft);
+  reload.hidden = true;
   function updateDraftActions() {
-    reload.hidden = !(scheduleDraft || recurrenceDraft);
+    reload.hidden = true;
   }
   form.addEventListener('input', updateDraftActions);
   form.addEventListener('change', updateDraftActions);
   recurrence.addEventListener('input', updateDraftActions);
   recurrence.addEventListener('change', updateDraftActions);
+  save.hidden = true;
+  stowInfo(
+    'Planning and reminder changes save automatically.',
+    `planning-autosave:${taskId}`,
+  );
   root.append(details);
   container.replaceChildren(root);
   if (!canWrite) {
@@ -373,7 +426,7 @@ export function mountScheduling({
     }
   }
   function say(text) {
-    if (active) notice.textContent = text;
+    if (active) notice.textContent = stowInfo(text, `planning:${taskId}`) ? '' : text;
   }
   function setDisabled(value) {
     for (const control of root.querySelectorAll('input,select,button')) {
@@ -470,6 +523,7 @@ export function mountScheduling({
     reminders.append(row);
   }
   function updateVisibility() {
+    dateCaptions();
     timedRow.hidden = dueKind.value !== 'timed';
     dueDate.closest('label').hidden = dueKind.value !== 'date';
     dueLocal.closest('label').hidden = dueKind.value !== 'timed';
@@ -486,7 +540,15 @@ export function mountScheduling({
     if (!Number.isInteger(baseRevision)) return;
     scheduleDraft = { revision: baseRevision, values: scheduleValues() };
     persist('schedule', scheduleDraft);
+    if (storedSchedule) showPriorityPreview(storedSchedule.schedule);
+    queueAutoSave();
   }
+  function queueAutoSave() {
+    clearTimeout(autoSaveTimer);
+    if (!active || busy || !canWrite || !scheduleDraft || !form.checkValidity()) return;
+    autoSaveTimer = setTimeout(() => saveSchedule(), 450);
+  }
+  window.addEventListener('online', queueAutoSave);
   function recurrenceChanged() {
     if (!active || busy || !canWrite) return;
     updateVisibility();
@@ -539,7 +601,13 @@ export function mountScheduling({
       })),
     };
   }
-  function showDue(schedule) {
+  function showPriorityPreview(schedule) {
+    const priority = scheduleDraft
+      ? Number(scheduleDraft.values.priority) || null
+      : schedule.priority;
+    showDue({ ...schedule, priority }, priority !== schedule.priority);
+  }
+  function showDue(schedule, unsaved = false) {
     const page = document.querySelector('[data-task-page]');
     if (!page || page.dataset.taskId !== taskId) return;
     let summary = page.querySelector('[data-task-due]');
@@ -556,16 +624,30 @@ export function mountScheduling({
     }
     page.dataset.priority = String(schedule?.priority || 'none');
     summary.replaceChildren();
-    summary.hidden = !schedule?.due && !schedule?.planned && !schedule?.priority;
+    summary.hidden = false;
     summary.title = 'Edit planning';
-    if (schedule?.priority) {
+    {
       const priorityBadge = document.createElement('span');
       priorityBadge.className = 'task-priority-summary';
-      priorityBadge.dataset.priority = String(schedule.priority);
-      const names = { 1: 'High priority', 2: 'Medium priority', 3: 'Low priority' };
-      priorityBadge.textContent = names[schedule.priority] || 'Priority';
+      priorityBadge.dataset.priority = String(schedule?.priority || 0);
+      const names = {
+        0: 'Normal priority',
+        1: 'High priority',
+        2: 'Medium priority',
+        3: 'Low priority',
+      };
+      priorityBadge.textContent = names[schedule?.priority || 0];
       iconFor(priorityBadge, 'flag');
-      summary.append(priorityBadge);
+      const line = document.createElement('span');
+      line.className = 'task-priority-line';
+      line.append(priorityBadge);
+      summary.append(line);
+      if (unsaved) {
+        const marker = document.createElement('small');
+        marker.className = 'priority-unsaved';
+        marker.textContent = 'Unsaved';
+        line.prepend(marker);
+      }
     }
     const due = schedule?.due || schedule?.planned;
     if (!due) return;
@@ -592,12 +674,15 @@ export function mountScheduling({
           year: 'numeric',
           ...(due.kind === 'timed' ? { hour: 'numeric', minute: '2-digit' } : {}),
         });
-    summary.append(
+    const dateLabel = document.createElement('span');
+    dateLabel.className = 'task-date-summary';
+    dateLabel.append(
       svg,
       document.createTextNode(
         `${schedule?.due ? 'Due' : 'Planned for'} ${text}${due.kind === 'timed' ? ` · ${due.timezone}` : ''}`,
       ),
     );
+    summary.append(dateLabel);
     summary.title = 'Edit planning';
   }
   async function load(explicit = false) {
@@ -612,7 +697,7 @@ export function mountScheduling({
       const result = await request(`/tasks/${encodeURIComponent(taskId)}/schedule`);
       if (!active || version !== loadVersion) return;
       storedSchedule = result;
-      showDue(result.schedule);
+      showPriorityPreview(result.schedule);
       if (!scheduleDraft) {
         baseRevision = result.task_revision;
         applyValues(fromSchedule(result.schedule));
@@ -623,6 +708,7 @@ export function mountScheduling({
       reminderGroup.open = Boolean(result.schedule.reminders?.length);
       updateDraftActions();
       setDisabled(false);
+      if (scheduleDraft) queueAutoSave();
     } catch (e) {
       if (active) {
         say(`Could not load schedule: ${e.message}. Your draft is preserved.`);
@@ -633,6 +719,7 @@ export function mountScheduling({
     }
   }
   function conflict(message) {
+    reload.hidden = false;
     say(`${message} Your draft is preserved. Review saved data before replacing it.`);
     onConflict?.(new Error(message));
   }
@@ -644,9 +731,9 @@ export function mountScheduling({
     return true;
   }
   async function saveSchedule(event) {
-    event.preventDefault();
-    if (!active || busy || !canWrite || !form.reportValidity()) return;
-    scheduleChanged();
+    event?.preventDefault();
+    clearTimeout(autoSaveTimer);
+    if (!active || busy || !canWrite || !scheduleDraft || !form.checkValidity()) return;
     const expected = baseRevision;
     if (!ensureRevision(expected)) return;
     const v = scheduleValues();
@@ -665,6 +752,8 @@ export function mountScheduling({
       })),
     };
     busy = true;
+    const marker = document.querySelector('[data-task-due] .priority-unsaved');
+    if (marker) marker.textContent = 'Saving…';
     setDisabled(true);
     let release;
     try {
@@ -690,6 +779,8 @@ export function mountScheduling({
       updateDraftActions();
     } catch (e) {
       if (active) {
+        reload.hidden = false;
+        if (storedSchedule) showPriorityPreview(storedSchedule.schedule);
         say(
           `Schedule not confirmed: ${e.message}. Your draft is preserved. Reload saved data before retrying an ambiguous result.`,
         );
@@ -705,7 +796,11 @@ export function mountScheduling({
     event.preventDefault();
     if (!active || busy || !canWrite || !recurrence.reportValidity()) return;
     if (scheduleDraft) {
-      say('Save or discard your schedule draft before starting a series.');
+      say(
+        form.checkValidity()
+          ? 'Planning changes are still being saved. Wait a moment before starting a series.'
+          : 'Complete the planning fields before starting a recurring series.',
+      );
       return;
     }
     recurrenceChanged();
@@ -779,6 +874,8 @@ export function mountScheduling({
   }
   const cleanup = () => {
     active = false;
+    clearTimeout(autoSaveTimer);
+    window.removeEventListener('online', queueAutoSave);
     loadVersion++;
     for (const controller of requests) controller.abort();
     requests.clear();

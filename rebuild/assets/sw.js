@@ -20,6 +20,7 @@ const STATIC = [
   '/assets/search-omnibar.js',
   '/assets/confirm.js',
   '/assets/toast.js',
+  '/assets/quiet-info.js',
   '/assets/capture-ui.js',
   '/assets/list-ui.js',
   '/assets/list-settings.js',

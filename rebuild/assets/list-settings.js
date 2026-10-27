@@ -1,4 +1,94 @@
 import { mountActivity } from './activity-panel.js';
+const docks = new WeakMap();
+function dockState(root, kind = 'task', id = root.dataset.taskId) {
+  if (!docks.has(root)) docks.set(root, new Map());
+  const states = docks.get(root);
+  if (!states.has(kind)) {
+    const key = `todoer:${root.dataset.accountId || document.querySelector('meta[name=account-id]')?.content || ''}:${kind}-settings-dock`;
+    let saved = {};
+    try {
+      saved = JSON.parse(localStorage.getItem(key) || '{}');
+    } catch {}
+    states.set(kind, {
+      root,
+      kind,
+      id,
+      key,
+      docked: saved.docked === true,
+      expanded: saved.expanded !== false,
+      panel: null,
+    });
+  }
+  return states.get(kind);
+}
+function renderDock(state) {
+  const open = Boolean(state.panel?.open);
+  document.body.classList.toggle(
+    'task-settings-docked-open',
+    Boolean(document.querySelector('.list-settings-panel.is-docked[open]')),
+  );
+  state.root.dataset.settingsDocked = String(state.docked);
+  for (const option of state.root.querySelectorAll(
+    '[data-open-advanced],[data-list-settings-open],[data-list-sharing-open],[data-workspace-settings-open]',
+  ))
+    if (
+      (state.kind === 'task' && option.matches('[data-open-advanced]')) ||
+      (state.kind === 'list' &&
+        option.matches('[data-list-settings-open],[data-list-sharing-open]')) ||
+      (state.kind === 'workspace' && option.matches('[data-workspace-settings-open]'))
+    )
+      option.hidden = state.docked;
+  if (state.toggle) {
+    state.toggle.hidden = !state.docked;
+    state.toggle.setAttribute('aria-expanded', String(open));
+    state.toggle.setAttribute(
+      'aria-label',
+      `${open ? 'Collapse' : 'Show'} ${state.kind === 'workspace' ? 'space' : state.kind} settings`,
+    );
+    state.toggle.title = `${open ? 'Collapse' : 'Show'} ${state.kind === 'workspace' ? 'space' : state.kind} settings`;
+  }
+  try {
+    localStorage.setItem(
+      state.key,
+      JSON.stringify({ docked: state.docked, expanded: state.expanded }),
+    );
+  } catch {}
+}
+export function setupTaskSettingsDock(root, kind = 'task', id = root.dataset.taskId) {
+  const state = dockState(root, kind, id);
+  if (state.toggle) return;
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'task-settings-dock-toggle';
+  toggle.innerHTML =
+    '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>';
+  const anchor = root.querySelector(
+    '.task-page-heading > .entity-reference,.page-heading > .entity-reference,.workspace-header h1',
+  );
+  if (!anchor) return;
+  anchor.after(toggle);
+  state.toggle = toggle;
+  toggle.onclick = () => {
+    if (state.panel) state.panel.dismissSettings();
+    else {
+      state.expanded = true;
+      openSettings(
+        id,
+        kind === 'task' ? 'planning' : kind === 'list' ? 'sharing' : 'details',
+        kind,
+        root,
+      );
+    }
+  };
+  renderDock(state);
+  if (state.docked && state.expanded)
+    openSettings(
+      id,
+      kind === 'task' ? 'planning' : kind === 'list' ? 'sharing' : 'details',
+      kind,
+      root,
+    );
+}
 export function openListSettings(listId, selected = 'sharing') {
   return openSettings(listId, selected, 'list');
 }
@@ -14,7 +104,16 @@ async function openSettings(listId, selected, kind, taskRoot) {
   if (!workspace && !task && selected !== 'sharing') selected = 'sharing';
   const stash = taskRoot?.querySelector('[data-task-advanced]');
   const heading = task ? 'Task details' : workspace ? 'Space settings' : 'List settings';
-  if (document.querySelector('.list-settings-panel')) return;
+  taskRoot ||= document.querySelector('main');
+  const state = dockState(taskRoot, kind, listId);
+  const existing = document.querySelector('.list-settings-panel');
+  if (existing) {
+    if (existing === state.panel) existing.chooseSettings?.(selected);
+    return;
+  }
+  let docked = Boolean(state?.docked);
+  let ignoredCloses = 0;
+  let ownsHistory = !docked;
   const dialog = document.createElement('dialog');
   dialog.className = 'list-settings-panel';
   dialog.setAttribute('aria-label', heading);
@@ -25,6 +124,14 @@ async function openSettings(listId, selected, kind, taskRoot) {
   back.textContent = '← Back';
   title.textContent = heading;
   header.append(back, title);
+  const pin = document.createElement('button');
+  {
+    pin.type = 'button';
+    pin.className = 'task-settings-pin';
+    pin.innerHTML =
+      '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m16 3 5 5-4 1-3 5-4-4 5-3 1-4ZM10 14l-7 7M8 12l4 4"/></svg>';
+    header.append(pin);
+  }
   const tabs = document.createElement('div');
   tabs.className = 'settings-tabs';
   tabs.setAttribute('role', 'tablist');
@@ -132,7 +239,41 @@ async function openSettings(listId, selected, kind, taskRoot) {
   }
   dialog.append(header, tabs, status, content);
   (taskRoot || document.body).append(dialog);
-  dialog.showModal();
+  function presentation() {
+    dialog.classList.toggle('is-docked', docked);
+    if (docked) dialog.show();
+    else dialog.showModal();
+    {
+      state.panel = dialog;
+      state.expanded = true;
+      pin.setAttribute(
+        'aria-label',
+        `${docked ? 'Unpin' : 'Pin'} ${workspace ? 'space' : kind} settings`,
+      );
+      pin.title = `${docked ? 'Unpin' : 'Pin'} ${workspace ? 'space' : kind} settings`;
+      pin.setAttribute('aria-pressed', String(docked));
+      back.hidden = docked;
+      renderDock(state);
+    }
+  }
+  presentation();
+  dialog.chooseSettings = choose;
+  pin.onclick = () => {
+    opening?.cancel();
+    ignoredCloses++;
+    dialog.close();
+    docked = !docked;
+    state.docked = docked;
+    if (docked) {
+      ownsHistory = false;
+      history.replaceState(null, '', location.pathname + location.search);
+    } else {
+      ownsHistory = true;
+      history.pushState({ todoerSettings: true }, '', `#settings-${selected}`);
+    }
+    presentation();
+    pin.focus();
+  };
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const opening = reducedMotion
     ? null
@@ -148,8 +289,10 @@ async function openSettings(listId, selected, kind, taskRoot) {
   function dismiss() {
     if (closing || dismissalRequested) return;
     dismissalRequested = true;
-    history.back();
+    if (docked) closePanel();
+    else history.back();
   }
+  dialog.dismissSettings = dismiss;
   async function closePanel() {
     if (closing) return;
     closing = true;
@@ -185,12 +328,13 @@ async function openSettings(listId, selected, kind, taskRoot) {
     backdropPress = false;
   });
   dialog.addEventListener('click', (event) => {
-    if (backdropPress && outside(event)) dismiss();
+    if (!docked && backdropPress && outside(event)) dismiss();
     backdropPress = false;
   });
-  history.pushState({ todoerSettings: true }, '', `#settings-${selected}`);
+  if (ownsHistory)
+    history.pushState({ todoerSettings: true }, '', `#settings-${selected}`);
   const pop = () => {
-    if (!location.hash.startsWith('#settings-')) closePanel();
+    if (ownsHistory && !location.hash.startsWith('#settings-')) closePanel();
   };
   window.addEventListener('popstate', pop);
   back.onclick = dismiss;
@@ -199,6 +343,15 @@ async function openSettings(listId, selected, kind, taskRoot) {
     dismiss();
   });
   dialog.addEventListener('close', () => {
+    if (ignoredCloses) {
+      ignoredCloses--;
+      return;
+    }
+    if (state) {
+      state.panel = null;
+      state.expanded = false;
+      renderDock(state);
+    }
     stopActivity();
     window.removeEventListener('popstate', pop);
     if (task)

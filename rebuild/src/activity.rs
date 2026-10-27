@@ -12,6 +12,7 @@ pub struct ActivityItem {
     pub attribution: String,
     pub occurred_at: Option<i64>,
     pub undo_revision: Option<i64>,
+    pub completed: bool,
 }
 #[derive(Serialize)]
 pub struct ActivityPage {
@@ -47,7 +48,7 @@ impl Store {
         } else {
             "EXISTS(SELECT 1 FROM lists scope WHERE scope.id=h.list_id AND scope.workspace_id=?2)"
         };
-        let mut statement=self.conn.prepare(&format!("SELECT h.seq,json_extract(h.event,'$.kind'),t.id,json_extract(h.event,'$.task.title'),coalesce(u.name,'Member'),coalesce(json_extract(h.event,'$.attribution'),'human'),h.occurred_at,CASE WHEN json_extract(h.event,'$.kind')='update' AND h.before_event IS NOT NULL AND t.revision=json_extract(h.event,'$.task.revision') AND live.rank>=2 THEN t.revision END FROM history h JOIN actor_list_access old ON old.list_id=h.list_id AND old.actor_id=?1 JOIN tasks t ON t.id=json_extract(h.event,'$.task.id') JOIN actor_list_access live ON live.list_id=t.list_id AND live.actor_id=?1 LEFT JOIN users u ON u.id=h.actor WHERE {scope} AND (?3 IS NULL OR h.seq<?3) ORDER BY h.seq DESC LIMIT 51"))?;
+        let mut statement=self.conn.prepare(&format!("SELECT h.seq,json_extract(h.event,'$.kind'),t.id,json_extract(h.event,'$.task.title'),coalesce(u.name,'Member'),coalesce(json_extract(h.event,'$.attribution'),'human'),h.occurred_at,CASE WHEN json_extract(h.event,'$.kind')='update' AND h.before_event IS NOT NULL AND t.revision=json_extract(h.event,'$.task.revision') AND live.rank>=2 THEN t.revision END,coalesce(json_extract(h.event,'$.task.complete'),0)=1 AND coalesce(json_extract(h.before_event,'$.complete'),0)=0 FROM history h JOIN actor_list_access old ON old.list_id=h.list_id AND old.actor_id=?1 JOIN tasks t ON t.id=json_extract(h.event,'$.task.id') JOIN actor_list_access live ON live.list_id=t.list_id AND live.actor_id=?1 LEFT JOIN users u ON u.id=h.actor WHERE {scope} AND (?3 IS NULL OR h.seq<?3) ORDER BY h.seq DESC LIMIT 51"))?;
         let mut items = statement
             .query_map(params![actor, id, before], |row| {
                 Ok(ActivityItem {
@@ -59,6 +60,7 @@ impl Store {
                     attribution: row.get(5)?,
                     occurred_at: row.get(6)?,
                     undo_revision: row.get(7)?,
+                    completed: row.get(8)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -110,13 +112,28 @@ mod tests {
                 )
                 .unwrap();
         }
+        task = db
+            .update(
+                "dev",
+                &task.id,
+                Change {
+                    revision: task.revision,
+                    title: None,
+                    description: None,
+                    complete: Some(true),
+                    complete_subtree: false,
+                },
+            )
+            .unwrap();
         let page = db.entity_activity("dev", "task", &task.id, None).unwrap();
+        assert!(page.items[0].completed);
+        assert!(!page.items[1].completed);
         assert_eq!(page.items.len(), 50);
         assert_eq!(page.items[0].undo_revision, Some(task.revision));
         let rest = db
             .entity_activity("dev", "task", &task.id, page.next_before)
             .unwrap();
-        assert_eq!(rest.items.len(), 6);
+        assert_eq!(rest.items.len(), 7);
         assert!(rest.next_before.is_none());
         assert!(db.entity_activity("other", "task", &task.id, None).is_err());
         db.conn

@@ -75,6 +75,7 @@ const BUSINESS: &[&str] = &[
     "user_defaults",
     "entity_public_ids",
     "task_public_ids",
+    "list_public_ids",
     "task_locations",
     "tags",
     "task_tags",
@@ -237,6 +238,7 @@ impl Store {
         for (table, key, allowed) in [
             ("list_references", "list_id", &list_ids),
             ("list_defaults", "list_id", &list_ids),
+            ("list_public_ids", "list_id", &list_ids),
             ("workspace_lifecycle", "workspace_id", &workspace_ids),
             ("sections", "list_id", &list_ids),
             ("comments", "task_id", &task_ids),
