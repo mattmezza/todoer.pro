@@ -554,6 +554,7 @@ async fn space_redirect(
     h: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
+    if super::public_http::requested(&s,&h,"space",&id).await? { return super::public_http::show(&s,"space",&id,1).await; }
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
     };
@@ -597,6 +598,7 @@ async fn space_page(
     h: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
+    if super::public_http::requested(&s,&h,"space",&id).await? { return super::public_http::show(&s,"space",&id,1).await; }
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
     };

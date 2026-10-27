@@ -401,7 +401,7 @@ export function mountListUi({ api, notice, listId }) {
             preview.audience_broadens || preview.added_members > 0,
           );
           ackLabel.hidden = !broadens;
-          status.textContent = broadens
+          status.textContent = preview.destination_public && !preview.source_public ? 'This move makes this content publicly viewable. Review and acknowledge before moving.' : broadens
             ? 'This move adds people who can access this content. Review and acknowledge before moving.'
             : 'The destination adds no new audience. Existing IDs, files and history are preserved.';
           reviewed = {

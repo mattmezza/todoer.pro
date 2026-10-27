@@ -29,3 +29,7 @@ pub mod workspace;
 
 pub mod planning;
 pub mod reports;
+
+pub mod public_access;
+
+pub mod social_image;

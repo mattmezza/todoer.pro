@@ -6,6 +6,8 @@ default-run = "todoer-server"
 
 [dependencies]
 genpdf = "=0.2.0"
+rusttype = "=0.8.3"
+png = "=0.17.16"
 axum = "=0.8.9"
 askama = "=0.16.1"
 rusqlite = { version = "=0.41.0", features = ["bundled", "backup"] }
