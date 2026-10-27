@@ -6700,4 +6700,11 @@ body:has(.quiet-info) .task-play {
   right: 58px;
 }
 
-.task-page[data-edit-mode] .task-completion-label { display: none; }
+.task-page[data-edit-mode] .task-completion-label {
+  display: none;
+}
+
+.fun-task-top,
+.fun-task-bottom {
+  transform: none;
+}

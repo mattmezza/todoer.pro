@@ -120,7 +120,8 @@ function mountFunnyTasks() {
   let bag = [],
     visible = [],
     fromTop = true,
-    busy = false;
+    busy = false,
+    queued = 0;
   function next() {
     if (!bag.length) {
       bag = tinyTasks.filter((text) => !visible.includes(text));
@@ -156,7 +157,10 @@ function mountFunnyTasks() {
   }
   render();
   rows[1].onclick = async () => {
-    if (busy) return;
+    if (busy) {
+      queued++;
+      return;
+    }
     busy = true;
     const center = rows[1],
       entering = rows[fromTop ? 0 : 2];
@@ -164,7 +168,7 @@ function mountFunnyTasks() {
     center.classList.add('is-done');
     tray.dataset.direction = fromTop ? 'top' : 'bottom';
     try {
-      await new Promise((resolve) => setTimeout(resolve, reduced ? 90 : 120));
+      await new Promise((resolve) => setTimeout(resolve, reduced ? 0 : 25));
       if (!tray.isConnected) return;
       if (!reduced) {
         const dy =
@@ -179,14 +183,14 @@ function mountFunnyTasks() {
                 filter: 'blur(3px)',
               },
             ],
-            { duration: 260, easing: 'cubic-bezier(.2,.7,.2,1)' },
+            { duration: 110, easing: 'cubic-bezier(.2,.7,.2,1)' },
           ).finished,
           entering.animate(
             [
-              { opacity: 0.2, transform: 'translateY(0) scale(.94)' },
+              { opacity: 0.2, transform: 'translateY(0) scale(1)' },
               { opacity: 1, transform: 'translateY(' + dy + 'px) scale(1)' },
             ],
-            { duration: 260, easing: 'cubic-bezier(.2,.8,.2,1)' },
+            { duration: 110, easing: 'cubic-bezier(.2,.8,.2,1)' },
           ).finished,
         ]);
       }
@@ -197,10 +201,14 @@ function mountFunnyTasks() {
       render();
       if (!reduced)
         rows[fromTop ? 2 : 0].animate([{ opacity: 0 }, { opacity: 0.2 }], {
-          duration: 180,
+          duration: 90,
         });
     } finally {
       busy = false;
+      if (queued > 0 && tray.isConnected) {
+        queued--;
+        rows[1].click();
+      }
     }
   };
   document.body.append(tray);
