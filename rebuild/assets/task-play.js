@@ -311,7 +311,9 @@ function mountFunnyTasks() {
   return tray;
 }
 if (
-  document.body.classList.contains('planning-list-page') &&
+  (location.pathname === '/today' ||
+    location.pathname === '/settings' ||
+    location.pathname === '/settings/general') &&
   document.querySelector('meta[name=account-id]')
 ) {
   let toy;
