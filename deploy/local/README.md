@@ -48,3 +48,48 @@ anonymous denial, downloads and access revocation. These tests use in-memory
 application databases and do not add tasks to the development database.
 
 Stop containers while keeping uploads: `docker compose -f deploy/local/compose.yml down`.
+
+## Real Google login behind local nginx
+
+This uses a separate `.local/rebuild/google-auth.db`, port 8094 internally and
+https://localhost:8443 externally. It does not enable the development login or
+seed development identities. The Google Web client JSON must be saved at
+`~/.config/todoer/google-local.json`, with the exact authorized redirect
+`https://localhost:8443/auth/google/callback`.
+
+Create the local certificate (first setup only):
+
+```sh
+mkdir -p .local/rebuild/auth-tls
+openssl req -x509 -newkey rsa:2048 -nodes -days 30 \
+  -keyout .local/rebuild/auth-tls/localhost.key \
+  -out .local/rebuild/auth-tls/localhost.crt \
+  -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1'
+chmod 600 .local/rebuild/auth-tls/localhost.key
+```
+
+Start the app in one terminal and nginx in another:
+
+```sh
+TODOER_REGISTRATION_ALLOWLIST=your-google-test-email@example.com \
+  python3 scripts/local-google-auth.py
+```
+
+```sh
+docker compose -f deploy/local/auth-compose.yml up -d
+```
+
+The compose proxy uses host networking for Linux local development, with nginx
+listening only on loopback. The self-signed certificate requires a local browser
+exception or explicit trust. Use a trusted local certificate before testing
+WebAuthn; do not copy local TLS keys or Google credentials into source control.
+The launcher reads credentials directly into the child process environment and
+uses an untracked, persistent server key. Other TODOER settings, including
+storage, development authentication and notification workers, are deliberately
+not inherited. Stop the authentication app with Ctrl+C and the proxy with
+`docker compose -f deploy/local/auth-compose.yml down`.
+
+Manual acceptance: sign in with your allowlisted Google test user, verify the new
+account has its own Inbox/Personal space, sign out, and sign in again to check the
+same account is reused. Finally, sign out and verify a private task URL redirects
+to sign-in. Do not expect the seeded port-8092 workspace in this separate database.
