@@ -93,3 +93,8 @@ root?.addEventListener('keydown', (e) => {
     editSpace(e.target);
   }
 });
+
+for (const card of document.querySelectorAll('.space-list-card')) {
+  const dot = card.querySelector('.list-dot');
+  if (dot) card.style.setProperty('--list-color', dot.dataset.entityColor || getComputedStyle(dot).backgroundColor);
+}
