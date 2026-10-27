@@ -38,23 +38,24 @@ pub(super) fn build_sidebar(
     let user_name: String =
         db.conn
             .query_row("SELECT name FROM users WHERE id=?1", [&user], |r| r.get(0))?;
-    let email: Option<String> = db
-        .conn
-        .query_row(
-            "SELECT email FROM auth_identities WHERE user_id=?1 ORDER BY issuer,subject LIMIT 1",
-            [&user],
-            |r| r.get(0),
-        )
-        .optional()?;
-    let avatar_url = email
-        .filter(|value| !value.trim().is_empty())
-        .map(|value| {
-            format!(
-                "https://www.gravatar.com/avatar/{:x}?s=80&d=404",
-                Sha256::digest(value.trim().to_lowercase().as_bytes())
-            )
-        })
-        .unwrap_or_default();
+    let profile: Option<(String, String, Option<String>)> = db.conn.query_row(
+        "SELECT issuer,email,picture_url FROM auth_identities WHERE user_id=?1 ORDER BY CASE WHEN issuer IN ('https://accounts.google.com','accounts.google.com') THEN 0 ELSE 1 END,issuer,subject LIMIT 1", [&user],
+        |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?)),
+    ).optional()?;
+    let avatar_url = match profile {
+        Some((issuer, _, picture))
+            if issuer == "https://accounts.google.com" || issuer == "accounts.google.com" =>
+        {
+            picture
+                .filter(|url| url.starts_with("https://"))
+                .unwrap_or_default()
+        }
+        Some((_, email, _)) if !email.trim().is_empty() => format!(
+            "https://www.gravatar.com/avatar/{:x}?s=80&d=404",
+            Sha256::digest(email.trim().to_lowercase().as_bytes())
+        ),
+        _ => String::new(),
+    };
     let slugs = db.entity_slugs(actor)?;
     let mut editable = std::collections::HashSet::<String>::new();
     let mut ranks = db
@@ -170,7 +171,7 @@ mod tests {
     fn gravatar_uses_normalized_verified_identity_and_real_workspace_slug() {
         let mut db = Store::memory().unwrap();
         db.seed_dev().unwrap();
-        db.conn.execute("INSERT INTO auth_identities(issuer,subject,user_id,email) VALUES('https://accounts.google.com','synthetic-subject','dev',' USER@EXAMPLE.INVALID ')",[]).unwrap();
+        db.conn.execute("INSERT INTO auth_identities(issuer,subject,user_id,email) VALUES('https://example.test','synthetic-subject','dev',' USER@EXAMPLE.INVALID ')",[]).unwrap();
         let workspace = db
             .create_workspace(
                 "dev",
@@ -198,6 +199,27 @@ mod tests {
             "https://www.gravatar.com/avatar/34657fd697457c69244beb91db2c5bc3ae65ac924fd3f7843b9816057ab9f988?s=80&d=404"
         );
         assert!(!sidebar.avatar_url.contains("user@"));
+    }
+    #[test]
+    fn google_profile_uses_provider_picture_and_never_gravatar() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        db.conn.execute("INSERT INTO auth_identities(issuer,subject,user_id,email,picture_url) VALUES('https://accounts.google.com','subject','dev','user@example.test','https://lh3.googleusercontent.com/synthetic-photo')",[]).unwrap();
+        assert_eq!(
+            build_sidebar(&db, "dev", "inbox", String::new())
+                .unwrap()
+                .avatar_url,
+            "https://lh3.googleusercontent.com/synthetic-photo"
+        );
+        db.conn
+            .execute("UPDATE auth_identities SET picture_url=NULL", [])
+            .unwrap();
+        assert!(
+            build_sidebar(&db, "dev", "inbox", String::new())
+                .unwrap()
+                .avatar_url
+                .is_empty()
+        );
     }
     #[test]
     fn direct_list_guest_never_receives_private_workspace_label_or_owner_avatar() {

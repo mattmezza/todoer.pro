@@ -234,6 +234,7 @@ mod tests {
                 "dev",
                 &l.id,
                 ListChange {
+                    color: None,
                     revision: l.revision + 2,
                     title: Some("Café Reading".into()),
                     description: None,
@@ -248,6 +249,7 @@ mod tests {
                 "dev",
                 &l.id,
                 ListChange {
+                    color: None,
                     revision: 1,
                     title: Some("bad stale name".into()),
                     description: None,

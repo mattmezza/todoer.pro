@@ -121,14 +121,7 @@ impl Store {
         revision: i64,
         color: Option<String>,
     ) -> Result<crate::core::List, Error> {
-        if color.as_ref().is_some_and(|c| {
-            !["blue", "green", "amber", "red", "violet", "pink", "gray"].contains(&c.as_str())
-                && !(c.len() == 7
-                    && c.starts_with('#')
-                    && c[1..].bytes().all(|b| b.is_ascii_hexdigit()))
-        }) {
-            return Err(Error::Invalid("Unknown list color".into()));
-        }
+        validate_list_color(&color)?;
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         access_rank(&tx, actor, id, 2)?;
         if tx.execute(
@@ -143,6 +136,17 @@ impl Store {
         tx.commit()?;
         self.list_info(actor, id).map(|i| i.list)
     }
+}
+pub(crate) fn validate_list_color(color: &Option<String>) -> Result<(), Error> {
+    if color.as_ref().is_some_and(|c| {
+        !["blue", "green", "amber", "red", "violet", "pink", "gray"].contains(&c.as_str())
+            && !(c.len() == 7
+                && c.starts_with('#')
+                && c[1..].bytes().all(|b| b.is_ascii_hexdigit()))
+    }) {
+        return Err(Error::Invalid("Unknown list color".into()));
+    }
+    Ok(())
 }
 #[cfg(test)]
 mod tests {
@@ -180,6 +184,40 @@ mod tests {
             )
             .unwrap();
         assert!(db.favorites("dev").unwrap().is_empty());
+    }
+    #[test]
+    fn combined_list_edit_saves_color_atomically() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let revision = db.list_info("dev", "groceries").unwrap().list.revision;
+        let change = serde_json::from_value(serde_json::json!({"revision":revision,"title":"Fresh groceries","description":"All together","color":"#ff1234"})).unwrap();
+        let saved = db.update_list("dev", "groceries", change).unwrap();
+        assert_eq!(saved.title, "Fresh groceries");
+        assert_eq!(saved.description, "All together");
+        assert_eq!(saved.revision, revision + 1);
+        assert_eq!(
+            db.list_color("dev", "groceries").unwrap().as_deref(),
+            Some("#ff1234")
+        );
+        for (actor, revision, color) in [
+            ("dev", saved.revision, "invalid"),
+            ("dev", revision, "#000000"),
+            ("other", saved.revision, "#000000"),
+        ] {
+            let change = serde_json::from_value(
+                serde_json::json!({"revision":revision,"title":"Must not save","color":color}),
+            )
+            .unwrap();
+            assert!(db.update_list(actor, "groceries", change).is_err());
+            assert_eq!(
+                db.list_info("dev", "groceries").unwrap().list.title,
+                "Fresh groceries"
+            );
+            assert_eq!(
+                db.list_color("dev", "groceries").unwrap().as_deref(),
+                Some("#ff1234")
+            );
+        }
     }
     #[test]
     fn list_color_checks_revision_and_permissions() {

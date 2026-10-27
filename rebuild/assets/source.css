@@ -1434,7 +1434,7 @@ input[type='checkbox'] {
   font-weight: 600;
 }
 .inline-capture textarea {
-  resize: vertical;
+  resize: none;
   min-height: 54px;
 }
 .inline-actions {
@@ -4637,4 +4637,455 @@ dialog:not(.list-settings-panel) :is(p, label, input, select, textarea, li) {
 }
 .sharing-modal [role='alert']:empty {
   display: none;
+}
+
+.task-page .task-page-brief {
+  margin: 12px 0 40px;
+}
+.task-page .task-page-brief .markdown > :first-child {
+  margin-top: 0;
+}
+.task-page > .task-due-summary {
+  margin-top: 0;
+  min-height: 30px;
+}
+.task-page .task-priority-summary {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 14px;
+}
+.task-page .task-priority-summary[data-priority='1'] {
+  color: #fca5a5;
+  background: rgb(239 68 68 / 0.14);
+}
+.task-page .task-priority-summary[data-priority='2'] {
+  color: #fcd34d;
+  background: rgb(245 158 11 / 0.12);
+}
+.task-page[data-priority='1'] .task-page-complete::before {
+  border-color: #f87171;
+  border-width: 2px;
+}
+.task-page[data-priority='2'] .task-page-complete::before {
+  border-color: #fbbf24;
+  border-width: 2px;
+}
+.task-page [data-discussion-fragment] {
+  margin-top: 28px;
+}
+.task-files {
+  margin-bottom: 36px;
+}
+.task-files-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+.task-files-heading .ui-icon {
+  width: 18px;
+  height: 18px;
+}
+.task-files-empty {
+  padding: 16px 18px;
+  border: 1px dashed #263244;
+  border-radius: 10px;
+  color: var(--muted);
+  background: rgb(148 163 184 / 0.025);
+  font-size: 15px;
+}
+.task-files-empty p {
+  font-size: 14px;
+  margin: 4px 0 0;
+  color: #748397;
+}
+
+/* Form modals follow the compact, readable original dialog composition. */
+dialog:is(.quick-dialog, .sharing-modal, .workspace-create-dialog, [data-move-dialog]) {
+  background: #0b0b0e;
+  color: #e5e7eb;
+  border: 1px solid #20232c;
+  border-radius: 8px;
+  padding: 30px 32px;
+  max-height: calc(100dvh - 40px);
+}
+dialog:not(.list-settings-panel) h2:has(.modal-heading-icon) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 600 21px/1.4 var(--font-sans);
+  margin: 0 0 20px;
+}
+.modal-heading-icon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #4f46e5;
+  color: white;
+  border-radius: 50%;
+}
+dialog:is(.quick-dialog, .sharing-modal, .workspace-create-dialog, [data-move-dialog])
+  form {
+  gap: 14px;
+}
+dialog:is(.quick-dialog, .sharing-modal, .workspace-create-dialog, [data-move-dialog])
+  label {
+  margin: 0;
+}
+dialog:is(.quick-dialog, .sharing-modal, .workspace-create-dialog, [data-move-dialog])
+  :is(
+    input:not([type='hidden']):not([type='checkbox']):not([type='color']),
+    select,
+    textarea
+  ) {
+  background: #09090b;
+  border-color: #394253;
+  border-radius: 4px;
+}
+#list-create-dialog {
+  width: min(664px, calc(100vw - 32px));
+}
+#list-create-dialog form {
+  margin-top: 18px;
+  gap: 16px;
+}
+#list-create-dialog label {
+  display: grid;
+  gap: 6px;
+}
+#list-create-dialog .list-name-row {
+  align-items: end;
+  gap: 12px;
+}
+#list-create-dialog .list-color-field {
+  display: flex;
+  align-items: center;
+  height: 44px;
+}
+#list-create-dialog textarea {
+  min-height: 76px;
+}
+#list-create-dialog .inline-actions {
+  padding: 0;
+  margin-top: 4px;
+  gap: 20px;
+}
+#list-create-dialog .inline-actions button {
+  font-size: 16px;
+  min-height: 38px;
+  padding: 8px 20px;
+}
+#list-create-dialog .inline-actions .primary {
+  min-width: 100px;
+}
+#list-create-dialog form > p.muted {
+  font-size: 14px !important;
+  margin: 0;
+}
+@media (max-width: 640px) {
+  dialog:is(.quick-dialog, .sharing-modal, .workspace-create-dialog, [data-move-dialog]) {
+    padding: 24px;
+  }
+}
+
+.reference-sidebar {
+  padding-inline: 14px;
+}
+.reference-sidebar .brand {
+  padding-inline: 4px;
+  font-size: 22px;
+}
+.reference-sidebar .nav-link {
+  padding: 9px 8px;
+  min-height: 42px;
+}
+.reference-sidebar .primary-navigation .nav-link {
+  font: 600 14px/24px var(--font-sans);
+}
+.reference-sidebar .nav-heading {
+  margin-left: 8px;
+  font: 500 12px/18px var(--font-sans);
+  letter-spacing: 0.06em;
+}
+.reference-sidebar .list-navigation {
+  gap: 12px;
+  font:
+    400 14px/24px ui-monospace,
+    monospace;
+}
+.reference-sidebar .list-navigation.active {
+  font-weight: 400;
+}
+.reference-sidebar .list-dot {
+  width: 24px !important;
+  height: 24px;
+  flex-basis: 24px;
+}
+.reference-sidebar .sidebar-add {
+  padding: 8px;
+  min-height: 42px;
+  gap: 8px;
+  font: 400 14px/24px var(--font-sans);
+}
+.reference-sidebar .sidebar-add .ui-icon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  border-radius: 50%;
+  padding: 2px;
+  transition:
+    background-color 140ms,
+    color 140ms;
+}
+.reference-sidebar .sidebar-add > span {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 140ms;
+}
+.reference-sidebar .sidebar-add:is(:hover, :focus-visible) {
+  color: #8b80ff;
+}
+.reference-sidebar .sidebar-add:is(:hover, :focus-visible) .ui-icon {
+  background: #4f46e5;
+  color: white;
+}
+.reference-sidebar .sidebar-add:is(:hover, :focus-visible) > span {
+  visibility: visible;
+  opacity: 1;
+}
+@media (hover: none) {
+  .reference-sidebar .sidebar-add > span {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reference-sidebar .sidebar-add > span,
+  .reference-sidebar .sidebar-add .ui-icon {
+    transition: none;
+  }
+}
+
+dialog:is(
+  .quick-dialog,
+  .sharing-modal,
+  .workspace-create-dialog,
+  [data-move-dialog],
+  .about-dialog
+) {
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --field: #09090b;
+  color-scheme: dark;
+}
+.about-dialog {
+  width: min(664px, calc(100vw - 32px));
+  margin: auto;
+  padding: 58px 32px 32px;
+  background: #18181b;
+  color: #e5e7eb;
+  border: 1px solid #24242b;
+  border-radius: 8px;
+  text-align: center;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+}
+.about-dialog::backdrop {
+  background: #0009;
+  backdrop-filter: blur(5px);
+}
+.about-close {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #71717a;
+  border-radius: 50%;
+  color: #e5e7eb;
+}
+.about-close:hover {
+  background: #303039;
+}
+.about-logo {
+  font: 750 48px/1 var(--font-sans);
+  letter-spacing: -2px;
+}
+.about-logo sup {
+  color: #8b80ff;
+  font-size: 13px;
+  letter-spacing: 0;
+  vertical-align: top;
+  position: relative;
+  top: 1px;
+}
+.about-dialog .about-tagline {
+  font-size: 14px !important;
+  font-style: italic;
+  margin: 12px 0 24px;
+}
+.about-dialog .about-creator {
+  line-height: 1.9;
+  margin: 0;
+}
+.about-creator > span {
+  color: #fb4669;
+}
+.about-creator a {
+  font-weight: 600;
+}
+.about-dialog a:hover {
+  text-decoration: underline;
+  color: #c4b5fd;
+}
+.about-handle {
+  font-weight: 400;
+  color: #a1a1aa;
+  font-size: 14px;
+}
+.about-dialog footer {
+  margin-top: 40px;
+  font-size: 14px;
+}
+.about-dialog address {
+  font-style: normal;
+  color: #a1a1aa;
+  margin-top: 8px;
+  line-height: 1.6;
+}
+.about-dialog .about-release {
+  margin: 20px 0 0;
+  color: #818b9d;
+  font-size: 13px !important;
+}
+
+/* Content determines textarea height; form-specific styles cannot restore drag handles. */
+textarea {
+  resize: none !important;
+  overflow-y: hidden;
+}
+
+/* Exact composition from components/Nav/Logo.jinja in the original app. */
+.todoer-logo,
+.reference-sidebar .brand.todoer-logo {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 4px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 24px;
+  line-height: 1.3333;
+  letter-spacing: normal;
+  -webkit-font-smoothing: antialiased;
+}
+.todoer-logo .todoer-logo-word {
+  color: #e4e4e7;
+  font: inherit;
+  letter-spacing: -2px;
+  margin-left: 0;
+}
+.todoer-logo .todoer-logo-pro {
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: -0.05em;
+  color: transparent;
+  background: linear-gradient(to bottom left, #c7d2fe, #4f46e5);
+  background-clip: text;
+  -webkit-background-clip: text;
+}
+.about-dialog .about-logo.todoer-logo {
+  justify-content: center;
+  font-size: 48px;
+  line-height: 1;
+}
+
+.reference-sidebar .list-navigation,
+.reference-sidebar .list-navigation.active,
+.reference-sidebar .space-switch-item {
+  font-weight: 600;
+}
+
+.reference-list-page .page-heading {
+  align-items: center;
+}
+.reference-list-page .page-heading > h1 {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  min-height: 44px;
+  line-height: 1.2;
+}
+.reference-list-page .page-heading > h1 > button {
+  display: flex;
+  align-items: center;
+  line-height: 1.2;
+  margin: 0;
+  padding: 0;
+  min-height: 44px;
+}
+.reference-list-page .page-heading > .entity-color {
+  align-self: center;
+  margin-block: 0;
+}
+body[data-can-write='true'] [data-list-display] h1 button,
+body[data-can-write='true'] .list-description[data-list-edit-open] {
+  cursor: pointer;
+  transition: color 140ms;
+}
+body[data-can-write='true'] [data-list-display] h1 button:is(:hover, :focus-visible),
+body[data-can-write='true']
+  .list-description[data-list-edit-open]:is(:hover, :focus-visible),
+body[data-can-write='true']
+  .list-description[data-list-edit-open]:is(:hover, :focus-visible)
+  .muted {
+  color: #f8fafc;
+}
+:is(.entity-menu, .task-actions, .workspace-menu) > summary:is(:hover, :focus-visible),
+button[aria-label$='actions']:is(:hover, :focus-visible) {
+  border-radius: 50% !important;
+  background: #1b2230;
+}
+.entity-reference {
+  transition:
+    color 140ms,
+    background-color 140ms,
+    box-shadow 140ms;
+}
+.entity-reference:is(:hover, :focus-visible) {
+  background: #202b3c;
+  color: #f1f5f9;
+  box-shadow: 0 0 0 1px #334155;
+}
+.reference-sidebar .space-navigation {
+  font:
+    600 14px/24px ui-monospace,
+    monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reference-sidebar .sidebar-scroll .nav-heading {
+  text-transform: uppercase;
+  color: #64748b;
+  margin-block: 32px 12px;
+}
+
+.reference-sidebar .nav-heading {
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.reference-sidebar .account-menu-panel .nav-heading {
+  margin: 8px 12px 4px;
 }

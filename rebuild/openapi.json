@@ -11738,6 +11738,13 @@
                 "type": "null"
               }
             ]
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional named palette color or #RRGGBB. Saved atomically with the list title and description."
           }
         },
         "required": [
@@ -16088,7 +16095,7 @@
           },
           "text": {
             "type": "string",
-            "description": "Exact original UTF-8 text, 1–10240 bytes; one task, no semantic splitting."
+            "description": "Exact original UTF-8 text, 1\u201310240 bytes; one task, no semantic splitting."
           },
           "list_id": {
             "anyOf": [
@@ -16294,7 +16301,7 @@
           },
           "brief": {
             "type": "string",
-            "description": "1–10240 UTF-8 bytes. Only this brief is sent for drafting."
+            "description": "1\u201310240 UTF-8 bytes. Only this brief is sent for drafting."
           },
           "target": {
             "$ref": "#/components/schemas/AssistDraftTarget"
@@ -16372,7 +16379,7 @@
         "properties": {
           "prefix": {
             "type": "string",
-            "description": "Literal case-sensitive prefix, 1–100 bytes."
+            "description": "Literal case-sensitive prefix, 1\u2013100 bytes."
           },
           "list_id": {
             "type": "string"

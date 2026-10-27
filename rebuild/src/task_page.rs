@@ -148,11 +148,8 @@ async fn page(
                 .filter(|x| x.id != task.id)
             {
                 crumbs.push(Crumb {
-                    label: ancestor
-                        .title
-                        .clone()
-                        .unwrap_or_else(|| ancestor.reference.clone()),
-                    url: format!("/tasks/{}", ancestor.id),
+                    label: format!("%{}", crate::defaults::public_id(&db.conn, "task", &ancestor.id)?),
+                    url: format!("/tasks/{}", crate::defaults::public_id(&db.conn, "task", &ancestor.id)?),
                 });
             }
             let children = subtree
@@ -250,6 +247,7 @@ mod tests {
             )
             .unwrap()
             .remove(0);
+        let public_url = crate::defaults::public_id(&db.conn, "task", &public.id).unwrap();
         let state = AppState::new(
             Arc::new(Mutex::new(db)),
             "task-page-synthetic-token-24plus".into(),
@@ -260,7 +258,7 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri(format!("/tasks/{}", public.id))
+                    .uri(format!("/tasks/{}", public_url))
                     .header("authorization", "Bearer task-page-synthetic-token-24plus")
                     .body(Body::empty())
                     .unwrap(),
