@@ -65,7 +65,7 @@ export async function mountPublicSharing(section, kind, id) {
         try {
           await navigator.clipboard.writeText(
             location.origin +
-              (kind === 'space' ? '/space/' : '/lists/') +
+              `/public/${kind}/` +
               state.reference,
           );
           toast('Public link copied.');

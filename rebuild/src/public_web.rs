@@ -67,7 +67,9 @@ pub(super) async fn requested(
         let id = crate::defaults::resolve(&db.conn, entity, &id)?;
         let readable = if let Some(actor) = actor {
             match kind.as_str() {
-                "space" => db.workspace_permission(&actor, &id).is_ok_and(|rank| rank >= 1),
+                "space" => db
+                    .workspace_permission(&actor, &id)
+                    .is_ok_and(|rank| rank >= 1),
                 "list" => crate::core::access_rank(&db.conn, &actor, &id, 1).is_ok(),
                 "task" => crate::core::task(&db.conn, &id).is_ok_and(|t| {
                     crate::core::access_rank(&db.conn, &actor, &t.list_id, 1).is_ok()
@@ -131,11 +133,7 @@ pub(super) async fn show(
     let doc = s
         .run(move |db| db.public_document(&kind, &id, page))
         .await?;
-    let path = match doc.kind.as_str() {
-        "space" => format!("/space/{}", doc.reference),
-        "list" => format!("/lists/{}", doc.reference),
-        _ => format!("/tasks/{}", doc.reference),
-    };
+    let path = format!("/public/{}/{}", doc.kind, doc.reference);
     let summary = plain(&doc.description);
     let summary: String = if summary.is_empty() {
         "A shared task list. One thing at a time.".into()
@@ -151,11 +149,7 @@ pub(super) async fn show(
     );
     let mut body = String::new();
     for item in &doc.items {
-        let url = if item.kind == "list" {
-            format!("/lists/{}", item.reference)
-        } else {
-            format!("/tasks/{}", item.reference)
-        };
+        let url = format!("/public/{}/{}", item.kind, item.reference);
         body.push_str(&format!("<article class=\"public-item public-depth-{}\"><span class=\"public-check\" aria-label=\"{}\">{}</span><div><a href=\"{}\">{}</a>{}</div></article>",item.depth.min(8),if item.complete{"Completed"}else{"Incomplete"},if item.kind=="list"{"#"}else if item.complete{"✓"}else{"○"},url,esc(&item.title),if item.description.is_empty(){String::new()}else{format!("<div class=\"markdown public-item-description\">{}</div>",crate::markdown::render(&item.description))}));
     }
     if doc.has_more {
@@ -307,6 +301,82 @@ mod tests {
         assert!(html.contains("property=\"og:title\" content=\"Tiny forest sentinel\""));
         assert!(html.contains(&format!("http://127.0.0.1:8092/og/task/{reference}.png")));
         assert!(!html.contains("data-brief-form"));
+        // Dedicated public URLs retain their read-only projection even for owners.
+        let (space_reference, list_reference) = {
+            let mut db = state.store.lock().unwrap();
+            db.set_public_access(
+                "dev",
+                "space",
+                &space.id,
+                PublicChange {
+                    enabled: true,
+                    revision: 0,
+                },
+            )
+            .unwrap();
+            (
+                crate::defaults::public_id(&db.conn, "workspace", &space.id).unwrap(),
+                crate::defaults::public_id(&db.conn, "list", &list).unwrap(),
+            )
+        };
+        let task_reference = &reference;
+        for authorization in [None, Some("Bearer public-test-token-with-24-chars")] {
+            for (kind, reference) in [
+                ("space", &space_reference),
+                ("list", &list_reference),
+                ("task", &reference),
+            ] {
+                let mut request = Request::builder().uri(format!("/public/{kind}/{reference}"));
+                if let Some(authorization) = authorization {
+                    request = request.header(header::AUTHORIZATION, authorization);
+                }
+                let response = app
+                    .clone()
+                    .oneshot(request.body(Body::empty()).unwrap())
+                    .await
+                    .unwrap();
+                assert_eq!(response.status(), StatusCode::OK);
+                let html = String::from_utf8(
+                    response
+                        .into_body()
+                        .collect()
+                        .await
+                        .unwrap()
+                        .to_bytes()
+                        .to_vec(),
+                )
+                .unwrap();
+                assert!(html.contains("Shared · Read only"));
+                assert!(html.contains(&format!("property=\"og:url\" content=\"http://127.0.0.1:8092/public/{kind}/{reference}\"")));
+                assert!(!html.contains("id=\"navigation\""));
+                assert!(!html.contains("name=\"account-id\""));
+                assert!(!html.contains("<form"));
+                assert!(!html.contains("<button"));
+                assert!(!html.contains("<script"));
+                assert!(!html.contains("href=\"/tasks/"));
+                assert!(!html.contains("href=\"/lists/"));
+                if kind == "space" {
+                    assert!(html.contains(&format!("href=\"/public/list/{list_reference}\"")));
+                }
+                if kind == "list" {
+                    assert!(html.contains(&format!("href=\"/public/task/{task_reference}\"")));
+                }
+            }
+        }
+        state
+            .store
+            .lock()
+            .unwrap()
+            .set_public_access(
+                "dev",
+                "space",
+                &space.id,
+                PublicChange {
+                    enabled: false,
+                    revision: 1,
+                },
+            )
+            .unwrap();
         let image = app
             .clone()
             .oneshot(
