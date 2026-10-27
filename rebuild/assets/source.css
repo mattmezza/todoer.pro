@@ -7194,3 +7194,8 @@ dialog.destination-dialog label.destination-search-label { display:grid; gap:8px
   --tw-ring-shadow: 0 0 #0000 !important;
   --tw-ring-offset-shadow: 0 0 #0000 !important;
 }
+
+.search-omnibar .omnibar-status { display:flex; align-items:center; gap:10px; }
+.search-omnibar .omnibar-status-icon { flex:none; width:20px; height:20px; opacity:.7; }
+.search-omnibar:has(#omnibar-results:empty) .omnibar-status { flex-direction:column; justify-content:center; gap:12px; }
+.search-omnibar:has(#omnibar-results:empty) .omnibar-status-icon { width:28px; height:28px; }
