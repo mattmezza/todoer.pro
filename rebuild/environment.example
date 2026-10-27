@@ -17,6 +17,6 @@ TODOER_GOOGLE_LOGIN_ENABLED=true
 TODOER_SIGNUP_ENABLED=true
 # Exact verified addresses that should receive deployment administrator access.
 TODOER_AUTH_ADMIN_EMAILS=owner@example.invalid
-# A stable, private server key is also used to encrypt authenticator seeds.
+# A stable, private 64-hex-character server key encrypts authenticator seeds.
 # Back it up independently; changing it makes existing authenticator seeds unreadable.
 TODOER_SERVER_KEY=replace-with-a-long-random-secret

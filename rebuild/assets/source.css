@@ -7237,7 +7237,6 @@ dialog.destination-dialog label.destination-search-label { display:grid; gap:8px
 main.auth-shell { max-width:440px; margin-inline:auto; }
 .auth-brand { display:block; width:fit-content; margin:0 auto 36px; }
 .auth-card { padding:36px; background:rgb(15 23 42 / .7); border-radius:20px; box-shadow:0 24px 80px rgb(0 0 0 / .15); text-align:center; }
-.auth-mark { display:grid; place-items:center; width:52px; height:52px; margin:0 auto 22px; background:rgb(99 102 241 / .15); color:#a5b4fc; border-radius:16px; }
 .auth-card h1 { font-family:ui-sans-serif,system-ui,sans-serif; font-size:30px; font-weight:650; line-height:1.2; letter-spacing:-.035em; margin:0 0 12px; }
 .auth-intro { color:var(--muted); font-size:15px; line-height:1.6; margin:0 0 30px; }
 .auth-google { display:flex; align-items:center; justify-content:center; gap:12px; background:#fff; color:#1f1f1f; min-height:48px; border-radius:8px; font-family:Arial,sans-serif; font-size:14px; font-weight:500; transition:background .15s; }
@@ -7264,3 +7263,5 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 [data-account-security] h3 { font-size:17px; font-weight:600; margin-top:32px; margin-bottom:10px; }
 .security-key-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0; }
 [data-recovery-codes] { white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; padding:16px; background:var(--field); border-radius:10px; }
+[data-auth-policy] label { display:flex; align-items:center; gap:10px; }
+[data-auth-policy] input[type=checkbox] { width:16px; height:16px; min-height:16px; flex:0 0 16px; margin:0; }

@@ -7,6 +7,10 @@ use todoer::{
     web::{AppState, router},
 };
 
+fn initial_flag(name:&str,default:bool)->Result<bool,Box<dyn std::error::Error>> {
+    match env::var(name) {Ok(v)=>match v.as_str(){"true"|"1"=>Ok(true),"false"|"0"=>Ok(false),_=>Err(format!("{name} must be true, false, 1 or 0").into())},Err(env::VarError::NotPresent)=>Ok(default),Err(e)=>Err(e.into())}
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
@@ -29,8 +33,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("Database migrations complete; no listener or notification workers started");
         return Ok(());
     }
-    let google_enabled = env::var("TODOER_GOOGLE_LOGIN_ENABLED").map(|v|v=="1" || v=="true").unwrap_or(true);
-    let signup_enabled = env::var("TODOER_SIGNUP_ENABLED").map(|v|v=="1" || v=="true").unwrap_or(true);
+    let google_enabled = initial_flag("TODOER_GOOGLE_LOGIN_ENABLED",true)?;
+    let signup_enabled = initial_flag("TODOER_SIGNUP_ENABLED",true)?;
     store.initialize_auth_policy(google_enabled,signup_enabled)?;
     let port: u16 = env::var("TODOER_RUST_PORT")
         .unwrap_or_else(|_| "8092".into())

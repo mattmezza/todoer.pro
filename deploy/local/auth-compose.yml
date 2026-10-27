@@ -6,3 +6,10 @@ services:
     volumes:
       - ./auth-nginx.conf:/etc/nginx/nginx.conf:ro
       - ../../.local/rebuild/auth-tls:/tls:ro
+  test-proxy:
+    image: nginx:alpine
+    profiles: [tests]
+    network_mode: host
+    volumes:
+      - ./auth-test-nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../../.local/rebuild/auth-tls:/tls:ro
