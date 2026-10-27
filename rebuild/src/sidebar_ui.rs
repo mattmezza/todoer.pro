@@ -160,10 +160,13 @@ pub(super) fn build_sidebar(
             title: f.title,
         })
         .collect();
+    let archived_spaces = db.conn.prepare("SELECT workspace_id FROM workspace_lifecycle WHERE archived=1 OR deleted_at IS NOT NULL")?
+        .query_map([], |r| r.get::<_, String>(0))?.collect::<Result<std::collections::HashSet<_>, _>>()?;
     let menu_spaces = spaces
         .iter()
         .filter(|s| Some(&s.id) == workspace.as_ref())
         .chain(spaces.iter().filter(|s| Some(&s.id) != workspace.as_ref()))
+        .filter(|s| !archived_spaces.contains(&s.id))
         .take(10)
         .cloned()
         .collect();
