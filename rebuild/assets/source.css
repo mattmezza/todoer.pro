@@ -3258,17 +3258,6 @@ input[type='color'] {
   font-weight: 600;
   color: var(--text);
 }
-@media (max-height: 850px) {
-  .account-menu-panel .space-switch-item:nth-of-type(n + 4) {
-    display: none;
-  }
-}
-@media (max-height: 780px) {
-  .account-menu-panel .space-switch-item:nth-of-type(n + 3) {
-    display: none;
-  }
-}
-
 /* Section creation uses form typography rather than a task heading. */
 .inline-entity-form[data-section-create] input[name='title'] {
   font-size: 16px;
@@ -5454,4 +5443,10 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
 }
 .task-page.is-complete .task-title-display:not(:disabled):hover {
   color: #e2e8f0;
+}
+
+.account-menu[open] > summary {
+  border-color: transparent;
+  outline: none;
+  box-shadow: none;
 }

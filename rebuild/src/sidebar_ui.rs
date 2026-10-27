@@ -136,7 +136,7 @@ pub(super) fn build_sidebar(
         .iter()
         .filter(|s| Some(&s.id) == workspace.as_ref())
         .chain(spaces.iter().filter(|s| Some(&s.id) != workspace.as_ref()))
-        .take(5)
+        .take(10)
         .cloned()
         .collect();
     Ok(Sidebar {
