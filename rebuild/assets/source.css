@@ -6911,3 +6911,9 @@ form[data-list-edit] .inline-actions, .space-inline-editor > div,
 .task-subtask-completion-line[hidden] { display: none; }
 /* Nested rows share their ancestor's closing separator. */
 .task-page [data-children] ol > li:last-child { border-bottom: 0; }
+.task-promote-dialog .confirmation-actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 28px; }
+.task-promote-dialog .confirmation-actions > button { min-height: 40px; padding: 8px 16px; border-radius: 8px; }
+.task-promote-tree > .task-structure-tree { margin-left: 8px; padding-left: 24px; border-left: 1px solid var(--line); }
+.task-promote-tree .task-structure-tree > li { position: relative; }
+.task-promote-tree .task-structure-tree > li::before { content: '→'; position: absolute; left: -22px; top: 8px; color: var(--muted); }
+.task-promote-tree a[aria-current] { background: transparent; }

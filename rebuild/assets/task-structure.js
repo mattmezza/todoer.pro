@@ -135,7 +135,9 @@ export async function moveToParent(id) {
     hierarchy.className = 'task-promote-tree';
     const destinationLabel = document.createElement('strong');
     destinationLabel.textContent = destination?.title || 'List · top-level tasks';
-    hierarchy.append(destinationLabel, tree(items, id));
+    const explanation = document.createElement('p');
+    explanation.textContent = 'The new structure will look like this:';
+    hierarchy.append(explanation, destinationLabel, tree(items, id));
     const actions = document.createElement('div');
     actions.className = 'confirmation-actions';
     const cancel = document.createElement('button');
