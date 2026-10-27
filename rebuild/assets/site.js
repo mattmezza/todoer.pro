@@ -376,7 +376,9 @@ if (accountMenu) {
   const about = document.createElement('button');
   about.type = 'button';
   about.textContent = 'About';
-  accountMenu.append(about);
+  const signOut = accountMenu.querySelector('form[action="/logout"]');
+  if (signOut) signOut.before(about);
+  else accountMenu.append(about);
   about.addEventListener('click', () => {
     document.querySelector('.account-menu')?.removeAttribute('open');
     const modal = document.createElement('dialog');
@@ -385,7 +387,7 @@ if (accountMenu) {
     modal.innerHTML = `<button type="button" class="about-close" aria-label="Close About"><svg class="ui-icon" width="18" height="18" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg></button>
       <div class="about-logo">todoer<sup>pro</sup></div>
       <p class="about-tagline">Get things done, like a pro!</p>
-      <p class="about-creator">Made with <span aria-label="love">♥</span> by<br><a href="https://matteo.merola.co/software" target="_blank" rel="noopener">Matteo Merola <span class="about-handle">(@mattmezza)</span></a></p>
+      <p class="about-creator">Made with <span aria-label="love">♥</span> by <a href="https://matteo.merola.co" target="_blank" rel="noopener">Matteo Merola <span class="about-handle">(@mattmezza)</span></a></p>
       <footer><a href="https://matteo.merola.co/software" target="_blank" rel="noopener">Merola Software &amp; Services</a><address>Wartauweg 19, 8049 Zurich<br>Switzerland</address><p class="about-release" aria-live="polite">Loading release…</p></footer>`;
     const release = modal.querySelector('.about-release');
     fetch('/api/v1/capabilities', { cache: 'no-store' })
