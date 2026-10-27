@@ -1,5 +1,5 @@
 import { preferredTimeFormatter } from './preferred-time.js';
-import { stowInfo } from './quiet-info.js';
+import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
 import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
 import './site.js';
@@ -179,6 +179,11 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         base_description: draft?.base_description ?? task.description,
       };
       store(prefix, draft);
+      setSaveState(
+        'task:' + id,
+        'unsaved',
+        'Your task title and description changes are kept on this device until you save them.',
+      );
     } else if (!draft || draft.revision === task.revision) {
       draft = null;
       store(prefix, null);
@@ -260,7 +265,13 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     pending = true;
     return true;
   }
-  async function request(
+  function request(path, method = 'GET', ...args) {
+    const action = () => performRequest(path, method, ...args);
+    return method === 'GET' || /preview|intents/.test(path)
+      ? action()
+      : trackSave('task:' + id, action);
+  }
+  async function performRequest(
     path,
     method = 'GET',
     body,
@@ -332,8 +343,10 @@ export function mountTaskPage(root, { embedded = false } = {}) {
       } while (!entry && before);
       if (entry) {
         const formatTime = await preferredTimeFormatter();
-        if (alive && task.complete && task.revision === revision)
+        if (alive && task.complete && task.revision === revision) {
           label.textContent = `Completed ${formatTime(entry.occurred_at)} by ${entry.actor}`;
+          label.title = formatTime.timeZone;
+        }
       }
     } catch {
       completionRevision = null;

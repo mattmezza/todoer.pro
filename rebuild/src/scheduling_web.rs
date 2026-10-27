@@ -581,6 +581,8 @@ async fn notification_form(
     let prefs = Preferences {
         timezone: field("timezone"),
         week_start: current.week_start,
+        fun_animations: current.fun_animations,
+        fun_animation: current.fun_animation,
         email_opt_in: form.contains_key("email_opt_in"),
         quiet_start: nonempty("quiet_start"),
         quiet_end: nonempty("quiet_end"),

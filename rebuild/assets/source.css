@@ -6491,3 +6491,211 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
 .planning-space-filters a:first-child[aria-current='true'] {
   background: var(--hover);
 }
+
+.fun-task-stack {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  width: 256px;
+  z-index: 2;
+  display: grid;
+  gap: 3px;
+  opacity: 0.45;
+  transition: opacity 160ms ease;
+  user-select: none;
+}
+.fun-task-stack:hover,
+.fun-task-stack:focus-within {
+  opacity: 0.95;
+}
+.fun-task-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: left;
+  color: var(--muted);
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+.fun-task-top,
+.fun-task-bottom {
+  opacity: 0.2;
+  transform: scale(0.94);
+  pointer-events: none;
+}
+.fun-task-active {
+  cursor: pointer;
+  color: var(--text);
+}
+.fun-task-active:hover {
+  background: #94a3b80a;
+}
+.fun-task-active:focus-visible {
+  outline: 1px solid var(--muted);
+  outline-offset: 2px;
+}
+.fun-task-check {
+  width: 15px;
+  height: 15px;
+  border: 1px solid #64748b;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex: 0 0 15px;
+  color: transparent;
+  font-size: 10px;
+  transition:
+    color 100ms,
+    background 100ms;
+}
+.fun-task-active.is-done .fun-task-check {
+  color: #e2e8f0;
+  background: #475569;
+  border-color: #94a3b8;
+}
+.fun-task-active.is-done .fun-task-text {
+  text-decoration: line-through;
+}
+body:has(dialog[open]) .fun-task-stack,
+.planning-detail-open .fun-task-stack,
+.task-settings-docked-open .fun-task-stack {
+  visibility: hidden;
+}
+.playful-settings {
+  margin-top: 38px;
+}
+[data-play-preferences] {
+  display: grid;
+  gap: 16px;
+}
+[data-play-preferences] .play-preference-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+[data-play-preferences] input[type='checkbox'] {
+  width: 17px;
+  height: 17px;
+}
+@media (max-width: 640px) {
+  .fun-task-stack {
+    width: 224px;
+    right: 12px;
+    bottom: 84px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fun-task-stack,
+  .fun-task-row,
+  .fun-task-check {
+    transition: none;
+  }
+}
+
+[data-child-composer] > summary,
+[data-comment-composer] > summary {
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+[data-child-composer] > summary:hover,
+[data-child-composer] > summary:focus-visible,
+[data-comment-composer] > summary:hover,
+[data-comment-composer] > summary:focus-visible {
+  color: #f8fafc;
+}
+.list-settings-panel .settings-tabs > button {
+  min-width: 0;
+  flex: 1 1 0;
+  font-size: 13px;
+  padding: 12px 5px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.quiet-info .quiet-symbol {
+  opacity: 0;
+  transform-origin: 12px 12px;
+  transform: scale(0.65) rotate(-35deg);
+  transition:
+    opacity 150ms ease,
+    transform 180ms ease;
+}
+.quiet-info[data-save-state='info'] .quiet-symbol-info,
+.quiet-info[data-save-state='unsaved'] .quiet-symbol-unsaved,
+.quiet-info[data-save-state='saving'] .quiet-symbol-saving,
+.quiet-info[data-save-state='saved'] .quiet-symbol-saved,
+.quiet-info[data-save-state='error'] .quiet-symbol-error {
+  opacity: 1;
+  transform: scale(1) rotate(0);
+}
+.quiet-info[data-save-state='unsaved'] {
+  color: #b3a17d;
+}
+.quiet-info[data-save-state='saved'] {
+  color: #8cae9d;
+}
+.quiet-info[data-save-state='error'] {
+  color: #df9696;
+}
+.quiet-info[data-save-state='saving'] .quiet-ring {
+  opacity: 0.2;
+}
+.quiet-info[data-save-state='saving'] .quiet-symbol-saving {
+  animation: quiet-saving-spin 850ms linear infinite;
+}
+@keyframes quiet-saving-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quiet-info .quiet-symbol {
+    transition: none;
+  }
+  .quiet-info[data-save-state='saving'] .quiet-symbol-saving {
+    animation: none;
+  }
+}
+
+@media (min-width: 1000px) {
+  body.task-settings-docked-open {
+    --task-dock-width: 320px;
+  }
+  body.task-settings-docked-open #navigation {
+    width: var(--task-dock-width);
+  }
+  body.task-settings-docked-open > main,
+  body.task-settings-docked-open main.task-page,
+  body.task-settings-docked-open main:not(.task-page) {
+    margin-left: var(--task-dock-width);
+    margin-right: var(--task-dock-width);
+    padding-left: max(36px, calc((100vw - 640px - 1100px) / 2));
+    padding-right: max(36px, calc((100vw - 640px - 1100px) / 2));
+  }
+  .list-settings-panel.is-docked {
+    width: 320px;
+  }
+  .list-settings-panel.is-docked .settings-tabs {
+    margin-inline: 12px;
+  }
+  .list-settings-panel.is-docked .settings-tabs > button {
+    padding-inline: 3px;
+    font-size: 12px;
+  }
+  .list-settings-panel.is-docked .settings-content {
+    padding: 18px 18px;
+  }
+}
+
+body:has(.quiet-info) .fun-task-stack {
+  right: 62px;
+}
+body:has(.quiet-info) .task-play {
+  right: 58px;
+}

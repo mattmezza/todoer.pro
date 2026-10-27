@@ -53,3 +53,53 @@ if (form) {
     }
   });
 }
+
+const playForm = document.querySelector('[data-play-preferences]');
+if (playForm) {
+  const enabled = playForm.elements.fun_animations,
+    style = playForm.elements.fun_animation;
+  const status = playForm.querySelector('[data-play-status]');
+  const controls = [enabled, style];
+  controls.forEach((control) => (control.disabled = true));
+  async function load() {
+    const response = await fetch('/api/v1/notification-preferences', {
+      cache: 'no-store',
+    });
+    if (!response.ok) throw Error('Could not load preferences.');
+    return response.json();
+  }
+  load()
+    .then((value) => {
+      enabled.checked = value.fun_animations !== false;
+      style.value = value.fun_animation || 'cards';
+      controls.forEach((control) => (control.disabled = false));
+      style.disabled = !enabled.checked;
+    })
+    .catch((error) => (status.textContent = error.message));
+  playForm.addEventListener('change', async () => {
+    const choice = { fun_animations: enabled.checked, fun_animation: style.value };
+    controls.forEach((control) => (control.disabled = true));
+    status.textContent = 'Saving…';
+    try {
+      const value = { ...(await load()), ...choice };
+      const response = await fetch('/api/v1/notification-preferences', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content,
+        },
+        body: JSON.stringify(value),
+      });
+      if (!response.ok) throw Error('Could not save preferences. Try again.');
+      document.dispatchEvent(
+        new CustomEvent('todoer-play-preferences', { detail: value }),
+      );
+      status.textContent = 'Saved.';
+    } catch (error) {
+      status.textContent = error.message;
+    } finally {
+      enabled.disabled = false;
+      style.disabled = !enabled.checked;
+    }
+  });
+}

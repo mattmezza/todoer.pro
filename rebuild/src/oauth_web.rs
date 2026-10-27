@@ -708,7 +708,7 @@ async fn settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult {
             .collect::<Vec<_>>()
             .join(", ");
         existing.push_str(&format!(
-            "<li><code>{}</code> — {} — {} — {} — expires Unix {} {}",
+            "<li><code>{}</code> — {} — {} — {} — expires <time data-unix-time=\"{}\"></time> {}",
             escaped(&row.id),
             escaped(&row.audience),
             escaped(&permissions),

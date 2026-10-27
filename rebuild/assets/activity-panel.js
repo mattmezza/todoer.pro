@@ -84,8 +84,12 @@ export function mountActivity(container, kind, id) {
           row.append(link);
         }
         const meta = document.createElement('p');
-        const when = ` on ${formatTime(item.occurred_at)}`;
-        meta.textContent = `${item.actor}${item.attribution === 'agent' ? ' (agent)' : ''} ${actions.map((value) => value[1]).join(' and ')}${when}.`;
+        const when =
+          item.occurred_at == null
+            ? ' · Date not recorded (legacy activity)'
+            : ` on ${formatTime(item.occurred_at)}`;
+        meta.textContent = `${item.actor === 'Member' && item.occurred_at == null ? 'Actor not recorded' : item.actor}${item.attribution === 'agent' ? ' (agent)' : ''} ${actions.map((value) => value[1]).join(' and ')}${when}.`;
+        meta.title = formatTime.timeZone;
         row.append(meta);
         if (item.undo_revision) {
           const undo = document.createElement('button');

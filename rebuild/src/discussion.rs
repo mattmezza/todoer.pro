@@ -176,7 +176,7 @@ fn discussion_event(
     // revision is unchanged. The event kind/entity are separate from task edits.
     let event = serde_json::json!({"kind":kind,"task":task,"actor":user,"client":client,"attribution":if client.is_some(){"agent"}else{"human"},"discussion":entity,"request_id":crate::audit::request_id()});
     c.execute(
-        "INSERT INTO history(list_id,event,actor,before_event) VALUES(?1,?2,?3,?4)",
+        "INSERT INTO history(list_id,event,actor,before_event,occurred_at) VALUES(?1,?2,?3,?4,unixepoch())",
         params![task.list_id, event.to_string(), user, before],
     )?;
     Ok(())

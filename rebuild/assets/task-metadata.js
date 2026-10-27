@@ -1,4 +1,4 @@
-import { stowInfo } from './quiet-info.js';
+import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
 // Stable entity IDs are retained separately from their display names.
 export function mountTaskMetadata({
@@ -333,6 +333,11 @@ export function mountTaskMetadata({
   }
   function changed() {
     if (!active || busy || !canWrite || !Number.isInteger(revision)) return;
+    setSaveState(
+      'metadata:' + taskId,
+      'unsaved',
+      'Metadata changes are kept on this device until you save them.',
+    );
     draft = {
       revision,
       selected,
@@ -359,7 +364,13 @@ export function mountTaskMetadata({
     saveSection.hidden = !canWrite || Boolean(task?.parent_id);
     section.disabled = value || !canWrite || Boolean(task?.parent_id);
   }
-  async function request(path, method = 'GET', body, html = false) {
+  function request(path, method = 'GET', ...args) {
+    const action = () => performRequest(path, method, ...args);
+    return method === 'GET' || /preview|intents/.test(path)
+      ? action()
+      : trackSave('metadata:' + taskId, action);
+  }
+  async function performRequest(path, method = 'GET', body, html = false) {
     const controller = new AbortController();
     requests.add(controller);
     const timeout = setTimeout(() => controller.abort(), 30000);
