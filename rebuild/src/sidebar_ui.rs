@@ -16,6 +16,10 @@ pub(super) struct SidebarSpace {
 }
 pub(super) struct Sidebar {
     pub space_overview: bool,
+    pub settings_section: String,
+    pub favorites: Vec<SidebarList>,
+    pub favorite_ids: Vec<String>,
+    pub list_is_favorite: bool,
     pub account_id: String,
     pub lists: Vec<SidebarList>,
     pub spaces: Vec<SidebarSpace>,
@@ -132,6 +136,30 @@ pub(super) fn build_sidebar(
             title: l.title,
         })
         .collect();
+    let personal_favorites = db.favorites(actor)?;
+    let favorite_ids: Vec<String> = personal_favorites
+        .iter()
+        .filter(|f| f.kind == "list")
+        .map(|f| f.id.clone())
+        .collect();
+    let favorites = personal_favorites
+        .into_iter()
+        .filter(|f| f.kind == "list")
+        .map(|f| SidebarList {
+            slug: slugs
+                .lists
+                .get(&f.id)
+                .cloned()
+                .unwrap_or_else(|| f.title.to_lowercase()),
+            color: db
+                .list_color(actor, &f.id)
+                .ok()
+                .flatten()
+                .unwrap_or_else(|| "blue".into()),
+            id: f.id,
+            title: f.title,
+        })
+        .collect();
     let menu_spaces = spaces
         .iter()
         .filter(|s| Some(&s.id) == workspace.as_ref())
@@ -142,6 +170,10 @@ pub(super) fn build_sidebar(
     Ok(Sidebar {
         menu_spaces,
         space_overview: false,
+        settings_section: String::new(),
+        list_is_favorite: favorite_ids.iter().any(|id| id == current_list),
+        favorite_ids,
+        favorites,
         account_id: user,
         lists,
         spaces: spaces.clone(),

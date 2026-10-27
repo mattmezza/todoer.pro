@@ -51,38 +51,8 @@ async fn set_color(
             .await?,
     ))
 }
-#[derive(Template)]
-#[template(path = "favorites.html")]
-struct FavoritesPage {
-    lists: Vec<List>,
-    workspaces: Vec<crate::workspace::Workspace>,
-    favorites: Vec<crate::navigation::Favorite>,
-    csrf: String,
-}
-async fn page(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
-    let Ok(a) = s.auth(&h, false) else {
-        return Ok(Redirect::to("/signin").into_response());
-    };
-    let (lists, workspaces, favorites) = s
-        .run(move |db| Ok((db.lists(&a)?, db.workspaces(&a)?, db.favorites(&a)?)))
-        .await?;
-    Ok(Html(
-        FavoritesPage {
-            lists,
-            workspaces,
-            favorites,
-            csrf: s.csrf_for(&h),
-        }
-        .render()
-        .map_err(|_| {
-            ApiError(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "template",
-                "Favorites render failed".into(),
-            )
-        })?,
-    )
-    .into_response())
+async fn page() -> Redirect {
+    Redirect::to("/today")
 }
 #[derive(Deserialize)]
 struct FavoriteForm {
@@ -115,7 +85,7 @@ async fn form(
         )
     })
     .await?;
-    Ok(Redirect::to("/favorites"))
+    Ok(Redirect::to("/today"))
 }
 #[derive(Deserialize)]
 struct ColorForm {

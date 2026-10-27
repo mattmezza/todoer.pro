@@ -110,11 +110,12 @@ async fn page(
         ));
     }
     content.push_str("<a class=\"nav-link min-h-11 mt-8\" href=\"/settings/jobs\">Refresh all jobs</a></main></body></html>");
-    Ok((
-        [(header::CACHE_CONTROL, "no-store, private")],
-        Html(content),
-    )
-        .into_response())
+    let mut response =
+        super::scheduling_http::render_settings(&s, &h, "Delivery status", content, "jobs").await?;
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, "no-store, private".parse().unwrap());
+    Ok(response)
 }
 
 #[cfg(test)]
@@ -227,7 +228,8 @@ mod tests {
         assert!(body.contains("delivery_failed_or_ambiguous"));
         let (status, html, _) = f.get("/settings/jobs", None).await;
         assert_eq!(status, StatusCode::OK);
-        assert!(html.contains("Job status"));
+        assert!(html.contains("Delivery status"));
+        assert!(html.contains("aria-label=\"Settings\""));
         assert!(!html.contains("secret"));
         assert!(!html.contains("other-job"));
         let (status, body, _) = f.get("/api/v1/jobs", Some(&f.other.token)).await;

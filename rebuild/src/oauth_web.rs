@@ -131,7 +131,7 @@ pub(super) fn routes() -> Router<AppState> {
         .route("/oauth/approve", post(approve))
         .route("/oauth/token", post(token).options(preflight))
         .route("/oauth/revoke", post(revoke).options(preflight))
-        .route("/settings", get(settings))
+        .route("/settings/agents", get(settings))
         .route("/settings/credentials", post(issue_form))
         .route("/settings/credentials/{id}/revoke", post(revoke_form))
         .route("/api/v1/credentials", get(credentials).post(issue_json))
@@ -671,7 +671,9 @@ async fn issue_form(
 }
 async fn settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult {
     let actor = browser(&s, &h, false)?;
-    let production = s.production.as_ref().ok_or_else(unavailable)?;
+    let Some(production) = s.production.as_ref() else {
+        return super::scheduling_http::render_settings(&s, &h, "AI & integrations", "<section class=\"settings-card\"><h2>Connected tools</h2><p>Connect AI assistants and your own scripts with a personal API credential.</p><p class=\"muted\">Credential management becomes available when OAuth is configured for this installation.</p><a href=\"/assist\" class=\"primary\">Capture with AI</a></section>".into(), "agents").await.map_err(|_| bad("Could not load settings"));
+    };
     let rows = production
         .store
         .lock()
@@ -719,7 +721,13 @@ async fn settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult {
         }
         existing.push_str("</li>");
     }
-    Ok(Html(format!("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Agent access · Todoer</title><link rel=\"stylesheet\" href=\"/assets/app.css\"><main><a href=\"/\">Todoer</a><h1>Agent access</h1><p><a href=\"/settings/devices\">Devices and push reminders</a> · <a href=\"/notifications\">Notification preferences</a> · <a href=\"/settings/jobs\">Job status</a> · <a href=\"/assist\">Capture and draft</a></p><p>Create a credential for your own scripts or revoke a connected OAuth client. Existing secrets cannot be displayed.</p><form method=\"post\" action=\"/settings/credentials\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><label>Audience<select name=\"audience\"><option value=\"mcp\">MCP</option><option value=\"rest\">REST API</option></select></label><fieldset><legend>Permissions</legend><label><input type=\"checkbox\" name=\"read\" value=\"yes\">Read</label><label><input type=\"checkbox\" name=\"write\" value=\"yes\">Write (includes read)</label><label><input type=\"checkbox\" name=\"admin\" value=\"yes\">Admin (requires owner access)</label></fieldset><fieldset><legend>Lists</legend>{}<label><input type=\"checkbox\" name=\"allow_all\" value=\"yes\">All current and future accessible lists</label></fieldset><label>Expires in days (1–90)<input name=\"ttl_days\" type=\"number\" min=\"1\" max=\"90\" value=\"30\" required></label><button>Create credential</button></form><h2>Current and recent credentials</h2><ul>{}</ul></main></html>",csrf,options,existing)).into_response())
+    let html = format!(
+        "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Agent access · Todoer</title><link rel=\"stylesheet\" href=\"/assets/app.css\"><main><a href=\"/\">Todoer</a><h1>Agent access</h1><p><a href=\"/settings/devices\">Devices and push reminders</a> · <a href=\"/notifications\">Notification preferences</a> · <a href=\"/settings/jobs\">Job status</a> · <a href=\"/assist\">Capture and draft</a></p><p>Create a credential for your own scripts or revoke a connected OAuth client. Existing secrets cannot be displayed.</p><form method=\"post\" action=\"/settings/credentials\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><label>Audience<select name=\"audience\"><option value=\"mcp\">MCP</option><option value=\"rest\">REST API</option></select></label><fieldset><legend>Permissions</legend><label><input type=\"checkbox\" name=\"read\" value=\"yes\">Read</label><label><input type=\"checkbox\" name=\"write\" value=\"yes\">Write (includes read)</label><label><input type=\"checkbox\" name=\"admin\" value=\"yes\">Admin (requires owner access)</label></fieldset><fieldset><legend>Lists</legend>{}<label><input type=\"checkbox\" name=\"allow_all\" value=\"yes\">All current and future accessible lists</label></fieldset><label>Expires in days (1–90)<input name=\"ttl_days\" type=\"number\" min=\"1\" max=\"90\" value=\"30\" required></label><button>Create credential</button></form><h2>Current and recent credentials</h2><ul>{}</ul></main></html>",
+        csrf, options, existing
+    );
+    super::scheduling_http::render_settings(&s, &h, "AI & integrations", html, "agents")
+        .await
+        .map_err(|_| bad("Could not load settings"))
 }
 #[cfg(test)]
 mod tests {
