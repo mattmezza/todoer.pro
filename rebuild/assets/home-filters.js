@@ -1,4 +1,6 @@
-const main = document.querySelector('[data-planning-today]:not([data-workbench])');
+const main = document.querySelector(
+  '[data-planning-today]:not([data-workbench]):not([data-search-preview])',
+);
 if (main) {
   const rows = main.querySelector('[data-planning-rows]');
   const spaces = main.querySelector('.planning-space-filters');
