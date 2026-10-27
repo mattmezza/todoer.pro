@@ -4545,7 +4545,7 @@ form[data-list-edit] input.list-edit-color {
 }
 
 /* Shared dialog reading size; actions retain the compact app button scale. */
-dialog:not(.list-settings-panel) :is(p, label, input, select, textarea, li) {
+dialog:not(.list-settings-panel):not(.search-omnibar) :is(p, label, input, select, textarea, li) {
   font-size: 16px !important;
   line-height: 1.5;
 }
@@ -7157,8 +7157,10 @@ h1,h2,h3 { font-family:var(--font-sans)!important; }
 :is(.capture-close, .search-omnibar .omnibar-heading button) { position:absolute; top:18px; right:18px; width:32px; height:32px; min-width:32px; min-height:32px; padding:6px; display:grid; place-items:center; border:0; border-radius:50%; color:var(--muted); }
 :is(.capture-close, .search-omnibar .omnibar-heading button):hover { background:var(--hover); color:var(--text); }
 .search-omnibar .omnibar-heading { padding:28px 70px 10px 28px; }
-.search-omnibar .omnibar-heading input { font-size:22px; font-weight:650; }
-.search-omnibar .omnibar-status { padding-inline:28px; }
+.search-omnibar .omnibar-heading input { font-size:24px; font-weight:650; line-height:1.4; color:var(--text); }
+.search-omnibar .omnibar-heading input::placeholder { color:var(--text); opacity:1; }
+.search-omnibar .omnibar-status { padding:0 28px 16px; font-size:13px; line-height:1.5; color:var(--muted); }
+.search-omnibar #omnibar-results:empty { display:none; }
 .search-omnibar footer { padding:8px 28px 20px; }
 .quick-capture-form > label { margin:0; }
 .quick-capture-form :is(input:not([type=hidden]),textarea,select) { background:var(--bg); border-radius:6px; }
