@@ -7218,3 +7218,16 @@ dialog.destination-dialog label.destination-search-label { display:grid; gap:8px
 .attachment-card-actions > :is(a,button) { display:grid; place-items:center; width:32px; height:36px; color:var(--muted); padding:0; }
 .attachment-card-actions > :is(a,button):hover { color:var(--accent); }
 .attachment-choose { font-size:16px; padding:0; font-weight:400; }
+
+.trash-group { padding:20px 0; border-bottom:1px solid var(--line); }
+.trash-group-head { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.trash-context { font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+.trash-group-head button { flex-shrink:0; color:var(--accent); min-height:36px; }
+.trash-group-head button:disabled { color:var(--muted); }
+.trash-tree { list-style:none; margin:8px 0; padding:0; }
+.trash-tree li { display:flex; gap:10px; padding:6px 0 6px calc(var(--depth)*22px); font-size:15px; }
+.trash-tree li:first-child { font-weight:600; }
+.trash-tree li > span { color:var(--muted); }
+.trash-summary { font-size:12px; color:var(--muted); margin-top:8px; }
+.trash-pagination { display:flex; justify-content:center; align-items:center; gap:24px; padding:24px 0; font-size:14px; }
+.trash-pagination a { color:var(--accent); }
