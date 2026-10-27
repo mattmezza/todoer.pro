@@ -6917,3 +6917,5 @@ form[data-list-edit] .inline-actions, .space-inline-editor > div,
 .task-promote-tree .task-structure-tree > li { position: relative; }
 .task-promote-tree .task-structure-tree > li::before { content: '→'; position: absolute; left: -22px; top: 8px; color: var(--muted); }
 .task-promote-tree a[aria-current] { background: transparent; }
+.task-promote-tree .task-structure-tree span { display: block; padding: 8px 10px; overflow-wrap: anywhere; }
+.task-promote-tree .task-structure-tree span.is-complete { text-decoration: line-through; }
