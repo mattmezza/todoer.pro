@@ -271,7 +271,9 @@ if (
   let toy;
   function apply(value) {
     toy?.remove();
-    document.querySelectorAll('.task-flyer').forEach((flyer) => flyer.remove());
+    document
+      .querySelectorAll('.task-flyer,.fun-task-flyer')
+      .forEach((flyer) => flyer.remove());
     toy =
       value.fun_animations === false
         ? null
