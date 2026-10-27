@@ -140,9 +140,28 @@ export function openSearch() {
     input.setAttribute('aria-expanded', 'true');
     const close = document.createElement('button');
     close.type = 'button';
-    close.textContent = 'Esc';
+    close.innerHTML =
+      '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg>';
     close.setAttribute('aria-label', 'Close quick search');
     close.onclick = () => dialog.close();
+    let outsidePress = false;
+    const outside = (event) => {
+      const r = dialog.getBoundingClientRect();
+      return (
+        event.target === dialog &&
+        (event.clientX < r.left ||
+          event.clientX > r.right ||
+          event.clientY < r.top ||
+          event.clientY > r.bottom)
+      );
+    };
+    dialog.addEventListener('pointerdown', (event) => {
+      outsidePress = outside(event);
+    });
+    dialog.addEventListener('click', (event) => {
+      if (outsidePress && outside(event)) dialog.close();
+      outsidePress = false;
+    });
     head.append(label, input, close);
     results = document.createElement('div');
     results.id = 'omnibar-results';
