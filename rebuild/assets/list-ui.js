@@ -16,9 +16,15 @@ export function mountListUi({ api, notice, listId }) {
     picker.setAttribute('aria-label', 'List color');
     const swatch = document.querySelector('[data-list-display] .entity-color');
     const rgb = swatch && getComputedStyle(swatch).backgroundColor.match(/\d+/g);
-    picker.value = document.body.dataset.listColor || (rgb?.length >= 3
-      ? '#' + rgb.slice(0, 3).map((part) => Number(part).toString(16).padStart(2, '0')).join('')
-      : '#3b82f6');
+    picker.value =
+      document.body.dataset.listColor ||
+      (rgb?.length >= 3
+        ? '#' +
+          rgb
+            .slice(0, 3)
+            .map((part) => Number(part).toString(16).padStart(2, '0'))
+            .join('')
+        : '#3b82f6');
     const title = edit.querySelector('[name="title"]');
     title.before(heading);
     heading.append(picker, title);
@@ -29,9 +35,11 @@ export function mountListUi({ api, notice, listId }) {
       const icon = button.querySelector('svg');
       button.replaceChildren();
       if (icon) button.append(icon);
-      button.append(document.createTextNode(
-        completedCheck.checked ? 'Hide completed' : 'Show completed',
-      ));
+      button.append(
+        document.createTextNode(
+          completedCheck.checked ? 'Hide completed' : 'Show completed',
+        ),
+      );
       button.setAttribute('aria-pressed', String(completedCheck.checked));
     }
   }

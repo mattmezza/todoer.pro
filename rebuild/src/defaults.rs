@@ -32,6 +32,28 @@ fn prefix(kind: &str) -> Result<&'static str, Error> {
     }
 }
 pub fn public_id(c: &Connection, kind: &str, id: &str) -> Result<String, Error> {
+    if kind == "task" {
+        loop {
+            if let Some(value) = c
+                .query_row(
+                    "SELECT short_id FROM task_public_ids WHERE task_id=?1",
+                    [id],
+                    |r| r.get(0),
+                )
+                .optional()?
+            {
+                return Ok(value);
+            }
+            let candidate =
+                URL_SAFE_NO_PAD.encode(&uuid::Uuid::new_v4().as_bytes()[..6])[..7].to_owned();
+            // Both namespaces remain valid forever; do not allocate over an old ID.
+            if c.query_row("SELECT EXISTS(SELECT 1 FROM tasks WHERE id=?1 OR reference=?1 UNION ALL SELECT 1 FROM entity_public_ids WHERE short_id=?1)", [&candidate], |r| r.get::<_, bool>(0))? { continue; }
+            c.execute(
+                "INSERT OR IGNORE INTO task_public_ids(task_id,short_id) VALUES(?1,?2)",
+                params![id, candidate],
+            )?;
+        }
+    }
     let prefix = prefix(kind)?;
     loop {
         if let Some(value) = c
@@ -62,6 +84,18 @@ pub fn public_id(c: &Connection, kind: &str, id: &str) -> Result<String, Error> 
     }
 }
 pub fn resolve(c: &Connection, kind: &str, id: &str) -> Result<String, Error> {
+    if kind == "task" {
+        if let Some(value) = c
+            .query_row(
+                "SELECT task_id FROM task_public_ids WHERE short_id=?1",
+                [id],
+                |r| r.get(0),
+            )
+            .optional()?
+        {
+            return Ok(value);
+        }
+    }
     Ok(c.query_row(
         "SELECT entity_id FROM entity_public_ids WHERE kind=?1 AND short_id=?2",
         params![kind, id],
@@ -254,6 +288,25 @@ mod tests {
             .remove(0);
         assert!(first.id.starts_with("t_"));
         assert_eq!(first.id, first.reference);
+        // Existing links and copied references keep resolving after compact URLs.
+        db.conn.execute("INSERT INTO entity_public_ids(kind,entity_id,short_id) VALUES('task',?1,'t_previousAlias')", [&first.id]).unwrap();
+        let compact = public_id(&db.conn, "task", &first.id).unwrap();
+        assert_eq!(compact.len(), 7);
+        assert_eq!(public_id(&db.conn, "task", &first.id).unwrap(), compact);
+        assert_eq!(resolve(&db.conn, "task", &compact).unwrap(), first.id);
+        assert_eq!(
+            resolve(&db.conn, "task", "t_previousAlias").unwrap(),
+            first.id
+        );
+        assert_eq!(crate::core::task(&db.conn, &compact).unwrap().id, first.id);
+        assert_eq!(
+            db.resolve_reference("dev", &format!("%{compact}"))
+                .unwrap()
+                .choices[0]
+                .id,
+            first.id
+        );
+
         assert_eq!(
             db.conn
                 .query_row(

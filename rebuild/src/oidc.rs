@@ -76,6 +76,7 @@ pub struct VerifiedIdentity {
     pub email: Option<String>,
     pub email_verified: bool,
     pub display_name: Option<String>,
+    pub picture_url: Option<String>,
 }
 impl VerifiedIdentity {
     /// Registration gate only; accounts must be keyed by (issuer, subject).
@@ -258,6 +259,11 @@ impl GoogleOidc {
             subject: claims.subject().as_str().into(),
             email: claims.email().map(|email| email.as_str().into()),
             email_verified: claims.email_verified() == Some(true),
+            picture_url: claims
+                .picture()
+                .and_then(|picture| picture.get(None))
+                .map(|picture| picture.as_str().to_owned())
+                .filter(|picture| picture.len() <= 2048 && picture.starts_with("https://")),
             display_name: claims
                 .name()
                 .and_then(|name| name.get(None))
@@ -580,6 +586,7 @@ mod tests {
             email: Some("user@example.test".into()),
             email_verified: false,
             display_name: None,
+            picture_url: None,
         };
         assert!(matches!(
             identity.registration_email(),

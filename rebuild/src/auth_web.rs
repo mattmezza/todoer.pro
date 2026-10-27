@@ -274,7 +274,13 @@ pub(super) async fn google_callback(
         .issue_session(&user.id, 43200)?;
     // New users receive a private destination using normal authorized operations.
     let actor = user.id;
-    s.run(move |store| store.ensure_user_defaults(&actor))
+    let issuer = identity.issuer.clone();
+    let subject = identity.subject.clone();
+    let picture = identity.picture_url.clone();
+    s.run(move |store| {
+        store.conn.execute("UPDATE auth_identities SET picture_url=?1 WHERE issuer=?2 AND subject=?3 AND user_id=?4", rusqlite::params![picture,issuer,subject,actor])?;
+        store.ensure_user_defaults(&actor)
+    })
         .await?;
     let mut response = Redirect::to(&pending.next).into_response();
     let secure = if s.origin.starts_with("https://") {

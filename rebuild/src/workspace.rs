@@ -96,6 +96,7 @@ pub struct CreateList {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ListChange {
+    pub color: Option<String>,
     pub revision: i64,
     pub title: Option<String>,
     pub description: Option<String>,
@@ -551,6 +552,7 @@ impl Store {
         require_list(&tx, actor, id, 2)?;
         let old = list_raw(&tx, id)?;
         check_revision(old.revision, change.revision)?;
+        crate::navigation::validate_list_color(&change.color)?;
         let title = change.title.unwrap_or(old.title);
         let description = change.description.unwrap_or(old.description);
         validate(&title, &description)?;
@@ -558,6 +560,9 @@ impl Store {
             "UPDATE lists SET title=?2,description=?3,archived=COALESCE(?4,archived) WHERE id=?1",
             params![id, title.trim(), description, change.archived],
         )?;
+        if let Some(color) = change.color {
+            tx.execute("UPDATE lists SET color=CASE WHEN substr(?1,1,1)='#' THEN NULL ELSE ?1 END,color_hex=CASE WHEN substr(?1,1,1)='#' THEN ?1 ELSE NULL END WHERE id=?2", params![color, id])?;
+        }
         crate::slugs::list(&tx, id)?;
         let result = bump_list(&tx, id)?;
         tx.commit()?;
@@ -2478,6 +2483,7 @@ mod lifecycle_tests {
             "dev",
             "groceries",
             ListChange {
+                color: None,
                 revision: rev,
                 title: Some("New groceries".into()),
                 description: None,

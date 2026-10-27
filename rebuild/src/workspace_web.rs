@@ -906,6 +906,7 @@ async fn list_edit_form(
             &actor,
             &id,
             ListChange {
+                color: None,
                 revision: f.revision,
                 title: Some(f.title),
                 description: Some(f.description),

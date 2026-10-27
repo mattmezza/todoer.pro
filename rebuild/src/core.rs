@@ -87,7 +87,8 @@ pub(crate) fn raw_task(c: &Connection, id: &str) -> Result<Task, Error> {
     .ok_or(Error::NotFound)
 }
 pub(crate) fn task(c: &Connection, id: &str) -> Result<Task, Error> {
-    let t = raw_task(c, id)?;
+    let id = crate::defaults::resolve(c, "task", id)?;
+    let t = raw_task(c, &id)?;
     let deleted: bool = c.query_row(
         "SELECT deleted_at IS NOT NULL FROM tasks WHERE id=?1",
         [&t.id],
@@ -245,6 +246,8 @@ const MIGRATIONS: &[(i64, &str)] = &[
     ),
     (24, include_str!("../migrations/024_capture_defaults.sql")),
     (25, include_str!("../migrations/025_scoped_activity.sql")),
+    (26, include_str!("../migrations/026_compact_task_ids.sql")),
+    (27, include_str!("../migrations/027_identity_picture.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {
@@ -281,7 +284,7 @@ impl Store {
             )?;
             if !applied {
                 tx.execute_batch(sql)?;
-                if version == 24 {
+                if version == 26 {
                     crate::defaults::backfill(&tx)?;
                 }
                 if version == 1 {

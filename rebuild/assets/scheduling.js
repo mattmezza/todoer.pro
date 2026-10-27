@@ -152,10 +152,18 @@ export function mountScheduling({
   const priorityGroup = el('fieldset', { class: 'priority-selector' });
   priorityGroup.append(el('legend', {}, 'Priority'));
   const priorityOptions = el('div', { class: 'priority-options' });
-  for (const [value, text] of [['', 'None'], ['3', 'Low'], ['2', 'Medium'], ['1', 'High']]) {
+  for (const [value, text] of [
+    ['', 'None'],
+    ['3', 'Low'],
+    ['2', 'Medium'],
+    ['1', 'High'],
+  ]) {
     const choice = input('radio', 'priority_choice', value);
     choice.setAttribute('aria-label', `${text} priority`);
-    const option = el('label', { class: 'priority-option', 'data-priority': value || 'none' });
+    const option = el('label', {
+      class: 'priority-option',
+      'data-priority': value || 'none',
+    });
     const caption = el('span', {}, text);
     iconFor(caption, value ? 'flag' : 'minus');
     option.append(choice, caption);
@@ -178,7 +186,11 @@ export function mountScheduling({
   timedRow.append(localLabel, zoneLabel);
   const zones = el('datalist', { id: `timezones-${taskId}` });
   let zoneNames;
-  try { zoneNames = Intl.supportedValuesOf('timeZone'); } catch { zoneNames = []; }
+  try {
+    zoneNames = Intl.supportedValuesOf('timeZone');
+  } catch {
+    zoneNames = [];
+  }
   for (const name of [...new Set([defaultZone, 'UTC', ...zoneNames])].sort())
     zones.append(el('option', { value: name }));
   dueZone.setAttribute('list', zones.id);
@@ -188,15 +200,24 @@ export function mountScheduling({
   root.append(zones);
   for (const control of [planned, dueKind, dueDate, dueLocal, dueZone]) {
     const wrapper = control.closest('label');
-    const caption = el('span', { class: 'planning-label-caption' }, wrapper.firstChild.textContent);
+    const caption = el(
+      'span',
+      { class: 'planning-label-caption' },
+      wrapper.firstChild.textContent,
+    );
     wrapper.firstChild.replaceWith(caption);
     iconFor(caption, control === dueKind ? 'clock' : 'calendar');
   }
   const reminderGroup = el('details', { class: 'planning-group' });
   const reminderSummary = el('summary', {}, 'Reminders');
   reminderGroup.append(reminderSummary);
-  const reminderHeading = [...form.children].find((node) => node.tagName === 'H3' && node.textContent === 'Reminders');
-  for (let node = reminderHeading?.nextElementSibling; node && node !== save && node !== reload;) {
+  const reminderHeading = [...form.children].find(
+    (node) => node.tagName === 'H3' && node.textContent === 'Reminders',
+  );
+  for (
+    let node = reminderHeading?.nextElementSibling;
+    node && node !== save && node !== reload;
+  ) {
     const next = node.nextElementSibling;
     reminderGroup.append(node);
     node = next;
@@ -212,8 +233,10 @@ export function mountScheduling({
   function iconFor(element, name) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-    svg.classList.add('ui-icon'); svg.setAttribute('aria-hidden', 'true');
-    use.setAttribute('href', `/assets/icons.svg#${name}`); svg.append(use);
+    svg.classList.add('ui-icon');
+    svg.setAttribute('aria-hidden', 'true');
+    use.setAttribute('href', `/assets/icons.svg#${name}`);
+    svg.append(use);
     element.prepend(svg);
   }
   iconFor(reminderSummary, 'bell');
@@ -222,7 +245,9 @@ export function mountScheduling({
   iconFor(reload, 'arrow-uturn-left');
   iconFor(addReminder, 'plus');
   reload.hidden = !(scheduleDraft || recurrenceDraft);
-  function updateDraftActions() { reload.hidden = !(scheduleDraft || recurrenceDraft); }
+  function updateDraftActions() {
+    reload.hidden = !(scheduleDraft || recurrenceDraft);
+  }
   form.addEventListener('input', updateDraftActions);
   form.addEventListener('change', updateDraftActions);
   recurrence.addEventListener('input', updateDraftActions);
@@ -529,6 +554,7 @@ export function mountScheduling({
       });
       page.querySelector('.task-page-heading').after(summary);
     }
+    page.dataset.priority = String(schedule?.priority || 'none');
     summary.replaceChildren();
     summary.hidden = !schedule?.due && !schedule?.planned && !schedule?.priority;
     summary.title = 'Edit planning';
@@ -551,15 +577,27 @@ export function mountScheduling({
     svg.setAttribute('stroke-width', '1.5');
     svg.setAttribute('aria-hidden', 'true');
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('d', 'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z');
+    path.setAttribute(
+      'd',
+      'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z',
+    );
     svg.append(path);
     const value = due.kind === 'date' ? due.date : due.local;
     const date = new Date(due.kind === 'date' ? `${value}T12:00:00` : value);
-    const text = Number.isNaN(date.getTime()) ? value : date.toLocaleString(undefined, {
-      month: 'short', day: 'numeric', year: 'numeric',
-      ...(due.kind === 'timed' ? { hour: 'numeric', minute: '2-digit' } : {}),
-    });
-    summary.append(svg, document.createTextNode(`${schedule?.due ? 'Due' : 'Planned for'} ${text}${due.kind === 'timed' ? ` · ${due.timezone}` : ''}`));
+    const text = Number.isNaN(date.getTime())
+      ? value
+      : date.toLocaleString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+          ...(due.kind === 'timed' ? { hour: 'numeric', minute: '2-digit' } : {}),
+        });
+    summary.append(
+      svg,
+      document.createTextNode(
+        `${schedule?.due ? 'Due' : 'Planned for'} ${text}${due.kind === 'timed' ? ` · ${due.timezone}` : ''}`,
+      ),
+    );
     summary.title = 'Edit planning';
   }
   async function load(explicit = false) {
@@ -581,11 +619,7 @@ export function mountScheduling({
       }
       if (!recurrenceDraft) recurrenceRevision = result.task_revision;
       if (!scheduleDraft && !recurrenceDraft)
-        say(
-          canWrite
-            ? ''
-            : 'This schedule is read only.',
-        );
+        say(canWrite ? '' : 'This schedule is read only.');
       reminderGroup.open = Boolean(result.schedule.reminders?.length);
       updateDraftActions();
       setDisabled(false);

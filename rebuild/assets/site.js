@@ -196,14 +196,15 @@ function applyMenuIcons() {
   for (const grip of document.querySelectorAll('.task-drag-grip svg:has(use)')) {
     grip.replaceChildren();
     grip.setAttribute('viewBox', '0 0 24 24');
-    for (const x of [9, 15]) for (const y of [6, 12, 18]) {
-      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      dot.setAttribute('cx', x);
-      dot.setAttribute('cy', y);
-      dot.setAttribute('r', '1.5');
-      dot.setAttribute('fill', 'currentColor');
-      grip.append(dot);
-    }
+    for (const x of [9, 15])
+      for (const y of [6, 12, 18]) {
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', x);
+        dot.setAttribute('cy', y);
+        dot.setAttribute('r', '1.5');
+        dot.setAttribute('fill', 'currentColor');
+        grip.append(dot);
+      }
   }
   const names = [
     [/settings/i, 'settings'],
@@ -218,7 +219,12 @@ function applyMenuIcons() {
     [/complete/i, 'check'],
   ];
   for (const button of document.querySelectorAll('.menu-items button,.menu-items a')) {
-    if (button.matches('[data-list-archive],[data-list-settings-open],[data-list-sharing-open],[data-workspace-settings-open],[data-list-edit-open],[data-section-edit-open]') && !button.textContent.trim().endsWith('…'))
+    if (
+      button.matches(
+        '[data-list-archive],[data-list-settings-open],[data-list-sharing-open],[data-workspace-settings-open],[data-list-edit-open],[data-section-edit-open]',
+      ) &&
+      !button.textContent.trim().endsWith('…')
+    )
       button.append(document.createTextNode('…'));
     if (button.querySelector('svg')) continue;
     const icon = names.find(([pattern]) => pattern.test(button.textContent))?.[1];
@@ -319,3 +325,98 @@ for (const link of document.querySelectorAll('.planning-tabs a'))
     link.setAttribute('aria-current', 'page');
 
 import './quick-capture.js';
+
+// Keep all form dialogs on the same visual rhythm, including fetched dialogs.
+function decorateModalHeadings() {
+  for (const heading of document.querySelectorAll(
+    'dialog:not(.list-settings-panel):not(.search-omnibar):not(.capture-omnibar) h2',
+  )) {
+    if (heading.querySelector('.modal-heading-icon')) continue;
+    const text = heading.textContent.toLowerCase();
+    const name = /delete|trash|archive/.test(text)
+      ? 'trash'
+      : /move/.test(text)
+        ? 'move'
+        : /share|invit/.test(text)
+          ? 'user'
+          : /edit|rename/.test(text)
+            ? 'edit'
+            : 'plus';
+    const badge = document.createElement('span');
+    badge.className = 'modal-heading-icon';
+    badge.setAttribute('aria-hidden', 'true');
+    badge.innerHTML = `<svg class="ui-icon" width="20" height="20"><use href="/assets/icons.svg#${name}"/></svg>`;
+    heading.prepend(badge);
+  }
+}
+decorateModalHeadings();
+new MutationObserver(decorateModalHeadings).observe(document.body, {
+  childList: true,
+  subtree: true,
+});
+for (const action of document.querySelectorAll('.sidebar-add')) {
+  if (!action.hasAttribute('aria-label'))
+    action.setAttribute(
+      'aria-label',
+      action.querySelector('span')?.textContent.trim() || 'Add',
+    );
+}
+
+const accountMenu = document.querySelector('.account-menu-panel');
+if (accountMenu) {
+  const preferences = accountMenu.querySelector('a[href="/settings"]');
+  if (preferences) {
+    const heading = document.createElement('div');
+    heading.className = 'nav-heading';
+    heading.textContent = 'Settings';
+    preferences.before(heading);
+  }
+  if (!accountMenu.querySelector('.space-switch-item'))
+    accountMenu.querySelector('.nav-heading')?.remove();
+  const about = document.createElement('button');
+  about.type = 'button';
+  about.textContent = 'About';
+  accountMenu.append(about);
+  about.addEventListener('click', () => {
+    document.querySelector('.account-menu')?.removeAttribute('open');
+    const modal = document.createElement('dialog');
+    modal.className = 'about-dialog';
+    modal.setAttribute('aria-label', 'About Todoer');
+    modal.innerHTML = `<button type="button" class="about-close" aria-label="Close About"><svg class="ui-icon" width="18" height="18" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg></button>
+      <div class="about-logo">todoer<sup>pro</sup></div>
+      <p class="about-tagline">Get things done, like a pro!</p>
+      <p class="about-creator">Made with <span aria-label="love">♥</span> by<br><a href="https://matteo.merola.co/software" target="_blank" rel="noopener">Matteo Merola <span class="about-handle">(@mattmezza)</span></a></p>
+      <footer><a href="https://matteo.merola.co/software" target="_blank" rel="noopener">Merola Software &amp; Services</a><address>Wartauweg 19, 8049 Zurich<br>Switzerland</address><p class="about-release" aria-live="polite">Loading release…</p></footer>`;
+    const release = modal.querySelector('.about-release');
+    fetch('/api/v1/capabilities', { cache: 'no-store' })
+      .then((response) => {
+        if (!response.ok) throw Error();
+        return response.json();
+      })
+      .then((info) => {
+        release.textContent = `Release v${info.version.replace(/^v/, '')}`;
+      })
+      .catch(() => {
+        release.textContent = 'Release information unavailable';
+      });
+    modal.querySelector('.about-close').onclick = () => modal.close();
+    modal.addEventListener('close', () => {
+      modal.remove();
+      document.querySelector('.account-menu > summary')?.focus();
+    });
+    document.body.append(modal);
+    restoreOriginalLogos();
+    modal.showModal();
+  });
+}
+
+function restoreOriginalLogos() {
+  for (const logo of document.querySelectorAll('.brand, .about-logo')) {
+    if (logo.classList.contains('todoer-logo')) continue;
+    logo.classList.add('todoer-logo');
+    logo.setAttribute('aria-label', 'Todoer Pro');
+    logo.innerHTML =
+      '<span class="todoer-logo-word">todoer</span><span class="todoer-logo-pro">pro</span>';
+  }
+}
+restoreOriginalLogos();

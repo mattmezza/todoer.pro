@@ -38,3 +38,10 @@ Verification: 205 library tests passed, including transactional provisioning
 failure, verified identity rollback, first capture, retry idempotency, persistent
 aliases and permission isolation. Browser/local migration checks are recorded
 in the implementation ledger after exercising the delivered build.
+
+Task URLs now use a persisted, seven-character, prefix-free public ID. The ID
+shown after `%` is identical to the URL segment. Migration 026 stores these in
+`task_public_ids`; previous public aliases and UUID URLs continue to resolve and
+redirect to the compact URL. Reference lookup and search accept the compact ID.
+Exports include the mapping, so restored tasks retain their URLs. Database IDs
+and existing saved references remain unchanged.

@@ -291,7 +291,7 @@ UNION ALL SELECT 'tag',g.id,(SELECT MIN(t.list_id) FROM task_tags tt JOIN tasks 
                 let p = bind(&mut values, expression);
                 let reference = bind(&mut values, exact_ref.to_string());
                 sql += &format!(
-                    " AND (d.rowid IN (SELECT rowid FROM search_fts WHERE search_fts MATCH {p}) OR (d.kind='task' AND (t.id={reference} OR t.reference={reference} OR (length({reference})>=8 AND substr(t.id,1,length({reference}))={reference}))))"
+                    " AND (d.rowid IN (SELECT rowid FROM search_fts WHERE search_fts MATCH {p}) OR (d.kind='task' AND (t.id={reference} OR t.reference={reference} OR EXISTS(SELECT 1 FROM task_public_ids p WHERE p.task_id=t.id AND p.short_id={reference}) OR (length({reference})>=8 AND substr(t.id,1,length({reference}))={reference}))))"
                 );
             }
         }
