@@ -11,3 +11,12 @@ TODOER_REGISTRATION_ALLOWLIST=owner@example.invalid
 # Local synthetic mode only; disables Google/OAuth and always binds loopback.
 # TODOER_DEV_AUTH=1
 # TODOER_DEV_TOKEN=replace-with-at-least-24-random-characters
+
+# Used only to initialize persistent deployment authentication settings.
+TODOER_GOOGLE_LOGIN_ENABLED=true
+TODOER_SIGNUP_ENABLED=true
+# Exact verified addresses that should receive deployment administrator access.
+TODOER_AUTH_ADMIN_EMAILS=owner@example.invalid
+# A stable, private server key is also used to encrypt authenticator seeds.
+# Back it up independently; changing it makes existing authenticator seeds unreadable.
+TODOER_SERVER_KEY=replace-with-a-long-random-secret

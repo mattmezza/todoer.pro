@@ -29,6 +29,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("Database migrations complete; no listener or notification workers started");
         return Ok(());
     }
+    let google_enabled = env::var("TODOER_GOOGLE_LOGIN_ENABLED").map(|v|v=="1" || v=="true").unwrap_or(true);
+    let signup_enabled = env::var("TODOER_SIGNUP_ENABLED").map(|v|v=="1" || v=="true").unwrap_or(true);
+    store.initialize_auth_policy(google_enabled,signup_enabled)?;
     let port: u16 = env::var("TODOER_RUST_PORT")
         .unwrap_or_else(|_| "8092".into())
         .parse()?;
@@ -72,17 +75,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(str::to_owned)
             .collect::<Vec<_>>();
         auth.replace_allowlist(&allowlist)?;
-        let oidc = todoer::oidc::GoogleOidc::discover(todoer::oidc::GoogleConfig {
+        let oidc = if env::var("TODOER_GOOGLE_CLIENT_ID").is_ok() || env::var("TODOER_GOOGLE_CLIENT_SECRET").is_ok() { Some(todoer::oidc::GoogleOidc::discover(todoer::oidc::GoogleConfig {
             client_id: env::var("TODOER_GOOGLE_CLIENT_ID")?,
             client_secret: env::var("TODOER_GOOGLE_CLIENT_SECRET")?,
             redirect_uri: format!("{origin}/auth/google/callback"),
         })
-        .await?;
+        .await?) } else { None };
+        if auth.auth_policy()?.google_enabled && oidc.is_none() { return Err("Google login is enabled but client credentials are missing".into()); }
         let bind = env::var("TODOER_RUST_BIND")
             .unwrap_or_else(|_| "127.0.0.1".into())
             .parse::<std::net::IpAddr>()?;
         (
-            AppState::production(Arc::new(Mutex::new(store)), auth, oidc, origin),
+            AppState::production_optional(Arc::new(Mutex::new(store)), auth, oidc, origin),
             bind,
         )
     };
@@ -100,7 +104,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Err(error)
         }
     })?;
-    let state = state.with_invitations(todoer::invitations::InvitationSigner::new(
+    let state = state.with_account_key(&signer_key).with_invitations(todoer::invitations::InvitationSigner::new(
         &signer_key,
         if development {
             format!("http://127.0.0.1:{port}")

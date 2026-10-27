@@ -503,6 +503,9 @@ impl Notifications {
     ) -> Result<(), Error> {
         self.send(id,Delivery{to:self.test_recipient.as_deref().unwrap_or(email).to_owned(),subject:"Invitation to Todoer".into(),body:format!("You have been invited to a private Todoer workspace or list.\nSign in with the invited Google email to review your access.\n\n{link}\n\nThis invitation expires after seven days. If you did not expect it, you can ignore this message.")}).await
     }
+    pub(crate) async fn send_account(&self,email:&str,subject:&str,body:&str)->Result<(),Error>{
+        self.send(&uuid::Uuid::new_v4().to_string(),Delivery{to:email.to_owned(),subject:subject.into(),body:body.into()}).await
+    }
     async fn send(&self, id: &str, delivery: Delivery) -> Result<(), Error> {
         let message = Message::builder()
             .from(self.from.clone())

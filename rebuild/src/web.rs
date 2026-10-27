@@ -21,6 +21,8 @@ mod agent_http;
 mod assist_http;
 #[path = "auth_web.rs"]
 mod browser_auth;
+#[path="account_web.rs"]
+mod account_http;
 #[path = "cli_auth_web.rs"]
 mod cli_auth_http;
 #[path = "discussion_web.rs"]
@@ -68,6 +70,7 @@ use tower_http::services::ServeDir;
 #[derive(Clone)]
 pub struct AppState {
     store: Arc<Mutex<Store>>,
+    accounts: Arc<account_http::AccountRuntime>,
     production: Option<Arc<browser_auth::ProductionAuth>>,
     storage: Option<Arc<crate::object_storage::ObjectStorage>>,
     invitations: Option<Arc<crate::invitations::InvitationSigner>>,
@@ -84,6 +87,7 @@ impl AppState {
         Self {
             store,
             production: None,
+            accounts: Arc::new(account_http::AccountRuntime::new(&origin,uuid::Uuid::new_v4().to_string())),
             storage: None,
             invitations: None,
             push: None,
@@ -95,6 +99,7 @@ impl AppState {
             stopping: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         }
     }
+    pub fn with_account_key(mut self,key:&str)->Self {self.accounts=Arc::new(account_http::AccountRuntime::new(&self.origin,key.to_owned()));self}
     pub fn with_assist(mut self, assist: crate::assist::AssistService) -> Self {
         self.assist = assist;
         self
@@ -236,6 +241,9 @@ pub fn router(state: AppState) -> Router {
         .route("/sw.js", get(service_worker))
         .route("/signin", get(signin).post(login))
         .route("/signup", get(signup))
+        .route("/forgot-password", get(forgot_screen))
+        .route("/reset-password", get(reset_screen))
+        .route("/verify-email", get(verify_screen))
         .route("/auth/google", get(browser_auth::google_start))
         .route("/auth/google/callback", get(browser_auth::google_callback))
         .route("/logout", post(logout))
@@ -277,6 +285,7 @@ pub fn router(state: AppState) -> Router {
         .merge(reports_http::routes())
         .merge(public_http::routes())
         .merge(oauth_http::routes())
+        .merge(account_http::routes())
         .merge(cli_auth_http::routes())
         .merge(organization::routes())
         .merge(agent_http::routes())
@@ -326,7 +335,11 @@ fn encode_query(value: &str) -> String {
 #[derive(Deserialize, Default)]
 struct SigninQuery {
     next: Option<String>,
+    step: Option<String>,
 }
+async fn forgot_screen(State(s):State<AppState>,Query(mut q):Query<SigninQuery>)->Html<String>{q.step=Some("forgot".into());auth_screen(s,q,false)}
+async fn reset_screen(State(s):State<AppState>,Query(mut q):Query<SigninQuery>)->Html<String>{q.step=Some("reset".into());auth_screen(s,q,false)}
+async fn verify_screen(State(s):State<AppState>,Query(mut q):Query<SigninQuery>)->Html<String>{q.step=Some("verify".into());auth_screen(s,q,false)}
 async fn signup(State(s): State<AppState>, Query(q): Query<SigninQuery>) -> Html<String> {
     auth_screen(s, q, true)
 }
@@ -336,13 +349,26 @@ async fn signin(State(s): State<AppState>, Query(q): Query<SigninQuery>) -> Html
 fn auth_screen(s: AppState, q: SigninQuery, signup: bool) -> Html<String> {
     let next = browser_auth::safe_next(q.next.as_deref());
     let encoded = encode_query(&next);
-    let title = if signup { "Make room for what matters." } else { "Welcome back." };
+    let step=q.step.as_deref().unwrap_or("");
+    let title = if step=="mfa" {"One more step."} else if step=="forgot" {"Forgot your password?"} else if step=="reset" {"Choose a new password."} else if step=="verify" {"Confirm your email."} else if signup { "Make room for what matters." } else { "Welcome back." };
     let intro = if signup { "A little clarity for everything you want to do." } else { "Your tasks, plans, and a little peace of mind." };
     let action = if signup { "Sign up with Google" } else { "Continue with Google" };
     let google = format!(r##"<a class="auth-google" href="/auth/google?next={encoded}"><svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#4285F4" d="M43.61 24.46c0-1.36-.12-2.66-.35-3.92H24v7.42h11a9.4 9.4 0 0 1-4.08 6.17v5h6.6c3.86-3.55 6.09-8.78 6.09-14.67Z"/><path fill="#34A853" d="M24 44c5.51 0 10.13-1.83 13.51-4.87l-6.6-5c-1.83 1.23-4.17 1.97-6.91 1.97-5.32 0-9.83-3.59-11.44-8.43H5.75v5.16A20.4 20.4 0 0 0 24 44Z"/><path fill="#FBBC05" d="M12.56 27.67a12.2 12.2 0 0 1 0-7.34v-5.16H5.75a20 20 0 0 0 0 17.66l6.81-5.16Z"/><path fill="#EA4335" d="M24 11.9c3 0 5.69 1.03 7.81 3.06l5.86-5.86A19.6 19.6 0 0 0 24 4 20.4 20.4 0 0 0 5.75 15.17l6.81 5.16C14.17 15.49 18.68 11.9 24 11.9Z"/></svg><span>{action}</span></a>"##);
     let content = if s.production.is_some() {
+        let policy=s.production.as_ref().and_then(|a|a.store.lock().ok().and_then(|db|db.auth_policy().ok()));
+        let Some(policy)=policy else{return Html("Sign-in is temporarily unavailable. Please try again.".into())};
         let (switch_label, switch_action, switch_url) = if signup { ("Already have an account?", "Sign in", "signin") } else { ("New to Todoer?", "Create an account", "signup") };
-        format!(r#"{google}<p class="auth-access-note">Currently available to invited accounts.</p><p class="auth-switch">{switch_label} <a href="/{switch_url}?next={encoded}">{switch_action}</a></p>"#)
+        let google=if policy.google_enabled && (!signup||policy.signup_enabled) {format!("{google}<div class=\"auth-divider\"><span>or use email</span></div>")} else {String::new()};
+        let fields=if step=="mfa" {r#"<form data-auth-form="mfa"><label>Authenticator or recovery code<input name="code" autocomplete="one-time-code" required></label><button class="primary">Verify and sign in</button></form><button class="auth-passkey" type="button" data-auth-passkey>Use a passkey</button>"#.to_string()}
+        else if step=="forgot" {r#"<form data-auth-form="forgot"><label>Email<input type="email" name="email" autocomplete="email" required maxlength="320"></label><button class="primary">Send reset link</button></form>"#.into()}
+        else if step=="reset" {r#"<form data-auth-form="reset"><label>New password<input type="password" name="password" autocomplete="new-password" minlength="15" maxlength="128" required></label><label>Authenticator or recovery code, if enabled<input name="code" autocomplete="one-time-code"></label><button class="primary">Save new password</button></form><button class="auth-passkey" type="button" data-auth-passkey>Verify with a passkey instead</button>"#.into()}
+        else if step=="verify" {r#"<form data-auth-form="verify"><p>Confirm this email address to finish creating your account.</p><button class="primary">Verify email &amp; create account</button></form>"#.into()}
+        else if signup && !policy.signup_enabled {"<p class=\"auth-access-note\">Account creation is currently closed.</p>".into()}
+        else if signup {r#"<form data-auth-form="register"><label>Name<input name="name" autocomplete="name" required maxlength="200"></label><label>Email<input type="email" name="email" autocomplete="email" required maxlength="320"></label><label>Password<input type="password" name="password" autocomplete="new-password" minlength="15" maxlength="128" required></label><p class="auth-access-note">Use at least 15 characters. You will receive an email to verify your account.</p><button class="primary">Create account</button></form>"#.into()}
+        else {r#"<form data-auth-form="login"><label>Email<input type="email" name="email" autocomplete="username webauthn" required maxlength="320"></label><label>Password<input type="password" name="password" autocomplete="current-password" required maxlength="128"></label><a class="auth-forgot" href="/forgot-password">Forgot password?</a><button class="primary">Sign in</button></form><button class="auth-passkey" type="button" data-auth-passkey>Sign in with a passkey</button>"#.into()};
+        let google=if step.is_empty(){google}else{String::new()};
+        let switch=if !signup && !policy.signup_enabled {"<p class=\"auth-access-note\">Account creation is currently closed.</p>".to_string()} else {format!(r#"<p class="auth-switch">{switch_label} <a href="/{switch_url}?next={encoded}">{switch_action}</a></p>"#)};
+        format!(r#"{google}{fields}<p data-auth-notice role="status" aria-live="polite"></p>{switch}<script type="module" src="/assets/account-auth.js"></script>"#)
     } else {
         format!(r#"<form method="post" action="/signin"><input type="hidden" name="csrf" value="{}"><button class="primary auth-dev">Enter development workspace</button></form><p class="auth-access-note">Local development workspace · synthetic account</p>"#,s.csrf)
     };
