@@ -134,39 +134,69 @@ async function openSettings(listId, selected, kind, taskRoot) {
   (taskRoot || document.body).append(dialog);
   dialog.showModal();
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!reducedMotion)
-    dialog.animate(
-      [
-        { transform: 'translateX(100%)', opacity: 0.6 },
-        { transform: 'translateX(0)', opacity: 1 },
-      ],
-      { duration: 180, easing: 'cubic-bezier(.2,.8,.2,1)' },
-    );
+  const opening = reducedMotion
+    ? null
+    : dialog.animate(
+        [
+          { transform: 'translateX(48px)', opacity: 0 },
+          { transform: 'translateX(0)', opacity: 1 },
+        ],
+        { duration: 150, easing: 'cubic-bezier(.16,1,.3,1)' },
+      );
   let closing = false;
+  let dismissalRequested = false;
+  function dismiss() {
+    if (closing || dismissalRequested) return;
+    dismissalRequested = true;
+    history.back();
+  }
   async function closePanel() {
     if (closing) return;
     closing = true;
+    const current = getComputedStyle(dialog);
+    const from = { transform: current.transform, opacity: current.opacity };
+    opening?.cancel();
+    dialog.dataset.closing = '';
     if (!reducedMotion)
       await dialog
-        .animate(
-          [
-            { transform: 'translateX(0)', opacity: 1 },
-            { transform: 'translateX(100%)', opacity: 0.6 },
-          ],
-          { duration: 140, easing: 'ease-in', fill: 'forwards' },
-        )
+        .animate([from, { transform: 'translateX(32px)', opacity: 0 }], {
+          duration: 100,
+          easing: 'cubic-bezier(.4,0,1,1)',
+          fill: 'forwards',
+        })
         .finished.catch(() => {});
     dialog.close();
   }
+  const outside = (event) => {
+    const bounds = dialog.getBoundingClientRect();
+    return (
+      event.target === dialog &&
+      (event.clientX < bounds.left ||
+        event.clientX > bounds.right ||
+        event.clientY < bounds.top ||
+        event.clientY > bounds.bottom)
+    );
+  };
+  let backdropPress = false;
+  dialog.addEventListener('pointerdown', (event) => {
+    backdropPress = outside(event);
+  });
+  dialog.addEventListener('pointercancel', () => {
+    backdropPress = false;
+  });
+  dialog.addEventListener('click', (event) => {
+    if (backdropPress && outside(event)) dismiss();
+    backdropPress = false;
+  });
   history.pushState({ todoerSettings: true }, '', `#settings-${selected}`);
   const pop = () => {
     if (!location.hash.startsWith('#settings-')) closePanel();
   };
   window.addEventListener('popstate', pop);
-  back.onclick = () => history.back();
+  back.onclick = dismiss;
   dialog.addEventListener('cancel', (event) => {
     event.preventDefault();
-    history.back();
+    dismiss();
   });
   dialog.addEventListener('close', () => {
     stopActivity();
