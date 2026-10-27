@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 import { setSaveState } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
 const main = document.querySelector('[data-workbench]');
@@ -41,10 +42,20 @@ function fail(error) {
   status.textContent = '';
 }
 async function write(b, action) {
-  b.disabled = true;
+  if (b.disabled) return false;
+  const scope = b.closest('dialog, article, form') || b;
+  if (scope.getAttribute('aria-busy') === 'true') return false;
+  const controls = [...scope.querySelectorAll('button,input,select,textarea')];
+  if (!controls.includes(b)) controls.push(b);
+  const prior = controls.map((control) => [control, control.disabled]);
+  scope.setAttribute('aria-busy', 'true');
+  for (const [control] of prior) control.disabled = true;
   setSaveState('workbench', 'saving');
   try {
-    await action();
+    if ((await action()) === false) {
+      setSaveState('workbench', 'info');
+      return false;
+    }
     setSaveState('workbench', 'saved');
     await load();
     return true;
@@ -52,7 +63,8 @@ async function write(b, action) {
     fail(e);
     return false;
   } finally {
-    b.disabled = false;
+    scope.removeAttribute('aria-busy');
+    for (const [control, disabled] of prior) control.disabled = disabled;
   }
 }
 const today = new Intl.DateTimeFormat('en-CA', {
@@ -231,7 +243,7 @@ async function organize(entry) {
                       : 'Moving this task and its descendants gives additional members access. Continue?',
                   ))
                 )
-                  return;
+                  return false;
                 await api(`tasks/${encodeURIComponent(entry.task.id)}/move`, 'POST', {
                   destination: list.id,
                   revision: entry.task.revision,
@@ -250,6 +262,8 @@ async function organize(entry) {
     }
   }
   input.oninput = () => {
+    version++;
+    results.replaceChildren(node('p', 'Searching…', 'muted'));
     clearTimeout(timer);
     timer = setTimeout(search, 180);
   };
@@ -734,6 +748,12 @@ function monthBoard() {
 
 async function load() {
   const version = ++generation;
+  const selection =
+    main.dataset.workbench === 'inbox' ? 'inbox' : `${view}:${anchor}:${query}`;
+  if (content.dataset.selection !== selection) content.replaceChildren();
+  content.dataset.selection = selection;
+  content.inert = true;
+  content.setAttribute('aria-busy', 'true');
   status.textContent = 'Loading…';
   try {
     const intake = main.dataset.workbench === 'inbox';
@@ -746,7 +766,16 @@ async function load() {
     if (intake) renderInbox();
     else renderPlan();
   } catch (e) {
-    if (version === generation) fail(e);
+    if (version === generation) {
+      fail(e);
+      status.textContent = 'Could not refresh. ';
+      status.append(button('Try again', load));
+    }
+  } finally {
+    if (version === generation) {
+      content.inert = false;
+      content.removeAttribute('aria-busy');
+    }
   }
 }
 if (main) {

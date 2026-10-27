@@ -1,5 +1,12 @@
+import { request as fetch } from './request.js';
 import { toast } from './toast.js';
 import { setSaveState } from './quiet-info.js';
+let preferenceWrite = Promise.resolve();
+function serializePreferenceWrite(action) {
+  const next = preferenceWrite.then(action);
+  preferenceWrite = next.catch(() => {});
+  return next;
+}
 const form = document.querySelector('[data-calendar-preferences]');
 if (form) {
   const status = form.querySelector('[data-preference-status]');
@@ -17,12 +24,15 @@ if (form) {
     if (!response.ok) throw Error('Could not load preferences.');
     return response.json();
   }
+  const fields = [form.elements.timezone, form.elements.week_start];
+  fields.forEach((field) => (field.disabled = true));
   button.disabled = true;
   preferences()
     .then((value) => {
       form.elements.timezone.value = value.timezone;
       form.elements.week_start.value = String(value.week_start ?? 1);
       button.disabled = false;
+      fields.forEach((field) => (field.disabled = false));
     })
     .catch((error) => {
       status.textContent = '';
@@ -30,25 +40,31 @@ if (form) {
     });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (button.disabled) return;
+    const choice = {
+      timezone: form.elements.timezone.value.trim(),
+      week_start: Number(form.elements.week_start.value),
+    };
+    fields.forEach((field) => (field.disabled = true));
     button.disabled = true;
     status.textContent = '';
     setSaveState('preferences', 'saving');
     try {
-      const value = await preferences();
-      value.timezone = form.elements.timezone.value.trim();
-      value.week_start = Number(form.elements.week_start.value);
-      const response = await fetch('/api/v1/notification-preferences', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content,
-        },
-        body: JSON.stringify(value),
+      await serializePreferenceWrite(async () => {
+        const value = { ...(await preferences()), ...choice };
+        const response = await fetch('/api/v1/notification-preferences', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content,
+          },
+          body: JSON.stringify(value),
+        });
+        if (!response.ok)
+          throw Error(
+            (await response.json()).error?.message || 'Could not save preferences.',
+          );
       });
-      if (!response.ok)
-        throw Error(
-          (await response.json()).error?.message || 'Could not save preferences.',
-        );
       status.textContent = '';
       setSaveState('preferences', 'saved');
       toast('Preferences saved.');
@@ -56,6 +72,7 @@ if (form) {
       status.textContent = '';
       setSaveState('preferences', 'error', error.message);
     } finally {
+      fields.forEach((field) => (field.disabled = false));
       button.disabled = false;
     }
   });
@@ -89,16 +106,19 @@ if (playForm) {
     status.textContent = '';
     setSaveState('preferences', 'saving');
     try {
-      const value = { ...(await load()), ...choice };
-      const response = await fetch('/api/v1/notification-preferences', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content,
-        },
-        body: JSON.stringify(value),
+      const value = await serializePreferenceWrite(async () => {
+        const value = { ...(await load()), ...choice };
+        const response = await fetch('/api/v1/notification-preferences', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content,
+          },
+          body: JSON.stringify(value),
+        });
+        if (!response.ok) throw Error('Could not save preferences. Try again.');
+        return value;
       });
-      if (!response.ok) throw Error('Could not save preferences. Try again.');
       document.dispatchEvent(
         new CustomEvent('todoer-play-preferences', { detail: value }),
       );

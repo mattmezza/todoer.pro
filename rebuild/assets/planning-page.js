@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 import { setSaveState } from './quiet-info.js';
 import { mountTaskPage } from './task-page.js';
 const main = document.querySelector('[data-planning-today]');
@@ -18,13 +19,19 @@ if (main) {
     const version = ++rowsGeneration;
     try {
       const r = await fetch(location.href, { cache: 'no-store' });
-      if (!r.ok) return;
+      if (!r.ok)
+        throw Error('Could not refresh tasks. Reload to see the latest saved state.');
       const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
       if (version !== rowsGeneration) return;
       const next = doc.querySelector('[data-planning-rows]');
-      if (next) rows.replaceChildren(...next.childNodes);
+      if (!next)
+        throw Error('Could not refresh tasks. Sign in again if your session ended.');
+      rows.replaceChildren(...next.childNodes);
       highlight();
-    } catch {}
+    } catch (error) {
+      if (version === rowsGeneration)
+        setSaveState('preview-refresh', 'error', error.message);
+    }
   }
   function highlight() {
     for (const row of rows.querySelectorAll('[data-planning-task]'))
@@ -158,6 +165,7 @@ if (main) {
         };
         quick.append(button);
       }
+      let priorityVersion = 0;
       const reprio = document.createElement('div');
       reprio.className = 'planning-quick-actions planning-reprio';
       const priorityCaption = document.createElement('span');
@@ -171,6 +179,7 @@ if (main) {
         button.disabled = task.dataset.canWrite !== 'true';
         button.onclick = async () => {
           if (loading) return;
+          priorityVersion++;
           loading = true;
           setSaveState('preview-priority', 'saving');
           for (const b of reprio.querySelectorAll('button')) b.disabled = true;
@@ -229,12 +238,17 @@ if (main) {
         .addEventListener('click', (event) => event.stopImmediatePropagation(), {
           capture: true,
         });
+      const initialPriorityVersion = priorityVersion;
       fetch(`/api/v1/tasks/${encodeURIComponent(task.dataset.taskId)}/schedule`, {
         cache: 'no-store',
       })
         .then((r) => (r.ok ? r.json() : null))
         .then((value) => {
-          if (value)
+          if (
+            value &&
+            version === generation &&
+            priorityVersion === initialPriorityVersion
+          )
             for (const b of reprio.querySelectorAll('button'))
               b.setAttribute(
                 'aria-pressed',

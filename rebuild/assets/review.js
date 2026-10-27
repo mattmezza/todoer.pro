@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 const csrf = document.querySelector('meta[name="csrf-token"]').content;
 document.addEventListener('click', async (e) => {
   const button = e.target.closest('.restore,.undo');

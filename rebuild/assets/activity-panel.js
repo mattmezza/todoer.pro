@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 import { preferredTimeFormatter } from './preferred-time.js';
 const activityLabels = {
   completed: ['Completed', 'completed this task'],

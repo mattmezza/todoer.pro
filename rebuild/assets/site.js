@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 import './home-filters.js';
 import './settings-feedback.js';
 import './export-menu.js';

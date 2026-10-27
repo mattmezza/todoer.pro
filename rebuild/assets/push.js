@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 // Device enablement is explicitly initiated by a user gesture.
 export function mountPushSettings(root) {
   if (!root) return () => {};

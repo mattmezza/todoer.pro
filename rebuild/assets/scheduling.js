@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 import { preferredTimeFormatter, zonedLocalTimestamp } from './preferred-time.js';
 import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
 import { confirmAction } from './confirm.js';

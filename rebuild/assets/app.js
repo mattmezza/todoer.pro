@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 import { stowInfo } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
 import { mountCaptures } from './capture-ui.js';
@@ -302,7 +303,7 @@ $('#task-list').addEventListener('click', async (e) => {
       row.classList.toggle('is-complete', !complete);
       button.setAttribute('aria-pressed', String(!complete));
       button.innerHTML = previous;
-      notice(`${err.message} Your action was rolled back.`, true);
+      notice(`${err.message} The previous display has been restored; refresh to confirm the saved state.`, true);
       if (err.status === 409) refresh();
     } finally {
       button.disabled = false;

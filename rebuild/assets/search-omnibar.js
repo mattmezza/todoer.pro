@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 // Global quick search uses the same live, authorized ranked search contract.
 let dialog, input, results, status, overview, controller, timer;
 let generation = 0,
@@ -118,13 +119,15 @@ async function search() {
       row.onmouseenter = () => select(i);
       results.append(row);
     }
-    showStatus(data.hits.length
-      ? `${data.total} matching ${data.total === 1 ? 'entry' : 'entries'}. Showing the most relevant.`
-      : 'No matches. Try a shorter word prefix.', data.hits.length ? 'info' : 'search');
+    showStatus(
+      data.hits.length
+        ? `${data.total} matching ${data.total === 1 ? 'entry' : 'entries'}. Showing the most relevant.`
+        : 'No matches. Try a shorter word prefix.',
+      data.hits.length ? 'info' : 'search',
+    );
     select(0);
   } catch (error) {
-    if (error.name !== 'AbortError' && current === generation)
-      showStatus(error.message);
+    if (error.name !== 'AbortError' && current === generation) showStatus(error.message);
   }
 }
 export function openSearch() {
@@ -192,6 +195,14 @@ export function openSearch() {
       clearTimeout(timer);
       controller?.abort();
       generation++;
+      results.replaceChildren();
+      select(-1);
+      showStatus(
+        input.value.trim()
+          ? 'Searching…'
+          : 'Search tasks, spaces, lists, comments, tags and files.',
+        input.value.trim() ? 'search' : 'info',
+      );
       timer = setTimeout(search, 220);
     };
     input.onkeydown = (event) => {

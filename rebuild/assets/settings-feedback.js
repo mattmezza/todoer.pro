@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 import { toast } from './toast.js';
 import { setSaveState } from './quiet-info.js';
 if (
@@ -7,6 +8,8 @@ if (
   const form = document.querySelector('main form[method=post]');
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (form.dataset.saving === 'true') return;
+    form.dataset.saving = 'true';
     const button = event.submitter;
     const payload = new URLSearchParams(new FormData(form));
     if (button) button.disabled = true;
@@ -24,6 +27,7 @@ if (
     } catch (error) {
       setSaveState('notification-preferences', 'error', error.message);
     } finally {
+      delete form.dataset.saving;
       if (button) button.disabled = false;
     }
   });

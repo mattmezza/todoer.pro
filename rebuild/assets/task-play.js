@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 function mountCards() {
   const toy = document.createElement('button');
   toy.className = 'task-play';

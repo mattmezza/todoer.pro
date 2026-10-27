@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 import { confirmAction } from './confirm.js';
 import { setSaveState } from './quiet-info.js';
 import { toast } from './toast.js';

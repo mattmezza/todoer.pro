@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 import './site.js';
 document.addEventListener('click', (event) => {
   const button = event.target.closest('[data-workspace-action]');
@@ -46,6 +47,7 @@ document.addEventListener('click', (event) => {
   dialog.showModal();
   form.onsubmit = async (event) => {
     event.preventDefault();
+    if (submit.disabled) return;
     if (action === 'delete' && stage === 0) {
       stage = 1;
       input.hidden = false;
