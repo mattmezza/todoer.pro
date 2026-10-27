@@ -199,3 +199,8 @@ if (zones) {
     if (event.key === 'Escape') picker.open = false;
   });
 }
+
+const selectedSpace = document.querySelector(
+  '.planning-space-filters a[aria-current="true"]:not(:first-child)',
+);
+if (selectedSpace) selectedSpace.scrollIntoView({ block: 'nearest', inline: 'center' });
