@@ -2,6 +2,17 @@
 let dialog, input, results, status, overview, controller, timer;
 let generation = 0,
   active = -1;
+function showStatus(message, icon = 'info') {
+  const graphic = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  graphic.setAttribute('class', 'ui-icon omnibar-status-icon');
+  graphic.setAttribute('aria-hidden', 'true');
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  use.setAttribute('href', `/assets/icons.svg#${icon}`);
+  graphic.append(use);
+  const text = document.createElement('span');
+  text.textContent = message;
+  status.replaceChildren(graphic, text);
+}
 function select(index) {
   const options = [...results.children];
   active = options.length ? (index + options.length) % options.length : -1;
@@ -30,10 +41,10 @@ async function search() {
   select(-1);
   overview.href = `/search?query=${encodeURIComponent(text)}&status=all`;
   if (!text) {
-    status.textContent = 'Search tasks, spaces, lists, comments, tags and files.';
+    showStatus('Search tasks, spaces, lists, comments, tags and files.');
     return;
   }
-  status.textContent = 'Searching…';
+  showStatus('Searching…', 'search');
   controller = new AbortController();
   try {
     const response = await fetch(
@@ -94,11 +105,11 @@ async function search() {
         copy.onclick = async () => {
           try {
             await navigator.clipboard.writeText(hit.reference);
-            status.textContent = `Copied ${hit.reference}`;
+            showStatus(`Copied ${hit.reference}`, 'check');
             copy.dataset.copied = 'true';
             setTimeout(() => delete copy.dataset.copied, 1600);
           } catch {
-            status.textContent = `Could not copy to clipboard. Reference: ${hit.reference}`;
+            showStatus(`Could not copy to clipboard. Reference: ${hit.reference}`);
           }
         };
         actions.append(copy);
@@ -107,13 +118,13 @@ async function search() {
       row.onmouseenter = () => select(i);
       results.append(row);
     }
-    status.textContent = data.hits.length
+    showStatus(data.hits.length
       ? `${data.total} matching ${data.total === 1 ? 'entry' : 'entries'}. Showing the most relevant.`
-      : 'No matches. Try a shorter word prefix.';
+      : 'No matches. Try a shorter word prefix.', data.hits.length ? 'info' : 'search');
     select(0);
   } catch (error) {
     if (error.name !== 'AbortError' && current === generation)
-      status.textContent = error.message;
+      showStatus(error.message);
   }
 }
 export function openSearch() {
