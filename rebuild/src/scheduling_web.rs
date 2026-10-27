@@ -28,8 +28,12 @@ pub(super) fn routes() -> Router<AppState> {
         .route("/api/v1/planning", get(planning))
         .route("/api/v1/statistics", get(statistics))
         .route(
-            "/notifications",
+            "/settings/notifications",
             get(notification_page).post(notification_form),
+        )
+        .route(
+            "/notifications",
+            get(|| async { Redirect::to("/settings/notifications") }).post(notification_form),
         )
         .route("/recurring/{id}/state", post(series_state_form))
         .route("/settings", get(general_settings))
@@ -514,7 +518,7 @@ async fn notification_form(
     };
     s.run(move |db| db.set_notification_preferences(&a, prefs))
         .await?;
-    Ok(Redirect::to("/notifications").into_response())
+    Ok(Redirect::to("/settings/notifications").into_response())
 }
 
 /// Startup owns the returned task and awaits it during graceful shutdown.
@@ -658,7 +662,7 @@ mod tests {
         )
         .unwrap();
         assert!(text.contains("Planning &lt;task&gt;"));
-        for path in ["/settings", "/settings/general", "/notifications"] {
+        for path in ["/settings", "/settings/general", "/settings/notifications"] {
             let response = app
                 .clone()
                 .oneshot(
