@@ -1,3 +1,4 @@
+import { editorAnchor, alignEditorField } from './seamless-editor.js';
 import { preferredTimeFormatter } from './preferred-time.js';
 import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
 import { toast } from './toast.js';
@@ -198,6 +199,8 @@ export function mountTaskPage(root, { embedded = false } = {}) {
   }
   function openEditor(field = 'title') {
     if (!canWrite || busy || !alive) return;
+    const titleAnchor = editorAnchor(get('[data-edit-title]'));
+    const descriptionAnchor = editorAnchor(get('.task-page-brief'));
     editOpen = true;
     root.dataset.editMode = 'combined';
     get('.task-context-menu').open = false;
@@ -210,6 +213,8 @@ export function mountTaskPage(root, { embedded = false } = {}) {
       description.value = draft.description;
       get('[data-discard]').hidden = false;
     }
+    alignEditorField(title, titleAnchor);
+    alignEditorField(description, descriptionAnchor);
     (field === 'description' ? description : title).focus();
     if (field === 'title') title.select();
   }

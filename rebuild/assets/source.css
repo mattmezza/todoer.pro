@@ -6793,3 +6793,94 @@ body:has(.quiet-info) .task-play {
 
 .planning-space-filters { align-items: center; }
 .planning-space-filters a { display: inline-flex; align-items: center; line-height: 20px; }
+
+/* A compact rail makes room for docked details without crowding the page. */
+.logo-collapsed { display: none; }
+
+.primary-navigation .nav-link, .settings-navigation .nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.primary-navigation .ui-icon, .settings-navigation .ui-icon { flex: 0 0 18px; width: 18px; height: 18px; }
+@media (min-width: 1000px) {
+  body { --navigation-width: 248px; --task-dock-width: 440px; }
+  body.navigation-collapsed { --navigation-width: 80px; }
+  body #navigation, body.task-settings-docked-open #navigation {
+    width: var(--navigation-width);
+    transition: width 260ms cubic-bezier(.22,.8,.25,1);
+  }
+  body > main, body main.task-page, body.task-settings-docked-open > main,
+  body.task-settings-docked-open main.task-page, body.task-settings-docked-open main:not(.task-page) {
+    margin-left: var(--navigation-width);
+    transition: margin-left 260ms cubic-bezier(.22,.8,.25,1), margin-right 260ms cubic-bezier(.22,.8,.25,1), padding 260ms cubic-bezier(.22,.8,.25,1);
+  }
+  body.task-settings-docked-open { --task-dock-width: 440px; }
+  body.task-settings-docked-open > main, body.task-settings-docked-open main.task-page,
+  body.task-settings-docked-open main:not(.task-page) {
+    margin-right: var(--task-dock-width);
+    padding-inline: max(52px, calc((100vw - 520px - 1100px) / 2));
+  }
+  .list-settings-panel.is-docked { width: var(--task-dock-width, 440px); }
+  .list-settings-panel.is-docked .settings-content { padding: 20px 28px; }
+  .list-settings-panel.is-docked .settings-tabs > button { padding-inline: 6px; font-size: 14px; }
+  body.navigation-collapsed #navigation { padding-inline: 10px; }
+  .navigation-collapsed #navigation .brand { padding-inline: 0; justify-content: center; gap: 2px; }
+  .navigation-collapsed #navigation .logo-expanded { display: none; }
+  .navigation-collapsed #navigation .logo-collapsed { display: inline; }
+  .navigation-collapsed #navigation .sidebar-scroll { padding-top: 48px; }
+  .navigation-collapsed #navigation .sidebar-scroll .nav-heading,
+  .navigation-collapsed #navigation .nav-caption,
+  .navigation-collapsed #navigation .list-navigation > span:last-child,
+  .navigation-collapsed #navigation .sidebar-add > span,
+  .navigation-collapsed #navigation .account-caption { display: none; }
+  .navigation-collapsed #navigation .nav-link,
+  .navigation-collapsed #navigation .sidebar-add { justify-content: center; padding-inline: 0; margin-inline: 0; min-height: 42px; gap: 0; }
+  .navigation-collapsed #navigation nav[aria-label='Lists'],
+  .navigation-collapsed #navigation .settings-navigation,
+  .navigation-collapsed #navigation nav[aria-label='Favorites'] { margin-top: 24px; }
+  .navigation-collapsed #navigation .account-menu > summary { gap: 4px; padding-inline: 0; justify-content: center; }
+  .navigation-collapsed #navigation .account-menu > summary > .ui-icon { width: 12px; flex: 0 0 12px; }
+  .navigation-collapsed #navigation .account-menu-panel { width: 240px; left: 0; }
+  .planning-detail-open main[data-planning-today] { margin-left: var(--navigation-width); margin-right: min(560px, 45vw); padding-inline: 40px; }
+  .planning-detail-panel { width: min(560px, 45vw); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body #navigation, body > main, body main.task-page { transition: none !important; }
+}
+
+/* Editors replace the text itself; actions follow below without framing it. */
+.task-page[data-edit-mode='combined'] [data-brief-form],
+form[data-list-edit], .space-inline-editor {
+  border: 0;
+  padding: 0;
+  margin: 0 0 32px;
+  display: block;
+  background: transparent;
+}
+form[data-list-edit][hidden], .task-page [data-brief-form][hidden] { display: none; }
+form[data-list-edit] > label, .task-page [data-brief-form] > label { display: none; }
+form[data-list-edit] .list-edit-heading { display: block; position: relative; }
+form[data-list-edit] .list-edit-color { position: absolute; left: 0; top: 10px; }
+form[data-list-edit] .inline-actions, .space-inline-editor > div,
+.task-page[data-edit-mode='combined'] .task-page-actions { margin-top: 20px; }
+.space-inline-editor > p:empty, form[data-list-edit] [role=alert]:empty { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .planning-detail-panel { animation: planning-dock-in 260ms cubic-bezier(.22,.8,.25,1); }
+  @keyframes planning-dock-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+}
+.todoer-logo .todoer-logo-word > span { font: inherit; color: inherit; letter-spacing: inherit; vertical-align: baseline; }
+.navigation-collapsed #navigation .settings-navigation .nav-link.active { min-width: 0; }
+.planning-date-shortcuts { display: flex; gap: 6px; margin: 4px 0 12px; }
+.planning-date-shortcuts > button { min-height: 30px; padding: 4px 10px; border: 0; border-radius: 6px; background: var(--hover); color: var(--muted); font: 13px/20px var(--font-mono, monospace); cursor: pointer; }
+.planning-date-shortcuts > button:hover, .planning-date-shortcuts > button:focus-visible { color: var(--text); background: var(--line); }
+.planning-date-intent > label:has(> .sr-only) { gap: 0; }
+@media (min-width: 1000px) {
+  .navigation-collapsed #navigation .todoer-logo-pro,
+  .navigation-collapsed #navigation .account-menu > summary > .ui-icon { display: none; }
+}
+@media (min-width: 1000px) {
+  body, body.task-settings-docked-open { --task-dock-width: min(520px, 44vw); }
+  .planning-detail-panel { width: min(600px, 48vw); }
+  .planning-detail-open main[data-planning-today] { margin-right: min(600px, 48vw); }
+}

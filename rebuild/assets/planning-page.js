@@ -29,7 +29,11 @@ if (main) {
     generation++;
     stop();
     stop = () => {};
-    panel?.remove();
+    const closingPanel = panel;
+    if (closingPanel && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      closingPanel.style.pointerEvents = 'none';
+      closingPanel.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(100%)' }], { duration: 260, easing: 'cubic-bezier(.22,.8,.25,1)', fill: 'forwards' }).finished.then(() => closingPanel.remove());
+    } else closingPanel?.remove();
     panel = null;
     selected = null;
     document.body.classList.remove('planning-detail-open');
