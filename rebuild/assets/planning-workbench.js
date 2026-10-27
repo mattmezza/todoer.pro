@@ -384,7 +384,9 @@ function addPlannedTask(date, initialTime = '') {
   const d = modal('Add to ' + labelDate(date));
   const form = node('form'),
     title = node('input'),
-    time = node('input');
+    time = node('input'),
+    priority = node('select'),
+    description = node('textarea');
   title.placeholder = 'What would you like to do?';
   title.required = true;
   title.maxLength = 500;
@@ -394,9 +396,35 @@ function addPlannedTask(date, initialTime = '') {
   time.setAttribute('aria-label', 'Time (optional)');
   const timeLabel = node('label', 'Time (optional)');
   timeLabel.append(time);
+  const priorityLabel = node('label', 'Priority');
+  for (const [value, label] of [
+    [0, 'P0 · Urgent'],
+    [1, 'P1 · High'],
+    [2, 'P2 · Medium'],
+    [3, 'P3 · Low'],
+  ]) {
+    const option = node('option', label);
+    option.value = value;
+    priority.append(option);
+  }
+  priority.value = '2';
+  priorityLabel.append(priority);
+  const fields = node('div', null, 'workbench-date-fields');
+  fields.append(timeLabel, priorityLabel);
+  const descriptionLabel = node('label', 'Description (optional)');
+  description.rows = 2;
+  description.maxLength = 100000;
+  description.placeholder = 'Add a little context…';
+  description.setAttribute('aria-label', 'Description (optional)');
+  description.className = 'workbench-description';
+  description.addEventListener('input', () => {
+    description.style.height = 'auto';
+    description.style.height = description.scrollHeight + 'px';
+  });
+  descriptionLabel.append(description);
   const submit = node('button', 'Add task', 'primary');
   submit.type = 'submit';
-  form.append(title, timeLabel, submit);
+  form.append(title, fields, descriptionLabel, submit);
   d.append(form);
   title.focus();
   const key = crypto.randomUUID();
@@ -411,18 +439,20 @@ function addPlannedTask(date, initialTime = '') {
           'POST',
           {
             list_id: intake.list_id,
-            tasks: [{ title: title.value.trim(), description: '' }],
+            tasks: [{ title: title.value.trim(), description: description.value.trim() }],
           },
           key,
         );
         captured = rows[0];
         title.disabled = true;
+        description.disabled = true;
       }
       await api(`tasks/${encodeURIComponent(captured.id)}/placement`, 'PUT', {
         revision: captured.revision,
         date,
         time: time.value || null,
         timezone: zone,
+        priority: Number(priority.value),
       });
       d.close();
     });

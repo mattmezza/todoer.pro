@@ -21,6 +21,7 @@ pub struct Placement {
     pub date: Option<String>,
     pub time: Option<String>,
     pub timezone: String,
+    pub priority: Option<u8>,
 }
 impl Store {
     pub fn personal_inbox(&self, actor: &str) -> Result<String, Error> {
@@ -116,6 +117,7 @@ impl Store {
             .timezone
             .parse()
             .map_err(|_| Error::Invalid("Choose a valid timezone".into()))?;
+        if let Some(priority) = placement.priority { schedule.priority = Some(priority); }
         schedule.planned = if let Some(date) = placement.date.as_ref() {
             let date = NaiveDate::parse_from_str(date, "%Y-%m-%d")
                 .map_err(|_| Error::Invalid("Choose a valid date".into()))?;

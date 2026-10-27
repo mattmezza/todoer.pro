@@ -7145,3 +7145,6 @@ h1,h2,h3 { font-family:var(--font-sans)!important; }
 .workbench-form-actions > button { padding:10px 16px; }
 .workbench-form-actions > button:first-child { padding-left:0; color:var(--muted); }
 .workbench-form-actions .primary { min-width:110px; }
+
+.workbench-date-fields select { width:100%; min-width:0; }
+.workbench-description { width:100%; min-height:76px; resize:none; overflow:hidden; }
