@@ -7163,12 +7163,10 @@ h1,h2,h3 { font-family:var(--font-sans)!important; }
   -webkit-appearance: none;
   display: none;
 }
-.search-omnibar .omnibar-heading:has(input:placeholder-shown) {
-  padding-right: 28px;
-}
-.search-omnibar .omnibar-heading input:placeholder-shown {
-  text-align: center;
-  padding-inline: 32px;
+.search-omnibar .omnibar-heading input { text-align:left; }
+.search-omnibar:has(#omnibar-results:empty) .omnibar-status {
+  text-align:center;
+  padding:20px 28px 24px;
 }
 .search-omnibar .omnibar-heading input::placeholder {
   color: var(--muted);
