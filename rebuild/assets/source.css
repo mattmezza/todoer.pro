@@ -6709,7 +6709,10 @@ body:has(.quiet-info) .task-play {
   transform: none;
 }
 
-.fun-task-row { min-width: 0; height: 34px; }
+.fun-task-row {
+  min-width: 0;
+  height: 34px;
+}
 .fun-task-text {
   display: block;
   min-width: 0;
@@ -6717,4 +6720,11 @@ body:has(.quiet-info) .task-play {
   white-space: nowrap;
   overflow: hidden;
   mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 28px), transparent 100%);
+}
+
+.fun-task-flyer {
+  position: fixed;
+  z-index: 5;
+  pointer-events: none;
+  margin: 0;
 }
