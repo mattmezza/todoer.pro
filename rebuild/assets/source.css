@@ -3082,7 +3082,7 @@ input[type='color'] {
 #omnibar-results {
   padding: 4px 8px;
 }
-#omnibar-results > a {
+#omnibar-results .omnibar-result a {
   display: flex;
   flex-direction: column;
   padding: 12px;
@@ -6884,3 +6884,16 @@ form[data-list-edit] .inline-actions, .space-inline-editor > div,
   .planning-detail-panel { width: min(600px, 48vw); }
   .planning-detail-open main[data-planning-today] { margin-right: min(600px, 48vw); }
 }
+#omnibar-results > .omnibar-result {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding-right: 10px;
+  border-radius: 6px;
+}
+.omnibar-result > [role='gridcell']:first-child { min-width: 0; }
+.omnibar-copy-reference { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 6px 8px; border: 0; border-radius: 5px; color: var(--muted); font: 12px/20px var(--font-mono, monospace); cursor: pointer; }
+.omnibar-copy-reference:hover, .omnibar-copy-reference:focus-visible, .omnibar-copy-reference[data-copied] { background: var(--hover); color: var(--text); }
+.omnibar-copy-reference .ui-icon { width: 15px; height: 15px; }
+@media (max-width: 480px) { .omnibar-copy-reference { gap: 4px; font-size: 11px; padding-inline: 5px; } }

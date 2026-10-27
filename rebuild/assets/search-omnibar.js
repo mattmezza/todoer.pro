@@ -49,10 +49,16 @@ async function search() {
     const data = await response.json();
     if (current !== generation || !dialog.open) return;
     for (const [i, hit] of data.hits.entries()) {
-      const row = document.createElement('a');
-      row.href = destination(hit);
+      const row = document.createElement('div');
+      row.className = 'omnibar-result';
+      const cell = document.createElement('div');
+      cell.role = 'gridcell';
+      const link = document.createElement('a');
+      link.href = destination(hit);
+      link.tabIndex = -1;
+      cell.append(link);
       row.id = `omnibar-result-${i}`;
-      row.role = 'option';
+      row.role = 'row';
       row.tabIndex = -1;
       const title = document.createElement('strong');
       title.textContent = hit.title || hit.kind;
@@ -64,12 +70,38 @@ async function search() {
       ]
         .filter(Boolean)
         .join(' · ');
-      row.append(title, context);
+      link.append(title, context);
       if (hit.snippet) {
         const snippet = document.createElement('span');
         snippet.className = 'omnibar-snippet';
         snippet.textContent = hit.snippet;
-        row.append(snippet);
+        link.append(snippet);
+      }
+      row.append(cell);
+      if (hit.reference) {
+        const actions = document.createElement('div');
+        actions.role = 'gridcell';
+        const copy = document.createElement('button');
+        copy.type = 'button';
+        copy.className = 'omnibar-copy-reference';
+        copy.title = `Copy reference ${hit.reference}`;
+        copy.setAttribute('aria-label', copy.title);
+        const reference = document.createElement('span');
+        reference.textContent = hit.reference;
+        copy.innerHTML = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg>';
+        copy.prepend(reference);
+        copy.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(hit.reference);
+            status.textContent = `Copied ${hit.reference}`;
+            copy.dataset.copied = 'true';
+            setTimeout(() => delete copy.dataset.copied, 1600);
+          } catch {
+            status.textContent = `Could not copy to clipboard. Reference: ${hit.reference}`;
+          }
+        };
+        actions.append(copy);
+        row.append(actions);
       }
       row.onmouseenter = () => select(i);
       results.append(row);
@@ -102,6 +134,7 @@ export function openSearch() {
     input.autocomplete = 'off';
     input.role = 'combobox';
     input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-haspopup', 'grid');
     input.setAttribute('aria-controls', 'omnibar-results');
     input.setAttribute('aria-expanded', 'true');
     const close = document.createElement('button');
@@ -112,7 +145,7 @@ export function openSearch() {
     head.append(label, input, close);
     results = document.createElement('div');
     results.id = 'omnibar-results';
-    results.role = 'listbox';
+    results.role = 'grid';
     results.setAttribute('aria-label', 'Quick search results');
     status = document.createElement('p');
     status.className = 'omnibar-status';
@@ -136,7 +169,7 @@ export function openSearch() {
         select(active + (event.key === 'ArrowDown' ? 1 : -1));
       } else if (event.key === 'Enter') {
         event.preventDefault();
-        location.assign(active >= 0 ? results.children[active].href : overview.href);
+        location.assign(active >= 0 ? results.children[active].querySelector('a').href : overview.href);
       }
     };
     dialog.addEventListener('close', () => {

@@ -53,3 +53,9 @@ cargo test --manifest-path rebuild/Cargo.toml search::tests::ten_thousand_tasks_
 Saved filter storage, a visual filter builder, and a new HTML results layout are not provided by this module. Clients can reuse the same query document directly.
 
 Observed locally on 2026-10-26: the sequential debug-build fixture returned 100 full-context comment hits out of 10,000 authorized matches across 10,000 tasks plus 10,000 comments in **705 ms**. The fixture, including indexed insertion, completed in roughly six seconds; the full sequential search test selection completed in 7.5 seconds. This is a synthetic development measurement, not a release-build latency guarantee or a production load test.
+
+Quick search exposes a copy-reference action beside each result. The optional
+`reference` projection returns the canonical prefixed identifier (`%task`,
+`#list`, `@space`, `$section`, `+tag`); it is included by default. Comments and
+attachments use their parent task's reference. Copying keeps quick search open
+and preserves keyboard navigation.

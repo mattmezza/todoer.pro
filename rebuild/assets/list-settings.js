@@ -106,6 +106,7 @@ export function openTaskSettings(root, selected = 'planning') {
 async function openSettings(listId, selected, kind, taskRoot) {
   const workspace = kind === 'workspace';
   const task = kind === 'task';
+  if (task && selected === 'references') selected = 'planning';
   if (!workspace && !task && selected !== 'sharing') selected = 'sharing';
   const stash = taskRoot?.querySelector('[data-task-advanced]');
   const heading = task ? 'Task details' : workspace ? 'Space settings' : 'List settings';
@@ -148,6 +149,7 @@ async function openSettings(listId, selected, kind, taskRoot) {
   let doc;
   let stopActivity = () => {};
   function choose(tab) {
+    if (task && tab === 'references') tab = 'planning';
     stopActivity();
     selected = tab;
     for (const button of tabs.children) {
@@ -197,7 +199,6 @@ async function openSettings(listId, selected, kind, taskRoot) {
         ['planning', 'Planning'],
         ['tags', 'Tags'],
         ['structure', 'Structure'],
-        ['references', 'References'],
         ['activity', 'Activity'],
       ]
     : workspace

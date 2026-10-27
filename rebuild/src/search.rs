@@ -70,6 +70,8 @@ pub struct ContextItem {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchHit {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference: Option<String>,
     pub kind: String,
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -129,7 +131,14 @@ const KINDS: &[&str] = &[
     "tag",
     "attachment",
 ];
-const FIELDS: &[&str] = &["title", "snippet", "context", "schedule", "timestamps"];
+const FIELDS: &[&str] = &[
+    "title",
+    "snippet",
+    "context",
+    "schedule",
+    "timestamps",
+    "reference",
+];
 fn validate(q: &Query) -> Result<(), Error> {
     if q.text
         .split(|c: char| !c.is_alphanumeric())
@@ -432,6 +441,7 @@ UNION ALL SELECT 'tag',g.id,(SELECT MIN(t.list_id) FROM task_tags tt JOIN tasks 
             .query_map(params_from_iter(values.iter()), |r| {
                 Ok((
                     SearchHit {
+                        reference: None,
                         kind: r.get(0)?,
                         id: r.get(1)?,
                         title: Some(r.get(2)?),
@@ -471,6 +481,21 @@ UNION ALL SELECT 'tag',g.id,(SELECT MIN(t.list_id) FROM task_tags tt JOIN tasks 
                         .map_err(|_| invalid("cannot encode cursor"))?,
                     ),
                 );
+            }
+            if wanted("reference") {
+                let (kind, id, prefix) = match hit.kind.as_str() {
+                    "workspace" => ("workspace", hit.id.as_str(), "@"),
+                    "list" => ("list", hit.id.as_str(), "#"),
+                    "section" => ("section", hit.id.as_str(), "$"),
+                    "tag" => ("tag", hit.id.as_str(), "+"),
+                    _ => ("task", hit.task_id.as_deref().unwrap_or(&hit.id), "%"),
+                };
+                let reference = if kind == "tag" {
+                    id.to_owned()
+                } else {
+                    crate::defaults::public_id(&self.conn, kind, id)?
+                };
+                hit.reference = Some(format!("{prefix}{reference}"));
             }
             if wanted("context") {
                 let (items, truncated) = context(
@@ -724,6 +749,15 @@ mod tests {
         assert_eq!(page.total, 3);
         assert_eq!(page.hits.iter().filter(|h| h.kind == "comment").count(), 2);
         assert!(page.hits.iter().any(|h| h.kind == "attachment"));
+        let task_reference = format!(
+            "%{}",
+            crate::defaults::public_id(&db.conn, "task", "t").unwrap()
+        );
+        assert!(
+            page.hits
+                .iter()
+                .all(|hit| hit.reference.as_deref() == Some(task_reference.as_str()))
+        );
         db.conn
             .execute("UPDATE comments SET body='renamed' WHERE id='c1'", [])
             .unwrap();
@@ -857,7 +891,46 @@ mod tests {
         assert!(value.get("title").is_none());
         assert!(value.get("snippet").is_none());
         assert!(value.get("context").is_none());
+        assert!(value.get("reference").is_none());
         assert_eq!(value["id"], "a");
+    }
+    #[test]
+    fn copied_references_are_stable_public_ids_for_each_entity_kind() {
+        let db = db();
+        task(&db, "reference-task", "inbox", "Reference target", "", None);
+        let query = Query {
+            status: "all".into(),
+            limit: 100,
+            ..Query::default()
+        };
+        let page = db.query("dev", &query).unwrap();
+        for hit in &page.hits {
+            let (kind, prefix) = match hit.kind.as_str() {
+                "task" => ("task", "%"),
+                "list" => ("list", "#"),
+                "workspace" => ("workspace", "@"),
+                "section" => ("section", "$"),
+                _ => continue,
+            };
+            let reference = hit.reference.as_ref().unwrap();
+            assert!(reference.starts_with(prefix));
+            assert_eq!(
+                crate::defaults::resolve(&db.conn, kind, &reference[1..]).unwrap(),
+                hit.id
+            );
+        }
+        let again = db.query("dev", &query).unwrap();
+        assert_eq!(
+            page.hits
+                .iter()
+                .map(|hit| &hit.reference)
+                .collect::<Vec<_>>(),
+            again
+                .hits
+                .iter()
+                .map(|hit| &hit.reference)
+                .collect::<Vec<_>>()
+        );
     }
     #[test]
     fn scoped_credential_and_title_weighted_relevance() {
