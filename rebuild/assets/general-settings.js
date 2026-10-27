@@ -1,3 +1,5 @@
+import { toast } from './toast.js';
+import { setSaveState } from './quiet-info.js';
 const form = document.querySelector('[data-calendar-preferences]');
 if (form) {
   const status = form.querySelector('[data-preference-status]');
@@ -23,12 +25,14 @@ if (form) {
       button.disabled = false;
     })
     .catch((error) => {
-      status.textContent = error.message;
+      status.textContent = '';
+      setSaveState('preferences', 'error', error.message);
     });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     button.disabled = true;
-    status.textContent = 'Saving…';
+    status.textContent = '';
+    setSaveState('preferences', 'saving');
     try {
       const value = await preferences();
       value.timezone = form.elements.timezone.value.trim();
@@ -45,9 +49,12 @@ if (form) {
         throw Error(
           (await response.json()).error?.message || 'Could not save preferences.',
         );
-      status.textContent = 'Saved.';
+      status.textContent = '';
+      setSaveState('preferences', 'saved');
+      toast('Preferences saved.');
     } catch (error) {
-      status.textContent = error.message;
+      status.textContent = '';
+      setSaveState('preferences', 'error', error.message);
     } finally {
       button.disabled = false;
     }
@@ -75,11 +82,12 @@ if (playForm) {
       controls.forEach((control) => (control.disabled = false));
       style.disabled = !enabled.checked;
     })
-    .catch((error) => (status.textContent = error.message));
+    .catch((error) => setSaveState('preferences', 'error', error.message));
   playForm.addEventListener('change', async () => {
     const choice = { fun_animations: enabled.checked, fun_animation: style.value };
     controls.forEach((control) => (control.disabled = true));
-    status.textContent = 'Saving…';
+    status.textContent = '';
+    setSaveState('preferences', 'saving');
     try {
       const value = { ...(await load()), ...choice };
       const response = await fetch('/api/v1/notification-preferences', {
@@ -94,9 +102,12 @@ if (playForm) {
       document.dispatchEvent(
         new CustomEvent('todoer-play-preferences', { detail: value }),
       );
-      status.textContent = 'Saved.';
+      status.textContent = '';
+      setSaveState('preferences', 'saved');
+      toast('Preferences saved.');
     } catch (error) {
-      status.textContent = error.message;
+      status.textContent = '';
+      setSaveState('preferences', 'error', error.message);
     } finally {
       enabled.disabled = false;
       style.disabled = !enabled.checked;
