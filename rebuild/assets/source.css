@@ -3713,15 +3713,7 @@ form[data-list-edit] input.list-edit-color {
   isolation: isolate;
   padding: 24px 0 12px;
 }
-.planning-welcome::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: -36px -32px -12px;
-  border-radius: 32px;
-  background: radial-gradient(ellipse at 12% 20%, #3b82f612, transparent 65%);
-  pointer-events: none;
-}
+
 .planning-eyebrow {
   color: var(--muted);
   font-size: 14px;
