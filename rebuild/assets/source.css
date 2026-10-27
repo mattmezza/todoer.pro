@@ -5173,7 +5173,7 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
   right: 0;
   width: min(340px, calc(100vw - 40px));
   padding: 16px;
-  border: 1px solid #283448;
+  border: 0;
   border-radius: 10px;
   background: #101621;
   color: #94a3b8;
@@ -7183,3 +7183,14 @@ dialog.destination-dialog label.destination-search-label { display:grid; gap:8px
 .destination-dialog .destination-search-label input { width:100%; color:var(--text); }
 .destination-dialog .destination-results { margin:16px 0 0; }
 .destination-dialog .destination-choice { padding:12px 10px; }
+
+/* Focus changes state without drawing outlines or rings. */
+*, *::before, *::after {
+  outline: none !important;
+}
+:focus, :focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+}
