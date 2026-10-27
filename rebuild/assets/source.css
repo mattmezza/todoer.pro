@@ -5979,9 +5979,9 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
   padding: 14px 0;
   border-bottom: 1px solid var(--line);
 }
-[data-list-favorite][data-is-favorite='true'] .ui-icon {
-  fill: currentColor;
-  color: #d99a32;
+[data-list-favorite] .ui-icon {
+  fill: none;
+  color: inherit;
 }
 
 .workspace-management .workspace-row {
