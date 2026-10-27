@@ -261,6 +261,52 @@ function mountFunnyTasks() {
       }
     }
   };
+  const tick = setInterval(async () => {
+    if (!tray.isConnected) {
+      clearInterval(tick);
+      return;
+    }
+    if (
+      busy ||
+      document.hidden ||
+      tray.matches(':hover,:focus-within') ||
+      matchMedia('(prefers-reduced-motion: reduce)').matches
+    )
+      return;
+    busy = true;
+    try {
+      const dy =
+        rows[1].getBoundingClientRect().top - rows[2].getBoundingClientRect().top;
+      await Promise.all(
+        rows.map(
+          (row, index) =>
+            row.animate(
+              [
+                { transform: 'translateY(0)', opacity: index === 1 ? 1 : 0.2 },
+                {
+                  transform: 'translateY(' + (dy - 2) + 'px)',
+                  opacity: index === 2 ? 1 : index === 1 ? 0.2 : 0,
+                  offset: 0.82,
+                },
+                {
+                  transform: 'translateY(' + dy + 'px)',
+                  opacity: index === 2 ? 1 : index === 1 ? 0.2 : 0,
+                },
+              ],
+              { duration: 280, easing: 'cubic-bezier(.16,1,.3,1)' },
+            ).finished,
+        ),
+      );
+      visible = [visible[1], visible[2], next()];
+      render();
+    } finally {
+      busy = false;
+      if (queued > 0 && tray.isConnected) {
+        queued--;
+        rows[1].click();
+      }
+    }
+  }, 2600);
   document.body.append(tray);
   return tray;
 }

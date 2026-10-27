@@ -31,7 +31,7 @@ impl Default for Preferences {
             timezone: "UTC".into(),
             week_start: 1,
             fun_animations: true,
-            fun_animation: "cards".into(),
+            fun_animation: "tasks".into(),
             email_opt_in: false,
             quiet_start: None,
             quiet_end: None,
@@ -288,7 +288,7 @@ mod tests {
         db.seed_dev().unwrap();
         let old: Preferences = serde_json::from_str("{}").unwrap();
         assert!(old.fun_animations);
-        assert_eq!(old.fun_animation, "cards");
+        assert_eq!(old.fun_animation, "tasks");
         let mut value = db.notification_preferences("dev").unwrap();
         value.fun_animation = "tasks".into();
         value.fun_animations = false;

@@ -71,7 +71,7 @@ if (playForm) {
   load()
     .then((value) => {
       enabled.checked = value.fun_animations !== false;
-      style.value = value.fun_animation || 'cards';
+      style.value = value.fun_animation || 'tasks';
       controls.forEach((control) => (control.disabled = false));
       style.disabled = !enabled.checked;
     })
