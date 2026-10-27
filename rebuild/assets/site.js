@@ -267,7 +267,14 @@ document.addEventListener('click', async (event) => {
 // Resize initial fields as well as dynamically mounted panels and drafts.
 const textareaSizes = new WeakMap();
 function growTextarea(field) {
-  if (!(field instanceof HTMLTextAreaElement) || !field.getClientRects().length) return;
+  if (!(field instanceof HTMLTextAreaElement)) return;
+  if (
+    field.matches(
+      '[name="description"], [id*="description"], [data-new-comment-input], [data-comment-input]',
+    )
+  )
+    field.rows = 1;
+  if (!field.getClientRects().length) return;
   const width = field.getBoundingClientRect().width;
   const previous = textareaSizes.get(field);
   if (previous?.value === field.value && previous.width === width) return;
@@ -422,3 +429,14 @@ function restoreOriginalLogos() {
   }
 }
 restoreOriginalLogos();
+
+const spaceSettings = document.querySelector('[data-workspace-settings-open]');
+if (spaceSettings) {
+  import('./list-settings.js').then(({ setupTaskSettingsDock }) =>
+    setupTaskSettingsDock(
+      document.querySelector('main'),
+      'workspace',
+      spaceSettings.dataset.workspaceSettingsOpen,
+    ),
+  );
+}

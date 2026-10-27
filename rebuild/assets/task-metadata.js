@@ -1,3 +1,4 @@
+import { stowInfo } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
 // Stable entity IDs are retained separately from their display names.
 export function mountTaskMetadata({
@@ -99,12 +100,7 @@ export function mountTaskMetadata({
     'aria-label': 'Stable reference to copy',
   });
   selectedReference.hidden = true;
-  tagsForm.append(
-    node('h3', {}, 'Tags'),
-    chips,
-    tagSuggestions,
-    saveTags,
-  );
+  tagsForm.append(node('h3', {}, 'Tags'), chips, tagSuggestions, saveTags);
   sectionForm.append(
     label('Section', section),
     node(
@@ -214,7 +210,9 @@ export function mountTaskMetadata({
         const order = [...selected.map((tag) => tag.id), ...additions];
         const saved = await request(`/tasks/${encodeURIComponent(taskId)}/tags`);
         const position = (tag) => {
-          const index = order.findIndex((value) => value === tag.id || value.toLowerCase() === tag.name.toLowerCase());
+          const index = order.findIndex(
+            (value) => value === tag.id || value.toLowerCase() === tag.name.toLowerCase(),
+          );
           return index < 0 ? order.length : index;
         };
         selected = saved.sort((a, b) => position(a) - position(b));
@@ -226,7 +224,12 @@ export function mountTaskMetadata({
     if (active) tags.focus();
   });
   tags.addEventListener('keydown', (event) => {
-    if (event.isComposing || !['Enter', ',', ' '].includes(event.key) || !tags.value.trim()) return;
+    if (
+      event.isComposing ||
+      !['Enter', ',', ' '].includes(event.key) ||
+      !tags.value.trim()
+    )
+      return;
     event.preventDefault();
     event.stopPropagation();
     if (!busy) tagsForm.requestSubmit();
@@ -311,7 +314,8 @@ export function mountTaskMetadata({
     return n;
   }
   function say(message) {
-    if (active) notice.textContent = message;
+    if (active)
+      notice.textContent = stowInfo(message, `metadata:${taskId}`) ? '' : message;
   }
   function read() {
     try {

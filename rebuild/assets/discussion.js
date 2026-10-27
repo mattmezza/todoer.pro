@@ -1,3 +1,4 @@
+import { stowInfo } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
 // Task-local controller. Parent must call its cleanup before replacing the panel.
 export function mountDiscussion({ taskId, csrf, container, accountId, onConflict }) {
@@ -46,6 +47,11 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
   }
   function notice(message, error = false) {
     if (!active) return;
+    if (!error && stowInfo(message, `discussion:${taskId}`)) {
+      const target = get('[data-discussion-notice]');
+      if (target) target.textContent = '';
+      return;
+    }
     let target = get('[data-discussion-notice]');
     if (!target) {
       target = document.createElement('p');
@@ -480,7 +486,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
   function growComments() {
     for (const input of container.querySelectorAll('textarea:not([hidden])')) {
       input.style.height = 'auto';
-      input.style.height = `${Math.max(96, input.scrollHeight)}px`;
+      input.style.height = `${input.scrollHeight + input.offsetHeight - input.clientHeight}px`;
     }
   }
   function onComposerToggle(event) {

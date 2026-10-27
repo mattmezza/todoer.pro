@@ -1,10 +1,11 @@
+import { stowInfo } from './quiet-info.js';
 import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
 import './site.js';
 import { mountDiscussion } from './discussion.js';
 import { mountScheduling } from './scheduling.js';
 import { mountTaskMetadata } from './task-metadata.js';
-import { openTaskSettings } from './list-settings.js';
+import { openTaskSettings, setupTaskSettingsDock } from './list-settings.js';
 
 // Shared by task-page and list-row move dialogs. Both use the same server
 // dry-run plans; the server supplies the next revision for section assignment.
@@ -78,7 +79,7 @@ if (root) {
     description = get('#task-page-description');
   for (const [selector, label, icon] of [
     ['[data-context-edit]', 'Edit task…', 'edit'],
-    ['[data-open-move]', 'Move task and checklist…', 'move'],
+    ['[data-open-move]', 'Move task and sub-tasks…', 'move'],
     ['[data-open-advanced]', 'Task settings…', 'settings'],
     ['[data-trash]', 'Move to trash…', 'trash'],
   ]) {
@@ -129,6 +130,10 @@ if (root) {
   function notice(message, error = false) {
     if (!alive) return;
     const target = get('[data-task-notice]');
+    if (!error && stowInfo(message, `task:${id}`)) {
+      target.textContent = '';
+      return;
+    }
     target.textContent = message;
     target.classList.toggle('error', error);
     if (!error && /copied\.$/.test(message)) {
@@ -294,8 +299,45 @@ if (root) {
   }
   const api = (path, method, body, options) =>
     request(`/api/v1${path}`, method, body, options);
+  let completionRevision;
+  async function showCompletion() {
+    root.classList.toggle('is-complete', task.complete);
+    let label = root.querySelector('.task-completion-label');
+    if (!task.complete) {
+      label?.remove();
+      completionRevision = null;
+      return;
+    }
+    if (!label) {
+      label = document.createElement('button');
+      label.type = 'button';
+      label.className = 'task-completion-label';
+      label.textContent = 'Completed · View activity';
+      label.onclick = () => openTaskSettings(root, 'activity');
+      root.querySelector('.task-page-heading').after(label);
+    }
+    if (completionRevision === task.revision) return;
+    completionRevision = task.revision;
+    const revision = task.revision;
+    try {
+      let before, entry;
+      do {
+        const page = await api(
+          `/tasks/${encodeURIComponent(id)}/activity${before ? `?before=${before}` : ''}`,
+        );
+        if (!alive || !task.complete || task.revision !== revision) return;
+        entry = page.items.find((item) => item.completed);
+        before = page.next_before;
+      } while (!entry && before);
+      if (entry)
+        label.textContent = `Completed${entry.occurred_at ? ' ' + new Date(entry.occurred_at * 1000).toLocaleString() : ''} by ${entry.actor}`;
+    } catch {
+      completionRevision = null;
+    }
+  }
   function updateView() {
     if (!alive) return;
+    showCompletion();
     get('[data-edit-title]').textContent = task.title;
     document.title = `${task.title} · Todoer`;
     const complete = get('[data-root-complete]');
@@ -418,7 +460,7 @@ if (root) {
       children = new Map();
       snapshot = page.snapshot;
     } else if (JSON.stringify(snapshot) !== JSON.stringify(page.snapshot))
-      throw new Error('Checklist changed. Refresh before continuing.');
+      throw new Error('Sub-tasks changed. Refresh before continuing.');
     for (const item of page.items) if (item.id !== id) children.set(item.id, item);
     nextCursor = page.next_cursor;
     renderChildren();
@@ -517,7 +559,7 @@ if (root) {
     if (
       subtree &&
       !(await confirmAction(
-        'Complete this task and every unfinished item in its checklist?',
+        'Complete this task and every unfinished item in its sub-tasks?',
       ))
     )
       return;
@@ -661,7 +703,7 @@ if (root) {
       !canWrite ||
       busy ||
       !(await confirmAction(
-        'Move this task and its entire checklist to trash? Unsaved drafts remain on this device.',
+        'Move this task and all its sub-tasks to trash? Unsaved drafts remain on this device.',
       ))
     )
       return;
@@ -711,7 +753,7 @@ if (root) {
   });
   const grow = (input) => {
     input.style.height = 'auto';
-    input.style.height = `${Math.max(56, input.scrollHeight)}px`;
+    input.style.height = `${input.scrollHeight + input.offsetHeight - input.clientHeight}px`;
   };
   get('[data-child-composer]').addEventListener('toggle', () => {
     if (get('[data-child-composer]').open) {
@@ -765,7 +807,7 @@ if (root) {
     try {
       await loadChildren(nextCursor);
     } catch (error) {
-      notice(`${error.message} Your draft is safe; refreshing the checklist.`, true);
+      notice(`${error.message} Your draft is safe; refreshing the sub-tasks.`, true);
       pending = true;
     } finally {
       loading = false;
@@ -805,8 +847,8 @@ if (root) {
       if (moveList.value === source.list_id) moveSection.value = root.dataset.sectionId;
       moveSection.disabled = moveList.value === source.list_id && !!source.parent_id;
       get('[data-move-audience]').textContent = audience.audience_broadens
-        ? `This destination adds access for ${audience.added_members} member(s). Review this before moving the entire checklist.`
-        : 'This destination adds no members who can access this checklist.';
+        ? `This destination adds access for ${audience.added_members} member(s). Review this before moving the all sub-tasks.`
+        : 'This destination adds no members who can access these sub-tasks.';
       get('[data-move-ack-label]').hidden = !audience.audience_broadens;
       if (moveSection.disabled)
         get('[data-move-audience]').textContent +=
@@ -856,7 +898,7 @@ if (root) {
       if (audience) {
         get('[data-move-audience]').textContent = audience.audience_broadens
           ? `Reviewed plan adds access for ${audience.added_members} member(s). Review this current audience before applying the exact plan.`
-          : 'The reviewed plan adds no members who can access this checklist.';
+          : 'The reviewed plan adds no members who can access these sub-tasks.';
       }
       moveKey = crypto.randomUUID();
       get('[data-apply-move]').hidden = false;
@@ -990,7 +1032,7 @@ if (root) {
       event.stopPropagation();
       rememberChild();
       get('[data-child-composer]').open = false;
-      notice('Your checklist-item draft is kept on this device.');
+      notice('Your sub-task draft is kept on this device.');
     }
   });
   document.addEventListener('keydown', (event) => {
@@ -1048,6 +1090,7 @@ if (root) {
     );
   } else draft = null;
   mountControllers();
+  setupTaskSettingsDock(root);
   if (new URLSearchParams(location.search).get('move') === '1')
     get('[data-open-move]').click();
   refresh();
@@ -1057,7 +1100,11 @@ if (root) {
     );
     eventSource.addEventListener('changes', (event) => {
       let change;
-      try { change = JSON.parse(event.data); } catch { return; }
+      try {
+        change = JSON.parse(event.data);
+      } catch {
+        return;
+      }
       if (!change.resync && !(change.count > 0)) return;
       pending = true;
       releaseSoon();

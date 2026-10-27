@@ -5122,3 +5122,336 @@ button[aria-label$='actions']:is(:hover, :focus-visible) {
   max-width: 100%;
   background: transparent;
 }
+
+/* Description fields begin at one row; the shared controller sizes their content. */
+textarea:is([name='description'], [id*='description']) {
+  min-height: 0 !important;
+}
+
+/* Planning occupies the right-hand lane without pushing the description down. */
+@media (min-width: 800px) {
+  .task-page > .task-due-summary {
+    float: right;
+    max-width: 50%;
+    margin: 4px 8px 8px 24px;
+  }
+  .task-page .task-page-brief {
+    margin-top: 12px;
+  }
+  .task-page .task-page-checklist {
+    clear: both;
+  }
+  .task-page [data-brief-form]:not([hidden]) {
+    clear: both;
+  }
+}
+.task-page .task-priority-summary[data-priority='0'] {
+  color: #94a3b8;
+  background: #94a3b80d;
+}
+
+textarea:is([data-new-comment-input], [data-comment-input]) {
+  min-height: 0 !important;
+}
+
+.quiet-info {
+  position: fixed;
+  right: 20px;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 90;
+  color: #64748b;
+}
+.quiet-info > summary {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  list-style: none;
+  cursor: pointer;
+  border-radius: 50%;
+  opacity: 0.65;
+}
+.quiet-info > summary::-webkit-details-marker {
+  display: none;
+}
+.quiet-info > summary:hover,
+.quiet-info[open] > summary {
+  opacity: 1;
+  color: #cbd5e1;
+  background: #172033;
+}
+.quiet-info-content {
+  position: absolute;
+  bottom: 42px;
+  right: 0;
+  width: min(340px, calc(100vw - 40px));
+  padding: 16px;
+  border: 1px solid #283448;
+  border-radius: 10px;
+  background: #101621;
+  color: #94a3b8;
+  font-size: 14px;
+  line-height: 1.6;
+  box-shadow: 0 8px 30px #0005;
+}
+.quiet-info-content strong {
+  color: #cbd5e1;
+  font-weight: 600;
+}
+.quiet-info-content li {
+  margin-top: 8px;
+}
+.task-page .priority-unsaved {
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.task-page > .task-due-summary:is(:hover, :focus-visible) {
+  background: transparent;
+}
+.task-page > .task-due-summary:is(:hover, :focus-visible) .task-priority-summary {
+  filter: brightness(1.25) saturate(1.15);
+}
+.task-page .task-page-heading {
+  position: relative;
+}
+.task-page .task-page-heading > .task-page-complete {
+  position: absolute;
+  left: -44px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
+}
+.task-page .task-page-heading h1 {
+  margin-left: 0;
+}
+@media (max-width: 640px) {
+  .dedicated-task-page main.task-page {
+    padding-left: 52px;
+  }
+}
+
+.task-page > .task-due-summary {
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 0;
+  margin-right: 0;
+  gap: 6px;
+}
+.task-page .task-priority-line,
+.task-page .task-date-summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.task-page .task-priority-summary {
+  margin-right: 0;
+}
+@media (min-width: 800px) {
+  .task-page > .task-due-summary {
+    margin-right: 0;
+  }
+}
+
+.task-settings-dock-toggle,
+.task-settings-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: #94a3b8;
+}
+.task-settings-dock-toggle:hover,
+.task-settings-pin:hover {
+  color: #e2e8f0;
+  background: #1b2638;
+}
+.task-settings-dock-toggle .ui-icon,
+.task-settings-pin .ui-icon {
+  width: 20px;
+  height: 20px;
+}
+.task-settings-pin[aria-pressed='true'] {
+  color: #93c5fd;
+  background: #1b2940;
+}
+.list-settings-panel > header h2 {
+  flex: 1;
+  min-width: 0;
+}
+.list-settings-panel > header {
+  gap: 14px;
+}
+.list-settings-panel.is-docked {
+  border-left: 1px solid #1e293b;
+  z-index: 45;
+}
+.dedicated-task-page main.task-page {
+  padding-left: max(52px, calc((100vw - 248px - 1216px) / 2));
+}
+@media (min-width: 1000px) {
+  .task-settings-docked-open {
+    --task-dock-width: 440px;
+  }
+  .task-settings-docked-open main.task-page {
+    margin-right: var(--task-dock-width);
+    padding-right: 28px;
+  }
+  .list-settings-panel.is-docked {
+    width: 440px;
+  }
+}
+@media (max-width: 999px) {
+  .list-settings-panel.is-docked {
+    position: static;
+    width: 100%;
+    height: auto;
+    max-height: none;
+    margin: 28px 0 0;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+  }
+}
+
+.planning-date-intent {
+  padding: 0;
+  border: 0;
+}
+.planning-date-intent > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 5px 0;
+  list-style: none;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 14px;
+}
+.planning-date-intent > summary::-webkit-details-marker {
+  display: none;
+}
+.planning-date-intent > summary:hover {
+  color: #e2e8f0;
+}
+.planning-date-intent > summary .ui-icon {
+  width: 18px;
+  height: 18px;
+}
+.planning-date-intent[open] {
+  display: grid;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+.planning-date-intent > .muted {
+  font-size: 13px;
+  margin: 0;
+}
+.settings-content [data-metadata-tab='structure'] [data-parent-form],
+.settings-content [data-metadata-tab='references'] [data-reference-details] {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 0;
+}
+.reference-list-page .section-heading > .section-collapse {
+  position: absolute;
+  left: -22px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+}
+.reference-list-page .section-collapse > summary {
+  min-width: 18px;
+  width: 18px;
+  min-height: 32px;
+  height: 32px;
+  padding: 0;
+  line-height: 32px;
+  list-style-position: inside;
+}
+
+.reference-list-page .section-tasks > .task {
+  position: relative;
+  margin-left: 12px;
+  padding-left: 0;
+}
+.reference-list-page .section-tasks > .task > .completion {
+  margin-left: -12px;
+}
+.reference-list-page .section-tasks > .task > .task-drag-grip {
+  position: absolute;
+  left: -32px;
+  top: 18px;
+  margin-top: -9px;
+}
+
+/* Docked settings share the navigation surface and type scale. */
+.list-settings-panel.is-docked {
+  background: #050914;
+  border: 0;
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 14px;
+}
+.list-settings-panel.is-docked header {
+  padding: 20px 22px;
+}
+.list-settings-panel.is-docked h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+.list-settings-panel.is-docked .settings-content {
+  padding: 20px 22px;
+}
+@media (min-width: 1000px) {
+  .task-settings-docked-open main:not(.task-page) {
+    margin-right: 440px;
+  }
+}
+.task-page.is-complete .task-title-display {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  color: #94a3b8;
+}
+.task-completion-label {
+  display: block;
+  padding: 0;
+  margin: 8px 0 0;
+  background: transparent;
+  border: 0;
+  color: #8192a8;
+  font-size: 13px;
+  cursor: pointer;
+}
+.task-completion-label:hover {
+  color: #cbd5e1;
+  background: transparent;
+}
+
+.task-title-display:not(:disabled),
+.task-page[data-can-write='true'] [data-saved-description],
+.task-page [data-edit-description] {
+  cursor: pointer;
+  transition: color 100ms ease;
+}
+.task-title-display:not(:disabled):hover,
+.task-title-display:not(:disabled):focus-visible {
+  color: #fff;
+  background: transparent;
+}
+.task-page[data-can-write='true'] [data-saved-description]:hover,
+.task-page [data-edit-description]:hover {
+  color: #fff;
+  background: transparent;
+}
+.task-page[data-can-write='true'] [data-saved-description]:hover :is(p, li, strong, em) {
+  color: inherit;
+}
+.task-page.is-complete .task-title-display:not(:disabled):hover {
+  color: #e2e8f0;
+}
