@@ -46,6 +46,9 @@ pub(super) fn build_sidebar(
         "SELECT issuer,email,picture_url FROM auth_identities WHERE user_id=?1 ORDER BY CASE WHEN issuer IN ('https://accounts.google.com','accounts.google.com') THEN 0 ELSE 1 END,issuer,subject LIMIT 1", [&user],
         |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?)),
     ).optional()?;
+    let masked_email = profile.as_ref().and_then(|(_, email, _)| email.trim().split_once('@'))
+        .map(|(local, domain)| format!("{}***@{}", local.chars().next().unwrap_or('*'), domain))
+        .unwrap_or_else(|| "Local account".into());
     let avatar_url = match profile {
         Some((issuer, _, picture))
             if issuer == "https://accounts.google.com" || issuer == "accounts.google.com" =>
@@ -103,14 +106,7 @@ pub(super) fn build_sidebar(
         .iter()
         .find(|s| Some(&s.id) == workspace.as_ref())
         .map(|s| format!("@{}", s.slug))
-        .or_else(|| {
-            spaces
-                .iter()
-                .find(|space| space.slug == "inbox")
-                .or_else(|| spaces.first())
-                .map(|space| format!("@{}", space.slug))
-        })
-        .unwrap_or_else(|| "@inbox".into());
+        .unwrap_or(masked_email);
     let lists = db
         .lists(actor)?
         .into_iter()
@@ -229,6 +225,9 @@ mod tests {
             .unwrap();
         let sidebar = build_sidebar(&db, "dev", &list.id, "synthetic-csrf".into()).unwrap();
         assert_eq!(sidebar.current_workspace_label, "@personal-work");
+        let global = build_sidebar(&db, "dev", "", String::new()).unwrap();
+        assert_eq!(global.current_workspace_label, "U***@EXAMPLE.INVALID");
+        assert!(global.current_workspace_id.is_empty());
         assert_eq!(
             sidebar.avatar_url,
             "https://www.gravatar.com/avatar/34657fd697457c69244beb91db2c5bc3ae65ac924fd3f7843b9816057ab9f988?s=80&d=404"
