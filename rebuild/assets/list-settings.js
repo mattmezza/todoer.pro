@@ -3,6 +3,14 @@ import { mountPublicSharing } from './public-sharing.js';
 import { mountStructure } from './task-structure.js';
 import { confirmAction } from './confirm.js';
 import { mountActivity } from './activity-panel.js';
+// Loaded with the settings module so every entry point shares the panel styles.
+if (!document.querySelector('link[data-sharing-settings-style]')) {
+  const stylesheet = document.createElement('link');
+  stylesheet.rel = 'stylesheet';
+  stylesheet.href = '/assets/sharing-settings.css';
+  stylesheet.dataset.sharingSettingsStyle = '';
+  document.head.append(stylesheet);
+}
 const docks = new WeakMap();
 function dockState(root, kind = 'task', id = root.dataset.taskId) {
   if (!docks.has(root)) docks.set(root, new Map());
@@ -109,7 +117,12 @@ export function openTaskSettings(root, selected = 'planning') {
 async function openSettings(listId, selected, kind, taskRoot) {
   const workspace = kind === 'workspace';
   const task = kind === 'task';
-  if (task && (selected === 'references' || (selected === 'structure' && !taskRoot?.dataset.parentId))) selected = 'planning';
+  if (
+    task &&
+    (selected === 'references' ||
+      (selected === 'structure' && !taskRoot?.dataset.parentId))
+  )
+    selected = 'planning';
   if (!workspace && !task && selected !== 'sharing') selected = 'sharing';
   const stash = taskRoot?.querySelector('[data-task-advanced]');
   const heading = task ? 'Task details' : workspace ? 'Space settings' : 'List settings';
@@ -125,6 +138,7 @@ async function openSettings(listId, selected, kind, taskRoot) {
   let ownsHistory = !docked;
   const dialog = document.createElement('dialog');
   dialog.className = 'list-settings-panel';
+  dialog.dataset.settingsKind = kind;
   dialog.setAttribute('aria-label', heading);
   const header = document.createElement('header'),
     back = document.createElement('button'),
@@ -152,7 +166,11 @@ async function openSettings(listId, selected, kind, taskRoot) {
   let doc;
   let stopActivity = () => {};
   function choose(tab) {
-    if (task && (tab === 'references' || (tab === 'structure' && !taskRoot.dataset.parentId))) tab = 'planning';
+    if (
+      task &&
+      (tab === 'references' || (tab === 'structure' && !taskRoot.dataset.parentId))
+    )
+      tab = 'planning';
     stopActivity();
     selected = tab;
     for (const button of tabs.children) {
@@ -164,7 +182,11 @@ async function openSettings(listId, selected, kind, taskRoot) {
         if (node.dataset.panelSection) stash.append(node);
     content.replaceChildren();
     if (tab === 'activity') {
-      stopActivity = mountActivity(content, workspace ? 'workspace' : task ? 'task' : 'list', listId);
+      stopActivity = mountActivity(
+        content,
+        workspace ? 'workspace' : task ? 'task' : 'list',
+        listId,
+      );
       return;
     }
     if (task && tab === 'structure') {
@@ -315,14 +337,26 @@ async function openSettings(listId, selected, kind, taskRoot) {
     const from = { transform: current.transform, opacity: current.opacity };
     opening?.cancel();
     dialog.dataset.closing = '';
-    if (docked && ![...document.querySelectorAll('.list-settings-panel.is-docked[open]')].some(panel => panel !== dialog)) document.body.classList.remove('task-settings-docked-open');
+    if (
+      docked &&
+      ![...document.querySelectorAll('.list-settings-panel.is-docked[open]')].some(
+        (panel) => panel !== dialog,
+      )
+    )
+      document.body.classList.remove('task-settings-docked-open');
     if (!reducedMotion)
       await dialog
-        .animate([from, { transform: docked ? 'translateX(100%)' : 'translateX(32px)', opacity: 0 }], {
-          duration: 260,
-          easing: 'cubic-bezier(.4,0,1,1)',
-          fill: 'forwards',
-        })
+        .animate(
+          [
+            from,
+            { transform: docked ? 'translateX(100%)' : 'translateX(32px)', opacity: 0 },
+          ],
+          {
+            duration: 260,
+            easing: 'cubic-bezier(.4,0,1,1)',
+            fill: 'forwards',
+          },
+        )
         .finished.catch(() => {});
     dialog.close();
   }
@@ -466,6 +500,7 @@ function decorateSharing(section, reload) {
       note.remove();
   }
   for (const link of section.querySelectorAll('a[href^="/invitations/new"]')) {
+    link.append('…');
     link.prepend(icon('plus-circle'));
     link.addEventListener('click', async (event) => {
       event.preventDefault();
@@ -565,6 +600,9 @@ async function decorateMembers(section, id) {
     form.querySelector('select').onchange = () => form.requestSubmit();
   }
   for (const form of section.querySelectorAll('[data-member-remove]')) {
+    const remove = form.querySelector('button');
+    remove.title = 'Remove member…';
+    remove.setAttribute('aria-label', remove.getAttribute('aria-label') + '…');
     form.addEventListener('submit', async (event) => {
       if (form.dataset.confirmed) return;
       event.preventDefault();
