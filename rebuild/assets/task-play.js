@@ -113,6 +113,55 @@ const tinyTasks = [
   'Let the dishes soak for one more era',
   'Give my browser tabs assigned seating',
 ];
+function flyFunnyTask(row) {
+  const rect = row.getBoundingClientRect();
+  const flyer = row.cloneNode(true);
+  flyer.className = 'fun-task-row fun-task-active is-done fun-task-flyer';
+  flyer.removeAttribute('aria-label');
+  flyer.setAttribute('aria-hidden', 'true');
+  flyer.tabIndex = -1;
+  Object.assign(flyer.style, {
+    left: rect.left + 'px',
+    top: rect.top + 'px',
+    width: rect.width + 'px',
+    height: rect.height + 'px',
+  });
+  document.body.append(flyer);
+  const flyers = document.querySelectorAll('.fun-task-flyer');
+  if (flyers.length > 12) flyers[0].remove();
+  const flat = -innerWidth * 0.48;
+  const extra = -innerWidth * (0.35 + Math.random() * 0.25);
+  const angle = ((18 + Math.random() * 40) * Math.PI) / 180;
+  const y = Math.abs(extra) * Math.tan(angle) * (Math.random() < 0.5 ? -1 : 1);
+  const spin = (Math.random() < 0.5 ? -1 : 1) * (12 + Math.random() * 18);
+  flyer
+    .animate(
+      [
+        { transform: 'translate(0,0)', opacity: 0.7 },
+        { transform: 'translate(' + flat + 'px,0)', opacity: 0.6, offset: 0.48 },
+        {
+          transform:
+            'translate(' +
+            (flat + extra * 0.4) +
+            'px,' +
+            y * 0.25 +
+            'px) rotate(' +
+            spin * 0.35 +
+            'deg)',
+          opacity: 0.35,
+          offset: 0.73,
+        },
+        {
+          transform:
+            'translate(' + (flat + extra) + 'px,' + y + 'px) rotate(' + spin + 'deg)',
+          opacity: 0,
+        },
+      ],
+      { duration: 580 + Math.random() * 200, easing: 'linear' },
+    )
+    .finished.catch(() => {})
+    .finally(() => flyer.remove());
+}
 function mountFunnyTasks() {
   const tray = document.createElement('div');
   tray.className = 'fun-task-stack';
@@ -171,6 +220,7 @@ function mountFunnyTasks() {
       await new Promise((resolve) => setTimeout(resolve, reduced ? 0 : 25));
       if (!tray.isConnected) return;
       if (!reduced) {
+        flyFunnyTask(center);
         const dy =
           center.getBoundingClientRect().top - entering.getBoundingClientRect().top;
         await Promise.all([
@@ -179,7 +229,7 @@ function mountFunnyTasks() {
               { opacity: 1, transform: 'scale(1)' },
               {
                 opacity: 0,
-                transform: 'translateX(12px) scale(.8)',
+                transform: 'translateX(-24px)',
                 filter: 'blur(3px)',
               },
             ],
