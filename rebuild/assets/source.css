@@ -7199,3 +7199,9 @@ dialog.destination-dialog label.destination-search-label { display:grid; gap:8px
 .search-omnibar .omnibar-status-icon { flex:none; width:20px; height:20px; opacity:.7; }
 .search-omnibar:has(#omnibar-results:empty) .omnibar-status { flex-direction:column; justify-content:center; gap:12px; }
 .search-omnibar:has(#omnibar-results:empty) .omnibar-status-icon { width:28px; height:28px; }
+
+.attachment-form { display:flex; align-items:center; flex-wrap:wrap; gap:12px; }
+.attachment-choose { display:inline-flex; align-items:center; gap:8px; min-height:44px; color:var(--accent); }
+.attachment-form progress { width:160px; }
+.attachment-drop-zone { position:fixed; inset:18px; z-index:1000; display:grid; place-items:center; pointer-events:none; border-radius:18px; background:rgb(15 23 42 / .94); box-shadow:inset 0 0 0 2px var(--accent); color:var(--accent); font-size:24px; font-weight:600; }
+.attachment-drop-zone[hidden], .attachment-form [hidden] { display:none!important; }
