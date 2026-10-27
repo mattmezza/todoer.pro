@@ -4886,8 +4886,10 @@ dialog:is(
   color-scheme: dark;
 }
 .about-dialog {
+  position: fixed;
+  inset: auto 0 max(24px, env(safe-area-inset-bottom)) 0;
   width: min(664px, calc(100vw - 32px));
-  margin: auto;
+  margin: 0 auto;
   padding: 58px 32px 32px;
   background: #18181b;
   color: #e5e7eb;
