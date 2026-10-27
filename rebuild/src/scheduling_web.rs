@@ -2,7 +2,7 @@ use super::*;
 use crate::notifications::Preferences;
 use crate::scheduling::{RecurrenceSpec, Schedule, SeriesState};
 use chrono::{Datelike, Duration, Utc};
-fn esc(value: &str) -> String {
+pub(super) fn esc(value: &str) -> String {
     value
         .replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -463,6 +463,9 @@ async fn upcoming(State(s): State<AppState>, h: HeaderMap) -> Result<Response, A
 async fn recurring(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
     let a = s.auth(&h, false)?;
     let rows = s.run(move |db| db.recurring_series(&a)).await?;
+    if rows.is_empty() {
+        return render_feature(&s, &h, "Recurring", String::from("<div class=\"planning-empty\"><svg class=\"ui-icon\" aria-hidden=\"true\"><use href=\"/assets/icons.svg#repeat\"/></svg><h2>Make room for your routines.</h2><p>No repeating tasks yet. Open a task and choose ‘Repeat this task’ in its Planning panel to start a routine.</p></div>"), false).await;
+    }
     let mut body = String::from("<ul class=\"recurring-series-list\">");
     for series in rows {
         let rule = match &series.spec.rule {
