@@ -92,6 +92,17 @@ function range() {
     to = query.get('to') || add(from, 6);
   } else if (view === 'day') {
     from = to = anchor;
+  } else if (view === 'month') {
+    const day = new Date(anchor + 'T12:00:00Z');
+    from = anchor.slice(0, 7) + '-01';
+    to = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth() + 1, 0, 12))
+      .toISOString()
+      .slice(0, 10);
+  } else if (view === 'workweek' || view === 'weekend') {
+    const weekday = new Date(anchor + 'T12:00:00Z').getUTCDay() || 7;
+    const monday = add(anchor, 1 - weekday);
+    from = view === 'workweek' ? monday : add(monday, 5);
+    to = add(from, view === 'workweek' ? 4 : 1);
   } else {
     const day = new Date(anchor + 'T12:00:00Z').getUTCDay() || 7;
     from = add(anchor, -((day - Number(main.dataset.weekStart) + 7) % 7));
@@ -345,7 +356,7 @@ function renderInbox() {
     content.append(empty);
   }
 }
-function addPlannedTask(date) {
+function addPlannedTask(date, initialTime = '') {
   const d = modal('Add to ' + labelDate(date));
   const form = node('form'),
     title = node('input'),
@@ -355,6 +366,7 @@ function addPlannedTask(date) {
   title.maxLength = 500;
   title.setAttribute('aria-label', 'Task title');
   time.type = 'time';
+  time.value = initialTime;
   time.setAttribute('aria-label', 'Time (optional)');
   const timeLabel = node('label', 'Time (optional)');
   timeLabel.append(time);
@@ -405,7 +417,10 @@ function renderPlan() {
   const controls = node('div', null, 'plan-controls');
   for (const [v, label] of [
     ['day', 'Day'],
+    ['workweek', 'Workweek'],
+    ['weekend', 'Weekend'],
     ['week', 'Week'],
+    ['month', 'Month'],
     ['custom', 'Custom range'],
   ]) {
     const b = button(label, async () => {
@@ -418,7 +433,7 @@ function renderPlan() {
   }
   controls.append(
     button('←', async () => {
-      anchor = add(from, view === 'day' ? -1 : -7);
+      navigate(-1);
       syncRange();
       await load();
     }),
@@ -428,7 +443,7 @@ function renderPlan() {
       await load();
     }),
     button('→', async () => {
-      anchor = add(from, view === 'day' ? 1 : 7);
+      navigate(1);
       syncRange();
       await load();
     }),
@@ -458,7 +473,16 @@ function renderPlan() {
     };
     controls.append(date);
   }
-  toolbar.append(controls);
+  const caption = node(
+    'h2',
+    new Intl.DateTimeFormat(undefined, {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(new Date(anchor + 'T12:00:00Z')),
+    'calendar-caption',
+  );
+  toolbar.append(caption, controls);
   const done = entries.filter((e) => e.task.complete).length,
     total = entries.length,
     percent = total ? Math.round((done / total) * 100) : 0;
@@ -482,37 +506,174 @@ function renderPlan() {
   progress.setAttribute('aria-label', 'Plan completion');
   summary.append(progress);
   toolbar.append(summary);
-  const grid = node('div', null, 'plan-calendar');
-  if (view === 'day') grid.classList.add('plan-calendar-day');
-  if (view === 'week') grid.classList.add('plan-calendar-week');
-  for (let date = from; date <= to; date = add(date, 1)) {
-    const day = node('section', null, 'plan-day');
-    if (date === today) day.classList.add('is-today');
-    day.append(node('h2', labelDate(date)));
-    const list = entries
-      .filter((e) => e.schedule.planned?.date === date)
-      .sort((a, b) => (a.local_time || '').localeCompare(b.local_time || ''));
-    const n = list.filter((e) => e.task.complete).length;
-    day.append(node('small', `${n}/${list.length} complete`, 'muted'));
-    const all = node('div', null, 'plan-all-day');
-    all.append(node('h3', 'All day'));
-    for (const e of list.filter((e) => !e.local_time)) all.append(taskCard(e));
-    if (!list.some((e) => !e.local_time))
-      all.append(node('p', 'Nothing planned', 'plan-day-empty'));
-    day.append(all);
-    const timed = node('div', null, 'plan-timed');
-    timed.append(node('h3', 'Scheduled'));
-    for (const e of list.filter((e) => e.local_time)) timed.append(taskCard(e));
-    if (!list.some((e) => e.local_time))
-      timed.append(node('p', 'Leave yourself some space.', 'plan-day-empty'));
-    day.append(
-      timed,
-      button('Add task…', () => addPlannedTask(date), 'plan-add-task'),
-    );
-    grid.append(day);
-  }
-  content.replaceChildren(grid);
+  content.replaceChildren(view === 'month' ? monthBoard() : timeBoard());
 }
+function navigate(direction) {
+  if (view === 'month') {
+    const date = new Date(from + 'T12:00:00Z');
+    date.setUTCMonth(date.getUTCMonth() + direction);
+    anchor = date.toISOString().slice(0, 10);
+  } else anchor = add(anchor, direction * (view === 'day' ? 1 : 7));
+}
+function openDay(date) {
+  view = 'day';
+  anchor = date;
+  syncRange();
+  load();
+}
+function dayEntries(date) {
+  return entries
+    .filter((entry) => entry.schedule.planned?.date === date)
+    .sort((a, b) => (a.local_time || '').localeCompare(b.local_time || ''));
+}
+function calendarDayTitle(date) {
+  const header = node('div', null, 'calendar-day-heading');
+  if (date === today) header.classList.add('is-today');
+  const day = new Date(date + 'T12:00:00Z');
+  header.append(
+    node(
+      'span',
+      new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone: 'UTC' }).format(
+        day,
+      ),
+    ),
+    button(String(day.getUTCDate()), () => openDay(date)),
+  );
+  return header;
+}
+function timeBoard() {
+  const dates = [];
+  for (let date = from; date <= to; date = add(date, 1)) dates.push(date);
+  const shell = node('div', null, 'calendar-shell');
+  const board = node('div', null, 'calendar-time-board');
+  board.style.setProperty('--calendar-days', dates.length);
+  const corner = node('div', null, 'calendar-corner');
+  corner.title = zone;
+  corner.textContent = '';
+  board.append(corner);
+  for (const date of dates) board.append(calendarDayTitle(date));
+  board.append(node('div', 'All day', 'calendar-all-day-label'));
+  for (const date of dates) {
+    const area = node('div', null, 'calendar-all-day');
+    area.dataset.calendarDate = date;
+    for (const entry of dayEntries(date).filter((entry) => !entry.local_time)) {
+      const card = taskCard(entry);
+      card.classList.add('calendar-event');
+      area.append(card);
+    }
+    const addButton = button('+', () => addPlannedTask(date), 'calendar-add');
+    addButton.setAttribute('aria-label', 'Add task on ' + labelDate(date));
+    area.append(addButton);
+    board.append(area);
+  }
+  const hours = node('div', null, 'calendar-hours');
+  for (let hour = 0; hour < 24; hour++) {
+    const label = node('span', String(hour).padStart(2, '0') + ':00');
+    label.style.top = hour * 56 + 'px';
+    hours.append(label);
+  }
+  board.append(hours);
+  for (const date of dates) {
+    const track = node('div', null, 'calendar-day-track');
+    track.dataset.calendarDate = date;
+    if (date === today) track.classList.add('is-today');
+    for (let hour = 0; hour < 24; hour++) {
+      const slot = button(
+        '',
+        () => addPlannedTask(date, String(hour).padStart(2, '0') + ':00'),
+        'calendar-hour-slot',
+      );
+      slot.setAttribute(
+        'aria-label',
+        `Add task on ${labelDate(date)} at ${String(hour).padStart(2, '0')}:00`,
+      );
+      track.append(slot);
+    }
+    const timed = dayEntries(date).filter((entry) => entry.local_time);
+    for (const entry of timed) {
+      const [hour, minute] = entry.local_time.split(':').map(Number);
+      const card = taskCard(entry);
+      card.classList.add('calendar-event', 'calendar-timed-event');
+      card.style.top = hour * 56 + (minute / 60) * 56 + 'px';
+      track.append(card);
+    }
+    if (date === today) {
+      const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: zone,
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      })
+        .format(new Date())
+        .split(':')
+        .map(Number);
+      const now = node('div', null, 'calendar-now');
+      now.style.top = parts[0] * 56 + (parts[1] / 60) * 56 + 'px';
+      now.setAttribute('aria-label', 'Current time');
+      track.append(now);
+    }
+    board.append(track);
+  }
+  shell.append(board);
+  requestAnimationFrame(() => {
+    if (shell.isConnected) shell.scrollTop = 8 * 56;
+  });
+  return shell;
+}
+function monthBoard() {
+  const board = node('div', null, 'calendar-month-board');
+  const start = Number(main.dataset.weekStart);
+  for (let i = 0; i < 7; i++) {
+    const date = add('2026-10-26', (start - 1 + i) % 7);
+    board.append(
+      node(
+        'div',
+        new Intl.DateTimeFormat(undefined, { weekday: 'short', timeZone: 'UTC' }).format(
+          new Date(date + 'T12:00:00Z'),
+        ),
+        'calendar-month-weekday',
+      ),
+    );
+  }
+  const weekday = new Date(from + 'T12:00:00Z').getUTCDay() || 7;
+  const begin = add(from, -((weekday - start + 7) % 7));
+  const end = add(
+    to,
+    (start + 6 - (new Date(to + 'T12:00:00Z').getUTCDay() || 7) + 7) % 7,
+  );
+  for (let date = begin; date <= end; date = add(date, 1)) {
+    const cell = node('section', null, 'calendar-month-day');
+    if (date < from || date > to) cell.classList.add('outside-month');
+    if (date === today) cell.classList.add('is-today');
+    const heading = button(
+      String(new Date(date + 'T12:00:00Z').getUTCDate()),
+      () => openDay(date),
+      'calendar-month-date',
+    );
+    heading.setAttribute('aria-label', labelDate(date));
+    cell.append(heading);
+    const list = dayEntries(date);
+    for (const entry of list.slice(0, 3)) {
+      const link = node(
+        'a',
+        (entry.local_time ? entry.local_time + ' ' : '') + entry.task.title,
+        'calendar-month-task',
+      );
+      link.href = '/tasks/' + encodeURIComponent(entry.task.id);
+      cell.append(link);
+    }
+    if (list.length > 3)
+      cell.append(
+        button(`+${list.length - 3} more`, () => openDay(date), 'calendar-more'),
+      );
+    const addButton = button('+', () => addPlannedTask(date), 'calendar-add');
+    addButton.setAttribute('aria-label', 'Add task on ' + labelDate(date));
+    cell.append(addButton);
+    board.append(cell);
+  }
+  return board;
+}
+
 async function load() {
   const version = ++generation;
   status.textContent = 'Loading…';
