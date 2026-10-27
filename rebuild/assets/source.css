@@ -19,7 +19,15 @@
 }
 body {
   margin: 0;
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image: radial-gradient(
+    ellipse 1050px 680px at 100% 0%,
+    rgb(116 145 182 / 0.075),
+    rgb(87 109 142 / 0.025) 48%,
+    transparent 78%
+  );
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 15px;
@@ -6948,3 +6956,5 @@ form[data-list-edit] .inline-actions, .space-inline-editor > div,
 .space-list-card progress { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; margin: 0; border-radius: 0; }
 .space-list-card progress::-webkit-progress-value { background: var(--list-color, #3b82f6); border-radius: 0; }
 .space-list-card progress::-moz-progress-bar { background: var(--list-color, #3b82f6); border-radius: 0; }
+
+.account-menu-panel > a, .account-menu-panel button { gap: 10px; }
