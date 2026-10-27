@@ -465,8 +465,14 @@ export function mountScheduling({
       } catch {}
     }
   }
-  function say(text) {
-    if (active) notice.textContent = stowInfo(text, `planning:${taskId}`) ? '' : text;
+  function say(text, isError = false) {
+    if (!active) return;
+    if (isError) {
+      setSaveState(`planning:${taskId}`, 'error', text);
+      notice.textContent = '';
+      return;
+    }
+    notice.textContent = stowInfo(text, `planning:${taskId}`) ? '' : text;
   }
   function setDisabled(value) {
     for (const control of root.querySelectorAll('input,select,button')) {
@@ -764,7 +770,7 @@ export function mountScheduling({
       if (scheduleDraft) queueAutoSave();
     } catch (e) {
       if (active) {
-        say(`Could not load schedule: ${e.message}. Your draft is preserved.`);
+        say(`Could not load schedule: ${e.message}. Your draft is preserved.`, true);
         if (scheduleDraft || recurrenceDraft) setDisabled(false);
       }
     } finally {
@@ -773,7 +779,7 @@ export function mountScheduling({
   }
   function conflict(message) {
     reload.hidden = false;
-    say(`${message} Your draft is preserved. Review saved data before replacing it.`);
+    say(`${message} Your draft is preserved. Review saved data before replacing it.`, true);
     onConflict?.(new Error(message));
   }
   function ensureRevision(revision) {
@@ -834,6 +840,7 @@ export function mountScheduling({
         if (storedSchedule) showPriorityPreview(storedSchedule.schedule);
         say(
           `Schedule not confirmed: ${e.message}. Your draft is preserved. Reload saved data before retrying an ambiguous result.`,
+          true,
         );
         if (e.status === 409) onConflict?.(e);
       }
@@ -914,6 +921,7 @@ export function mountScheduling({
       if (active) {
         say(
           `Series creation not confirmed: ${e.message}. Your draft is preserved. Review existing series before retrying an ambiguous result.`,
+          true,
         );
         if (e.status === 409) onConflict?.(e);
       }
