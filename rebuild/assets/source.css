@@ -7156,3 +7156,21 @@ h1,h2,h3 { font-family:var(--font-sans)!important; }
 .search-omnibar footer { padding:8px 28px 20px; }
 .quick-capture-form > label { margin:0; }
 .quick-capture-form :is(input:not([type=hidden]),textarea,select) { background:var(--bg); border-radius:6px; }
+
+.search-omnibar input[type='search']::-webkit-search-cancel-button,
+.search-omnibar input[type='search']::-webkit-search-decoration {
+  appearance: none;
+  -webkit-appearance: none;
+  display: none;
+}
+.search-omnibar .omnibar-heading:has(input:placeholder-shown) {
+  padding-right: 28px;
+}
+.search-omnibar .omnibar-heading input:placeholder-shown {
+  text-align: center;
+  padding-inline: 32px;
+}
+.search-omnibar .omnibar-heading input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
