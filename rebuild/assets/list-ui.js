@@ -1,3 +1,4 @@
+import { editorAnchor, alignEditorField } from './seamless-editor.js';
 import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
 import { openListSettings, setupTaskSettingsDock } from './list-settings.js';
@@ -7,6 +8,15 @@ export function mountListUi({ api, notice, listId }) {
   const canWrite = document.body.dataset.canWrite === 'true';
   const edit = document.querySelector('[data-list-edit]');
   const sectionCreate = document.querySelector('[data-section-create]');
+  const titleInput = edit?.querySelector('input[name="title"]');
+  if (titleInput) {
+    const titleArea = document.createElement('textarea');
+    for (const attribute of titleInput.attributes) if (attribute.name !== 'value') titleArea.setAttribute(attribute.name, attribute.value);
+    titleArea.value = titleInput.value;
+    titleArea.rows = 1;
+    titleInput.replaceWith(titleArea);
+  }
+
   if (edit && !edit.querySelector('[name="color"]')) {
     const heading = document.createElement('div');
     heading.className = 'list-edit-heading';
@@ -73,11 +83,15 @@ export function mountListUi({ api, notice, listId }) {
   }
   document.addEventListener('click', async (event) => {
     if (event.target.closest('[data-list-edit-open]') && canWrite) {
+      const titleAnchor = editorAnchor(document.querySelector('[data-list-display] h1 button'));
+      const descriptionAnchor = editorAnchor(document.querySelector('.list-description'));
       closeMenus();
       edit.hidden = false;
       document.querySelector('[data-list-display]').hidden = true;
       document.querySelector('.list-description').hidden = true;
-      edit.querySelector('[name="title"]').focus();
+      alignEditorField(edit.querySelector('[name="title"]'), titleAnchor);
+      alignEditorField(edit.querySelector('[name="description"]'), descriptionAnchor);
+      edit.querySelector(event.target.closest('.list-description') ? '[name="description"]' : '[name="title"]').focus();
       edit.querySelector('[name="title"]').select();
     }
     if (event.target.closest('[data-list-edit-cancel]')) {

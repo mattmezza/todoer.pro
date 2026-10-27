@@ -1,3 +1,4 @@
+import './navigation.js';
 import { hydratePreferredTimes } from './preferred-time.js';
 hydratePreferredTimes();
 import './task-play.js';
@@ -426,7 +427,7 @@ function restoreOriginalLogos() {
     logo.classList.add('todoer-logo');
     logo.setAttribute('aria-label', 'Todoer Pro');
     logo.innerHTML =
-      '<span class="todoer-logo-word">todoer</span><span class="todoer-logo-pro">pro</span>';
+      '<span class="todoer-logo-word"><span class="logo-expanded">todoer</span><span class="logo-collapsed">t</span></span><span class="todoer-logo-pro">pro</span>';
   }
 }
 restoreOriginalLogos();

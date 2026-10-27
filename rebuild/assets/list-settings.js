@@ -285,10 +285,10 @@ async function openSettings(listId, selected, kind, taskRoot) {
     ? null
     : dialog.animate(
         [
-          { transform: 'translateX(48px)', opacity: 0 },
+          { transform: docked ? 'translateX(100%)' : 'translateX(48px)', opacity: 0 },
           { transform: 'translateX(0)', opacity: 1 },
         ],
-        { duration: 150, easing: 'cubic-bezier(.16,1,.3,1)' },
+        { duration: 260, easing: 'cubic-bezier(.22,.8,.25,1)' },
       );
   let closing = false;
   let dismissalRequested = false;
@@ -306,10 +306,11 @@ async function openSettings(listId, selected, kind, taskRoot) {
     const from = { transform: current.transform, opacity: current.opacity };
     opening?.cancel();
     dialog.dataset.closing = '';
+    if (docked && ![...document.querySelectorAll('.list-settings-panel.is-docked[open]')].some(panel => panel !== dialog)) document.body.classList.remove('task-settings-docked-open');
     if (!reducedMotion)
       await dialog
-        .animate([from, { transform: 'translateX(32px)', opacity: 0 }], {
-          duration: 100,
+        .animate([from, { transform: docked ? 'translateX(100%)' : 'translateX(32px)', opacity: 0 }], {
+          duration: 260,
           easing: 'cubic-bezier(.4,0,1,1)',
           fill: 'forwards',
         })

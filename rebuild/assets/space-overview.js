@@ -1,3 +1,4 @@
+import { editorAnchor, alignEditorField } from './seamless-editor.js';
 import { toast } from './toast.js';
 document.addEventListener('click', async (event) => {
   const copy = event.target.closest('[data-copy-space]');
@@ -14,11 +15,12 @@ document.addEventListener('click', async (event) => {
 const root = document.querySelector('[data-space-id]');
 function editSpace(display) {
   if (root.querySelector('[data-space-edit-form]')) return;
+  const anchor = editorAnchor(display);
   const field = display.dataset.spaceEdit;
   const form = document.createElement('form');
   form.dataset.spaceEditForm = '';
   form.className = 'space-inline-editor';
-  const input = document.createElement(field === 'title' ? 'input' : 'textarea');
+  const input = document.createElement('textarea');
   input.value =
     field === 'description' && display.textContent === 'Add a description'
       ? ''
@@ -26,7 +28,7 @@ function editSpace(display) {
   input.name = field;
   input.required = field === 'title';
   input.maxLength = field === 'title' ? 500 : 100000;
-  if (field === 'description') input.rows = 1;
+  input.rows = 1;
   const cancel = document.createElement('button');
   cancel.type = 'button';
   cancel.textContent = 'Cancel';
@@ -77,6 +79,7 @@ function editSpace(display) {
       save.disabled = false;
     }
   };
+  alignEditorField(input, anchor);
   input.focus();
   input.select();
 }

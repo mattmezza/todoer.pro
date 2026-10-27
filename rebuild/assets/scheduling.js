@@ -236,12 +236,32 @@ export function mountScheduling({
   const dueLabel = dueKind.closest('label');
   dueLabel.before(dueIntent);
   dueIntent.append(dueSummary, dueLabel, dueDate.closest('label'), timedRow);
-  plannedIntent.addEventListener('toggle', () => {
-    if (plannedIntent.open) planned.focus();
-  });
-  dueIntent.addEventListener('toggle', () => {
-    if (dueIntent.open) dueKind.focus();
-  });
+  // The summary is the heading; keep field labels available to screen readers.
+  for (const control of [planned, dueKind, dueDate])
+    control.closest('label').querySelector('.planning-label-caption').classList.add('sr-only');
+  plannedHelp.remove();
+  function quickDates(kind) {
+    const shortcuts = el('div', { class: 'planning-date-shortcuts', role: 'group', 'aria-label': `Quick ${kind} date` });
+    for (const [caption, offset] of [['+0d', 0], ['+1d', 1], ['+1w', 7], ['+2w', 14]]) {
+      const button = el('button', { type: 'button', title: ['Today', 'Tomorrow', 'In one week', 'In two weeks'][[0, 1, 7, 14].indexOf(offset)] }, caption);
+      button.onclick = () => {
+        if (!canWrite || busy) return;
+        const parts = new Intl.DateTimeFormat('en-US', { timeZone: defaultZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+        const part = name => parts.find(p => p.type === name).value;
+        const date = new Date(`${part('year')}-${part('month')}-${part('day')}T12:00:00Z`);
+        date.setUTCDate(date.getUTCDate() + offset);
+        const value = date.toISOString().slice(0, 10);
+        if (kind === 'planned') planned.value = value;
+        else { dueKind.value = 'date'; dueDate.value = value; }
+        (kind === 'planned' ? planned : dueKind).dispatchEvent(new Event('change', { bubbles: true }));
+        dateCaptions();
+      };
+      shortcuts.append(button);
+    }
+    return shortcuts;
+  }
+  plannedSummary.after(quickDates('planned'));
+  dueSummary.after(quickDates('due'));
   function dateCaptions() {
     const readable = (value) => {
       if (!value) return '';
