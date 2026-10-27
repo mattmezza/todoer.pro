@@ -137,7 +137,14 @@ export async function moveToParent(id) {
     destinationLabel.textContent = destination?.title || 'List · top-level tasks';
     const explanation = document.createElement('p');
     explanation.textContent = 'The new structure will look like this:';
-    hierarchy.append(explanation, destinationLabel, tree(items, id));
+    const preview = tree(items, id);
+    for (const link of preview.querySelectorAll('a')) {
+      const label = document.createElement('span');
+      label.textContent = link.textContent;
+      label.className = link.className;
+      link.replaceWith(label);
+    }
+    hierarchy.append(explanation, destinationLabel, preview);
     const actions = document.createElement('div');
     actions.className = 'confirmation-actions';
     const cancel = document.createElement('button');
