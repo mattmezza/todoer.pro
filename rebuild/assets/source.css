@@ -21,10 +21,10 @@ body {
   margin: 0;
   background-color: var(--bg);
   background-image: radial-gradient(
-    ellipse 1050px 680px at 100% 0%,
-    rgb(116 145 182 / 0.075),
-    rgb(87 109 142 / 0.025) 48%,
-    transparent 78%
+    ellipse 1450px 1000px at 90% 0%,
+    rgb(116 145 182 / 0.22),
+    rgb(87 109 142 / 0.085) 48%,
+    transparent 85%
   );
   background-repeat: no-repeat;
   background-attachment: fixed;
