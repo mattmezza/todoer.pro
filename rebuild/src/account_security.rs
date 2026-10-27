@@ -499,7 +499,11 @@ impl AuthStore {
         tx.commit()?;
         Ok(())
     }
-    pub fn totp_setup(&self, user: &str, key: &str) -> Result<(String, String, String), AuthError> {
+    pub fn totp_setup(
+        &self,
+        user: &str,
+        key: &str,
+    ) -> Result<(String, String, String, String), AuthError> {
         let bytes = [
             Uuid::new_v4().as_bytes().as_slice(),
             Uuid::new_v4().as_bytes().as_slice(),
@@ -510,6 +514,9 @@ impl AuthStore {
             encrypt(key, user, &bytes)?,
             generator.get_secret_base32(),
             generator.get_url(),
+            generator
+                .get_qr_base64()
+                .map_err(|_| invalid("Authenticator QR code unavailable"))?,
         ))
     }
     pub fn enable_totp(
@@ -840,7 +847,8 @@ mod tests {
         let grant = db.issue_session(&user.id, 3600).unwrap();
         db.mark_recent(&grant.token).unwrap();
         assert_eq!(db.recent(&grant.token).unwrap(), user.id);
-        let (encrypted, _, _) = db.totp_setup(&user.id, "deployment-test-key").unwrap();
+        let (encrypted, _, _, qr) = db.totp_setup(&user.id, "deployment-test-key").unwrap();
+        assert!(qr.starts_with("iVBORw0KGgo"), "QR image must be a PNG");
         let generator = totp(
             decrypt("deployment-test-key", &user.id, &encrypted).unwrap(),
             "user@example.test",

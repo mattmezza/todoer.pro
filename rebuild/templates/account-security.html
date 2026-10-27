@@ -31,9 +31,22 @@
       </p>
       <button type="button" data-totp-start>Set up authenticator…</button>
       <form data-totp-form hidden class="grid gap-3">
-        <p>Add this secret to your authenticator app:</p>
-        <code data-totp-secret></code
-        ><label
+        <p>
+          Scan this QR code with your authenticator app, then enter its six-digit code
+          below.
+        </p>
+        <img
+          class="authenticator-qr"
+          data-totp-qr
+          alt="QR code to add your Todoer account to an authenticator app"
+          width="224"
+          height="224"
+        />
+        <details>
+          <summary>Can’t scan? Enter the setup key manually</summary>
+          <code data-totp-secret></code>
+        </details>
+        <label
           >Code<input
             name="code"
             autocomplete="one-time-code"

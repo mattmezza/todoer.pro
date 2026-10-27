@@ -100,6 +100,18 @@ try {
       headers: { Origin: base, 'Content-Type': 'application/json' },
       data,
     });
+  await page.goto(base + '/signin');
+  const passkeyButton = page.locator('[data-auth-passkey]');
+  assert(!(await passkeyButton.isVisible()), 'Passkey button shown without email');
+  await page.getByLabel('Email', { exact: true }).fill('invalid');
+  assert(!(await passkeyButton.isVisible()), 'Passkey button shown with invalid email');
+  await page.getByLabel('Email', { exact: true }).fill(email);
+  assert(await passkeyButton.isVisible(), 'Passkey button missing for valid email');
+  await page.getByLabel('Email', { exact: true }).fill('');
+  assert(
+    !(await passkeyButton.isVisible()),
+    'Passkey button stayed visible after clearing email',
+  );
   await page.goto(base + '/signup');
   assert(
     (await page.locator('.auth-google').count()) === 0,
@@ -113,6 +125,8 @@ try {
     .locator('[data-auth-notice]')
     .filter({ hasText: 'verification link' })
     .waitFor();
+  assert(!await page.locator('[data-auth-form]').isVisible(), 'Signup form should disappear after success');
+  assert(await page.locator('.auth-confirmation use').getAttribute('href') === '/assets/icons.svg#inbox', 'Signup confirmation needs its inbox icon');
   const token = await message(/verify-email#token=([a-f0-9]+)/);
   await page.goto(base + '/verify-email#token=' + token);
   await page.getByRole('button', { name: 'Verify email & create account' }).click();
@@ -174,6 +188,18 @@ try {
     'missing CSRF accepted',
   );
   await page.locator('[data-totp-start]').click();
+  await page.locator('[data-totp-qr]').waitFor();
+  await page.locator('[data-totp-qr]').evaluate((image) => image.decode());
+  assert(
+    await page
+      .locator('[data-totp-qr]')
+      .evaluate(
+        (image) =>
+          image.naturalWidth > 0 && image.src.startsWith('data:image/png;base64,'),
+      ),
+    'Authenticator QR image must render locally',
+  );
+  await page.locator('[data-totp-form] summary').click();
   await page
     .locator('[data-totp-secret]')
     .filter({ hasText: /[A-Z2-7]+/ })
@@ -195,13 +221,27 @@ try {
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await page.waitForURL('**/signin?step=mfa');
-  await page.getByLabel('Authenticator or recovery code', { exact: true }).fill(totp(seed, 1));
+  await page
+    .getByLabel('Authenticator or recovery code', { exact: true })
+    .fill(totp(seed, 1));
   await page.getByRole('button', { name: 'Verify and sign in' }).click();
   await page.waitForURL('**/today');
-  assert((await post('/auth/local/login', {email, password})).ok(), 'recovery sign-in start failed');
-  assert((await post('/auth/local/mfa', {code: codes[0]})).ok(), 'recovery code rejected');
-  assert((await post('/auth/local/login', {email, password})).ok(), 'recovery replay start failed');
-  assert(!(await post('/auth/local/mfa', {code: codes[0]})).ok(), 'recovery code reuse accepted');
+  assert(
+    (await post('/auth/local/login', { email, password })).ok(),
+    'recovery sign-in start failed',
+  );
+  assert(
+    (await post('/auth/local/mfa', { code: codes[0] })).ok(),
+    'recovery code rejected',
+  );
+  assert(
+    (await post('/auth/local/login', { email, password })).ok(),
+    'recovery replay start failed',
+  );
+  assert(
+    !(await post('/auth/local/mfa', { code: codes[0] })).ok(),
+    'recovery code reuse accepted',
+  );
   // Enroll a real browser WebAuthn credential using Chromium's CTAP2 emulator.
   const cdp = await context.newCDPSession(page);
   await cdp.send('WebAuthn.enable');

@@ -487,7 +487,7 @@ async fn totp_start(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Valu
     let checked_user = user.clone();
     let checked = user.clone();
     let key = s.accounts.key.clone();
-    let (seed, secret, url) = auth_run(&s, move |db| db.totp_setup(&checked, &key)).await?;
+    let (seed, secret, url, qr) = auth_run(&s, move |db| db.totp_setup(&checked, &key)).await?;
     let binding = crate::auth::hash(cookie(&h, "todoer_session").ok_or(AuthError::Unauthorized)?);
     let epoch = auth_run(&s, move |db| db.epoch(&user)).await?;
     let id = s.accounts.put_ceremony(Ceremony {
@@ -497,7 +497,9 @@ async fn totp_start(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Valu
         expires: crate::auth::now() + 300,
         state: CeremonyState::Totp(seed),
     })?;
-    Ok(Json(json!({"setup_id":id,"secret":secret,"url":url})))
+    Ok(Json(
+        json!({"setup_id":id,"secret":secret,"url":url,"qr":qr}),
+    ))
 }
 #[derive(Deserialize)]
 struct SetupInput {

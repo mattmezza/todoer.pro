@@ -98,6 +98,7 @@ root?.querySelector('[data-totp-start]').addEventListener('click', () =>
   run(async () => {
     const setup = await api('/api/v1/account/totp/start', {});
     setupId = setup.setup_id;
+    root.querySelector('[data-totp-qr]').src = `data:image/png;base64,${setup.qr}`;
     root.querySelector('[data-totp-secret]').textContent = setup.secret;
     root.querySelector('[data-totp-form]').hidden = false;
   }),
@@ -112,6 +113,8 @@ root?.querySelector('[data-totp-form]').addEventListener('submit', (event) => {
     reauth = true;
     showCodes(result.recovery_codes);
     event.target.hidden = true;
+    root.querySelector('[data-totp-qr]').removeAttribute('src');
+    root.querySelector('[data-totp-secret]').textContent = '';
     toast('Authenticator enabled. Save your recovery codes, then sign in again.');
   });
 });
