@@ -8,6 +8,7 @@ body.review{display:block;margin:0;background:var(--bg);color:var(--text)}.revie
 #[derive(Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 struct QueryRange {
+    range: Option<String>,
     from: Option<String>,
     to: Option<String>,
     list: Option<String>,
@@ -44,28 +45,29 @@ async fn review(s: &AppState, h: &HeaderMap, q: QueryRange) -> Result<WeeklyRevi
         .map_err(|_| Error::Invalid("Invalid review timezone".into()))?;
     let now = Utc::now();
     let today = now.with_timezone(&tz).date_naive();
-    let from = q.from.unwrap_or_else(|| {
-        (today - Duration::days(today.weekday().num_days_from_monday().into())).to_string()
-    });
-    let start = chrono::NaiveDate::parse_from_str(&from, "%Y-%m-%d")
-        .map_err(|_| Error::Invalid("Use YYYY-MM-DD dates".into()))?;
-    let to = q.to.unwrap_or_else(|| {
-        start
-            .checked_add_signed(Duration::days(6))
-            .map(|d| d.to_string())
-            .unwrap_or_default()
-    });
+    let interval=q.range.as_deref().unwrap_or(if q.from.is_some() || q.to.is_some(){"custom"}else{"last_month"});
+    let all_time=interval=="all";
+    let actor_for_prefs=actor.clone();
+    let prefs=s.run(move|db|db.notification_preferences(&crate::core::actor_identity(&db.conn,&actor_for_prefs)?.0)).await?;
+    let week_start=today-Duration::days(((today.weekday().number_from_monday()+7-prefs.week_start)%7).into());
+    let month_start=today.with_day(1).unwrap();
+    let (mut from,to)=match interval {
+        "all"=>(today,today),
+        "ytd"=>(chrono::NaiveDate::from_ymd_opt(today.year(),1,1).unwrap(),today),
+        "last_month"=>{let last=month_start-Duration::days(1);(last.with_day(1).unwrap(),last)},
+        "mtd"=>(month_start,today),
+        "last_week"=>(week_start-Duration::days(7),week_start-Duration::days(1)),
+        "wtd"=>(week_start,today),
+        "yesterday"=>(today-Duration::days(1),today-Duration::days(1)),
+        "today"=>(today,today),
+        "custom"=>{let from=q.from.as_deref().unwrap_or("");let to=q.to.as_deref().unwrap_or(from);(chrono::NaiveDate::parse_from_str(from,"%Y-%m-%d").map_err(|_|Error::Invalid("Choose a start date".into()))?,chrono::NaiveDate::parse_from_str(to,"%Y-%m-%d").map_err(|_|Error::Invalid("Choose an end date".into()))?)},
+        _=>return Err(Error::Invalid("Unknown review range".into()).into())
+    };
+    if all_time {let a=actor.clone();let list=q.list.clone();let space=q.workspace.clone();let earliest=s.run(move|db|{let list=list.map(|id|crate::defaults::resolve(&db.conn,"list",&id)).transpose()?;let space=space.map(|id|crate::defaults::resolve(&db.conn,"workspace",&id)).transpose()?;let value:Option<i64>=db.conn.query_row("SELECT min(h.occurred_at) FROM history h JOIN actor_list_access a ON a.list_id=h.list_id AND a.actor_id=?1 JOIN tasks t ON t.id=json_extract(h.event,'$.task.id') JOIN actor_list_access live ON live.list_id=t.list_id AND live.actor_id=?1 JOIN lists l ON l.id=h.list_id WHERE (?2 IS NULL OR h.list_id=?2) AND (?3 IS NULL OR l.workspace_id=?3)",rusqlite::params![a,list,space],|r|r.get(0))?;Ok(value)}).await?;if let Some(first)=earliest.and_then(|value|chrono::DateTime::from_timestamp(value,0)){from=first.with_timezone(&tz).date_naive().min(today);}}
+    let from=from.to_string();let to=to.to_string();
     s.run(move |db| {
-        db.weekly_review(
-            &actor,
-            ReviewRange {
-                from,
-                to,
-                list_id: q.list,
-                workspace_id: q.workspace,
-            },
-            now.timestamp(),
-        )
+        let range=ReviewRange {from,to,list_id:q.list,workspace_id:q.workspace};
+        if all_time {db.all_time_review(&actor,range,now.timestamp())}else{db.weekly_review(&actor,range,now.timestamp())}
     })
     .await
 }
@@ -87,6 +89,14 @@ async fn review_page(
 ) -> Result<Response, ApiError> {
     let list = q.list.clone();
     let workspace = q.workspace.clone();
+    let selected=q.range.clone().unwrap_or_else(||if q.from.is_some() || q.to.is_some(){"custom".into()}else{"last_month".into()});
+    let mut shortcuts=String::from("<nav class=\"review-shortcuts\" aria-label=\"Review range\">");
+    for (key,label) in [("all","All"),("ytd","YTD"),("last_month","Last month"),("mtd","MTD"),("last_week","Last week"),("wtd","WTD"),("yesterday","Yesterday"),("today","Today"),("custom","Custom")] {
+        let mut url=reqwest::Url::parse("https://todoer.invalid/review").unwrap();url.query_pairs_mut().append_pair("range",key);if let Some(id)=&list{url.query_pairs_mut().append_pair("list",id);}if let Some(id)=&workspace{url.query_pairs_mut().append_pair("workspace",id);}
+        if key=="custom"{let fallback=Utc::now().date_naive().to_string();url.query_pairs_mut().append_pair("from",q.from.as_deref().unwrap_or(&fallback)).append_pair("to",q.to.as_deref().unwrap_or(&fallback));}
+        shortcuts.push_str(&format!("<a href=\"/review?{}\" {}>{label}</a>",esc(url.query().unwrap_or("")),if selected==key{"aria-current=\"page\""}else{""}));
+    }
+    shortcuts.push_str("</nav>");
     let value = review(&s, &h, q).await?;
     let mut bars = String::new();
     let max = value
@@ -187,10 +197,11 @@ async fn review_page(
         _ => String::new(),
     };
     let html = format!(
-        r##"<p class="muted" title="{}">{} through {}</p><form class="review-form" method="get">{hidden}<label>From<input type="date" name="from" value="{}" required></label><label>Through<input type="date" name="to" value="{}" required></label><button>Review dates</button></form><dl class="review-metrics"><div><dt>Completed leaf tasks</dt><dd>{}</dd></div><div><dt>Planned / completed</dt><dd>{} / {}</dd></div><div><dt>Overdue now</dt><dd>{}</dd></div></dl><section class="review-panel" aria-labelledby="completion-title"><h2 id="completion-title">Completed work</h2><p class="muted">Distinct recorded leaf tasks. Older history may be incomplete; repeating a completion in this range counts once.</p><svg class="review-chart" viewBox="0 0 800 150" role="img" aria-label="Completed leaf tasks by day"><title>Completed leaf tasks by day</title><line x1="10" y1="130" x2="790" y2="130" stroke="currentColor" stroke-opacity=".2"/>{bars}</svg><div class="review-chart-axis" aria-hidden="true">{axis}</div><details><summary>Daily counts</summary><div class="review-scroll"><table><thead><tr><th>Date</th><th>Completed leaf tasks</th></tr></thead><tbody>{history}</tbody></table></div></details></section><section class="review-panel" aria-labelledby="overdue-title"><h2 id="overdue-title">Overdue trend</h2><p class="muted">Daily observations keep the backlog as recorded; today’s live total may differ.</p>{trend}</section><section class="review-panel" aria-labelledby="commitment-title"><h2 id="commitment-title">Upcoming commitments</h2><p class="muted">Open leaf tasks with a planned date or due date in the next seven days.</p>{commitments}</section><details class="review-panel"><summary>How this review is counted</summary><ul>{notes}</ul></details>"##,
+        r##"{shortcuts}<p class="muted" title="{}">{} through {}</p><form class="review-form" method="get" {}><input type="hidden" name="range" value="custom">{hidden}<label>From<input type="date" name="from" value="{}" required></label><label>Through<input type="date" name="to" value="{}" required></label><button>Review dates</button></form><dl class="review-metrics"><div><dt>Completed leaf tasks</dt><dd>{}</dd></div><div><dt>Planned / completed</dt><dd>{} / {}</dd></div><div><dt>Overdue now</dt><dd>{}</dd></div></dl><section class="review-panel" aria-labelledby="completion-title"><h2 id="completion-title">Completed work</h2><p class="muted">Distinct recorded leaf tasks. Older history may be incomplete; repeating a completion in this range counts once.</p><svg class="review-chart" viewBox="0 0 800 150" role="img" aria-label="Completed leaf tasks by day"><title>Completed leaf tasks by day</title><line x1="10" y1="130" x2="790" y2="130" stroke="currentColor" stroke-opacity=".2"/>{bars}</svg><div class="review-chart-axis" aria-hidden="true">{axis}</div><details><summary>Daily counts</summary><div class="review-scroll"><table><thead><tr><th>Date</th><th>Completed leaf tasks</th></tr></thead><tbody>{history}</tbody></table></div></details></section><section class="review-panel" aria-labelledby="overdue-title"><h2 id="overdue-title">Overdue trend</h2><p class="muted">Daily observations keep the backlog as recorded; today’s live total may differ.</p>{trend}</section><section class="review-panel" aria-labelledby="commitment-title"><h2 id="commitment-title">Upcoming commitments</h2><p class="muted">Open leaf tasks with a planned date or due date in the next seven days.</p>{commitments}</section><details class="review-panel"><summary>How this review is counted</summary><ul>{notes}</ul></details>"##,
         esc(&value.timezone),
         esc(&value.from),
         esc(&value.to),
+        if selected=="custom"{""}else{"hidden"},
         esc(&value.from),
         esc(&value.to),
         value.completed_leaf,
