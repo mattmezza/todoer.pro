@@ -744,7 +744,7 @@ $('#move-task').onclick = async () => {
     let acknowledge_access_change = false;
     if (preview.audience_broadens) {
       acknowledge_access_change = await confirmAction(
-        `This move gives ${preview.added_members} additional member(s) access to this task and all its sub-tasks. Allow this access change?`,
+        preview.destination_public && !preview.source_public ? 'This move makes this task and all its sub-tasks publicly viewable. Continue?' : `This move gives ${preview.added_members} additional member(s) access to this task and all its sub-tasks. Allow this access change?`,
       );
       if (!acknowledge_access_change) return;
     }

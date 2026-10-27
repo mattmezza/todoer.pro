@@ -1,3 +1,4 @@
+import { mountPublicSharing } from './public-sharing.js';
 import { mountStructure } from './task-structure.js';
 import { confirmAction } from './confirm.js';
 import { mountActivity } from './activity-panel.js';
@@ -186,6 +187,7 @@ async function openSettings(listId, selected, kind, taskRoot) {
         }
         decorateSharing(mounted, load);
         if (workspace) decorateMembers(mounted, listId);
+        mountPublicSharing(mounted, workspace ? 'space' : 'list', listId);
       }
       if (metadataTab) mounted.dataset.metadataTab = tab;
       if (task && (tab === 'planning' || metadataTab)) {

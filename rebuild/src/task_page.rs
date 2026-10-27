@@ -38,6 +38,7 @@ async fn legacy_page(
     h: HeaderMap,
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
+    if super::public_http::requested(&s,&h,"task",&id).await? { return super::public_http::show(&s,"task",&id,1).await; }
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
     };

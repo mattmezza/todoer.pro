@@ -1,3 +1,5 @@
+#[path = "public_web.rs"]
+mod public_http;
 #[path = "activity_web.rs"]
 mod activity_http;
 #[path = "planning_web.rs"]
@@ -260,6 +262,7 @@ pub fn router(state: AppState) -> Router {
         .route("/search", get(search_page))
         .route("/trash", get(trash_page))
         .route("/activity", get(home))
+        .fallback(not_found)
         .route("/fragments/lists/{id}/tasks", get(task_fragment))
         .route(
             "/fragments/tasks/{id}/description",
@@ -271,6 +274,7 @@ pub fn router(state: AppState) -> Router {
         .merge(activity_http::routes())
         .merge(planning_http::routes())
         .merge(reports_http::routes())
+        .merge(public_http::routes())
         .merge(oauth_http::routes())
         .merge(cli_auth_http::routes())
         .merge(organization::routes())
@@ -293,8 +297,9 @@ pub fn router(state: AppState) -> Router {
         .with_state(state.clone())
         .merge(
             crate::mcp::router(state.clone())
-                .layer(axum::middleware::from_fn_with_state(state, mcp_auth)),
+                .layer(axum::middleware::from_fn_with_state(state.clone(), mcp_auth)),
         )
+        .layer(axum::middleware::from_fn_with_state(state.clone(), public_http::metadata_layer))
         .layer(axum::middleware::from_fn(response_security))
 }
 async fn home(State(s): State<AppState>, h: HeaderMap) -> Result<Redirect, ApiError> {
@@ -639,6 +644,7 @@ async fn legacy_list_page(
     Path(id): Path<String>,
     Query(q): Query<ListQuery>,
 ) -> Result<Response, ApiError> {
+    if public_http::requested(&s,&h,"list",&id).await? { return public_http::show(&s,"list",&id,1).await; }
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
     };
@@ -1133,6 +1139,9 @@ struct SearchForm {
 #[derive(Template)]
 #[template(path = "search.html")]
 struct StructuredSearchPage {
+    sidebar: Sidebar,
+    today: String,
+    week_start: u32,
     form: SearchForm,
     lists: Vec<List>,
     workspaces: Vec<crate::workspace::Workspace>,
@@ -1141,6 +1150,7 @@ struct StructuredSearchPage {
     next: String,
 }
 struct SearchResultView {
+    task_id: String,
     title: String,
     kind: String,
     snippet: String,
@@ -1189,13 +1199,14 @@ async fn search_page(
         cursor: form.cursor.clone(),
         ..Default::default()
     };
-    let (page, lists, workspaces) = s
+    let csrf=s.csrf_for(&h);
+    let (page, lists, workspaces, sidebar, prefs) = s
         .run(move |db| {
-            Ok((
-                db.query(&actor, &query)?,
-                db.lists(&actor)?,
-                db.workspaces(&actor)?,
-            ))
+            let inactive=db.conn.prepare("SELECT workspace_id FROM workspace_lifecycle WHERE archived=1 OR deleted_at IS NOT NULL")?.query_map([],|r|r.get::<_,String>(0))?.collect::<Result<std::collections::HashSet<_>,_>>()?;
+            let mut lists=db.lists(&actor)?;
+            lists.retain(|list| db.list_info(&actor,&list.id).is_ok_and(|info| !info.archived && !info.workspace_id.is_some_and(|id|inactive.contains(&id))));
+            let mut spaces=db.workspaces(&actor)?;spaces.retain(|space| !inactive.contains(&space.id));
+            Ok((db.query(&actor, &query)?, lists, spaces, build_sidebar(db,&actor,"",csrf)?,db.notification_preferences(&actor)?))
         })
         .await?;
     let next = if let Some(cursor) = page.next_cursor {
@@ -1253,6 +1264,7 @@ async fn search_page(
                 }
             };
             SearchResultView {
+                task_id: url.strip_prefix("/tasks/").unwrap_or("").to_string(),
                 title: hit.title.unwrap_or_else(|| hit.kind.clone()),
                 kind: hit.kind,
                 snippet: hit.snippet.unwrap_or_default(),
@@ -1264,6 +1276,9 @@ async fn search_page(
         .collect();
     Ok(Html(
         StructuredSearchPage {
+            sidebar,
+            today:chrono::Utc::now().with_timezone(&prefs.timezone.parse::<chrono_tz::Tz>().unwrap_or(chrono_tz::UTC)).date_naive().to_string(),
+            week_start:prefs.week_start,
             form,
             lists,
             workspaces,
@@ -1287,7 +1302,7 @@ async fn trash_page(State(s): State<AppState>, h: HeaderMap) -> Result<Response,
         return Ok(Redirect::to("/signin").into_response());
     };
     let tasks = s.run(move |db| db.trash_tasks(&actor)).await?;
-    let mut body = String::from("<p class=\"list-description\">Restore deleted tasks here. Restore a parent task first to recover its sub-tasks.</p><div id=\"notice\" role=\"status\" aria-live=\"polite\"></div>");
+    let mut body = String::from("<div id=\"notice\" role=\"status\" aria-live=\"polite\"></div>");
     if tasks.is_empty() {
         body.push_str("<div class=\"planning-empty\"><h2>All clear.</h2><p>Deleted tasks will appear here when you need to restore them.</p></div>");
     }
@@ -1573,4 +1588,14 @@ async fn capture_form(
     })
     .await?;
     Ok(Redirect::to(&format!("/lists/{list}")))
+}
+
+#[derive(Template)]
+#[template(path="not-found.html")]
+struct NotFoundPage {sidebar:Option<Sidebar>}
+async fn not_found(State(s):State<AppState>,h:HeaderMap,req:axum::extract::Request)->Result<Response,ApiError>{
+    if req.uri().path().starts_with("/api/") {return Ok((StatusCode::NOT_FOUND,Json(json!({"error":{"code":"not_found","message":"Endpoint not found"}}))).into_response())}
+    let sidebar=if let Ok(actor)=s.auth(&h,false){let csrf=s.csrf_for(&h);Some(s.run(move|db|build_sidebar(db,&actor,"",csrf)).await?)}else{None};
+    let html=NotFoundPage{sidebar}.render().map_err(|_|Error::Invalid("Could not render page".into()))?;
+    Ok((StatusCode::NOT_FOUND,Html(html)).into_response())
 }

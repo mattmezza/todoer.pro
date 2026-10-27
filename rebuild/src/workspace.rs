@@ -801,6 +801,8 @@ pub struct ListWorkspaceMovePreview {
     pub restricted: bool,
     pub audience: Vec<ListMoveAudienceChange>,
     pub audience_broadens: bool,
+    pub source_public: bool,
+    pub destination_public: bool,
     pub task_count: usize,
     pub tag_mapping: Vec<ListMoveTagMapping>,
     pub policy_hash: String,
@@ -912,6 +914,9 @@ fn list_move_preview(
         })?
         .collect::<Result<Vec<_>, _>>()?
     };
+    let source_public=crate::public_access::list_public(c,list)?;
+    let explicit_public=c.query_row("SELECT EXISTS(SELECT 1 FROM public_lists WHERE list_id=?1 AND enabled=1)",[list],|r|r.get::<_,bool>(0))?;
+    let destination_public=explicit_public || (!restricted && c.query_row("SELECT EXISTS(SELECT 1 FROM public_spaces WHERE workspace_id=?1 AND enabled=1)",[destination],|r|r.get::<_,bool>(0))?);
     let mut result = ListWorkspaceMovePreview {
         list_id: list.into(),
         source_workspace_id: source,
@@ -920,7 +925,9 @@ fn list_move_preview(
         source_workspace_revision: from.revision,
         destination_workspace_revision: to.revision,
         restricted,
-        audience_broadens: audience.iter().any(|a| a.after_rank > a.before_rank),
+        audience_broadens: audience.iter().any(|a| a.after_rank > a.before_rank) || (destination_public && !source_public),
+        source_public,
+        destination_public,
         audience,
         task_count: versions.len(),
         tag_mapping,
@@ -1018,6 +1025,8 @@ pub struct SectionMovePreview {
     pub source_members: i64,
     pub destination_members: i64,
     pub added_members: i64,
+    pub source_public: bool,
+    pub destination_public: bool,
     pub audience_broadens: bool,
     pub policy_hash: String,
 }
@@ -1173,8 +1182,12 @@ fn section_move_plan(
         })?
         .collect::<Result<Vec<_>, _>>()?;
     let sequences:(i64,i64)=c.query_row("SELECT (SELECT coalesce(max(seq),0) FROM history WHERE list_id=?1),(SELECT coalesce(max(seq),0) FROM history WHERE list_id=?2)",params![section.list_id,destination],|r|Ok((r.get(0)?,r.get(1)?)))?;
+    let source_public=crate::public_access::list_public(c,&section.list_id)?;
+    let destination_public=crate::public_access::list_public(c,destination)?;
     let policy = serde_json::to_vec(&(
         actor,
+        source_public,
+        destination_public,
         &section,
         &source_list,
         &destination_list,
@@ -1203,7 +1216,9 @@ fn section_move_plan(
         source_members: source_audience.len() as i64,
         destination_members: destination_audience.len() as i64,
         added_members,
-        audience_broadens: added_members > 0,
+        audience_broadens: added_members > 0 || (destination_public && !source_public),
+        source_public,
+        destination_public,
         policy_hash,
     };
     Ok(SectionMovePlan {

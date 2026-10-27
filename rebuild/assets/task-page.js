@@ -915,7 +915,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
       const source = moveTask ?? task;
       if (moveList.value === source.list_id) moveSection.value = root.dataset.sectionId;
       moveSection.disabled = moveList.value === source.list_id && !!source.parent_id;
-      get('[data-move-audience]').textContent = audience.audience_broadens
+      get('[data-move-audience]').textContent = audience.destination_public && !audience.source_public ? 'This move makes this task and all its sub-tasks publicly viewable. Review before moving.' : audience.audience_broadens
         ? `This destination adds access for ${audience.added_members} member(s). Review this before moving the all sub-tasks.`
         : 'This destination adds no members who can access these sub-tasks.';
       get('[data-move-ack-label]').hidden = !audience.audience_broadens;
@@ -965,7 +965,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         (step) => step.access_change,
       )?.access_change;
       if (audience) {
-        get('[data-move-audience]').textContent = audience.audience_broadens
+        get('[data-move-audience]').textContent = audience.destination_public && !audience.source_public ? 'This move makes this task and all its sub-tasks publicly viewable. Review before moving.' : audience.audience_broadens
           ? `Reviewed plan adds access for ${audience.added_members} member(s). Review this current audience before applying the exact plan.`
           : 'The reviewed plan adds no members who can access these sub-tasks.';
       }

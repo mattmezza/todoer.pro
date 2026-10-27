@@ -253,6 +253,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (30, include_str!("../migrations/030_compact_space_ids.sql")),
     (31, include_str!("../migrations/031_cli_login.sql")),
     (32, include_str!("../migrations/032_personal_inbox.sql")),
+    (33, include_str!("../migrations/033_public_read_only.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {
@@ -664,8 +665,10 @@ impl Store {
         access(&self.conn, actor, destination)?;
         let (source_members, destination_members, added_members) =
             audience_change(&self.conn, &t.list_id, destination)?;
+        let source_public=crate::public_access::list_public(&self.conn,&t.list_id)?;
+        let destination_public=crate::public_access::list_public(&self.conn,destination)?;
         Ok(
-            serde_json::json!({"destination": destination, "audience_broadens": added_members > 0, "source_members": source_members, "destination_members": destination_members, "added_members": added_members}),
+            serde_json::json!({"destination": destination, "source_public":source_public,"destination_public":destination_public,"audience_broadens": added_members > 0 || (destination_public && !source_public), "source_members": source_members, "destination_members": destination_members, "added_members": added_members}),
         )
     }
     pub fn move_subtree(
@@ -686,7 +689,7 @@ impl Store {
         if t.list_id == destination {
             return Ok(t);
         }
-        if audience_change(&tx, &t.list_id, destination)?.2 > 0 && !acknowledge_access_change {
+        if (audience_change(&tx, &t.list_id, destination)?.2 > 0 || (crate::public_access::list_public(&tx,destination)? && !crate::public_access::list_public(&tx,&t.list_id)?)) && !acknowledge_access_change {
             return Err(Error::Conflict("destination adds members who can access this subtree; inspect move_preview and set acknowledge_access_change=true to confirm".into()));
         }
         let mut pos: i64 = tx.query_row(
