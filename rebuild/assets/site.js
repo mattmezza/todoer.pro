@@ -328,7 +328,11 @@ for (const link of document.querySelectorAll('.pagination a')) {
 }
 
 for (const link of document.querySelectorAll('.planning-tabs a'))
-  if (new URL(link.href).pathname === location.pathname)
+  if (
+    !link.hasAttribute('aria-current') &&
+    new URL(link.href).pathname === location.pathname &&
+    new URL(link.href).search === location.search
+  )
     link.setAttribute('aria-current', 'page');
 
 import './quick-capture.js';

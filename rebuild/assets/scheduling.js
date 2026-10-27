@@ -49,10 +49,10 @@ export function mountScheduling({
   const dueLocal = input('datetime-local', 'due_local');
   const dueZone = input('text', 'due_timezone', defaultZone);
   const priority = select('priority', [
-    ['', 'Normal priority'],
-    ['1', 'High'],
-    ['2', 'Medium'],
-    ['3', 'Low'],
+    ['0', 'P0 · Highest'],
+    ['1', 'P1 · High'],
+    ['2', 'P2 · Medium'],
+    ['3', 'P3 · Low'],
   ]);
   const reminders = el('div', { 'data-reminders': '' });
   const addReminder = el(
@@ -110,7 +110,6 @@ export function mountScheduling({
     'Manage existing recurring series',
   );
   form.append(
-    el('h3', {}, 'Schedule'),
     label('Work on', planned),
     el(
       'p',
@@ -155,10 +154,10 @@ export function mountScheduling({
   priorityGroup.append(el('legend', {}, 'Priority'));
   const priorityOptions = el('div', { class: 'priority-options' });
   for (const [value, text] of [
-    ['', 'Normal'],
-    ['3', 'Low'],
-    ['2', 'Medium'],
-    ['1', 'High'],
+    ['0', 'P0'],
+    ['1', 'P1'],
+    ['2', 'P2'],
+    ['3', 'P3'],
   ]) {
     const choice = input('radio', 'priority_choice', value);
     choice.setAttribute('aria-label', `${text} priority`);
@@ -292,6 +291,17 @@ export function mountScheduling({
   iconFor(save, 'check');
   iconFor(reload, 'arrow-uturn-left');
   iconFor(addReminder, 'plus');
+  addReminder.classList.add('reminder-add');
+  recurrence.classList.add('recurrence-compact');
+  const recurrenceWhen = el('div', { class: 'reminder-when' });
+  start.closest('label').before(recurrenceWhen);
+  recurrenceWhen.append(start.closest('label'), recurrenceZone.closest('label'));
+  const recurrenceLimits = el('div', { class: 'recurrence-limits' });
+  end.closest('label').before(recurrenceLimits);
+  recurrenceLimits.append(end.closest('label'), count.closest('label'));
+  const recurrenceActions = el('div', { class: 'recurrence-actions' });
+  recurrenceActions.append(startSeries, discardRecurrence);
+  seriesLink.before(recurrenceActions);
   reload.hidden = true;
   function updateDraftActions() {
     reload.hidden = true;
@@ -492,8 +502,8 @@ export function mountScheduling({
       box.checked = (values.weekdays || []).includes(Number(box.value));
   }
   function addReminderRow(values) {
-    const row = el('fieldset', { class: 'grid gap-3 mt-8' });
-    row.append(el('legend', {}, 'Reminder'));
+    const row = el('fieldset', { class: 'reminder-card' });
+    row.append(el('legend', { class: 'sr-only' }, 'Reminder'));
     const channel = select('channel', [
       ['email', 'Email'],
       ['push', 'Push notification'],
@@ -514,12 +524,11 @@ export function mountScheduling({
       row.remove();
       scheduleChanged();
     });
-    row.append(
-      label('Channel', channel),
-      label('Reminder local date and time', at),
-      label('Reminder IANA timezone', timezone),
-      remove,
-    );
+    row.append(label('Channel', channel));
+    const when = el('div', { class: 'reminder-when' });
+    when.append(label('Date and time', at), label('Timezone', timezone));
+    row.append(when, remove);
+    remove.classList.add('reminder-remove');
     reminders.append(row);
   }
   function updateVisibility() {
@@ -593,7 +602,7 @@ export function mountScheduling({
       dueDate: schedule.due?.date || '',
       dueLocal: schedule.due?.local || '',
       dueZone: schedule.due?.timezone || defaultZone,
-      priority: schedule.priority == null ? '' : String(schedule.priority),
+      priority: String(schedule.priority ?? 2),
       reminders: (schedule.reminders || []).map((r) => ({
         channel: r.channel,
         local: r.at.local,
@@ -603,7 +612,7 @@ export function mountScheduling({
   }
   function showPriorityPreview(schedule) {
     const priority = scheduleDraft
-      ? Number(scheduleDraft.values.priority) || null
+      ? Number(scheduleDraft.values.priority)
       : schedule.priority;
     showDue({ ...schedule, priority }, priority !== schedule.priority);
   }
@@ -622,21 +631,21 @@ export function mountScheduling({
       });
       page.querySelector('.task-page-heading').after(summary);
     }
-    page.dataset.priority = String(schedule?.priority || 'none');
+    page.dataset.priority = String(schedule?.priority ?? 2);
     summary.replaceChildren();
     summary.hidden = false;
     summary.title = 'Edit planning';
     {
       const priorityBadge = document.createElement('span');
       priorityBadge.className = 'task-priority-summary';
-      priorityBadge.dataset.priority = String(schedule?.priority || 0);
+      priorityBadge.dataset.priority = String(schedule?.priority ?? 2);
       const names = {
-        0: 'Normal priority',
-        1: 'High priority',
-        2: 'Medium priority',
-        3: 'Low priority',
+        0: 'P0 · Highest priority',
+        1: 'P1 · High priority',
+        2: 'P2 · Medium priority',
+        3: 'P3 · Low priority',
       };
-      priorityBadge.textContent = names[schedule?.priority || 0];
+      priorityBadge.textContent = names[schedule?.priority ?? 2];
       iconFor(priorityBadge, 'flag');
       const line = document.createElement('span');
       line.className = 'task-priority-line';

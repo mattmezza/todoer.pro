@@ -4,7 +4,7 @@ function dockState(root, kind = 'task', id = root.dataset.taskId) {
   if (!docks.has(root)) docks.set(root, new Map());
   const states = docks.get(root);
   if (!states.has(kind)) {
-    const key = `todoer:${root.dataset.accountId || document.querySelector('meta[name=account-id]')?.content || ''}:${kind}-settings-dock`;
+    const key = `todoer:${root.dataset.accountId || document.querySelector('meta[name=account-id]')?.content || ''}:${kind}-settings-dock${root.dataset.embedded ? '-preview' : ''}`;
     let saved = {};
     try {
       saved = JSON.parse(localStorage.getItem(key) || '{}');
@@ -126,10 +126,11 @@ async function openSettings(listId, selected, kind, taskRoot) {
   header.append(back, title);
   const pin = document.createElement('button');
   {
+    pin.hidden = Boolean(taskRoot?.dataset.embedded);
     pin.type = 'button';
     pin.className = 'task-settings-pin';
     pin.innerHTML =
-      '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m16 3 5 5-4 1-3 5-4-4 5-3 1-4ZM10 14l-7 7M8 12l4 4"/></svg>';
+      '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3h6l-1 6 4 4v2H6v-2l4-4-1-6ZM12 15v7"/></svg>';
     header.append(pin);
   }
   const tabs = document.createElement('div');

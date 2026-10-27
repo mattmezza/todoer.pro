@@ -66,8 +66,8 @@ function checkIcon(button, complete) {
   button.append(svg);
 }
 
-const root = document.querySelector('[data-task-page]');
-if (root) {
+export function mountTaskPage(root, { embedded = false } = {}) {
+  const lifecycle = new AbortController();
   const get = (selector) => root.querySelector(selector);
   const id = root.dataset.taskId,
     account = root.dataset.accountId,
@@ -339,7 +339,7 @@ if (root) {
     if (!alive) return;
     showCompletion();
     get('[data-edit-title]').textContent = task.title;
-    document.title = `${task.title} · Todoer`;
+    if (!embedded) document.title = `${task.title} · Todoer`;
     const complete = get('[data-root-complete]');
     checkIcon(complete, task.complete);
     complete.setAttribute('aria-pressed', String(task.complete));
@@ -544,6 +544,7 @@ if (root) {
     link.href = '/';
     link.textContent = 'Open your tasks';
     root.replaceChildren(heading, text, link);
+    if (embedded) return;
     document.title = 'Task unavailable · Todoer';
     document.querySelector('nav[aria-label="Lists"]')?.replaceChildren();
     const workspaceCaption = document.querySelector('.account-caption small');
@@ -1035,35 +1036,41 @@ if (root) {
       notice('Your sub-task draft is kept on this device.');
     }
   });
-  document.addEventListener('keydown', (event) => {
-    if (!alive) return;
-    if (
-      event.defaultPrevented ||
-      event.metaKey ||
-      event.ctrlKey ||
-      event.altKey ||
-      event.target.closest('input,textarea,select,[contenteditable="true"],dialog')
-    )
-      return;
-    if (event.key === 'e') {
-      event.preventDefault();
-      openEditor('title');
-    } else if (event.key === 'n' && canWrite) {
-      event.preventDefault();
-      get('[data-child-composer]').open = true;
-      childTitle.focus();
-    } else if (event.key === 'x') {
-      event.preventDefault();
-      toggleComplete(task, children.size > 0);
-    } else if (event.key === 'Escape' && editOpen) {
-      event.preventDefault();
-      closeEditor();
-    }
-  });
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      if (!alive || (embedded && !root.contains(event.target))) return;
+      if (
+        event.defaultPrevented ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        event.target.closest('input,textarea,select,[contenteditable="true"],dialog')
+      )
+        return;
+      if (event.key === 'e') {
+        event.preventDefault();
+        openEditor('title');
+      } else if (event.key === 'n' && canWrite) {
+        event.preventDefault();
+        get('[data-child-composer]').open = true;
+        childTitle.focus();
+      } else if (event.key === 'x') {
+        event.preventDefault();
+        toggleComplete(task, children.size > 0);
+      } else if (event.key === 'Escape' && editOpen) {
+        event.preventDefault();
+        closeEditor();
+      }
+    },
+    { signal: lifecycle.signal },
+  );
   function cleanup() {
     if (!alive) return;
     remember();
     rememberChild();
+    lifecycle.abort();
+    for (const panel of root.querySelectorAll('dialog[open]')) panel.close();
     discussion?.();
     scheduling?.();
     metadata?.();
@@ -1090,7 +1097,7 @@ if (root) {
     );
   } else draft = null;
   mountControllers();
-  setupTaskSettingsDock(root);
+  if (!embedded) setupTaskSettingsDock(root);
   if (new URLSearchParams(location.search).get('move') === '1')
     get('[data-open-move]').click();
   refresh();
@@ -1128,13 +1135,26 @@ if (root) {
     };
     pollTimer = setTimeout(poll, 5000);
   }
-  document.addEventListener('todoer:logout', () => revoke('You signed out.', false));
-  addEventListener('online', () => {
-    pending = true;
-    releaseSoon();
+  document.addEventListener('todoer:logout', () => revoke('You signed out.', false), {
+    signal: lifecycle.signal,
   });
-  addEventListener('pagehide', cleanup);
-  addEventListener('pageshow', (event) => {
-    if (event.persisted) location.reload();
-  });
+  addEventListener(
+    'online',
+    () => {
+      pending = true;
+      releaseSoon();
+    },
+    { signal: lifecycle.signal },
+  );
+  addEventListener('pagehide', cleanup, { signal: lifecycle.signal });
+  addEventListener(
+    'pageshow',
+    (event) => {
+      if (event.persisted && !embedded) location.reload();
+    },
+    { signal: lifecycle.signal },
+  );
+  return cleanup;
 }
+const taskPage = document.querySelector('main[data-task-page]');
+if (taskPage) mountTaskPage(taskPage);
