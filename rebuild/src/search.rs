@@ -1,4 +1,4 @@
-//! Authorized literal-prefix FTS search. Cursors bind both scope and index state.
+//! Authorized prefix and typo-tolerant FTS search. Cursors bind both scope and index state.
 use crate::core::{Error, Store, actor_identity, actor_user};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::NaiveDate;
@@ -205,6 +205,56 @@ fn fts_expression(text: &str) -> String {
         .collect::<Vec<_>>()
         .join(" AND ")
 }
+// Expand only real indexed words, using bounded dictionary seeks rather than
+// scanning documents or computing edit distance for every stored title.
+fn fuzzy_expression(c: &Connection, text: &str) -> Result<String, Error> {
+    let tokens: Vec<_> = text
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|s| !s.is_empty())
+        .take(32)
+        .collect();
+    if tokens.len() > 8 || text.trim().starts_with(['%', '#', '@', '$']) {
+        return Ok(fts_expression(text));
+    }
+    let mut groups = Vec::new();
+    for token in tokens {
+        let word = token.to_lowercase();
+        let mut alternatives = vec![format!("\"{word}\"*")];
+        // Short words are deliberately strict to avoid noisy matches. Non-ASCII
+        // words retain FTS5's Unicode/accent-insensitive prefix matching.
+        if (4..=24).contains(&word.len()) && word.bytes().all(|b| b.is_ascii_lowercase()) {
+            let mut edits = std::collections::BTreeSet::new();
+            for i in 0..word.len() {
+                edits.insert(format!("{}{}", &word[..i], &word[i + 1..]));
+                if i + 1 < word.len() {
+                    let mut swapped = word.as_bytes().to_vec();
+                    swapped.swap(i, i + 1);
+                    edits.insert(String::from_utf8(swapped).unwrap());
+                }
+            }
+            for i in 0..=word.len() {
+                for letter in 'a'..='z' {
+                    edits.insert(format!("{}{letter}{}", &word[..i], &word[i..]));
+                    if i < word.len() {
+                        edits.insert(format!("{}{letter}{}", &word[..i], &word[i + 1..]));
+                    }
+                }
+            }
+            edits.remove(&word);
+            let placeholders = vec!["?"; edits.len()].join(",");
+            let mut statement = c.prepare(&format!(
+                "SELECT term FROM search_vocabulary WHERE term IN ({placeholders}) ORDER BY term LIMIT 8"
+            ))?;
+            for term in
+                statement.query_map(params_from_iter(edits.iter()), |r| r.get::<_, String>(0))?
+            {
+                alternatives.push(format!("\"{}\"", term?));
+            }
+        }
+        groups.push(format!("({})", alternatives.join(" OR ")));
+    }
+    Ok(groups.join(" AND "))
+}
 fn bind(values: &mut Vec<SqlValue>, value: impl Into<SqlValue>) -> String {
     values.push(value.into());
     format!("?{}", values.len())
@@ -287,7 +337,7 @@ UNION ALL SELECT 'attachment',a.id,l.id,l.workspace_id,t.id,tr.section_id FROM a
 UNION ALL SELECT 'legacy_attachment',a.id,l.id,l.workspace_id,t.id,tr.section_id FROM legacy_attachment_refs a JOIN tasks t ON t.id=a.task_id JOIN allowed_lists l ON l.id=t.list_id JOIN tree tr ON tr.id=t.id
 UNION ALL SELECT 'tag',g.id,(SELECT MIN(t.list_id) FROM task_tags tt JOIN tasks t ON t.id=tt.task_id JOIN allowed_lists l ON l.id=t.list_id JOIN tree live ON live.id=t.id WHERE tt.tag_id=g.id AND t.deleted_at IS NULL),CASE WHEN g.scope LIKE 'workspace:%' THEN substr(g.scope,11) ELSE NULL END,NULL,NULL FROM tags g WHERE EXISTS(SELECT 1 FROM task_tags tt JOIN tasks t ON t.id=tt.task_id JOIN allowed_lists l ON l.id=t.list_id JOIN tree live ON live.id=t.id WHERE tt.tag_id=g.id AND t.deleted_at IS NULL) OR EXISTS(SELECT 1 FROM allowed_workspaces w WHERE g.scope='workspace:'||w.id)
 ), candidates AS MATERIALIZED (SELECT d.rowid,d.kind,d.id,d.title,CASE WHEN d.kind='task' THEN t.description ELSE d.body END body,s.list_id,s.workspace_id,s.task_id,s.section_id,t.complete,d.created_at,d.updated_at,json_extract(sc.document,'$.planned.date') planned,substr(COALESCE(json_extract(sc.document,'$.due.date'),json_extract(sc.document,'$.due.local')),1,10) due,json_extract(sc.document,'$.due.timezone') due_timezone,json_extract(sc.document,'$.priority') priority,rs.state recurrence FROM search_documents d JOIN sources s ON s.kind=d.kind AND s.id=d.id LEFT JOIN tasks t ON t.id=s.task_id LEFT JOIN task_schedule sc ON sc.task_id=s.task_id LEFT JOIN recurrence_occurrences ro ON ro.task_id=s.task_id LEFT JOIN recurrence_series rs ON rs.id=ro.series_id WHERE 1=1");
-        let expression = fts_expression(&query.text);
+        let expression = fuzzy_expression(&self.conn, &query.text)?;
         let exact_ref = query
             .text
             .trim()
@@ -405,13 +455,14 @@ UNION ALL SELECT 'tag',g.id,(SELECT MIN(t.list_id) FROM task_tags tt JOIN tasks 
                 let title_match = if tokens.is_empty() {
                     String::new()
                 } else {
+                    let exact_query = bind(&mut values, tokens.clone());
                     let title_query = bind(&mut values, format!("title : ({tokens})"));
                     format!(
-                        " WHEN rowid IN (SELECT rowid FROM search_fts WHERE search_fts MATCH {title_query}) THEN '2'"
+                        " WHEN rowid IN (SELECT rowid FROM search_fts WHERE search_fts MATCH {title_query}) THEN '2' WHEN rowid IN (SELECT rowid FROM search_fts WHERE search_fts MATCH {exact_query}) THEN '3'"
                     )
                 };
                 format!(
-                    "CASE WHEN lower(title)={p} THEN '0' WHEN substr(lower(title),1,length({p}))={p} THEN '1' WHEN instr(lower(title),{p})>0 THEN '2'{title_match} ELSE '3' END"
+                    "CASE WHEN lower(title)={p} THEN '0' WHEN substr(lower(title),1,length({p}))={p} THEN '1' WHEN instr(lower(title),{p})>0 THEN '2'{title_match} ELSE '4' END"
                 )
             }
         };
@@ -651,6 +702,55 @@ mod tests {
         }
     }
     #[test]
+    fn fuzzy_words_are_indexed_ranked_filtered_and_kept_current() {
+        let db = db();
+        task(&db, "exact", "inbox", "grocer", "", None);
+        task(
+            &db,
+            "fuzzy",
+            "inbox",
+            "groceries",
+            "Remember chocolate",
+            None,
+        );
+        task(&db, "hidden", "private", "groceries secret", "", None);
+        for typo in [
+            "groceires",
+            "grocries",
+            "groceeries",
+            "groceriez",
+            "xroceries",
+        ] {
+            let page = db.query("dev", &q(typo)).unwrap();
+            assert_eq!(
+                page.hits.iter().map(|h| h.id.as_str()).collect::<Vec<_>>(),
+                vec!["fuzzy"],
+                "{typo}"
+            );
+        }
+        assert_eq!(db.query("dev", &q("grocer")).unwrap().hits[0].id, "exact");
+        assert_eq!(
+            db.query("dev", &q("groceires choclate")).unwrap().hits[0].id,
+            "fuzzy"
+        );
+        assert_eq!(db.query("dev", &q("choclate")).unwrap().total, 1);
+        let mut query = q("groceires");
+        query.list_id = Some("groceries".into());
+        assert_eq!(db.query("dev", &query).unwrap().total, 0);
+        db.conn
+            .execute(
+                "UPDATE tasks SET title='Supplies',description='' WHERE id='fuzzy'",
+                [],
+            )
+            .unwrap();
+        assert_eq!(db.query("dev", &q("groceires")).unwrap().total, 0);
+        assert_eq!(db.query("dev", &q("supples")).unwrap().hits[0].id, "fuzzy");
+        db.conn
+            .execute("UPDATE lists SET archived=1 WHERE id='inbox'", [])
+            .unwrap();
+        assert_eq!(db.query("dev", &q("supples")).unwrap().total, 0);
+    }
+    #[test]
     fn unicode_prefix_literal_references_and_typo_boundaries() {
         let db = db();
         task(
@@ -664,6 +764,8 @@ mod tests {
         for text in [
             "Üb",
             "cafe",
+            "cafee",
+            "proposla",
             "東",
             "descrip",
             "%T-abcdefgh-opaque",
@@ -671,14 +773,7 @@ mod tests {
         ] {
             assert_eq!(db.query("dev", &q(text)).unwrap().total, 1, "{text}");
         }
-        for text in [
-            "ber",
-            "cafee",
-            "proposla",
-            "OR NEAR",
-            "\" OR *",
-            "desc NOT proposal",
-        ] {
+        for text in ["ber", "OR NEAR", "\" OR *", "desc NOT proposal"] {
             assert_eq!(db.query("dev", &q(text)).unwrap().total, 0, "{text}");
         }
         assert!(
@@ -970,7 +1065,7 @@ mod tests {
             .query(
                 "dev",
                 &Query {
-                    text: "perfneedle".into(),
+                    text: "perfneedel".into(),
                     entities: Some(vec!["comment".into()]),
                     limit: 100,
                     ..Query::default()
