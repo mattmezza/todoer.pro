@@ -6909,3 +6909,5 @@ form[data-list-edit] .inline-actions, .space-inline-editor > div,
 .task-child-menu > summary { display: grid; place-items: center; width: 32px; height: 32px; cursor: pointer; }
 .task-subtask-completion-line { margin: 8px 0 18px; height: 2px; opacity: .65; }
 .task-subtask-completion-line[hidden] { display: none; }
+/* Nested rows share their ancestor's closing separator. */
+.task-page [data-children] ol > li:last-child { border-bottom: 0; }
