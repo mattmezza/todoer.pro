@@ -6924,3 +6924,8 @@ form[data-list-edit] .inline-actions, .space-inline-editor > div,
 .task-subtask-completion-line::-moz-progress-bar { background: var(--list-color, #3b82f6); }
 .task-page [data-children] > li:last-child { border-bottom: 0; }
 .task-page [data-child-composer] { border-top: 0; }
+.planning-due-fields { display: grid; grid-template-columns: minmax(120px, .85fr) minmax(0, 1.3fr); gap: 10px; align-items: start; }
+.planning-due-fields > label, .planning-due-fields .planning-timed-row > label { margin: 0; gap: 0; }
+.planning-due-fields > .planning-timed-row { display: contents; }
+.planning-due-fields input, .planning-due-fields select { min-width: 0; width: 100%; }
+.planning-due-fields .planning-timed-row > label:last-child { grid-column: 1 / -1; gap: 6px; }
