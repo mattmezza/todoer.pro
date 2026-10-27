@@ -7014,3 +7014,21 @@ form[data-list-edit] .inline-actions, .space-inline-editor > div,
 .planning-detail-content :is(.breadcrumbs,.task-context-menu,.entity-reference,[data-edit-title],[data-edit-description],.task-settings-dock-toggle,.task-due-summary,.task-priority-summary,[data-file-form],[data-file-delete],.task-child-menu,.task-files-empty) { display:none!important; }
 .planning-detail-content .task-files:not(:has([data-file-row])) { display:none; }
 .planning-detail-content [data-saved-description] { cursor:default; }
+.planning-list-page .planning-welcome { margin-bottom:16px; }
+.planning-list-page .planning-welcome h1 { margin-bottom:4px; }
+.planning-list-page .planning-intro { margin:0 0 8px; font-size:14px; }
+.planning-list-page .planning-zone { margin-top:4px; }
+.planning-list-page .planning-tabs { gap:2px; margin:16px 0 8px; }
+.planning-list-page .planning-tabs a { padding:6px 10px; font-size:13px; }
+.planning-secondary-filters { display:flex; align-items:center; flex-wrap:wrap; gap:8px 16px; margin-bottom:18px; }
+.planning-secondary-filters .planning-space-filters { flex:1; min-width:180px; margin:0; gap:4px; }
+.planning-secondary-filters .planning-space-filters a { padding:5px 9px; font-size:12px; }
+.planning-priority-filters { display:flex; align-items:center; flex:none; gap:2px; }
+.planning-priority-filters button { color:var(--muted); padding:5px 8px; border-radius:7px; font-size:12px; }
+.planning-priority-filters button:hover,.planning-priority-filters button[aria-pressed=true] { background:var(--hover); color:var(--text); }
+.planning-priority-filters button[data-priority='0'][aria-pressed=true] { color:#ff3b3b; }
+.planning-priority-filters button[data-priority='1'][aria-pressed=true] { color:#d99a32; }
+.planning-priority-filters button[data-priority='2'][aria-pressed=true] { color:#78aaff; }
+.planning-task-description { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; margin-top:5px; color:var(--muted); font-size:13px; line-height:1.5; }
+.planning-task-description :is(p,ul,ol,pre,h1,h2,h3) { margin:0; font-size:inherit; }
+.planning-task-description img { display:none; }
