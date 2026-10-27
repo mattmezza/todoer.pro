@@ -406,7 +406,7 @@ async fn calendar(
         }
         let next = next.into_iter().collect::<Vec<_>>().join(",");
         space_filters.push_str(&format!(
-            "<a href=\"/today?range={key}&amp;tz={timezone}&amp;spaces={next}\" {}>{}</a>",
+            "<a href=\"/today?range={key}&amp;tz={timezone}&amp;spaces={next}\" {}>@{}</a>",
             if active { "aria-current=\"true\"" } else { "" },
             esc(&title)
         ));
