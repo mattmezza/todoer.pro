@@ -7174,3 +7174,6 @@ h1,h2,h3 { font-family:var(--font-sans)!important; }
   color: var(--muted);
   opacity: 1;
 }
+
+.workbench-export { display:grid; place-items:center; flex:none; width:36px; height:36px; border:0; border-radius:8px; color:var(--muted); cursor:pointer; }
+.workbench-export:hover { background:var(--hover); color:var(--text); }
