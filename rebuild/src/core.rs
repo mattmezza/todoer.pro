@@ -595,6 +595,22 @@ impl Store {
         let mut q = self.conn.prepare(&format!("SELECT {cols} FROM tasks t JOIN actor_list_access m ON m.list_id=t.list_id WHERE m.actor_id=?1 AND t.deleted_at IS NOT NULL ORDER BY t.id"))?;
         Ok(q.query_map([actor], task_row)?.collect::<Result<_, _>>()?)
     }
+    /// Page deletion operations, not individual descendants. IDs break timestamp ties.
+    pub fn trash_roots(&self, actor: &str, page: usize) -> Result<(Vec<Task>, bool), Error> {
+        let cols = COLS.split(',').map(|c| format!("t.{c}")).collect::<Vec<_>>().join(",");
+        let mut q = self.conn.prepare(&format!("SELECT {cols} FROM tasks t JOIN actor_list_access a ON a.list_id=t.list_id WHERE a.actor_id=?1 AND t.deleted_at IS NOT NULL AND t.delete_group=t.id ORDER BY t.deleted_at DESC,t.id LIMIT 26 OFFSET ?2"))?;
+        let mut rows = q.query_map(params![actor, page.saturating_sub(1).saturating_mul(25).min(i64::MAX as usize) as i64], task_row)?.collect::<Result<Vec<_>, _>>()?;
+        let more = rows.len() > 25;
+        rows.truncate(25);
+        Ok((rows, more))
+    }
+    pub fn trash_tree(&self, actor: &str, root: &Task) -> Result<Vec<(Task, usize)>, Error> {
+        let root = raw_task(&self.conn, &root.id)?;
+        access_rank(&self.conn, actor, &root.list_id, 1)?;
+        let cols = COLS.split(',').map(|c| format!("t.{c}")).collect::<Vec<_>>().join(",");
+        let mut q = self.conn.prepare(&format!("WITH RECURSIVE tree(id,depth,path) AS (SELECT id,0,'' FROM tasks WHERE id=?1 AND deleted_at IS NOT NULL UNION ALL SELECT t.id,tree.depth+1,tree.path||printf('/%020d:%s',t.position,t.id) FROM tasks t JOIN tree ON t.parent_id=tree.id WHERE t.deleted_at IS NOT NULL AND t.delete_group=?1) SELECT {cols},tree.depth FROM tree JOIN tasks t ON t.id=tree.id ORDER BY tree.path"))?;
+        Ok(q.query_map([&root.id], |r| Ok((task_row(r)?,r.get::<_,i64>(9)? as usize)))?.collect::<Result<_,_>>()?)
+    }
     pub fn trash(&mut self, actor: &str, id: &str, revision: i64) -> Result<Task, Error> {
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let root = task(&tx, id)?;
@@ -1218,6 +1234,32 @@ mod tests {
                 .iter()
                 .any(|t| t.id == child.id)
         );
+    }
+    #[test]
+    fn trash_pages_keep_subtrees_together_and_scope_access() {
+        let mut s = db();
+        let root = capture(&mut s, "root", None);
+        let child = capture(&mut s, "child", Some(root.id.clone()));
+        let leaf = capture(&mut s, "leaf", Some(child.id.clone()));
+        let root = s.trash("dev", &root.id, root.revision).unwrap();
+        let (roots, more) = s.trash_roots("dev", 1).unwrap();
+        assert_eq!(roots.len(), 1);
+        assert!(!more);
+        let tree = s.trash_tree("dev", &roots[0]).unwrap();
+        assert_eq!(tree.iter().map(|(t,d)|(t.id.as_str(),*d)).collect::<Vec<_>>(), vec![(root.id.as_str(),0),(child.id.as_str(),1),(leaf.id.as_str(),2)]);
+        assert!(s.trash_roots("other", 1).unwrap().0.is_empty());
+        assert!(s.trash_tree("other", &root).is_err());
+        for i in 0..26 {
+            let task = capture(&mut s, &format!("deleted {i}"), None);
+            s.trash("dev", &task.id, task.revision).unwrap();
+        }
+        let (first, more) = s.trash_roots("dev", 1).unwrap();
+        assert_eq!(first.len(),25); assert!(more);
+        let (second, more) = s.trash_roots("dev", 2).unwrap();
+        assert_eq!(second.len(),2); assert!(!more);
+        assert!(first.iter().all(|a|second.iter().all(|b|a.id!=b.id)));
+        s.restore("dev", &root.id, root.revision).unwrap();
+        assert_eq!(s.subtree("dev", &root.id).unwrap().len(),3);
     }
     #[test]
     fn migrations_run_once_and_upgrade_synthetic_database() {

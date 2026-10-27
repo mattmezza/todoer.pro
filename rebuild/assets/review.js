@@ -16,6 +16,7 @@ document.addEventListener('click', async (e) => {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error?.message || 'Operation failed');
+    if (button.matches('.restore')) { location.reload(); return; }
     button.closest('article').remove();
     notice.textContent = button.matches('.restore') ? 'Task restored.' : 'Edit undone.';
   } catch (err) {

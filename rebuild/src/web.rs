@@ -1297,21 +1297,62 @@ async fn search_page(
     )
     .into_response())
 }
-async fn trash_page(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
+#[derive(Deserialize, Default)]
+struct TrashQuery { page: Option<usize> }
+async fn trash_page(State(s): State<AppState>, h: HeaderMap, Query(q): Query<TrashQuery>) -> Result<Response, ApiError> {
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
     };
-    let tasks = s.run(move |db| db.trash_tasks(&actor)).await?;
-    let mut body = String::from("<div id=\"notice\" role=\"status\" aria-live=\"polite\"></div>");
-    if tasks.is_empty() {
-        body.push_str("<div class=\"planning-empty\"><h2>All clear.</h2><p>Deleted tasks will appear here when you need to restore them.</p></div>");
-    }
-    for task in tasks {
-        body.push_str(&format!("<article class=\"task\"><div class=\"task-content\"><span class=\"task-title\">{}</span></div><button class=\"restore\" data-id=\"{}\" data-revision=\"{}\">Restore</button></article>", scheduling_http::esc(&task.title), scheduling_http::esc(&task.id), task.revision));
-    }
-    body.push_str("<script type=\"module\" src=\"/assets/review.js\"></script>");
+    let page = q.page.unwrap_or(1).max(1).min(100_000);
+    let body = s.run(move |db| {
+        let (roots, more) = db.trash_roots(&actor, page)?;
+        let esc = scheduling_http::esc;
+        let mut body = String::from("<div id=\"notice\" role=\"status\" aria-live=\"polite\"></div>");
+        if roots.is_empty() {
+            body.push_str("<div class=\"planning-empty\"><h2>All clear.</h2><p>No deleted tasks on this page.</p></div>");
+        }
+        for root in roots {
+            let info = db.list_info(&actor, &root.list_id)?;
+            let mut context = Vec::new();
+            if let Some(space) = &info.workspace_id {
+                context.push(format!("@{}", db.workspace(&actor, space)?.title));
+            }
+            context.push(format!("#{}",info.list.title));
+            let mut parents = Vec::new();
+            let mut parent = root.parent_id.clone();
+            let mut blocked = false;
+            while let Some(id) = parent {
+                let ancestor = crate::core::raw_task(&db.conn, &id)?;
+                if ancestor.list_id != root.list_id { return Err(Error::Forbidden); }
+                let deleted: bool = db.conn.query_row("SELECT deleted_at IS NOT NULL FROM tasks WHERE id=?1", [&id], |r|r.get(0))?;
+                blocked |= deleted;
+                parents.push(ancestor.title);
+                parent = ancestor.parent_id;
+            }
+            parents.reverse();
+            context.extend(parents);
+            let tree = db.trash_tree(&actor, &root)?;
+            let count = tree.len();
+            body.push_str(&format!("<article class=\"trash-group\"><div class=\"trash-group-head\"><p class=\"trash-context\">{}</p>",esc(&context.join(" / "))));
+            if db.list_permission(&actor,&root.list_id)? >= 2 {
+                body.push_str(&format!("<button class=\"restore\" data-id=\"{}\" data-revision=\"{}\" {}>{}</button>",esc(&root.id),root.revision,if blocked { "disabled title=\"Restore the deleted parent first\"" } else { "" },if blocked { "Restore parent first" } else { "Restore" }));
+            }
+            body.push_str("</div><ul class=\"trash-tree\">");
+            for (task,depth) in tree {
+                body.push_str(&format!("<li style=\"--depth:{}\"><span aria-hidden=\"true\">{}</span>{}</li>",depth.min(30),if depth>0 {"↳"} else {""},esc(&task.title)));
+            }
+            body.push_str(&format!("</ul><p class=\"trash-summary\">{} task{} · Restores to the original location</p></article>",count,if count==1 {""} else {"s"}));
+        }
+        body.push_str("<nav class=\"trash-pagination\" aria-label=\"Trash pages\">");
+        if page>1 { body.push_str(&format!("<a href=\"/trash?page={}\">← Previous</a>",page-1)); }
+        body.push_str(&format!("<span>Page {page}</span>"));
+        if more { body.push_str(&format!("<a href=\"/trash?page={}\">Next →</a>",page+1)); }
+        body.push_str("</nav><script type=\"module\" src=\"/assets/review.js\"></script>");
+        Ok(body)
+    }).await?;
     scheduling_http::render_feature(&s, &h, "Trash", body, false).await
 }
+
 fn render_review(p: ReviewPage) -> Result<Response, ApiError> {
     Ok((
         [(header::CACHE_CONTROL, "no-store")],
