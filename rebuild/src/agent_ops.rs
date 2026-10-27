@@ -746,7 +746,7 @@ impl Store {
             .replace('\\', "\\\\")
             .replace('%', "\\%")
             .replace('_', "\\_");
-        let mut stmt=self.conn.prepare("SELECT l.id,l.title FROM lists l JOIN actor_list_access a ON a.list_id=l.id WHERE a.actor_id=?1 AND l.archived=0 AND (l.title LIKE ?2 ESCAPE '\\' OR l.id=?3) ORDER BY l.title,l.id LIMIT ?4")?;
+        let mut stmt=self.conn.prepare("SELECT l.id,l.title FROM lists l JOIN actor_list_access a ON a.list_id=l.id WHERE a.actor_id=?1 AND l.archived=0 AND NOT EXISTS(SELECT 1 FROM workspace_lifecycle x WHERE x.workspace_id=l.workspace_id AND (x.archived=1 OR x.deleted_at IS NOT NULL)) AND (l.title LIKE ?2 ESCAPE '\\' OR l.id=?3) ORDER BY l.title,l.id LIMIT ?4")?;
         Ok(stmt
             .query_map(
                 params![actor, format!("{escaped}%"), prefix, limit as i64],

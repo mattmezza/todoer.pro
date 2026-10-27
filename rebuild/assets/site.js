@@ -387,7 +387,7 @@ if (accountMenu) {
     accountMenu.querySelector('.nav-heading')?.remove();
   const about = document.createElement('button');
   about.type = 'button';
-  about.textContent = 'About';
+  about.innerHTML = '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#info"/></svg>About';
   const signOut = accountMenu.querySelector('form[action="/logout"]');
   if (signOut) signOut.before(about);
   else accountMenu.append(about);
