@@ -111,3 +111,4 @@ document.addEventListener('click', (event) => {
       window.getSelection()?.toString() || event.button !== 0) return;
   row.querySelector('.workspace-row-title')?.click();
 });
+document.querySelector('.space-archive-filter input')?.addEventListener('change', event => event.target.form.requestSubmit());
