@@ -6922,3 +6922,5 @@ form[data-list-edit] .inline-actions, .space-inline-editor > div,
 [data-child-progress-percent] { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .task-subtask-completion-line::-webkit-progress-value { background: var(--list-color, #3b82f6); }
 .task-subtask-completion-line::-moz-progress-bar { background: var(--list-color, #3b82f6); }
+.task-page [data-children] > li:last-child { border-bottom: 0; }
+.task-page [data-child-composer] { border-top: 0; }
