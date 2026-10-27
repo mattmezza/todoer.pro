@@ -552,6 +552,9 @@ impl Store {
         require_list(&tx, actor, id, 2)?;
         let old = list_raw(&tx, id)?;
         check_revision(old.revision, change.revision)?;
+        if change.archived == Some(true) && tx.query_row("SELECT EXISTS(SELECT 1 FROM user_inboxes WHERE list_id=?1)", [id], |r| r.get::<_, bool>(0))? {
+            return Err(Error::Invalid("Your personal Inbox cannot be archived".into()));
+        }
         crate::navigation::validate_list_color(&change.color)?;
         let title = change.title.unwrap_or(old.title);
         let description = change.description.unwrap_or(old.description);

@@ -1,5 +1,9 @@
 #[path = "activity_web.rs"]
 mod activity_http;
+#[path = "planning_web.rs"]
+mod planning_http;
+#[path = "reports_web.rs"]
+mod reports_http;
 #[path = "section_move_web.rs"]
 mod section_move_http;
 #[path = "sidebar_ui.rs"]
@@ -265,6 +269,8 @@ pub fn router(state: AppState) -> Router {
         .nest_service("/legacy-assets", ServeDir::new("public"))
         .layer(DefaultBodyLimit::max(128 * 1024))
         .merge(activity_http::routes())
+        .merge(planning_http::routes())
+        .merge(reports_http::routes())
         .merge(oauth_http::routes())
         .merge(cli_auth_http::routes())
         .merge(organization::routes())
@@ -292,37 +298,13 @@ pub fn router(state: AppState) -> Router {
         .layer(axum::middleware::from_fn(response_security))
 }
 async fn home(State(s): State<AppState>, h: HeaderMap) -> Result<Redirect, ApiError> {
-    let Ok(actor) = s.auth(&h, false) else {
-        return Ok(Redirect::to("/signin"));
-    };
-    let target = s
-        .run(move |db| {
-            let user = crate::core::actor_identity(&db.conn, &actor)?.0;
-            let workspace: Option<String> = db
-                .conn
-                .query_row(
-                    "SELECT workspace_id FROM user_defaults WHERE user_id=?1",
-                    [user],
-                    |r| r.get(0),
-                )
-                .optional()?;
-            if let Some(id) = workspace
-                && db.workspace(&actor, &id).is_ok()
-            {
-                return Ok(format!(
-                    "/space/{}",
-                    crate::defaults::public_id(&db.conn, "workspace", &id)?
-                ));
-            }
-            Ok(db
-                .lists(&actor)?
-                .first()
-                .map(|l| format!("/lists/{}", l.id))
-                .unwrap_or_else(|| "/workspaces".into()))
-        })
-        .await?;
-    Ok(Redirect::to(&target))
+    Ok(Redirect::to(if s.auth(&h, false).is_ok() {
+        "/inbox"
+    } else {
+        "/signin"
+    }))
 }
+
 fn encode_query(value: &str) -> String {
     value
         .bytes()
@@ -1305,14 +1287,15 @@ async fn trash_page(State(s): State<AppState>, h: HeaderMap) -> Result<Response,
         return Ok(Redirect::to("/signin").into_response());
     };
     let tasks = s.run(move |db| db.trash_tasks(&actor)).await?;
-    render_review(ReviewPage {
-        title: "Trash".into(),
-        mode: "trash".into(),
-        query: String::new(),
-        csrf: s.csrf_for(&h),
-        tasks,
-        events: vec![],
-    })
+    let mut body = String::from("<p class=\"list-description\">Restore deleted tasks here. Restore a parent task first to recover its sub-tasks.</p><div id=\"notice\" role=\"status\" aria-live=\"polite\"></div>");
+    if tasks.is_empty() {
+        body.push_str("<div class=\"planning-empty\"><h2>All clear.</h2><p>Deleted tasks will appear here when you need to restore them.</p></div>");
+    }
+    for task in tasks {
+        body.push_str(&format!("<article class=\"task\"><div class=\"task-content\"><span class=\"task-title\">{}</span></div><button class=\"restore\" data-id=\"{}\" data-revision=\"{}\">Restore</button></article>", scheduling_http::esc(&task.title), scheduling_http::esc(&task.id), task.revision));
+    }
+    body.push_str("<script type=\"module\" src=\"/assets/review.js\"></script>");
+    scheduling_http::render_feature(&s, &h, "Trash", body, false).await
 }
 fn render_review(p: ReviewPage) -> Result<Response, ApiError> {
     Ok((
@@ -1523,11 +1506,7 @@ async fn capture_page(
                 db.list_permission(&actor, &l.id)
                     .is_ok_and(|rank| rank >= 2)
             });
-            let default = db
-                .destination_preferences(&actor)?
-                .into_iter()
-                .find(|p| p.key == "inbox")
-                .map(|p| p.destination.id);
+            let default = Some(db.personal_inbox(&actor)?);
             Ok((lists, default))
         })
         .await?;

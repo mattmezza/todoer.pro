@@ -1,3 +1,4 @@
+import { setSaveState } from './quiet-info.js';
 import { mountTaskPage } from './task-page.js';
 const main = document.querySelector('[data-planning-today]');
 if (main) {
@@ -10,6 +11,10 @@ if (main) {
   const csrf = document.querySelector('meta[name=csrf-token]').content;
   const rows = main.querySelector('[data-planning-rows]');
   async function refreshRows() {
+    if (main.dataset.workbench) {
+      document.dispatchEvent(new Event('todoer:workbench-refresh'));
+      return;
+    }
     const version = ++rowsGeneration;
     try {
       const r = await fetch(location.href, { cache: 'no-store' });
@@ -32,7 +37,13 @@ if (main) {
     const closingPanel = panel;
     if (closingPanel && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       closingPanel.style.pointerEvents = 'none';
-      closingPanel.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(100%)' }], { duration: 260, easing: 'cubic-bezier(.22,.8,.25,1)', fill: 'forwards' }).finished.then(() => closingPanel.remove());
+      closingPanel
+        .animate([{ transform: 'translateX(0)' }, { transform: 'translateX(100%)' }], {
+          duration: 260,
+          easing: 'cubic-bezier(.22,.8,.25,1)',
+          fill: 'forwards',
+        })
+        .finished.then(() => closingPanel.remove());
     } else closingPanel?.remove();
     panel = null;
     selected = null;
@@ -69,7 +80,7 @@ if (main) {
     dismiss.innerHTML =
       '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg>';
     dismiss.onclick = close;
-    header.append(title, full, dismiss);
+    header.append(dismiss);
     const content = document.createElement('div');
     content.className = 'planning-detail-content';
     content.textContent = 'Loading task…';
@@ -109,7 +120,8 @@ if (main) {
           if (loading) return;
           loading = true;
           for (const b of quick.querySelectorAll('button')) b.disabled = true;
-          notice.textContent = 'Saving…';
+          notice.textContent = '';
+          setSaveState('preview-planning', 'saving');
           try {
             const saved = await fetch(
               `/api/v1/tasks/${encodeURIComponent(task.dataset.taskId)}/schedule`,
@@ -135,10 +147,10 @@ if (main) {
               throw Error(
                 (await r.json()).error?.message || 'Planning was not saved. Try again.',
               );
-            notice.textContent = `Planned for ${date(offset)}.`;
+            setSaveState('preview-planning', 'saved');
             await refreshRows();
           } catch (error) {
-            notice.textContent = error.message;
+            setSaveState('preview-planning', 'error', error.message);
           } finally {
             loading = false;
             for (const b of quick.querySelectorAll('button')) b.disabled = false;
@@ -146,8 +158,90 @@ if (main) {
         };
         quick.append(button);
       }
-      content.replaceChildren(quick, notice, task);
+      const reprio = document.createElement('div');
+      reprio.className = 'planning-quick-actions planning-reprio';
+      const priorityCaption = document.createElement('span');
+      priorityCaption.textContent = 'Reprio';
+      reprio.append(priorityCaption);
+      for (let priority = 0; priority <= 3; priority++) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = 'P' + priority;
+        button.dataset.priority = priority;
+        button.disabled = task.dataset.canWrite !== 'true';
+        button.onclick = async () => {
+          if (loading) return;
+          loading = true;
+          setSaveState('preview-priority', 'saving');
+          for (const b of reprio.querySelectorAll('button')) b.disabled = true;
+          try {
+            const current = await fetch(
+              `/api/v1/tasks/${encodeURIComponent(task.dataset.taskId)}/schedule`,
+              { cache: 'no-store' },
+            );
+            if (!current.ok) throw Error('Could not load task priority.');
+            const saved = await current.json();
+            const response = await fetch(
+              `/api/v1/tasks/${encodeURIComponent(task.dataset.taskId)}/schedule`,
+              {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+                body: JSON.stringify({
+                  revision: saved.task_revision,
+                  schedule: { ...saved.schedule, priority },
+                }),
+              },
+            );
+            if (!response.ok)
+              throw Error(
+                (await response.json()).error?.message || 'Could not save priority.',
+              );
+            for (const b of reprio.querySelectorAll('button'))
+              b.setAttribute(
+                'aria-pressed',
+                String(Number(b.dataset.priority) === priority),
+              );
+            setSaveState('preview-priority', 'saved');
+            await refreshRows();
+          } catch (error) {
+            setSaveState('preview-priority', 'error', error.message);
+          } finally {
+            loading = false;
+            for (const b of reprio.querySelectorAll('button'))
+              b.disabled = task.dataset.canWrite !== 'true';
+          }
+        };
+        reprio.append(button);
+      }
+      content.replaceChildren(quick, reprio, notice, task);
       stop = mountTaskPage(task, { embedded: true });
+      const titleLink = document.createElement('a');
+      titleLink.href = url;
+      titleLink.dataset.fullTask = '';
+      titleLink.textContent = task.querySelector('[data-edit-title]').textContent;
+      titleLink.title = 'Open full task';
+      task.querySelector('.task-page-heading h1').append(titleLink);
+      task.querySelector('[data-edit-title]').disabled = true;
+      task.querySelector('[data-edit-description]').disabled = true;
+      task.querySelector('[data-saved-description]').removeAttribute('tabindex');
+      task
+        .querySelector('[data-saved-description]')
+        .addEventListener('click', (event) => event.stopImmediatePropagation(), {
+          capture: true,
+        });
+      fetch(`/api/v1/tasks/${encodeURIComponent(task.dataset.taskId)}/schedule`, {
+        cache: 'no-store',
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((value) => {
+          if (value)
+            for (const b of reprio.querySelectorAll('button'))
+              b.setAttribute(
+                'aria-pressed',
+                String(Number(b.dataset.priority) === value.schedule.priority),
+              );
+        })
+        .catch(() => {});
     } catch (error) {
       if (version === generation) content.textContent = error.message;
     }
@@ -156,6 +250,7 @@ if (main) {
     const link = event.target.closest(
       '[data-planning-rows] a[href^="/tasks/"],.planning-detail-content a[href^="/tasks/"]',
     );
+    if (link?.hasAttribute('data-full-task')) return;
     if (!link || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     open(link.href);

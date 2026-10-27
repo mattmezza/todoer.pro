@@ -63,7 +63,7 @@ pub struct Change {
 pub struct Store {
     pub(crate) conn: Connection,
 }
-fn task_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
+pub(crate) fn task_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Task> {
     Ok(Task {
         id: r.get(0)?,
         reference: r.get(1)?,
@@ -252,6 +252,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (29, include_str!("../migrations/029_legacy_inbox_space.sql")),
     (30, include_str!("../migrations/030_compact_space_ids.sql")),
     (31, include_str!("../migrations/031_cli_login.sql")),
+    (32, include_str!("../migrations/032_personal_inbox.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {

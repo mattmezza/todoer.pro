@@ -5,6 +5,7 @@ edition = "2024"
 default-run = "todoer-server"
 
 [dependencies]
+genpdf = "=0.2.0"
 axum = "=0.8.9"
 askama = "=0.16.1"
 rusqlite = { version = "=0.41.0", features = ["bundled", "backup"] }

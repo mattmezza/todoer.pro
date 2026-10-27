@@ -715,8 +715,6 @@ impl Store {
         }
         let user = actor_identity(&self.conn, actor)?.0;
         for key in default_key
-            .into_iter()
-            .chain(if fallback_inbox { Some("inbox") } else { None })
         {
             preference_key(key)?;
             let id:Option<String>=self.conn.query_row("SELECT list_id FROM agent_destination_preferences WHERE user_id=?1 AND preference_key=?2",params![user,key],|r|r.get(0)).optional()?;
@@ -729,7 +727,7 @@ impl Store {
             }
         }
         if fallback_inbox {
-            return self.resolve_destination(actor, Some("Inbox"), None, false);
+            return Ok(resolved(vec![destination(&self.conn, actor, &self.personal_inbox(actor)?)?], false));
         }
         Ok(resolved(Vec::new(), false))
     }
@@ -1055,6 +1053,10 @@ mod tests {
                 .destination
                 .unwrap()
                 .id,
+            db.personal_inbox("dev").unwrap()
+        );
+        assert_eq!(
+            db.resolve_destination("dev", None, Some("inbox"), false).unwrap().destination.unwrap().id,
             "inbox"
         );
         assert_eq!(

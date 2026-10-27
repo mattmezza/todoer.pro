@@ -421,6 +421,7 @@ struct Overview {
     page: usize,
     has_next: bool,
     can_create: bool,
+    show_archived: bool,
 }
 #[derive(Template)]
 #[template(path = "workspace.html")]
@@ -458,6 +459,8 @@ fn html<T: Template>(template: T) -> Result<Response, ApiError> {
 #[derive(Deserialize)]
 struct WorkspacePageQuery {
     page: Option<usize>,
+    #[serde(default)]
+    archived: bool,
 }
 async fn legacy_overview(Query(q): Query<WorkspacePageQuery>) -> Redirect {
     Redirect::to(&format!(
@@ -525,7 +528,7 @@ async fn overview(
     }
     let visible = workspaces
         .into_iter()
-        .filter(|w| !deleted.contains(&w.id))
+        .filter(|w| !deleted.contains(&w.id) && (q.archived || !archived.contains(&w.id)))
         .collect::<Vec<_>>();
     let page = q.page.unwrap_or(1).clamp(1, 10000);
     let has_next = visible.len() > page * 20;
@@ -543,6 +546,7 @@ async fn overview(
         page,
         has_next,
         can_create,
+        show_archived: q.archived,
     })
 }
 async fn space_redirect(

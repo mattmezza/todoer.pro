@@ -42,7 +42,7 @@ function renderDock(state) {
       option.hidden = state.docked;
   if (state.kind === 'workspace') {
     const menu = state.root.querySelector('.space-overview-heading > .entity-menu');
-    if (menu) menu.hidden = state.docked;
+    if (menu) menu.hidden = state.docked && !menu.querySelector('[data-export-kind]');
   }
   if (state.toggle) {
     state.toggle.hidden = !state.docked;
