@@ -88,7 +88,8 @@ async function search() {
         copy.setAttribute('aria-label', copy.title);
         const reference = document.createElement('span');
         reference.textContent = hit.reference;
-        copy.innerHTML = '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg>';
+        copy.innerHTML =
+          '<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg>';
         copy.prepend(reference);
         copy.onclick = async () => {
           try {
@@ -169,7 +170,9 @@ export function openSearch() {
         select(active + (event.key === 'ArrowDown' ? 1 : -1));
       } else if (event.key === 'Enter') {
         event.preventDefault();
-        location.assign(active >= 0 ? results.children[active].querySelector('a').href : overview.href);
+        location.assign(
+          active >= 0 ? results.children[active].querySelector('a').href : overview.href,
+        );
       }
     };
     dialog.addEventListener('close', () => {
@@ -222,3 +225,10 @@ document.addEventListener(
   },
   true,
 );
+
+document.addEventListener('click', (event) => {
+  if (event.target.closest('[data-open-search]')) {
+    event.preventDefault();
+    openSearch();
+  }
+});

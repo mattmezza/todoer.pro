@@ -380,6 +380,7 @@ function mountFunnyTasks() {
 }
 if (
   (location.pathname === '/today' ||
+    location.pathname === '/inbox' ||
     location.pathname === '/settings' ||
     location.pathname === '/settings/general') &&
   document.querySelector('meta[name=account-id]')

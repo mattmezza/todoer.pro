@@ -127,9 +127,27 @@ function dateInput(value) {
 function modal(title) {
   const dialog = node('dialog', null, 'quick-dialog workbench-dialog');
   const h = node('h2', title);
-  const close = button('Close', () => dialog.close(), 'workbench-dialog-close');
+  const close = button('', () => dialog.close(), 'workbench-dialog-close');
+  close.innerHTML =
+    '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg>';
   close.setAttribute('aria-label', 'Close dialog');
   dialog.append(h, close);
+  let backdropPress = false;
+  const outside = (event) => {
+    const r = dialog.getBoundingClientRect();
+    return (
+      event.target === dialog &&
+      (event.clientX < r.left ||
+        event.clientX > r.right ||
+        event.clientY < r.top ||
+        event.clientY > r.bottom)
+    );
+  };
+  dialog.addEventListener('pointerdown', (event) => (backdropPress = outside(event)));
+  dialog.addEventListener('click', (event) => {
+    if (backdropPress && outside(event)) dialog.close();
+    backdropPress = false;
+  });
   dialog.addEventListener('close', () => dialog.remove(), { once: true });
   document.body.append(dialog);
   dialog.showModal();
@@ -160,17 +178,21 @@ function planDialog(entry, initial) {
   timeLabel.append(time);
   const submit = node('button', 'Save', 'primary');
   submit.type = 'submit';
-  form.append(dateLabel, timeLabel, submit);
+  const fields = node('div', null, 'workbench-date-fields');
+  fields.append(dateLabel, timeLabel);
+  const actions = node('div', null, 'workbench-form-actions');
+  actions.append(
+    button('Remove from plan', async (b) => {
+      if (await placement(entry, b, null)) d.close();
+    }),
+    submit,
+  );
+  form.append(fields, actions);
   form.onsubmit = async (e) => {
     e.preventDefault();
     if (await placement(entry, submit, date.value, time.value || null)) d.close();
   };
-  d.append(
-    form,
-    button('Remove from plan', async (b) => {
-      if (await placement(entry, b, null)) d.close();
-    }),
-  );
+  d.append(form);
 }
 async function organize(entry) {
   const d = modal('Move to a list');
@@ -201,7 +223,9 @@ async function organize(entry) {
                 if (
                   preview.audience_broadens &&
                   !(await confirmAction(
-                    'Moving this task and its descendants gives additional members access. Continue?',
+                    preview.destination_public && !preview.source_public
+                      ? 'Moving this task and its descendants makes them publicly viewable. Continue?'
+                      : 'Moving this task and its descendants gives additional members access. Continue?',
                   ))
                 )
                   return;
