@@ -371,13 +371,6 @@ for (const action of document.querySelectorAll('.sidebar-add')) {
 
 const accountMenu = document.querySelector('.account-menu-panel');
 if (accountMenu) {
-  const preferences = accountMenu.querySelector('a[href="/settings"]');
-  if (preferences) {
-    const heading = document.createElement('div');
-    heading.className = 'nav-heading';
-    heading.textContent = 'Settings';
-    preferences.before(heading);
-  }
   if (!accountMenu.querySelector('.space-switch-item'))
     accountMenu.querySelector('.nav-heading')?.remove();
   const about = document.createElement('button');
