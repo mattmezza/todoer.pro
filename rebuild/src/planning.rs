@@ -167,16 +167,16 @@ mod tests {
         let mut s=setup();let inbox=s.personal_inbox("dev").unwrap();assert_ne!(inbox,"inbox");assert_ne!(inbox,s.personal_inbox("other").unwrap());
         let workspace:Option<String>=s.conn.query_row("SELECT workspace_id FROM lists WHERE id=?1",[&inbox],|r|r.get(0)).unwrap();assert!(workspace.is_none());
         let t=capture(&mut s);assert_eq!(s.intake_tasks("dev").unwrap().len(),1);assert!(s.intake_tasks("other").unwrap().is_empty());
-        assert!(s.place_task("other",&t.id,Placement{revision:t.revision,date:Some("2026-10-28".into()),time:None,timezone:"Europe/Zurich".into()}).is_err());
-        let saved=s.place_task("dev",&t.id,Placement{revision:t.revision,date:Some("2026-10-28".into()),time:Some("10:30".into()),timezone:"Europe/Zurich".into()}).unwrap();
+        assert!(s.place_task("other",&t.id,Placement{priority:None,revision:t.revision,date:Some("2026-10-28".into()),time:None,timezone:"Europe/Zurich".into()}).is_err());
+        let saved=s.place_task("dev",&t.id,Placement{priority:None,revision:t.revision,date:Some("2026-10-28".into()),time:Some("10:30".into()),timezone:"Europe/Zurich".into()}).unwrap();
         assert!(s.intake_tasks("dev").unwrap().is_empty());let plan=s.plan_entries("dev",Some("2026-10-28"),Some("2026-10-28"),None).unwrap();assert_eq!(plan.len(),1);assert_eq!(plan[0].local_time.as_deref(),Some("10:30"));
-        assert!(s.place_task("dev",&t.id,Placement{revision:t.revision,date:None,time:None,timezone:"Europe/Zurich".into()}).is_err());
-        s.place_task("dev",&t.id,Placement{revision:saved.task_revision,date:None,time:None,timezone:"Europe/Zurich".into()}).unwrap();assert_eq!(s.intake_tasks("dev").unwrap().len(),1);
+        assert!(s.place_task("dev",&t.id,Placement{priority:None,revision:t.revision,date:None,time:None,timezone:"Europe/Zurich".into()}).is_err());
+        s.place_task("dev",&t.id,Placement{priority:None,revision:saved.task_revision,date:None,time:None,timezone:"Europe/Zurich".into()}).unwrap();assert_eq!(s.intake_tasks("dev").unwrap().len(),1);
     }
     #[test]
     fn nonexistent_or_ambiguous_clock_time_does_not_change_task() {
         let mut s=setup();let t=capture(&mut s);
-        for (date,time) in [("2026-03-29","02:30"),("2026-10-25","02:30")] {assert!(s.place_task("dev",&t.id,Placement{revision:t.revision,date:Some(date.into()),time:Some(time.into()),timezone:"Europe/Zurich".into()}).is_err());}
+        for (date,time) in [("2026-03-29","02:30"),("2026-10-25","02:30")] {assert!(s.place_task("dev",&t.id,Placement{priority:None,revision:t.revision,date:Some(date.into()),time:Some(time.into()),timezone:"Europe/Zurich".into()}).is_err());}
         assert_eq!(s.get_schedule("dev",&t.id).unwrap().task_revision,t.revision);assert_eq!(s.intake_tasks("dev").unwrap().len(),1);
     }
     #[test]
