@@ -6,7 +6,7 @@
 {% include "mobile-nav.html" %}
 {% include "sidebar.html" %}
 <main id="main" class="workspace-main">
-<header class="workspace-header"><h1>Spaces</h1><p class="workspace-intro muted">Separate your projects, work and personal lists.</p></header>
+<header class="workspace-header"><h1>Spaces</h1><p class="workspace-intro muted">Separate your projects, work and personal lists.</p></header><form method="get" class="space-archive-filter"><label><input type="checkbox" name="archived" value="true"{% if show_archived %} checked{% endif %} onchange="this.form.requestSubmit()"> Show archived</label><noscript><button type="submit">Apply</button></noscript></form>
 <section aria-label="Your workspaces" class="workspace-rows">
 {% for workspace in workspaces %}
 <article class="workspace-row" data-workspace="{{ workspace.id }}" data-title="{{ workspace.title }}" data-revision="{{ workspace.revision }}">
@@ -14,11 +14,11 @@
 <div class="workspace-row-actions">{% if archived.contains(workspace.id) %}<span class="muted">Archived</span>{% endif %}{% if owners.contains(workspace.id) %}<button type="button" data-workspace-action="{% if archived.contains(workspace.id) %}restore{% else %}archive{% endif %}">{% if archived.contains(workspace.id) %}Restore{% else %}Archive{% endif %}</button>{% if archived.contains(workspace.id) %}<button type="button" class="danger" data-workspace-action="delete">Delete…</button>{% endif %}{% endif %}</div>
 </article>
 {% endfor %}
-{% if workspaces.is_empty() %}<p class="muted">You have no workspace memberships. Directly shared lists remain available below.</p>{% endif %}
+{% if workspaces.is_empty() %}<p class="muted">No spaces to show.</p>{% endif %}
 </section>
 {% if can_create %}
 <dialog class="quick-dialog workspace-create-dialog" id="workspace-create-dialog" aria-labelledby="create-heading"><button type="button" class="dialog-close" data-workspace-create-close aria-label="Close new space"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg></button><h2 id="create-heading">Add a new space</h2><p class="muted">A private space with an Inbox, ready for your first task.</p>
 <form method="post" action="/spaces"><input type="hidden" name="csrf" value="{{ csrf }}"><label for="workspace-title">Space name</label><input id="workspace-title" name="title" required maxlength="500" autocomplete="off" placeholder="Space name"><label for="workspace-description">Description</label><textarea id="workspace-description" name="description" rows="3" maxlength="100000" placeholder="What belongs here?"></textarea><div class="composer-actions"><button type="button" data-workspace-create-close>Cancel</button><button class="primary" type="submit">Create space</button></div></form></dialog>
 {% endif %}
-<nav aria-label="Workspace pages" class="pagination">{% if page > 1 %}<a href="?page={{ page - 1 }}">Previous</a>{% endif %}<span>Page {{ page }}</span>{% if has_next %}<a href="?page={{ page + 1 }}">Next</a>{% endif %}</nav>
+<nav aria-label="Workspace pages" class="pagination">{% if page > 1 %}<a href="?page={{ page - 1 }}&amp;archived={{ show_archived }}">Previous</a>{% endif %}<span>Page {{ page }}</span>{% if has_next %}<a href="?page={{ page + 1 }}&amp;archived={{ show_archived }}">Next</a>{% endif %}</nav>
 </main><script type="module" src="/assets/workspaces.js"></script>{% include "list-create-modal.html" %}</body></html>

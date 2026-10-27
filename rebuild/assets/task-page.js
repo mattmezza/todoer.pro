@@ -460,6 +460,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
           const summary = document.createElement('summary');summary.setAttribute('aria-label', `Actions for ${child.title}`);
           summary.innerHTML = '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#more"/></svg>';
           const actions = document.createElement('div');actions.className = 'menu-items';
+          const exportButton=document.createElement('button');exportButton.type='button';exportButton.textContent='Export…';exportButton.dataset.exportKind='task';exportButton.dataset.exportId=child.id;actions.append(exportButton);
           const promote = document.createElement('button');promote.type = 'button';promote.dataset.taskPromote = child.id;promote.textContent = 'Move to parent…';
           actions.append(promote);menu.append(summary, actions);line.append(menu);
         }

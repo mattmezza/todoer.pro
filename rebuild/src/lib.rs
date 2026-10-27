@@ -26,3 +26,6 @@ pub mod taxonomy;
 pub mod transfer;
 pub mod web;
 pub mod workspace;
+
+pub mod planning;
+pub mod reports;

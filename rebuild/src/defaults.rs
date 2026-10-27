@@ -494,7 +494,7 @@ mod tests {
         let first = db.ensure_user_defaults("dev").unwrap();
         assert_eq!(db.ensure_user_defaults("dev").unwrap(), first);
         assert_eq!(db.workspaces("dev").unwrap().len(), 1);
-        let inbox = db.default_list("dev", &first).unwrap();
+        let inbox = db.personal_inbox("dev").unwrap();
         assert_eq!(
             db.resolve_destination("dev", None, None, true)
                 .unwrap()

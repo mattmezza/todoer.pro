@@ -696,7 +696,7 @@ fn candidates(c: &Connection, actor: &str, kind: &str) -> Result<Vec<ReferenceCh
             }
         }
         "list" => {
-            let mut stmt=c.prepare("SELECT l.id,l.title FROM lists l JOIN actor_list_access a ON a.list_id=l.id WHERE a.actor_id=?1 AND l.archived=0 ORDER BY l.id LIMIT 1000")?;
+            let mut stmt=c.prepare("SELECT l.id,l.title FROM lists l JOIN actor_list_access a ON a.list_id=l.id WHERE a.actor_id=?1 AND l.archived=0 AND NOT EXISTS(SELECT 1 FROM user_inboxes i WHERE i.list_id=l.id) ORDER BY l.id LIMIT 1000")?;
             for row in stmt.query_map([actor], |r| {
                 Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
             })? {
