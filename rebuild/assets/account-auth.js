@@ -3,6 +3,15 @@ import { passkey } from './passkeys.js';
 const form = document.querySelector('[data-auth-form]');
 const notice = document.querySelector('[data-auth-notice]');
 const keyButton = document.querySelector('[data-auth-passkey]');
+const loginEmail = form?.dataset.authForm === 'login' ? form.elements.email : null;
+function updatePasskeyVisibility() {
+  if (loginEmail && keyButton)
+    keyButton.hidden = !loginEmail.value.trim() || !loginEmail.validity.valid;
+}
+loginEmail?.addEventListener('input', updatePasskeyVisibility);
+loginEmail?.addEventListener('change', updatePasskeyVisibility);
+window.addEventListener('pageshow', updatePasskeyVisibility);
+updatePasskeyVisibility();
 let busy = false;
 let token = new URLSearchParams(location.hash.slice(1)).get('token') || '';
 // Recovery bearer tokens stay out of URLs, referrers and browser navigation history.
@@ -58,16 +67,31 @@ form?.addEventListener('submit', (event) => {
       return;
     }
     notice.textContent = result.message || '';
-    if (form.dataset.authForm === 'register' || form.dataset.authForm === 'forgot')
+    if (form.dataset.authForm === 'register') {
       form.reset();
+      form.hidden = true;
+      document
+        .querySelectorAll('.auth-google, .auth-divider')
+        .forEach((el) => (el.hidden = true));
+      notice.classList.add('auth-confirmation');
+      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      icon.setAttribute('class', 'ui-icon');
+      icon.setAttribute('aria-hidden', 'true');
+      const symbol = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+      symbol.setAttribute('href', '/assets/icons.svg#inbox');
+      icon.append(symbol);
+      const message = document.createElement('span');
+      message.textContent =
+        result.message || 'Check your inbox for your verification link.';
+      notice.replaceChildren(icon, message);
+    } else if (form.dataset.authForm === 'forgot') form.reset();
   });
 });
 keyButton?.addEventListener('click', () =>
   action(async () => {
     const email = form?.elements.email?.value || '';
     const reset = form?.dataset.authForm === 'reset';
-    if (!email && !reset && params.get('step') !== 'mfa')
-      throw Error('Enter your email first, then select passkey.');
+    if (loginEmail && !loginEmail.validity.valid) return;
     const start = await post('/auth/passkey/start', {
       email,
       ...(reset ? { reset_token: token } : {}),

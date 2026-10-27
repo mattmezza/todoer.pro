@@ -7289,3 +7289,10 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .security-deployment form { max-width: 620px; }
 @media (max-width: 1050px) { .security-card-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 600px) { .security-card { padding: 20px; } }
+
+.authenticator-qr { display:block; width:224px; height:auto; max-width:100%; padding:12px; background:white; border-radius:12px; image-rendering:pixelated; }
+[data-totp-form] details { font-size:13px; color:var(--muted); }
+[data-totp-form] summary { cursor:pointer; margin-bottom:8px; }
+
+.auth-card .auth-confirmation { display:flex; flex-direction:column; align-items:center; gap:18px; padding:28px 12px; text-align:center; color:var(--text); line-height:1.7; }
+.auth-confirmation .ui-icon { width:48px; height:48px; padding:12px; border-radius:50%; background:var(--hover); color:var(--accent); flex-shrink:0; }
