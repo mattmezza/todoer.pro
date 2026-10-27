@@ -235,9 +235,11 @@ export function mountScheduling({
   dueSummary.append(dueCaption);
   const dueLabel = dueKind.closest('label');
   dueLabel.before(dueIntent);
-  dueIntent.append(dueSummary, dueLabel, dueDate.closest('label'), timedRow);
+  const dueFields = el('div', { class: 'planning-due-fields' });
+  dueFields.append(dueLabel, dueDate.closest('label'), timedRow);
+  dueIntent.append(dueSummary, dueFields);
   // The summary is the heading; keep field labels available to screen readers.
-  for (const control of [planned, dueKind, dueDate])
+  for (const control of [planned, dueKind, dueDate, dueLocal])
     control.closest('label').querySelector('.planning-label-caption').classList.add('sr-only');
   plannedHelp.remove();
   function quickDates(kind) {
