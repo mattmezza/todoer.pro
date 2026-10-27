@@ -6665,7 +6665,7 @@ body:has(dialog[open]) .fun-task-stack,
 
 @media (min-width: 1000px) {
   body.task-settings-docked-open {
-    --task-dock-width: 320px;
+    --task-dock-width: 360px;
   }
   body.task-settings-docked-open #navigation {
     width: var(--task-dock-width);
@@ -6675,18 +6675,18 @@ body:has(dialog[open]) .fun-task-stack,
   body.task-settings-docked-open main:not(.task-page) {
     margin-left: var(--task-dock-width);
     margin-right: var(--task-dock-width);
-    padding-left: max(36px, calc((100vw - 640px - 1100px) / 2));
-    padding-right: max(36px, calc((100vw - 640px - 1100px) / 2));
+    padding-left: max(36px, calc((100vw - 720px - 1100px) / 2));
+    padding-right: max(36px, calc((100vw - 720px - 1100px) / 2));
   }
   .list-settings-panel.is-docked {
-    width: 320px;
+    width: 360px;
   }
   .list-settings-panel.is-docked .settings-tabs {
     margin-inline: 12px;
   }
   .list-settings-panel.is-docked .settings-tabs > button {
     padding-inline: 3px;
-    font-size: 12px;
+    font-size: 13px;
   }
   .list-settings-panel.is-docked .settings-content {
     padding: 18px 18px;
