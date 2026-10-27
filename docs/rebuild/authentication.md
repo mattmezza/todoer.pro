@@ -7,7 +7,8 @@ product scope; implementing authentication does not authorize a cutover.
 ## Browser sign-in
 
 With `TODOER_DEV_AUTH` unset, startup requires an HTTPS `TODOER_PUBLIC_URL`, an
-independent `TODOER_RUST_DB`, and Google web-client credentials. Register the exact
+independent `TODOER_RUST_DB`, and a stable 64-hex-character `TODOER_SERVER_KEY`.
+Google web-client credentials are required when Google login is enabled. Register the exact
 `{TODOER_PUBLIC_URL}/auth/google/callback` redirect with Google. Pass configuration
 through deployment environment/files, not command-line secrets or tracked files.
 See `rebuild/environment.example`. The existing reverse proxy terminates HTTPS;
@@ -95,8 +96,8 @@ refuses non-loopback servers. It does not bypass Google on a production server.
 `/signin` and `/signup` use the same centered authentication card and a Google
 logo button. Both delegate to the verified Google flow, preserve a validated local
 return path and enforce the registration allowlist. The development sign-in stays
-explicitly separate. Email/password, email verification/reset, TOTP with recovery
-codes and WebAuthn/passkeys are requested follow-up work, not available controls.
+explicitly separate. Email/password, email verification/reset, TOTP with recovery codes and
+WebAuthn/passkeys are available from sign-in and Account security settings.
 
 On Google login, the verified display name replaces only the initial `Todoer user`
 placeholder; a custom name is retained. The provider photo is stored and Google
@@ -104,3 +105,81 @@ image hosts are allowed by the page CSP. Avatar failure, including an error befo
 JavaScript attaches its listener, falls back to initials. Outside a space, sidebar
 email labels reveal two leading and two trailing local-part characters, separated
 by `***`; very short local parts reveal fewer to avoid overlapping characters.
+
+
+## Local accounts and deployment policy
+
+- `TODOER_GOOGLE_LOGIN_ENABLED=true|false` and `TODOER_SIGNUP_ENABLED=true|false`
+  initialize the singleton authentication policy only when it does not exist.
+  Both default to true, preserving the existing allowlist-gated Google behavior.
+  A saved setting wins over later environment changes, including after restart.
+- `TODOER_AUTH_ADMIN_EMAILS` grants deployment administrator access to matching
+  verified identities when they sign in or complete email verification. It is
+  separate from workspace ownership. Agent/API credentials cannot manage policy.
+- Administrators use **Settings → Account security → Deployment authentication**.
+  Changes require a recent authenticated browser session and CSRF; revision checks
+  reject stale saves. Policy changes are audited without credentials or tokens.
+- Disabling Google hides its button and denies its start/callback endpoints.
+  Google credentials may be omitted entirely on a fresh email-only deployment
+  initialized with Google disabled. Re-enabling Google requires configured client
+  credentials. An administrator must have a password or passkey before disabling
+  Google, preventing accidental loss of their only sign-in method.
+- Closing signup blocks both email registration/verification and creation of new
+  Google accounts. Existing users can still sign in, recover their password and
+  add sign-in methods. The registration allowlist remains an independent gate;
+  enabling signup does not make registration open to arbitrary email addresses.
+
+Passwords use Argon2id with independent salts and accept 15–128 characters.
+Email signup sends a single-use verification link expiring after one hour; the
+account and its initial workspace are created transactionally after verification.
+Pending passwords are stored only as hashes. Google accounts can add a password
+from Account security after a recent Google sign-in; this retains the same user
+and task data. Accounts are never silently joined by matching email addresses.
+
+Forgot-password responses are generic and reset tokens are hashed, single-use,
+valid for 30 minutes and tied to the account security epoch and current verified
+email. Email links carry tokens in fragments, which the browser removes from
+history before submitting them in a JSON request. Password resets retain MFA and
+require an enrolled authenticator/recovery code or a verified passkey when MFA is
+active. Password changes/resets revoke all sessions and invalidate outstanding
+security proofs. Session issuance checks the epoch in the same write transaction
+as issuing the new session. Recent-session checks are repeated after queued work.
+
+## MFA and WebAuthn
+
+Account security can enroll a TOTP authenticator, add/remove named passkeys, and
+rotate recovery codes. Sensitive changes require a full sign-in within five
+minutes. Enrollment revokes other sessions and displays ten single-use recovery
+codes once; store them before signing in again. TOTP seeds are encrypted with
+ChaCha20-Poly1305 under a domain-separated deployment key and owner-bound associated
+data. Accepted time steps cannot be reused. Recovery codes are stored as hashes.
+Back up the stable server key: changing it prevents decrypting existing TOTP seeds.
+
+WebAuthn uses webauthn-rs, validates the configured public origin/RP ID and requires
+user verification for passkeys. Challenge state is bounded, single-use, expires
+after five minutes, and stays on the server, bound to the initiating browser or
+session and the account security epoch. Credential IDs are globally unique; stored
+counters and backup flags are updated after verification. Password and Google
+sign-in require a second factor when any MFA method is enrolled; a user-verified
+passkey can sign in directly. Credentials remain tied to their RP hostname, so
+localhost test credentials will not work for the production hostname.
+
+The current challenge store is process-local. A restart interrupts incomplete
+ceremonies; retrying starts a fresh challenge. Persisted accounts, credentials,
+policy and sessions survive restart. SQLite deployments should run one app process
+for these flows (or require sticky routing before introducing multiple workers).
+
+## Verification
+
+`cargo test -p todoer --lib` covers policy authorization/revisions/lockout, verified
+signup, token expiry/reuse, password hashing, encrypted TOTP seeds, code replay,
+MFA-preserving reset, session revocation and existing application behavior.
+
+`node scripts/test-account-security.mjs` starts a separate temporary database and
+email-only backend at port 8095, accessed through the optional nginx test proxy on
+8445. It requires local Mailpit and the test proxy; it never modifies the existing
+development or Google-test database. Chromium exercises real forms and SMTP links,
+TOTP/recovery, a CTAP2 virtual authenticator, WebAuthn login/reset, rejected replays,
+CSRF/origin/admin boundaries and policy persistence after restart. This checks
+browser WebAuthn protocol support; physical authenticators still need manual
+acceptance on the user's device.

@@ -298,8 +298,7 @@ pub(super) async fn google_callback(
         .store
         .lock()
         .map_err(|_| AuthError::Unauthorized)?
-        .issue_session(&user.id, 43200)?;
-    auth.store.lock().map_err(|_|AuthError::Unauthorized)?.mark_recent(&grant.token)?;
+        .issue_verified_session(&user.id, epoch)?;
     let mut response = Redirect::to(&pending.next).into_response();
     let secure = if s.origin.starts_with("https://") {
         "; Secure"

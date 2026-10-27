@@ -24,6 +24,7 @@ if not key_path.exists():
         file.write(secrets.token_hex(32))
 # Use only deliberate configuration, rather than inherited development adapters/workers.
 env = {key: value for key, value in os.environ.items() if not key.startswith('TODOER_')}
+env.update({key:value for key,value in os.environ.items() if key.startswith('TODOER_SMTP_') or key in ('TODOER_AUTH_ADMIN_EMAILS','TODOER_GOOGLE_LOGIN_ENABLED','TODOER_SIGNUP_ENABLED')})
 env.update({
     'TODOER_DEV_AUTH': '0',
     'TODOER_RUST_DB': str(state / 'google-auth.db'),

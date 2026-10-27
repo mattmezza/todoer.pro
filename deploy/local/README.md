@@ -93,3 +93,47 @@ Manual acceptance: sign in with your allowlisted Google test user, verify the ne
 account has its own Inbox/Personal space, sign out, and sign in again to check the
 same account is reused. Finally, sign out and verify a private task URL redirects
 to sign-in. Do not expect the seeded port-8092 workspace in this separate database.
+
+## Password accounts, MFA and captured account email
+
+Start Mailpit (messages stay local):
+
+```sh
+docker compose -f deploy/local/compose.yml up -d mail
+```
+
+Launch the real-auth instance with these additional settings:
+
+```sh
+TODOER_AUTH_ADMIN_EMAILS=your-google-email@example.com \
+TODOER_REGISTRATION_ALLOWLIST=your-google-email@example.com,local-test@example.invalid \
+TODOER_SMTP_HOST=127.0.0.1 TODOER_SMTP_PORT=1025 \
+TODOER_SMTP_INSECURE_LOCAL=1 TODOER_SMTP_FROM='Todoer <test@todoer.invalid>' \
+python3 scripts/local-google-auth.py
+```
+
+Sign in with Google again, then open https://localhost:8443/settings/security.
+Add a password to the existing Google account, or sign up separately with
+`local-test@example.invalid`. Verification and reset messages are captured at
+http://127.0.0.1:8025, not delivered to a real inbox. Test TOTP or passkey enrollment
+from Account security and save recovery codes before signing in again. Test signup
+and Google switches using the administrator's Deployment authentication section.
+
+The initial values can be provided with `TODOER_GOOGLE_LOGIN_ENABLED` and
+`TODOER_SIGNUP_ENABLED`; saved settings take precedence on subsequent restarts.
+The primary port-8092 development bypass does not exercise these authentication
+features. Existing port-8092 tasks are not copied into the authentication test instance.
+
+For automated acceptance with a separate temporary database:
+
+```sh
+docker compose -f deploy/local/auth-compose.yml --profile tests up -d test-proxy
+node scripts/test-account-security.mjs
+```
+
+The test server uses loopback port 8095, HTTPS proxy port 8445 and Mailpit. Stop the
+optional test proxy afterward if desired:
+
+```sh
+docker compose -f deploy/local/auth-compose.yml --profile tests stop test-proxy
+```
