@@ -1,4 +1,5 @@
-import { stowInfo } from './quiet-info.js';
+import { preferredTimeFormatter } from './preferred-time.js';
+import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
 // Task-local controller. Parent must call its cleanup before replacing the panel.
 export function mountDiscussion({ taskId, csrf, container, accountId, onConflict }) {
@@ -8,6 +9,11 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
   const requests = new Set();
   const busy = new Set();
   let active = true;
+  let preferredTime;
+  preferredTimeFormatter().then((format) => {
+    preferredTime = format;
+    if (active) all('[data-created-at]').forEach(formatTime);
+  });
   let loading = false;
   let pendingRefresh = false;
   let storageWorks = true;
@@ -28,6 +34,12 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
   function save(key, value) {
     if (!active) return;
     if (key === 'new') newDraftState = value;
+    if (value)
+      setSaveState(
+        'discussion:' + taskId,
+        'unsaved',
+        'Your comment draft stays on this device until you post or save the edit.',
+      );
     try {
       sessionStorage.setItem(prefix + key, JSON.stringify(value));
     } catch {
@@ -63,7 +75,19 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
     target.textContent = message;
     target.classList.toggle('error', error);
   }
-  async function request(path, method = 'GET', body, html = false, extraHeaders = {}) {
+  function request(path, method = 'GET', ...args) {
+    const action = () => performRequest(path, method, ...args);
+    return method === 'GET' || /preview|intents/.test(path)
+      ? action()
+      : trackSave('discussion:' + taskId, action);
+  }
+  async function performRequest(
+    path,
+    method = 'GET',
+    body,
+    html = false,
+    extraHeaders = {},
+  ) {
     if (!active) throw new Error('Discussion panel closed');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 300000);
@@ -173,7 +197,9 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
             Math.round(seconds / divisor),
             unit,
           );
-    time.title = date.toLocaleString();
+    time.title = preferredTime
+      ? preferredTime(Number(time.dataset.createdAt)) + ' · ' + preferredTime.timeZone
+      : '';
     time.dateTime = date.toISOString();
   }
   function restore() {

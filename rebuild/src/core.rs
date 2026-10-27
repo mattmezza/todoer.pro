@@ -177,7 +177,7 @@ pub(crate) fn event(
     )?;
     let value = serde_json::json!({"kind":kind,"task":t,"actor":user,"client":credential,"countable_leaf":leaf,"request_id":crate::audit::request_id(),"attribution":if credential.is_some(){"agent"}else{"human"}});
     c.execute(
-        "INSERT INTO history(list_id,event,actor,before_event) VALUES(?1,?2,?3,?4)",
+        "INSERT INTO history(list_id,event,actor,before_event,occurred_at) VALUES(?1,?2,?3,?4,unixepoch())",
         params![
             t.list_id,
             value.to_string(),

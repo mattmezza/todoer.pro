@@ -15,10 +15,9 @@ fn esc(value: &str) -> String {
         .replace('\'', "&#39;")
 }
 fn instant(value: i64) -> String {
-    chrono::DateTime::from_timestamp(value, 0)
-        .map(|t| t.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
-        .unwrap_or_else(|| "Unknown time".into())
+    format!("<time data-unix-time=\"{value}\"></time>")
 }
+
 async fn load(s: &AppState, h: &HeaderMap, q: JobQuery) -> Result<JobPage, ApiError> {
     let actor = s.auth(h, false)?;
     s.run(move |db| db.job_status(&actor, q)).await
@@ -46,7 +45,7 @@ async fn page(
     let limit = q.limit.unwrap_or(25);
     let result = load(&s, &h, q).await?;
     let mut content = String::from(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Job status · Todoer</title><link rel=\"stylesheet\" href=\"/assets/app.css\"></head><body><header class=\"mobile-header\"><a class=\"brand\" href=\"/\">todoer<span>.pro</span></a><a class=\"nav-link\" href=\"/settings/notifications\">Notifications</a></header><aside aria-label=\"Navigation\"><a class=\"brand\" href=\"/\">todoer<span>.pro</span></a><nav><a class=\"nav-link\" href=\"/\">Tasks</a><a class=\"nav-link\" href=\"/settings/notifications\">Notifications</a><a class=\"nav-link\" href=\"/settings/devices\">Push devices</a></nav></aside><main><h1>Job status</h1><p class=\"muted\">Your reminder, summary and invitation delivery jobs. Times are UTC. This page is read-only; it does not send, retry or discard work.</p><form method=\"get\" class=\"grid gap-3 mt-8\"><label>Status<select name=\"status\">",
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Job status · Todoer</title><link rel=\"stylesheet\" href=\"/assets/app.css\"></head><body><header class=\"mobile-header\"><a class=\"brand\" href=\"/\">todoer<span>.pro</span></a><a class=\"nav-link\" href=\"/settings/notifications\">Notifications</a></header><aside aria-label=\"Navigation\"><a class=\"brand\" href=\"/\">todoer<span>.pro</span></a><nav><a class=\"nav-link\" href=\"/\">Tasks</a><a class=\"nav-link\" href=\"/settings/notifications\">Notifications</a><a class=\"nav-link\" href=\"/settings/devices\">Push devices</a></nav></aside><main><h1>Job status</h1><p class=\"muted\">Your reminder, summary and invitation delivery jobs. This page is read-only; it does not send, retry or discard work.</p><form method=\"get\" class=\"grid gap-3 mt-8\"><label>Status<select name=\"status\">",
     );
     for (value, label) in [
         ("", "All statuses"),
@@ -75,12 +74,9 @@ async fn page(
         } else {
             "Recorded availability"
         };
-        content.push_str(&format!("<article class=\"mt-8 border-t border-[var(--line)] pt-6\"><h2>{} · {}</h2><p>Status: <strong>{}</strong> · Attempts: {}</p><p>{}: <time>{}</time></p>",esc(&row.kind.replace('_'," ")),esc(&row.channel),esc(&row.status),row.attempts,clock_label,instant(row.available_at)));
+        content.push_str(&format!("<article class=\"mt-8 border-t border-[var(--line)] pt-6\"><h2>{} · {}</h2><p>Status: <strong>{}</strong> · Attempts: {}</p><p>{}: {}</p>",esc(&row.kind.replace('_'," ")),esc(&row.channel),esc(&row.status),row.attempts,clock_label,instant(row.available_at)));
         if let Some(until) = row.lease_until {
-            content.push_str(&format!(
-                "<p>Lease expires: <time>{}</time></p>",
-                instant(until)
-            ));
+            content.push_str(&format!("<p>Lease expires: {}</p>", instant(until)));
         }
         if let Some(code) = row.failure_code {
             content.push_str(&format!(

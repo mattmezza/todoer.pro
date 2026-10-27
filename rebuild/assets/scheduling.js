@@ -1,4 +1,5 @@
-import { stowInfo } from './quiet-info.js';
+import { preferredTimeFormatter, zonedLocalTimestamp } from './preferred-time.js';
+import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
 // Task scheduling is saved separately from the task brief. Every draft retains
 // its original task revision until an explicit save or discard.
@@ -28,7 +29,16 @@ export function mountScheduling({
   let recurrenceDraft = read('recurrence');
   let storedSchedule = null;
   let seriesCreated = false;
-  const defaultZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  let defaultZone = 'UTC';
+  let formatPreferred;
+  preferredTimeFormatter().then((format) => {
+    if (!active) return;
+    formatPreferred = format;
+    defaultZone = format.timeZone;
+    if (!dueLocal.value) dueZone.value = defaultZone;
+    if (!start.value) recurrenceZone.value = defaultZone;
+    if (storedSchedule) showPriorityPreview(storedSchedule.schedule);
+  });
   const root = el('section', { class: 'checklist', 'data-scheduling': '' });
   const details = el('details');
   const summary = el('summary', { class: 'nav-link' }, 'Planning and recurrence');
@@ -549,6 +559,11 @@ export function mountScheduling({
     if (!Number.isInteger(baseRevision)) return;
     scheduleDraft = { revision: baseRevision, values: scheduleValues() };
     persist('schedule', scheduleDraft);
+    setSaveState(
+      'planning:' + taskId,
+      'unsaved',
+      'Planning changes are waiting to save automatically. Your draft is kept on this device.',
+    );
     if (storedSchedule) showPriorityPreview(storedSchedule.schedule);
     queueAutoSave();
   }
@@ -564,8 +579,19 @@ export function mountScheduling({
     if (!Number.isInteger(recurrenceRevision)) return;
     recurrenceDraft = { revision: recurrenceRevision, values: recurrenceValues() };
     persist('recurrence', recurrenceDraft);
+    setSaveState(
+      'planning:' + taskId,
+      'unsaved',
+      'Your recurring-task changes are kept on this device until you create the series.',
+    );
   }
-  async function request(path, method = 'GET', body) {
+  function request(path, method = 'GET', ...args) {
+    const action = () => performRequest(path, method, ...args);
+    return method === 'GET' || /preview|intents/.test(path)
+      ? action()
+      : trackSave('planning:' + taskId, action);
+  }
+  async function performRequest(path, method = 'GET', body) {
     const controller = new AbortController();
     requests.add(controller);
     const timeout = setTimeout(() => controller.abort(), 30000);
@@ -651,12 +677,6 @@ export function mountScheduling({
       line.className = 'task-priority-line';
       line.append(priorityBadge);
       summary.append(line);
-      if (unsaved) {
-        const marker = document.createElement('small');
-        marker.className = 'priority-unsaved';
-        marker.textContent = 'Unsaved';
-        line.prepend(marker);
-      }
     }
     const due = schedule?.due || schedule?.planned;
     if (!due) return;
@@ -675,23 +695,27 @@ export function mountScheduling({
     svg.append(path);
     const value = due.kind === 'date' ? due.date : due.local;
     const date = new Date(due.kind === 'date' ? `${value}T12:00:00` : value);
-    const text = Number.isNaN(date.getTime())
-      ? value
-      : date.toLocaleString(undefined, {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-          ...(due.kind === 'timed' ? { hour: 'numeric', minute: '2-digit' } : {}),
-        });
+    const timestamp =
+      due.kind === 'timed' ? zonedLocalTimestamp(due.local, due.timezone) : null;
+    const text =
+      due.kind === 'timed' && timestamp != null && formatPreferred
+        ? formatPreferred(timestamp)
+        : Number.isNaN(date.getTime())
+          ? value
+          : date.toLocaleString(undefined, {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+              ...(due.kind === 'timed' ? { hour: 'numeric', minute: '2-digit' } : {}),
+            });
     const dateLabel = document.createElement('span');
     dateLabel.className = 'task-date-summary';
     dateLabel.append(
       svg,
-      document.createTextNode(
-        `${schedule?.due ? 'Due' : 'Planned for'} ${text}${due.kind === 'timed' ? ` · ${due.timezone}` : ''}`,
-      ),
+      document.createTextNode(`${schedule?.due ? 'Due' : 'Planned for'} ${text}`),
     );
     summary.append(dateLabel);
+    dateLabel.title = formatPreferred?.timeZone || defaultZone;
     summary.title = 'Edit planning';
   }
   async function load(explicit = false) {
@@ -761,8 +785,6 @@ export function mountScheduling({
       })),
     };
     busy = true;
-    const marker = document.querySelector('[data-task-due] .priority-unsaved');
-    if (marker) marker.textContent = 'Saving…';
     setDisabled(true);
     let release;
     try {

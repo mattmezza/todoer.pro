@@ -1,3 +1,6 @@
+import { hydratePreferredTimes } from './preferred-time.js';
+hydratePreferredTimes();
+import './task-play.js';
 import { toast } from './toast.js';
 import './search-omnibar.js';
 import { confirmAction } from './confirm.js';

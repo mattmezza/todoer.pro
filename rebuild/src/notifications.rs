@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 pub struct Preferences {
     pub timezone: String,
     pub week_start: u32,
+    pub fun_animations: bool,
+    pub fun_animation: String,
     pub email_opt_in: bool,
     pub quiet_start: Option<String>,
     pub quiet_end: Option<String>,
@@ -28,6 +30,8 @@ impl Default for Preferences {
         Self {
             timezone: "UTC".into(),
             week_start: 1,
+            fun_animations: true,
+            fun_animation: "cards".into(),
             email_opt_in: false,
             quiet_start: None,
             quiet_end: None,
@@ -116,6 +120,9 @@ impl Store {
         value: Preferences,
     ) -> Result<Preferences, Error> {
         let user = actor_user(&self.conn, actor, 3)?;
+        if !matches!(value.fun_animation.as_str(), "cards" | "tasks") {
+            return Err(invalid("Unknown playful animation"));
+        }
         zone(&value.timezone)?;
         time(&value.daily_time)?;
         time(&value.weekly_time)?;
@@ -275,6 +282,25 @@ mod tests {
         s.seed_dev().unwrap();
         s
     }
+    #[test]
+    fn playful_preferences_preserve_defaults_validate_and_persist() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let old: Preferences = serde_json::from_str("{}").unwrap();
+        assert!(old.fun_animations);
+        assert_eq!(old.fun_animation, "cards");
+        let mut value = db.notification_preferences("dev").unwrap();
+        value.fun_animation = "tasks".into();
+        value.fun_animations = false;
+        db.set_notification_preferences("dev", value.clone())
+            .unwrap();
+        let saved = db.notification_preferences("dev").unwrap();
+        assert!(!saved.fun_animations);
+        assert_eq!(saved.fun_animation, "tasks");
+        value.fun_animation = "unknown".into();
+        assert!(db.set_notification_preferences("dev", value).is_err());
+    }
+
     #[test]
     fn planning_dates_preserve_date_only_and_apply_user_timezone() {
         let mut s = db();
