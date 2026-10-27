@@ -1,3 +1,4 @@
+import { preferredTimeFormatter } from './preferred-time.js';
 const activityLabels = {
   completed: ['Completed', 'completed this task'],
   reopened: ['Reopened', 'reopened this task'],
@@ -59,6 +60,7 @@ export function mountActivity(container, kind, id) {
             : 'Could not load activity. Try again.',
         );
       const page = await response.json();
+      const formatTime = await preferredTimeFormatter();
       if (!active) return;
       for (const item of page.items) {
         const row = document.createElement('article');
@@ -82,9 +84,7 @@ export function mountActivity(container, kind, id) {
           row.append(link);
         }
         const meta = document.createElement('p');
-        const when = item.occurred_at
-          ? ` on ${new Date(item.occurred_at * 1000).toLocaleString()}`
-          : '';
+        const when = ` on ${formatTime(item.occurred_at)}`;
         meta.textContent = `${item.actor}${item.attribution === 'agent' ? ' (agent)' : ''} ${actions.map((value) => value[1]).join(' and ')}${when}.`;
         row.append(meta);
         if (item.undo_revision) {

@@ -1,3 +1,4 @@
+import { confirmAction } from './confirm.js';
 import { mountActivity } from './activity-panel.js';
 const docks = new WeakMap();
 function dockState(root, kind = 'task', id = root.dataset.taskId) {
@@ -38,6 +39,10 @@ function renderDock(state) {
       (state.kind === 'workspace' && option.matches('[data-workspace-settings-open]'))
     )
       option.hidden = state.docked;
+  if (state.kind === 'workspace') {
+    const menu = state.root.querySelector('.space-overview-heading > .entity-menu');
+    if (menu) menu.hidden = state.docked;
+  }
   if (state.toggle) {
     state.toggle.hidden = !state.docked;
     state.toggle.setAttribute('aria-expanded', String(open));
@@ -74,7 +79,7 @@ export function setupTaskSettingsDock(root, kind = 'task', id = root.dataset.tas
       state.expanded = true;
       openSettings(
         id,
-        kind === 'task' ? 'planning' : kind === 'list' ? 'sharing' : 'details',
+        kind === 'task' ? 'planning' : kind === 'list' ? 'sharing' : 'sharing',
         kind,
         root,
       );
@@ -84,7 +89,7 @@ export function setupTaskSettingsDock(root, kind = 'task', id = root.dataset.tas
   if (state.docked && state.expanded)
     openSettings(
       id,
-      kind === 'task' ? 'planning' : kind === 'list' ? 'sharing' : 'details',
+      kind === 'task' ? 'planning' : kind === 'list' ? 'sharing' : 'sharing',
       kind,
       root,
     );
@@ -92,7 +97,7 @@ export function setupTaskSettingsDock(root, kind = 'task', id = root.dataset.tas
 export function openListSettings(listId, selected = 'sharing') {
   return openSettings(listId, selected, 'list');
 }
-export function openWorkspaceSettings(id, selected = 'details') {
+export function openWorkspaceSettings(id, selected = 'sharing') {
   return openSettings(id, selected, 'workspace');
 }
 export function openTaskSettings(root, selected = 'planning') {
@@ -173,6 +178,7 @@ async function openSettings(listId, selected, kind, taskRoot) {
             link.remove();
         }
         decorateSharing(mounted, load);
+        if (workspace) decorateMembers(mounted, listId);
       }
       if (metadataTab) mounted.dataset.metadataTab = tab;
       if (task && (tab === 'planning' || metadataTab)) {
@@ -196,7 +202,6 @@ async function openSettings(listId, selected, kind, taskRoot) {
       ]
     : workspace
       ? [
-          ['details', 'Details'],
           ['sharing', 'Sharing'],
           ['activity', 'Activity'],
         ]
@@ -366,11 +371,16 @@ async function openSettings(listId, selected, kind, taskRoot) {
     if (!(form instanceof HTMLFormElement)) return;
     event.preventDefault();
     const submit = form.querySelector('button[type=submit],button:not([type])');
-    if (submit) submit.disabled = true;
+    const payload = new URLSearchParams(new FormData(form));
+    const controls = [...dialog.querySelectorAll('button,input,select,textarea')].filter(
+      (el) => !el.disabled,
+    );
+    for (const control of controls) control.disabled = true;
+    status.textContent = 'Saving…';
     try {
       const response = await fetch(form.action, {
         method: 'POST',
-        body: new URLSearchParams(new FormData(form)),
+        body: payload,
       });
       if (!response.ok) {
         const error = await response.json().catch(() => null);
@@ -399,6 +409,8 @@ async function openSettings(listId, selected, kind, taskRoot) {
     } catch (error) {
       status.textContent = error.message;
       if (submit) submit.disabled = false;
+    } finally {
+      for (const control of controls) control.disabled = false;
     }
   });
   try {
@@ -522,4 +534,100 @@ function openSharingModal(title, form, reload, restore = () => {}) {
   });
   modal.showModal();
   form.querySelector('input:not([type="hidden"])')?.focus();
+}
+
+async function decorateMembers(section, id) {
+  const endpoint = '/api/v1/workspaces/' + encodeURIComponent(id) + '/people';
+  try {
+    const r = await fetch(endpoint);
+    if (r.ok)
+      for (const person of await r.json()) {
+        const row = [...section.querySelectorAll('[data-member-id]')].find(
+          (row) => row.dataset.memberId === person.id,
+        );
+        if (row) {
+          row.querySelector('[data-member-name]').textContent = person.name;
+          row.querySelector('[data-member-email]').textContent = person.email;
+        }
+      }
+  } catch {}
+  for (const form of section.querySelectorAll('[data-member-role]')) {
+    form.querySelector('select').onchange = () => form.requestSubmit();
+  }
+  for (const form of section.querySelectorAll('[data-member-remove]')) {
+    form.addEventListener('submit', async (event) => {
+      if (form.dataset.confirmed) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const name = form
+        .closest('[data-member-id]')
+        .querySelector('[data-member-name]').textContent;
+      if (
+        await confirmAction(
+          'Remove ' + name + ' from this space? Separate direct list shares remain.',
+        )
+      ) {
+        form.dataset.confirmed = 'true';
+        form.requestSubmit();
+      }
+    });
+  }
+  const form = section.querySelector('[data-member-add]');
+  if (!form) return;
+  const input = form.querySelector('input[type=search]');
+  const results = form.querySelector('.member-matches');
+  const button = form.querySelector('button[type=submit]');
+  let timer,
+    generation = 0;
+  input.oninput = () => {
+    clearTimeout(timer);
+    const version = ++generation;
+    form.elements.user_id.value = '';
+    button.disabled = true;
+    results.replaceChildren();
+    const query = input.value.trim();
+    if (query.length < 3) return;
+    timer = setTimeout(async () => {
+      try {
+        const response = await fetch(endpoint + '?q=' + encodeURIComponent(query));
+        if (!response.ok) throw Error('Could not search members.');
+        const people = await response.json();
+        if (version !== generation || !section.isConnected) return;
+        for (const person of people) {
+          const pick = document.createElement('button');
+          pick.type = 'button';
+          pick.textContent = person.name + ' · ' + person.email;
+          pick.onclick = () => {
+            input.value = person.email;
+            form.elements.user_id.value = person.id;
+            button.disabled = false;
+            results.replaceChildren();
+          };
+          results.append(pick);
+        }
+        if (!people.length)
+          results.textContent =
+            'Enter the full email of an existing account, or invite them below.';
+      } catch (error) {
+        if (version === generation) results.textContent = error.message;
+      }
+    }, 180);
+  };
+  input.onkeydown = (event) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      results.querySelector('button')?.focus();
+    }
+    if (event.key === 'Enter' && !form.elements.user_id.value) {
+      event.preventDefault();
+      results.querySelector('button')?.click();
+    }
+  };
+  form.addEventListener('submit', (event) => {
+    if (!form.elements.user_id.value) {
+      event.preventDefault();
+      event.stopPropagation();
+      input.focus();
+    }
+  });
 }

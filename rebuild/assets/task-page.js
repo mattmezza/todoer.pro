@@ -1,3 +1,4 @@
+import { preferredTimeFormatter } from './preferred-time.js';
 import { stowInfo } from './quiet-info.js';
 import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
@@ -329,8 +330,11 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         entry = page.items.find((item) => item.completed);
         before = page.next_before;
       } while (!entry && before);
-      if (entry)
-        label.textContent = `Completed${entry.occurred_at ? ' ' + new Date(entry.occurred_at * 1000).toLocaleString() : ''} by ${entry.actor}`;
+      if (entry) {
+        const formatTime = await preferredTimeFormatter();
+        if (alive && task.complete && task.revision === revision)
+          label.textContent = `Completed ${formatTime(entry.occurred_at)} by ${entry.actor}`;
+      }
     } catch {
       completionRevision = null;
     }
