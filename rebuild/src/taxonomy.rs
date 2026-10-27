@@ -882,6 +882,8 @@ fn target(
 ) -> Result<Option<(String, String)>, Error> {
     let found = match kind {
         "workspace" => {
+            let resolved = crate::defaults::resolve(c, "workspace", id)?;
+            let id = resolved.as_str();
             if workspace_visible(c, actor, id, 1).is_err() {
                 return Ok(None);
             }

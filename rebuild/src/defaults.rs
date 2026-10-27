@@ -32,11 +32,13 @@ fn prefix(kind: &str) -> Result<&'static str, Error> {
     }
 }
 pub fn public_id(c: &Connection, kind: &str, id: &str) -> Result<String, Error> {
-    if kind == "task" || kind == "list" {
+    if matches!(kind, "task" | "list" | "workspace") {
         let (table, column, entities) = if kind == "task" {
             ("task_public_ids", "task_id", "tasks")
-        } else {
+        } else if kind == "list" {
             ("list_public_ids", "list_id", "lists")
+        } else {
+            ("workspace_public_ids", "workspace_id", "workspaces")
         };
         loop {
             if let Some(value) = c
@@ -88,11 +90,13 @@ pub fn public_id(c: &Connection, kind: &str, id: &str) -> Result<String, Error> 
     }
 }
 pub fn resolve(c: &Connection, kind: &str, id: &str) -> Result<String, Error> {
-    if kind == "task" || kind == "list" {
+    if matches!(kind, "task" | "list" | "workspace") {
         let (table, column) = if kind == "task" {
             ("task_public_ids", "task_id")
-        } else {
+        } else if kind == "list" {
             ("list_public_ids", "list_id")
+        } else {
+            ("workspace_public_ids", "workspace_id")
         };
         if let Some(value) = c
             .query_row(
@@ -491,6 +495,27 @@ mod tests {
     fn aliases_are_persistent_and_never_grant_access() {
         let mut db = Store::open(":memory:").unwrap();
         db.seed_dev().unwrap();
+        let space = db
+            .create_workspace(
+                "dev",
+                WorkspaceInput {
+                    title: "Compact space".into(),
+                    description: String::new(),
+                },
+            )
+            .unwrap();
+        let short_space = public_id(&db.conn, "workspace", &space.id).unwrap();
+        assert_eq!(short_space.len(), 7);
+        assert_eq!(
+            resolve(&db.conn, "workspace", &short_space).unwrap(),
+            space.id
+        );
+        db.conn.execute("INSERT INTO entity_public_ids(kind,entity_id,short_id) VALUES('workspace',?1,'s_oldSpaceAlias')", [&space.id]).unwrap();
+        assert_eq!(
+            resolve(&db.conn, "workspace", "s_oldSpaceAlias").unwrap(),
+            space.id
+        );
+        assert!(db.workspace("other", &space.id).is_err());
         let alias = public_id(&db.conn, "list", "private").unwrap();
         assert_eq!(alias.len(), 7);
         db.conn.execute("INSERT INTO entity_public_ids(kind,entity_id,short_id) VALUES('list','private','l_oldPrivateAlias')",[]).unwrap();

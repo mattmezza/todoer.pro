@@ -1,3 +1,4 @@
+import { toast } from './toast.js';
 import './search-omnibar.js';
 import { confirmAction } from './confirm.js';
 import { listPending, clearAccount } from './offline.js';
@@ -437,3 +438,40 @@ if (spaceSettings) {
     ),
   );
 }
+
+// Personal favorites are available to viewers as well as list editors.
+document.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-list-favorite]');
+  if (!button || button.disabled) return;
+  const favorite = button.dataset.isFavorite !== 'true';
+  button.disabled = true;
+  try {
+    const response = await fetch('/api/v1/favorites', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token':
+          document.querySelector('meta[name=csrf-token]')?.content ||
+          document.querySelector('[name=csrf]')?.value ||
+          '',
+      },
+      body: JSON.stringify({ kind: 'list', id: button.dataset.listFavorite, favorite }),
+    });
+    if (!response.ok)
+      throw Error(
+        (await response.json()).error?.message || 'Could not update favorites.',
+      );
+    for (const item of document.querySelectorAll('[data-list-favorite]')) {
+      if (item.dataset.listFavorite !== button.dataset.listFavorite) continue;
+      item.dataset.isFavorite = String(favorite);
+      item.querySelector('span').textContent = favorite
+        ? 'Remove from favorites'
+        : 'Add to favorites';
+    }
+    button.closest('details')?.removeAttribute('open');
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+  }
+});

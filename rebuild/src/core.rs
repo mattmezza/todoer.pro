@@ -250,6 +250,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (27, include_str!("../migrations/027_identity_picture.sql")),
     (28, include_str!("../migrations/028_compact_list_ids.sql")),
     (29, include_str!("../migrations/029_legacy_inbox_space.sql")),
+    (30, include_str!("../migrations/030_compact_space_ids.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {
@@ -286,10 +287,10 @@ impl Store {
             )?;
             if !applied {
                 tx.execute_batch(sql)?;
-                if version == 28 {
+                if version == 30 {
                     crate::defaults::backfill(&tx)?;
                 }
-                if version == 29 {
+                if version == 30 {
                     crate::defaults::adopt_legacy_inboxes(&tx)?;
                 }
                 if version == 1 {

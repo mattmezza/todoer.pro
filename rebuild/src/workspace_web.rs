@@ -540,6 +540,29 @@ async fn space_redirect(
         .await?;
     Ok(Redirect::to(&format!("/space/{target}")).into_response())
 }
+#[derive(Template)]
+#[template(path = "space-overview.html")]
+struct SpaceOverview {
+    sidebar: super::Sidebar,
+    workspace: Workspace,
+    reference: String,
+    lists: Vec<SpaceListCard>,
+    open: i64,
+    completed: i64,
+    can_edit: bool,
+}
+struct SpaceListCard {
+    id: String,
+    title: String,
+    description: String,
+    color: String,
+    open: i64,
+    completed: i64,
+    total: i64,
+    p0: i64,
+    p1: i64,
+    favorite: bool,
+}
 async fn space_page(
     State(s): State<AppState>,
     h: HeaderMap,
@@ -548,13 +571,34 @@ async fn space_page(
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
     };
-    let list = s
-        .run(move |db| {
-            let id = crate::defaults::resolve(&db.conn, "workspace", &id)?;
-            db.default_list(&actor, &id)
-        })
-        .await?;
-    super::page(State(s), h, Path(list), Query(super::ListQuery::default())).await
+    let requested = id.clone();
+    let csrf = s.csrf_for(&h);
+    let overview = s.run(move |db| {
+        let id = crate::defaults::resolve(&db.conn, "workspace", &id)?;
+        let workspace = db.workspace(&actor, &id)?;
+        let rank = db.workspace_permission(&actor, &id)?;
+        let reference = crate::defaults::public_id(&db.conn, "workspace", &id)?;
+        // Aggregate only lists visible through the live actor view. Hidden lists
+        // and their task totals never contribute to this overview.
+        let mut query = db.conn.prepare("SELECT l.id,l.title,l.description,coalesce(l.color_hex,l.color,'blue'),sum(CASE WHEN t.complete=0 THEN 1 ELSE 0 END),sum(CASE WHEN t.complete=1 THEN 1 ELSE 0 END),sum(CASE WHEN t.complete=0 AND json_extract(s.document,'$.priority')=0 THEN 1 ELSE 0 END),sum(CASE WHEN t.complete=0 AND json_extract(s.document,'$.priority')=1 THEN 1 ELSE 0 END) FROM lists l JOIN actor_list_access a ON a.list_id=l.id AND a.actor_id=?1 AND a.rank>=1 LEFT JOIN tasks t ON t.list_id=l.id AND t.deleted_at IS NULL LEFT JOIN task_schedule s ON s.task_id=t.id WHERE l.workspace_id=?2 AND l.archived=0 GROUP BY l.id ORDER BY l.position,l.id")?;
+        let mut lists = query.query_map(rusqlite::params![actor,id], |r| {
+            let description: String = r.get(2)?;
+            let open: i64 = r.get(4)?; let completed: i64 = r.get(5)?;
+            Ok(SpaceListCard { id:r.get(0)?, title:r.get(1)?, description: if description.chars().count()>160 { format!("{}…",description.chars().take(160).collect::<String>()) } else {description},color:r.get(3)?,open,completed,total:open+completed,p0:r.get(6)?,p1:r.get(7)?,favorite:false })
+        })?.collect::<Result<Vec<_>,_>>()?;
+        let mut sidebar = super::build_sidebar(db,&actor,lists.first().map(|l|l.id.as_str()).unwrap_or(""),csrf)?;
+        sidebar.current_list_id.clear();
+        sidebar.current_workspace_id = id;
+        sidebar.current_workspace_label = format!("@{}", db.entity_slugs(&actor)?.workspaces.get(&workspace.id).unwrap_or(&workspace.title));
+        for card in &mut lists { card.favorite = sidebar.favorite_ids.contains(&card.id); }
+        let open = lists.iter().map(|l|l.open).sum();
+        let completed = lists.iter().map(|l|l.completed).sum();
+        Ok(SpaceOverview { sidebar, workspace, reference, lists, open, completed, can_edit:rank>=2 })
+    }).await?;
+    if requested != overview.reference {
+        return Ok(Redirect::to(&format!("/space/{}", overview.reference)).into_response());
+    }
+    html(overview)
 }
 async fn workspace_page(
     State(s): State<AppState>,

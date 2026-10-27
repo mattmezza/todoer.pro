@@ -32,6 +32,7 @@ pub(super) fn routes() -> Router<AppState> {
             get(notification_page).post(notification_form),
         )
         .route("/recurring/{id}/state", post(series_state_form))
+        .route("/settings", get(general_settings))
         .route("/settings/general", get(general_settings))
         .route("/today", get(today))
         .route("/upcoming", get(upcoming))
@@ -213,9 +214,6 @@ async fn statistics(
         (today - Duration::days(today.weekday().num_days_from_monday().into())).to_string()
     });
     Ok(Json(s.run(move |db| db.weekly_statistics(&a, &from)).await?).into_response())
-}
-fn page(title: &str, body: String, timezone: &str) -> Response {
-    Html(format!("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>{} · Todoer</title><link rel=\"stylesheet\" href=\"/assets/app.css\"><body class=\"planning-page\"><main><nav><a href=\"/\">Lists</a> · <a href=\"/today\">Today</a> · <a href=\"/upcoming\">Upcoming</a> · <a href=\"/recurring\">Recurring</a> · <a href=\"/statistics\">Weekly statistics</a> · <a href=\"/settings\">Settings</a> · <a href=\"/notifications\">Notifications</a></nav><h1>{}</h1><p>Timezone: {}</p>{}</main></body></html>",esc(title),esc(title),esc(timezone),body)).into_response()
 }
 #[derive(Template)]
 #[template(path = "planning.html")]
@@ -463,7 +461,7 @@ async fn notification_page(State(s): State<AppState>, h: HeaderMap) -> Result<Re
         esc(&prefs.weekly_time),
         mutes
     );
-    Ok(page("Notification preferences", body, &prefs.timezone))
+    render_settings(&s, &h, "Notifications", body, "notifications").await
 }
 async fn notification_form(
     State(s): State<AppState>,
@@ -660,6 +658,32 @@ mod tests {
         )
         .unwrap();
         assert!(text.contains("Planning &lt;task&gt;"));
+        for path in ["/settings", "/settings/general", "/notifications"] {
+            let response = app
+                .clone()
+                .oneshot(
+                    axum::http::Request::builder()
+                        .uri(path)
+                        .header("cookie", "todoer_dev=browser")
+                        .body(axum::body::Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let html = String::from_utf8(
+                response
+                    .into_body()
+                    .collect()
+                    .await
+                    .unwrap()
+                    .to_bytes()
+                    .to_vec(),
+            )
+            .unwrap();
+            assert!(html.contains("aria-label=\"Settings\""));
+            assert!(!html.contains("OAuth is not configured"));
+        }
         let request = |csrf: &str| {
             axum::http::Request::builder()
                 .uri("/api/v1/notification-preferences")
@@ -705,9 +729,10 @@ struct GeneralSettings {
 async fn general_settings(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
     let actor = s.auth(&h, false)?;
     let csrf = s.csrf_for(&h);
-    let sidebar = s
+    let mut sidebar = s
         .run(move |db| super::build_sidebar(db, &actor, "", csrf))
         .await?;
+    sidebar.settings_section = "general".into();
     Ok(Html(
         GeneralSettings { sidebar }
             .render()
@@ -745,6 +770,53 @@ pub(super) async fn render_feature(
         }
         .render()
         .map_err(|_| Error::Invalid("Could not render page".into()))?,
+    )
+    .into_response())
+}
+
+#[derive(Template)]
+#[template(path = "settings-page.html")]
+struct SettingsPage {
+    sidebar: super::Sidebar,
+    title: String,
+    body: String,
+}
+pub(super) async fn render_settings(
+    s: &AppState,
+    h: &HeaderMap,
+    title: &str,
+    html: String,
+    selected: &str,
+) -> Result<Response, ApiError> {
+    let actor = s.auth(h, false)?;
+    let csrf = s.csrf_for(h);
+    let mut sidebar = s
+        .run(move |db| super::build_sidebar(db, &actor, "", csrf))
+        .await?;
+    sidebar.settings_section = selected.into();
+    let mut body = if let Some(main) = html.find("<main") {
+        let begin = html[main..].find('>').unwrap() + main + 1;
+        html[begin..]
+            .split("</main>")
+            .next()
+            .unwrap_or("")
+            .to_owned()
+    } else {
+        html
+    };
+    if let Some(begin) = body.find("<h1") {
+        if let Some(end) = body[begin..].find("</h1>") {
+            body.replace_range(begin..begin + end + 5, "");
+        }
+    }
+    Ok(Html(
+        SettingsPage {
+            sidebar,
+            title: title.into(),
+            body,
+        }
+        .render()
+        .map_err(|_| Error::Invalid("Could not render settings".into()))?,
     )
     .into_response())
 }

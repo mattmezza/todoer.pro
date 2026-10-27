@@ -160,7 +160,8 @@ async fn page(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiEr
         body.push_str("<p>Push delivery is unavailable here. It requires a production browser login and server VAPID configuration. Development sessions do not register push devices.</p>");
     }
     body.push_str("<p>On iPhone or iPad, add Todoer to your Home Screen and open it there before enabling push. Browser or operating-system settings can block notifications. Delivery is best effort.</p><a href=\"/notifications\">Notification quiet hours and muted lists</a></main></body></html>");
-    let mut response = Html(body).into_response();
+    let mut response =
+        super::scheduling_http::render_settings(&s, &h, "Devices", body, "devices").await?;
     response
         .headers_mut()
         .insert(header::CACHE_CONTROL, "private, no-store".parse().unwrap());
