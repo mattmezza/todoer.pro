@@ -122,7 +122,7 @@ async function search() {
     showStatus(
       data.hits.length
         ? `${data.total} matching ${data.total === 1 ? 'entry' : 'entries'}. Showing the most relevant.`
-        : 'No matches. Try a shorter word prefix.',
+        : 'No matches. Try a different word or a shorter search.',
       data.hits.length ? 'info' : 'search',
     );
     select(0);
