@@ -1,7 +1,94 @@
 <script type="module" src="/assets/account-security.js"></script>
-<section class="general-settings" data-account-security><h2>Sign-in &amp; security</h2><p class="muted" data-account-summary>Loading security settings…</p><p class="muted">Security changes require a sign-in within the last five minutes. <a href="/signin?next=%2Fsettings%2Fsecurity">Sign in again</a></p>
-<form data-set-password class="grid gap-3"><label>New password<input type="password" name="password" minlength="15" maxlength="128" autocomplete="new-password" required></label><button class="primary">Save password</button></form>
-<h3>Authenticator app</h3><p class="muted">Use a six-digit code from your authenticator app as a second factor.</p><button type="button" data-totp-start>Set up authenticator</button><form data-totp-form hidden class="grid gap-3"><p>Add this secret to your authenticator app:</p><code data-totp-secret></code><label>Code<input name="code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" required></label><button class="primary">Enable authenticator</button></form><button type="button" data-totp-disable hidden>Remove authenticator</button>
-<h3>Passkeys &amp; security keys</h3><p class="muted">Use your device lock, biometrics, or a compatible security key. Registering a passkey also enables MFA for password and Google sign-ins.</p><div data-passkey-list></div><form data-add-passkey class="grid gap-3"><label>Passkey name<input name="label" maxlength="100" placeholder="My laptop" required></label><button type="submit">Add passkey</button></form>
-<h3>Recovery codes</h3><p class="muted">Store these somewhere safe. Each can be used once if you lose access to your authenticator.</p><button type="button" data-recovery-generate>Generate new recovery codes</button><div data-recovery-panel hidden><p>Save these codes now. They will not be shown again.</p><pre data-recovery-codes></pre><a href="/signin?next=%2Fsettings%2Fsecurity">I saved my codes — sign in again</a></div></section>
-<section class="general-settings" data-auth-policy-panel><h2>Deployment authentication</h2><p class="muted">Administrator settings for everyone on this Todoer instance.</p><form data-auth-policy class="grid gap-3"><label><input type="checkbox" name="google_enabled"> Allow Google sign-in</label><label><input type="checkbox" name="signup_enabled"> Allow account creation</label><p class="muted">Closing account creation keeps existing accounts working. New registrations must also be on the deployment's email allowlist.</p><button class="primary">Save authentication settings</button></form></section>
+<section class="general-settings account-security-layout" data-account-security>
+  <div class="security-overview">
+    <h2>Your sign-in</h2>
+    <p class="muted" data-account-summary>Loading security settings…</p>
+    <p class="muted security-reauth">
+      Security changes require a sign-in within the last five minutes.
+      <a href="/signin?next=%2Fsettings%2Fsecurity">Sign in again</a>
+    </p>
+  </div>
+  <div class="security-card-grid">
+    <section class="security-card">
+      <h3>Password</h3>
+      <p class="muted">Use a strong, unique password to sign in with email.</p>
+      <form data-set-password class="grid gap-3">
+        <label
+          >New password<input
+            type="password"
+            name="password"
+            minlength="15"
+            maxlength="128"
+            autocomplete="new-password"
+            required /></label
+        ><button class="primary">Save password…</button>
+      </form>
+    </section>
+    <section class="security-card">
+      <h3>Authenticator app</h3>
+      <p class="muted">
+        Use a six-digit code from your authenticator app as a second factor.
+      </p>
+      <button type="button" data-totp-start>Set up authenticator…</button>
+      <form data-totp-form hidden class="grid gap-3">
+        <p>Add this secret to your authenticator app:</p>
+        <code data-totp-secret></code
+        ><label
+          >Code<input
+            name="code"
+            autocomplete="one-time-code"
+            inputmode="numeric"
+            pattern="[0-9]{6}"
+            required /></label
+        ><button class="primary">Enable authenticator</button>
+      </form>
+      <button type="button" data-totp-disable hidden>Remove authenticator…</button>
+    </section>
+    <section class="security-card">
+      <h3>Passkeys &amp; security keys</h3>
+      <p class="muted">
+        Use your device lock, biometrics, or a compatible security key. Registering a
+        passkey also enables MFA for password and Google sign-ins.
+      </p>
+      <div data-passkey-list></div>
+      <form data-add-passkey class="grid gap-3">
+        <label
+          >Passkey name<input
+            name="label"
+            maxlength="100"
+            placeholder="My laptop"
+            required /></label
+        ><button type="submit">Add passkey…</button>
+      </form>
+    </section>
+    <section class="security-card">
+      <h3>Recovery codes</h3>
+      <p class="muted">
+        Store these somewhere safe. Each can be used once if you lose access to your
+        authenticator.
+      </p>
+      <button type="button" data-recovery-generate>Generate recovery codes…</button>
+      <div data-recovery-panel hidden>
+        <p>Save these codes now. They will not be shown again.</p>
+        <pre data-recovery-codes></pre>
+        <a href="/signin?next=%2Fsettings%2Fsecurity">I saved my codes — sign in again</a>
+      </div>
+    </section>
+  </div>
+</section>
+<section
+  class="general-settings security-card security-deployment"
+  data-auth-policy-panel
+>
+  <h2>Deployment authentication</h2>
+  <p class="muted">Administrator settings for everyone on this Todoer instance.</p>
+  <form data-auth-policy class="grid gap-3">
+    <label><input type="checkbox" name="google_enabled" /> Allow Google sign-in</label
+    ><label><input type="checkbox" name="signup_enabled" /> Allow account creation</label>
+    <p class="muted">
+      Closing account creation keeps existing accounts working. New registrations must
+      also be on the deployment's email allowlist.
+    </p>
+    <button class="primary">Save authentication settings</button>
+  </form>
+</section>
