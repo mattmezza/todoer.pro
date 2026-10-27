@@ -50,24 +50,21 @@ async function openSettings(listId, selected, kind, taskRoot) {
       return;
     }
     const metadataTab = task && ['tags', 'structure', 'references'].includes(tab);
-    const section = doc?.querySelector(`[data-panel-section="${metadataTab ? 'references' : tab}"]`);
+    const section = doc?.querySelector(
+      `[data-panel-section="${metadataTab ? 'references' : tab}"]`,
+    );
     if (section) {
       const mounted = task ? section : section.cloneNode(true);
       if (!task && tab === 'sharing') {
         for (const link of mounted.querySelectorAll('a')) {
-          if (/^Move list to another workspace$|^Open parent workspace$/.test(link.textContent.trim()))
+          if (
+            /^Move list to another workspace$|^Open parent workspace$/.test(
+              link.textContent.trim(),
+            )
+          )
             link.remove();
         }
-        for (const form of mounted.querySelectorAll('form[action$="/grants"]')) {
-          const trigger = document.createElement('details');
-          trigger.className = 'sharing-action';
-          const summary = document.createElement('summary');
-          summary.textContent = 'Add or change a direct share…';
-          const previous = form.previousElementSibling;
-          if (previous?.tagName === 'H3') previous.remove();
-          form.before(trigger);
-          trigger.append(summary, form);
-        }
+        decorateSharing(mounted, load);
       }
       if (metadataTab) mounted.dataset.metadataTab = tab;
       if (task && (tab === 'planning' || metadataTab)) {
@@ -79,8 +76,7 @@ async function openSettings(listId, selected, kind, taskRoot) {
         }
       }
       content.append(mounted);
-    }
-    else content.textContent = 'Only space owners can change these settings.';
+    } else content.textContent = 'Only space owners can change these settings.';
   }
   for (const [tab, label] of task
     ? [
@@ -91,7 +87,11 @@ async function openSettings(listId, selected, kind, taskRoot) {
         ['activity', 'Activity'],
       ]
     : workspace
-      ? [['details', 'Details'], ['sharing', 'Sharing'], ['activity', 'Activity']]
+      ? [
+          ['details', 'Details'],
+          ['sharing', 'Sharing'],
+          ['activity', 'Activity'],
+        ]
       : [['sharing', 'Sharing']]) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -222,4 +222,120 @@ async function openSettings(listId, selected, kind, taskRoot) {
   } catch (error) {
     status.textContent = error.message;
   }
+}
+
+function icon(name) {
+  const holder = document.createElement('span');
+  holder.innerHTML = `<svg class="ui-icon" width="18" height="18" aria-hidden="true"><use href="/assets/icons.svg#${name}"/></svg>`;
+  return holder.firstElementChild;
+}
+function decorateSharing(section, reload) {
+  section.classList.add('sharing-panel');
+  for (const label of section.querySelectorAll('label:has(input[type="checkbox"])')) {
+    const checkbox = label.querySelector('input');
+    const text = document.createElement('span');
+    for (const node of [...label.childNodes]) if (node !== checkbox) text.append(node);
+    label.append(text);
+    label.classList.add('sharing-consent');
+  }
+  for (const heading of section.querySelectorAll('h2,h3')) heading.prepend(icon('user'));
+  const grants = section.querySelector('form[action$="/grants"]');
+  if (grants) {
+    grants.previousElementSibling?.remove();
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'sharing-add';
+    button.append(icon('plus'), 'Add or change a direct share…');
+    grants.before(button);
+    grants.hidden = true;
+    button.onclick = () => {
+      grants.hidden = false;
+      openSharingModal('Direct share', grants, reload, () => {
+        grants.hidden = true;
+        button.after(grants);
+      });
+    };
+    const note = grants.nextElementSibling;
+    if (note?.textContent.includes('Email invitations are not implemented'))
+      note.remove();
+  }
+  for (const link of section.querySelectorAll('a[href^="/invitations/new"]')) {
+    link.prepend(icon('plus-circle'));
+    link.addEventListener('click', async (event) => {
+      event.preventDefault();
+      try {
+        const response = await fetch(link.href, { cache: 'no-store' });
+        if (!response.ok) throw Error('Could not load invitation form.');
+        const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+        const form = doc.querySelector('form');
+        if (!form) throw Error('Invitation form unavailable.');
+        openSharingModal('Invite by email', form, reload);
+      } catch (error) {
+        link.after(
+          Object.assign(document.createElement('p'), {
+            textContent: error.message,
+            role: 'alert',
+          }),
+        );
+      }
+    });
+  }
+}
+function openSharingModal(title, form, reload, restore = () => {}) {
+  const modal = document.createElement('dialog');
+  modal.className = 'sharing-modal';
+  modal.setAttribute('aria-label', title);
+  const heading = document.createElement('h2');
+  heading.textContent = title;
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.textContent = 'Cancel';
+  cancel.onclick = () => modal.close();
+  const actions = document.createElement('div');
+  actions.className = 'sharing-modal-actions';
+  const submit = form.querySelector('button:not([type]),button[type="submit"]');
+  actions.append(cancel, submit);
+  form.append(actions);
+  const status = document.createElement('p');
+  status.role = 'alert';
+  modal.append(heading, form, status);
+  // Keep the modal inside the active panel so it remains interactive above it.
+  document.querySelector('.list-settings-panel').append(modal);
+  modal.addEventListener('close', () => {
+    form.append(submit);
+    actions.remove();
+    restore();
+    modal.remove();
+  });
+  modal.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    submit.disabled = true;
+    try {
+      const response = await fetch(form.action, {
+        method: 'POST',
+        body: new URLSearchParams(new FormData(form)),
+      });
+      if (!response.ok) throw Error('Could not save. Check the details and try again.');
+      if (form.action.includes('/invitations/new')) {
+        const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+        const result = doc.querySelector('main');
+        result?.querySelector('a')?.remove();
+        if (result) {
+          form.replaceWith(result);
+          cancel.textContent = 'Done';
+          modal.append(cancel);
+        }
+      } else {
+        modal.close();
+        await reload();
+      }
+    } catch (error) {
+      status.textContent = error.message;
+    } finally {
+      submit.disabled = false;
+    }
+  });
+  modal.showModal();
+  form.querySelector('input:not([type="hidden"])')?.focus();
 }
