@@ -6675,8 +6675,8 @@ body:has(dialog[open]) .fun-task-stack,
   body.task-settings-docked-open main:not(.task-page) {
     margin-left: var(--task-dock-width);
     margin-right: var(--task-dock-width);
-    padding-left: max(36px, calc((100vw - 720px - 1100px) / 2));
-    padding-right: max(36px, calc((100vw - 720px - 1100px) / 2));
+    padding-left: max(64px, calc((100vw - 720px - 1100px) / 2));
+    padding-right: max(64px, calc((100vw - 720px - 1100px) / 2));
   }
   .list-settings-panel.is-docked {
     width: 360px;
