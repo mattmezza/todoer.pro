@@ -6919,3 +6919,6 @@ form[data-list-edit] .inline-actions, .space-inline-editor > div,
 .task-promote-tree a[aria-current] { background: transparent; }
 .task-promote-tree .task-structure-tree span { display: block; padding: 8px 10px; overflow-wrap: anywhere; }
 .task-promote-tree .task-structure-tree span.is-complete { text-decoration: line-through; }
+[data-child-progress-percent] { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.task-subtask-completion-line::-webkit-progress-value { background: var(--list-color, #3b82f6); }
+.task-subtask-completion-line::-moz-progress-bar { background: var(--list-color, #3b82f6); }

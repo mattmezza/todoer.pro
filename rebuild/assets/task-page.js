@@ -99,6 +99,14 @@ export function mountTaskPage(root, { embedded = false } = {}) {
   saveEdit.replaceChildren(document.createTextNode('Save'));
   editActions.prepend(cancelEdit, saveEdit);
   const canWrite = root.dataset.canWrite === 'true';
+  fetch(`/api/v1/lists/${encodeURIComponent(root.dataset.listId)}/color`).then(r => r.ok ? r.json() : null).then(value => {
+    const color = value?.color || 'blue';
+    const dot = document.createElement('span');dot.className = `list-dot badge-${color}`;
+    dot.hidden = true;root.append(dot);
+    const resolved = /^#[0-9a-f]{6}$/i.test(color) ? color : getComputedStyle(dot).backgroundColor;
+    root.style.setProperty('--list-color', resolved);dot.remove();
+  }).catch(() => {});
+
   let task = {
     id,
     list_id: root.dataset.listId,
@@ -483,20 +491,26 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     get('[data-child-progress]').textContent = counts[1]
       ? nextCursor
         ? `${[...children.values()].filter((item) => item.complete).length}/${children.size} loaded items complete; load remaining items for leaf progress`
-        : `${counts[0]}/${counts[1]} leaf items complete`
+        : `${counts[0]}/${counts[1]} tasks complete`
       : '';
     let completionLine = get('[data-subtask-completion-line]');
     if (!completionLine) {
       completionLine = document.createElement('progress');
       completionLine.dataset.subtaskCompletionLine = '';
       completionLine.className = 'space-completion-line task-subtask-completion-line';
-      completionLine.setAttribute('aria-label', 'Sub-task leaf completion');
+      completionLine.setAttribute('aria-label', 'Sub-task completion');
       get('[data-child-progress]').closest('.section-heading').after(completionLine);
     }
     completionLine.hidden = !!nextCursor || !counts[1];
     completionLine.max = counts[1] || 1;
     completionLine.value = counts[0];
-    completionLine.title = `${counts[0]}/${counts[1]} leaf items complete`;
+    completionLine.title = `${counts[0]}/${counts[1]} tasks complete`;
+    let percent = get('[data-child-progress-percent]');
+    if (!percent) {
+      percent = document.createElement('span');percent.dataset.childProgressPercent = '';
+      get('[data-child-progress]').after(percent);
+    }
+    percent.textContent = !nextCursor && counts[1] ? `${Math.round(counts[0] / counts[1] * 100)}%` : '';
     get('[data-load-more]').hidden = !nextCursor;
   }
   async function loadChildren(cursor = null) {
