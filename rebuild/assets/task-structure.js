@@ -32,7 +32,20 @@ function tree(items, currentId) {
       const row = document.createElement('li');
       const link = document.createElement('a');
       link.href = `/tasks/${encodeURIComponent(item.id)}`;
-      link.textContent = item.title || 'Untitled task';
+      const label = document.createElement('span');
+      label.className = 'structure-task-title';
+      label.textContent = item.title || 'Untitled task';
+      link.append(label);
+      if (currentId) {
+        const mark = document.createElement('span');
+        mark.className = 'structure-task-mark';mark.setAttribute('aria-hidden', 'true');
+        if (item.complete) mark.textContent = '✓';
+        link.prepend(mark);
+      }
+      if (item.id === currentId) {
+        const current = document.createElement('small');current.textContent = 'Current task';current.className = 'structure-current-label';link.append(current);
+      }
+
       if (item.complete) link.classList.add('is-complete');
       if (item.id === currentId) link.setAttribute('aria-current', 'page');
       row.append(link);
@@ -56,12 +69,14 @@ export function mountStructure(container, id) {
   status.className = 'muted';
   status.textContent = 'Loading hierarchy…';
   const view = document.createElement('div');
+  view.className = 'task-structure-view';
+  const heading = document.createElement('h3');heading.textContent = 'Task hierarchy';
   const more = document.createElement('button');
   more.type = 'button';
   more.className = 'activity-more';
   more.textContent = 'Show more';
   more.hidden = true;
-  container.append(status, view, more);
+  container.append(heading, status, view, more);
   async function load(first = false) {
     more.disabled = true;
     try {
@@ -137,7 +152,7 @@ export async function moveToParent(id) {
     destinationLabel.textContent = destination?.title || 'List · top-level tasks';
     const explanation = document.createElement('p');
     explanation.textContent = 'The new structure will look like this:';
-    const preview = tree(items, id);
+    const preview = tree(items, null);
     for (const link of preview.querySelectorAll('a')) {
       const label = document.createElement('span');
       label.textContent = link.textContent;
