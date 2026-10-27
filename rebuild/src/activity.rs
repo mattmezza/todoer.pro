@@ -83,6 +83,9 @@ impl Store {
                 let task = crate::core::task(&self.conn, &id)?;
                 crate::core::access_rank(&self.conn, actor, &task.list_id, 1)?;
             }
+            "list" => {
+                crate::core::access_rank(&self.conn, actor, &id, 1)?;
+            }
             "workspace" => {
                 self.workspace(actor, &id)?;
             }
@@ -90,10 +93,12 @@ impl Store {
         };
         let scope = if kind == "task" {
             "json_extract(h.event,'$.task.id')=?2"
+        } else if kind == "list" {
+            "h.list_id=?2"
         } else {
             "EXISTS(SELECT 1 FROM lists scope WHERE scope.id=h.list_id AND scope.workspace_id=?2)"
         };
-        let mut statement=self.conn.prepare(&format!("SELECT h.seq,json_extract(h.event,'$.kind'),t.id,json_extract(h.event,'$.task.title'),coalesce(u.name,'Member'),coalesce(json_extract(h.event,'$.attribution'),'human'),h.occurred_at,CASE WHEN json_extract(h.event,'$.kind')='update' AND h.before_event IS NOT NULL AND t.revision=json_extract(h.event,'$.task.revision') AND live.rank>=2 THEN t.revision END,coalesce(json_extract(h.event,'$.task.complete'),0)=1 AND coalesce(json_extract(h.before_event,'$.complete'),0)=0,h.event,h.before_event FROM history h JOIN actor_list_access old ON old.list_id=h.list_id AND old.actor_id=?1 JOIN tasks t ON t.id=json_extract(h.event,'$.task.id') JOIN actor_list_access live ON live.list_id=t.list_id AND live.actor_id=?1 LEFT JOIN users u ON u.id=h.actor WHERE {scope} AND (?3 IS NULL OR h.seq<?3) ORDER BY h.seq DESC LIMIT 51"))?;
+        let mut statement=self.conn.prepare(&format!("SELECT h.seq,json_extract(h.event,'$.kind'),t.id,json_extract(h.event,'$.task.title'),coalesce(u.name,'Member'),coalesce(json_extract(h.event,'$.attribution'),'human'),h.occurred_at,CASE WHEN json_extract(h.event,'$.kind')='update' AND h.before_event IS NOT NULL AND t.revision=json_extract(h.event,'$.task.revision') AND live.rank>=2 THEN t.revision END,coalesce(json_extract(h.event,'$.task.complete'),0)=1 AND coalesce(json_extract(h.before_event,'$.complete'),0)=0,h.event,h.before_event FROM history h JOIN actor_list_access old ON old.list_id=h.list_id AND old.actor_id=?1 JOIN tasks t ON t.id=json_extract(h.event,'$.task.id') JOIN actor_list_access live ON live.list_id=t.list_id AND live.actor_id=?1 LEFT JOIN users u ON u.id=h.actor WHERE {scope} AND (?3 IS NULL OR h.seq<?3) ORDER BY h.seq DESC LIMIT 31"))?;
         let mut items = statement
             .query_map(params![actor, id, before], |row| {
                 Ok(ActivityItem {
@@ -113,8 +118,8 @@ impl Store {
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
-        let more = items.len() > 50;
-        items.truncate(50);
+        let more = items.len() > 30;
+        items.truncate(30);
         let next_before = if more {
             items.last().map(|r| r.sequence)
         } else {
@@ -189,13 +194,18 @@ mod tests {
         assert_eq!(page.items[0].actions, vec!["completed"]);
         assert_eq!(page.items[1].actions, vec!["title_changed"]);
         assert!(!page.items[1].completed);
-        assert_eq!(page.items.len(), 50);
+        assert_eq!(page.items.len(), 30);
         assert_eq!(page.items[0].undo_revision, Some(task.revision));
         let rest = db
             .entity_activity("dev", "task", &task.id, page.next_before)
             .unwrap();
-        assert_eq!(rest.items.len(), 7);
+        assert_eq!(rest.items.len(), 27);
         assert!(rest.next_before.is_none());
+        assert!(page.items.last().unwrap().sequence > rest.items[0].sequence);
+        let list_page = db.entity_activity("dev", "list", "inbox", None).unwrap();
+        assert_eq!(list_page.items.len(), 30);
+        assert!(list_page.next_before.is_some());
+        assert!(db.entity_activity("other", "list", "inbox", None).is_err());
         assert!(db.entity_activity("other", "task", &task.id, None).is_err());
         db.conn
             .execute(

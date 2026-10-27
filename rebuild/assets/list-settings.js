@@ -159,7 +159,7 @@ async function openSettings(listId, selected, kind, taskRoot) {
         if (node.dataset.panelSection) stash.append(node);
     content.replaceChildren();
     if (tab === 'activity') {
-      stopActivity = mountActivity(content, workspace ? 'workspace' : 'task', listId);
+      stopActivity = mountActivity(content, workspace ? 'workspace' : task ? 'task' : 'list', listId);
       return;
     }
     const metadataTab = task && ['tags', 'structure', 'references'].includes(tab);
