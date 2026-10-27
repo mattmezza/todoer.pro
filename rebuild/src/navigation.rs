@@ -32,7 +32,7 @@ impl Store {
         }
         // Persist once, retry on a short-reference collision; names/moves never alter it.
         loop {
-            let reference = uuid::Uuid::new_v4().simple().to_string()[..7].to_string();
+            let reference = crate::defaults::readable_id(7);
             if self.conn.execute(
                 "INSERT OR IGNORE INTO list_references(list_id,reference) VALUES(?1,?2)",
                 params![id, reference],
