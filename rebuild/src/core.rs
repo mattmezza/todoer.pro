@@ -118,7 +118,7 @@ pub(crate) fn access_rank(c: &Connection, actor: &str, list: &str, rank: i64) ->
 }
 pub(crate) fn actor_user(c: &Connection, actor: &str, required: i64) -> Result<String, Error> {
     if let Some(id) = actor.strip_prefix("credential:") {
-        let user = c.query_row("SELECT user_id FROM auth_agents a WHERE id=?1 AND revoked=0 AND expires_at>unixepoch() AND list_ids IS NULL AND workspace IS NULL AND EXISTS(SELECT 1 FROM json_each(a.permissions) WHERE CASE value WHEN 'admin' THEN 3 WHEN 'write' THEN 2 WHEN 'read' THEN 1 ELSE 0 END >= ?2)", params![id,required], |r|r.get(0)).optional()?;
+        let user = c.query_row("SELECT user_id FROM auth_agents a WHERE id=?1 AND revoked=0 AND expires_at>unixepoch() AND list_ids IS NULL AND workspace IS NULL AND workspace_ids IS NULL AND EXISTS(SELECT 1 FROM json_each(a.permissions) WHERE CASE value WHEN 'admin' THEN 3 WHEN 'write' THEN 2 WHEN 'read' THEN 1 ELSE 0 END >= ?2)", params![id,required], |r|r.get(0)).optional()?;
         return user.ok_or(Error::Forbidden);
     }
     c.query_row("SELECT id FROM users WHERE id=?1", [actor], |r| r.get(0))
@@ -251,6 +251,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (28, include_str!("../migrations/028_compact_list_ids.sql")),
     (29, include_str!("../migrations/029_legacy_inbox_space.sql")),
     (30, include_str!("../migrations/030_compact_space_ids.sql")),
+    (31, include_str!("../migrations/031_cli_login.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {

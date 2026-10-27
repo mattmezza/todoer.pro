@@ -4,6 +4,7 @@ pub mod assist;
 mod audit;
 pub mod auth;
 pub mod capture_at;
+pub mod cli_auth;
 pub mod core;
 pub mod defaults;
 pub mod discussion;

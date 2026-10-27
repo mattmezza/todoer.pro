@@ -77,3 +77,5 @@ test ! -e "$todoer_skill_root/todoer-agent" && cp -R skills/todoer-agent "$todoe
 No production release image, cutover or remote publication has occurred. The
 existing legacy release workflow still builds Python. Rust checks are prepared
 for a private runner; [runner setup and trust](../docs/rebuild/ci.md) are documented.
+
+CLI browser login, scoped credentials and local storage: [CLI login](../docs/rebuild/cli-login.md).

@@ -15,6 +15,8 @@ mod agent_http;
 mod assist_http;
 #[path = "auth_web.rs"]
 mod browser_auth;
+#[path = "cli_auth_web.rs"]
+mod cli_auth_http;
 #[path = "discussion_web.rs"]
 mod discussion_http;
 #[path = "invitation_web.rs"]
@@ -131,6 +133,15 @@ impl AppState {
                 .fold(0u8, |a, (x, y)| a | (x ^ y));
             if diff == 0 {
                 return Ok("dev".into());
+            }
+            if let Ok(db) = self.store.lock()
+                && let Ok(actor) = db.cli_bearer(
+                    token,
+                    &format!("{}/api/v1", self.origin.trim_end_matches('/')),
+                    write,
+                )
+            {
+                return Ok(actor);
             }
         }
         let cookie_ok = session_cookie(h).is_some_and(|value| {
@@ -255,6 +266,7 @@ pub fn router(state: AppState) -> Router {
         .layer(DefaultBodyLimit::max(128 * 1024))
         .merge(activity_http::routes())
         .merge(oauth_http::routes())
+        .merge(cli_auth_http::routes())
         .merge(organization::routes())
         .merge(agent_http::routes())
         .merge(agent_features::routes())

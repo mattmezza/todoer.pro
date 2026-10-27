@@ -128,7 +128,11 @@ impl AppState {
         if self.production.is_some() {
             self.production_actor(h, false, true)
         } else {
-            self.auth(h, false)
+            let actor = self.auth(h, false)?;
+            if actor.starts_with("credential:") {
+                return Err(Error::Forbidden.into());
+            }
+            Ok(actor)
         }
     }
     pub(super) fn csrf_for(&self, h: &HeaderMap) -> String {

@@ -1,3 +1,5 @@
+#[path = "cli_auth/mod.rs"]
+mod cli_login;
 use clap::{Parser, Subcommand};
 use reqwest::{Client, Method};
 use serde_json::{Value, json};
@@ -50,7 +52,21 @@ enum Command {
         command: SectionCommand,
     },
     /// Explain how to obtain a REST credential without copying browser cookies.
+    #[command(name = "auth", alias = "auth-info")]
     AuthInfo,
+    /// Sign in using your browser; approve permissions and selected spaces/lists.
+    Login {
+        #[arg(long, default_value="read", value_parser=["read","write","admin"])]
+        permission: String,
+        #[arg(long)]
+        no_browser: bool,
+        #[arg(long, default_value_t = 300)]
+        timeout: u64,
+    },
+    /// Revoke and remove the saved login for this server.
+    Logout,
+    /// Show the saved login or environment credential source, without secrets.
+    AuthStatus,
     /// Review and atomically apply bounded, server-stored changes.
     Bulk {
         #[command(subcommand)]
@@ -974,8 +990,30 @@ async fn main() {
 }
 
 async fn run(args: Args) -> Result<(), (i32, String)> {
+    match &args.command {
+        Command::Login {
+            permission,
+            no_browser,
+            timeout,
+        } => {
+            let value = cli_login::login(&args.url, permission, *no_browser, *timeout).await?;
+            output_value(&args, &value);
+            return Ok(());
+        }
+        Command::Logout => {
+            let value = cli_login::logout(&args.url).await?;
+            output_value(&args, &value);
+            return Ok(());
+        }
+        Command::AuthStatus => {
+            let value = cli_login::status(&args.url)?;
+            output_value(&args, &value);
+            return Ok(());
+        }
+        _ => {}
+    }
     if matches!(&args.command, Command::AuthInfo) {
-        let info = json!({"authentication":"REST bearer credential", "settings":"/settings", "instructions":"Sign in using the browser, create a REST credential with the required permissions and lists in /settings, and set TODOER_TOKEN. Browser-only credential issuance and revocation remain in Settings."});
+        let info = json!({"authentication":"REST bearer credential", "settings":"/settings", "instructions":"Run todoer login --permission read|write|admin, then approve spaces/lists in your browser. Saved credentials are used automatically. TODOER_TOKEN overrides the saved login. Use todoer auth-status or todoer logout."});
         if args.json {
             println!("{info}");
         } else {
@@ -1014,7 +1052,9 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         Command::Workspace { command } => workspace_request(command)?,
         Command::Lists { command } => list_request(command)?,
         Command::Sections { command } => section_request(command)?,
-        Command::AuthInfo => unreachable!("handled before request construction"),
+        Command::AuthInfo | Command::Login { .. } | Command::Logout | Command::AuthStatus => {
+            unreachable!("handled before request construction")
+        }
         Command::Bulk { command } => bulk_request(command)?,
         Command::Query(q) => query_request(*q)?,
         Command::Schedule { command } => schedule_request(command)?,
@@ -1217,10 +1257,7 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
     if !query_pairs.is_empty() {
         url.query_pairs_mut().extend_pairs(query_pairs);
     }
-    let token = std::env::var("TODOER_TOKEN")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .ok_or((3, "TODOER_TOKEN must be set and nonempty".into()))?;
+    let token = cli_login::token(&args.url)?;
     let mut request = client.request(method, url).bearer_auth(token);
     if let Some(body) = body {
         request = request.json(&body);
@@ -1347,10 +1384,7 @@ async fn transfer_file(args: &Args, command: &FileCommand) -> Result<(), (i32, S
         );
         return Ok(());
     }
-    let token = std::env::var("TODOER_TOKEN")
-        .ok()
-        .filter(|v| !v.trim().is_empty())
-        .ok_or((3, "TODOER_TOKEN must be set and nonempty".into()))?;
+    let token = cli_login::token(&args.url)?;
     let client = Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(std::time::Duration::from_secs(60))

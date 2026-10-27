@@ -37,6 +37,7 @@ pub struct SessionGrant {
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentMetadata {
+    pub workspace_ids: Option<Vec<String>>,
     pub id: String,
     pub audience: String,
     pub permissions: Vec<Permission>,
@@ -298,7 +299,8 @@ impl AuthStore {
         Ok(principal)
     }
     pub fn list_agents(&self, actor: &str) -> Result<Vec<AgentMetadata>, AuthError> {
-        let mut q=self.conn.prepare("SELECT id,audience,permissions,list_ids,workspace,expires_at,revoked FROM auth_agents WHERE user_id=?1 ORDER BY rowid DESC LIMIT 200")?;
+        let has_spaces: bool = self.conn.query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('auth_agents') WHERE name='workspace_ids')",[],|r|r.get(0))?;
+        let mut q=self.conn.prepare(&format!("SELECT id,audience,permissions,list_ids,workspace,expires_at,revoked,{} FROM auth_agents WHERE user_id=?1 ORDER BY rowid DESC LIMIT 200",if has_spaces { "workspace_ids" } else { "NULL" }))?;
         let rows = q.query_map([actor], |r| {
             Ok((
                 r.get::<_, String>(0)?,
@@ -308,11 +310,14 @@ impl AuthStore {
                 r.get::<_, Option<String>>(4)?,
                 r.get::<_, i64>(5)?,
                 r.get::<_, bool>(6)?,
+                r.get::<_, Option<String>>(7)?,
             ))
         })?;
         rows.map(|row| {
-            let (id, audience, permissions, lists, workspace, expires_at, revoked) = row?;
+            let (id, audience, permissions, lists, workspace, expires_at, revoked, workspace_ids) =
+                row?;
             Ok(AgentMetadata {
+                workspace_ids: workspace_ids.map(|v| parse_json(&v)).transpose()?,
                 id,
                 audience,
                 permissions: parse_json(&permissions)?,

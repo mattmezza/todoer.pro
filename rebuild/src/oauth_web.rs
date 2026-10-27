@@ -696,7 +696,19 @@ async fn settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult {
     let csrf = escaped(&s.csrf_for(&h));
     let mut existing = String::new();
     for row in rows {
-        let scopes = if let Some(lists) = row.list_ids {
+        let scopes = if let Some(spaces) = row.workspace_ids {
+            let mut selected = spaces
+                .into_iter()
+                .map(|id| format!("Space {id}"))
+                .collect::<Vec<_>>();
+            selected.extend(
+                row.list_ids
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|id| format!("List {id}")),
+            );
+            selected.join(", ")
+        } else if let Some(lists) = row.list_ids {
             lists.join(", ")
         } else {
             "All current and future accessible lists".into()
