@@ -149,9 +149,15 @@ impl Store {
         range: ReviewRange,
         now: i64,
     ) -> Result<WeeklyReview, Error> {
+        self.review_history(actor, range, now, false)
+    }
+    pub(crate) fn all_time_review(&self, actor:&str, range:ReviewRange, now:i64)->Result<WeeklyReview,Error>{
+        self.review_history(actor,range,now,true)
+    }
+    fn review_history(&self, actor:&str, range:ReviewRange, now:i64, all_time:bool)->Result<WeeklyReview,Error>{
         let from = date(&range.from)?;
         let to = date(&range.to)?;
-        if to < from || (to - from).num_days() >= 366 {
+        if to < from || (!all_time && (to - from).num_days() >= 366) {
             return Err(invalid(
                 "review range must contain 1–366 ordered calendar days",
             ));
