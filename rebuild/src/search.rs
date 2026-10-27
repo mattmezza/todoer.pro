@@ -147,8 +147,8 @@ fn validate(q: &Query) -> Result<(), Error> {
     if !["all", "open", "completed"].contains(&q.status.as_str()) {
         return Err(invalid("status must be all, open or completed"));
     }
-    if q.priority.is_some_and(|p| !(1..=3).contains(&p)) {
-        return Err(invalid("priority must be 1..3"));
+    if q.priority.is_some_and(|p| !(0..=3).contains(&p)) {
+        return Err(invalid("priority must be 0..3"));
     }
     if q.entities
         .as_ref()

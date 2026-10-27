@@ -6119,7 +6119,7 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "minimum": 1,
+              "minimum": 0,
               "maximum": 3
             }
           },
@@ -12935,7 +12935,7 @@
               {
                 "type": "integer",
                 "format": "int64",
-                "minimum": 1,
+                "minimum": 0,
                 "maximum": 3
               },
               {
@@ -13316,6 +13316,13 @@
             "type": "boolean",
             "default": false,
             "description": "Independent push digest opt-in; default false. Uses the corresponding daily/weekly time and existing quiet hours."
+          },
+          "week_start": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 7,
+            "default": 1,
+            "description": "First day of calendar week: Monday=1 through Sunday=7."
           }
         }
       },

@@ -32,6 +32,7 @@ pub(super) fn routes() -> Router<AppState> {
             get(notification_page).post(notification_form),
         )
         .route("/recurring/{id}/state", post(series_state_form))
+        .route("/settings/general", get(general_settings))
         .route("/today", get(today))
         .route("/upcoming", get(upcoming))
         .route("/recurring", get(recurring))
@@ -223,8 +224,59 @@ struct PlanningPage {
     title: String,
     timezone: String,
     body: String,
+    tabs: String,
+    today: String,
+    week_start: u32,
 }
-async fn calendar(s: AppState, h: HeaderMap, upcoming: bool) -> Result<Response, ApiError> {
+#[derive(Deserialize, Default)]
+struct CalendarQuery {
+    range: Option<String>,
+}
+fn calendar_range(
+    today: chrono::NaiveDate,
+    key: &str,
+    week_start: u32,
+) -> Result<(chrono::NaiveDate, chrono::NaiveDate, &'static str), Error> {
+    let monday = today
+        - Duration::days(((today.weekday().number_from_monday() + 7 - week_start) % 7).into());
+    Ok(match key {
+        "past" => (
+            chrono::NaiveDate::from_ymd_opt(1, 1, 1).unwrap(),
+            monday - Duration::days(8),
+            "Past",
+        ),
+        "previous" => (
+            monday - Duration::days(7),
+            monday - Duration::days(1),
+            "Prev week",
+        ),
+        "wtn" => (monday, today, "Week so far"),
+        "yesterday" => (
+            today - Duration::days(1),
+            today - Duration::days(1),
+            "Yesterday",
+        ),
+        "today" => (today, today, "Today"),
+        "tomorrow" => (
+            today + Duration::days(1),
+            today + Duration::days(1),
+            "Tomorrow",
+        ),
+        "wte" => (today, monday + Duration::days(6), "Rest of week"),
+        "next" => (
+            monday + Duration::days(7),
+            monday + Duration::days(13),
+            "Next week",
+        ),
+        "upcoming" => (
+            monday + Duration::days(14),
+            chrono::NaiveDate::from_ymd_opt(9999, 12, 31).unwrap(),
+            "Upcoming",
+        ),
+        _ => return Err(Error::Invalid("Unknown planning range".into())),
+    })
+}
+async fn calendar(s: AppState, h: HeaderMap, key: String) -> Result<Response, ApiError> {
     let a = s.auth(&h, false)?;
     let actor = a.clone();
     let prefs = s.run(move |db| db.notification_preferences(&actor)).await?;
@@ -233,36 +285,48 @@ async fn calendar(s: AppState, h: HeaderMap, upcoming: bool) -> Result<Response,
         .parse()
         .map_err(|_| Error::Invalid("Invalid timezone".into()))?;
     let today = Utc::now().with_timezone(&tz).date_naive();
-    let from = if upcoming {
-        today + Duration::days(1)
-    } else {
-        today - Duration::days(365)
-    };
-    let to = if upcoming {
-        today + Duration::days(14)
-    } else {
-        today
-    };
+    let (from, to, label) = calendar_range(today, &key, prefs.week_start)?;
     let sidebar_actor = a.clone();
     let rows = s
-        .run(move |db| db.planning_tasks(&a, &from.to_string(), &to.to_string()))
+        .run(move |db| db.planning_timeline(&a, &from.to_string(), &to.to_string()))
         .await?;
     let mut body = String::new();
     for row in rows {
-        body.push_str(&format!(
-            "<article class=\"task planning-task\"><a class=\"planning-completion\" href=\"/tasks/{}\" aria-label=\"Open task\"></a><div class=\"task-content\"><a class=\"task-title\" href=\"/tasks/{0}\">{}</a></div><span class=\"planning-date\"><svg class=\"ui-icon\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" aria-hidden=\"true\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" d=\"M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z\"/></svg><span>{}</span>{}</span></article>",
-            esc(&row.task.id),
-            esc(&row.task.title),
-            esc(&row.dates.join(", ")),
-            row.schedule
-                .schedule
-                .priority
-                .map(|p| format!(" · priority {p}"))
-                .unwrap_or_default()
-        ));
+        let priority = row.schedule.schedule.priority.unwrap_or(2);
+        let priority_label = match priority {
+            0 => "P0 · Highest",
+            1 => "P1 · High",
+            2 => "P2 · Medium",
+            3 => "P3 · Low",
+            _ => "P2 · Medium",
+        };
+        body.push_str(&format!(r#"<article class="task planning-task{}" data-planning-task="{}"><a class="planning-completion" href="/tasks/{}" aria-label="Open task">{}</a><div class="task-content"><a class="task-title" href="/tasks/{}">{}</a></div><span class="planning-row-meta"><span class="task-priority-summary" data-priority="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#flag"/></svg>{}</span><time class="planning-date" datetime="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#calendar"/></svg>{}</time></span></article>"#,
+          if row.task.complete { " is-complete" } else { "" }, esc(&row.task.id), esc(&row.task.id), if row.task.complete { "✓" } else { "" }, esc(&row.task.id), esc(&row.task.title), priority, priority_label, esc(&row.dates[0]), esc(&row.dates[0])));
     }
     if body.is_empty() {
         body.push_str("<div class=\"planning-empty\"><h2>A little breathing room.</h2><p>Nothing planned here yet. Enjoy the space, or capture something you want to make time for.</p><a href=\"/capture\" class=\"primary\">Add a task</a></div>");
+    }
+    let mut tabs = String::new();
+    for tab in [
+        "past",
+        "previous",
+        "wtn",
+        "yesterday",
+        "today",
+        "tomorrow",
+        "wte",
+        "next",
+        "upcoming",
+    ] {
+        let (_, _, caption) = calendar_range(today, tab, prefs.week_start)?;
+        tabs.push_str(&format!(
+            "<a href=\"/today?range={tab}\" {}>{caption}</a>",
+            if tab == key {
+                "aria-current=\"page\""
+            } else {
+                ""
+            }
+        ));
     }
     let csrf = s.csrf_for(&h);
     let sidebar = s
@@ -270,7 +334,10 @@ async fn calendar(s: AppState, h: HeaderMap, upcoming: bool) -> Result<Response,
         .await?;
     let template = PlanningPage {
         sidebar,
-        title: if upcoming { "Upcoming" } else { "Today" }.into(),
+        title: label.into(),
+        tabs,
+        today: today.to_string(),
+        week_start: prefs.week_start,
         timezone: prefs.timezone,
         body,
     };
@@ -279,16 +346,20 @@ async fn calendar(s: AppState, h: HeaderMap, upcoming: bool) -> Result<Response,
         .map_err(|_| Error::Invalid("Could not render planning page".into()))?;
     Ok(Html(rendered).into_response())
 }
-async fn today(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
-    calendar(s, h, false).await
+async fn today(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Query(q): Query<CalendarQuery>,
+) -> Result<Response, ApiError> {
+    calendar(s, h, q.range.unwrap_or_else(|| "today".into())).await
 }
 async fn upcoming(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
-    calendar(s, h, true).await
+    calendar(s, h, "upcoming".into()).await
 }
 async fn recurring(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
     let a = s.auth(&h, false)?;
     let rows = s.run(move |db| db.recurring_series(&a)).await?;
-    let mut body = String::from("<ul>");
+    let mut body = String::from("<ul class=\"recurring-series-list\">");
     for series in rows {
         let rule = match &series.spec.rule {
             crate::scheduling::Rule::Daily { interval_days } => {
@@ -318,8 +389,8 @@ async fn recurring(State(s): State<AppState>, h: HeaderMap) -> Result<Response, 
         }
         body.push_str("</li>");
     }
-    body.push_str("</ul><p>Each series creates at most one outstanding occurrence. Stopping preserves its tasks and history.</p>");
-    Ok(page("Recurring", body, "Per series"))
+    body.push_str("</ul><p class=\"muted\">Each series creates at most one outstanding occurrence. Stopping preserves its tasks and history.</p>");
+    render_feature(&s, &h, "Recurring", body, false).await
 }
 #[derive(Deserialize)]
 struct SeriesForm {
@@ -415,8 +486,13 @@ async fn notification_form(
         let v = field(key);
         (!v.is_empty()).then_some(v)
     };
+    let current_actor = a.clone();
+    let current = s
+        .run(move |db| db.notification_preferences(&current_actor))
+        .await?;
     let prefs = Preferences {
         timezone: field("timezone"),
+        week_start: current.week_start,
         email_opt_in: form.contains_key("email_opt_in"),
         quiet_start: nonempty("quiet_start"),
         quiet_end: nonempty("quiet_end"),
@@ -495,6 +571,24 @@ mod tests {
     use super::*;
     use http_body_util::BodyExt;
     use tower::ServiceExt;
+    #[test]
+    fn planning_windows_respect_week_start_and_cross_year_boundaries() {
+        let day = chrono::NaiveDate::from_ymd_opt(2027, 1, 3).unwrap();
+        let (from, to, _) = calendar_range(day, "previous", 1).unwrap();
+        assert_eq!(
+            (from.to_string(), to.to_string()),
+            ("2026-12-21".into(), "2026-12-27".into())
+        );
+        let (from, to, _) = calendar_range(day, "next", 7).unwrap();
+        assert_eq!(
+            (from.to_string(), to.to_string()),
+            ("2027-01-10".into(), "2027-01-16".into())
+        );
+        let (_, past, _) = calendar_range(day, "past", 7).unwrap();
+        let (previous, _, _) = calendar_range(day, "previous", 7).unwrap();
+        assert_eq!(past + Duration::days(1), previous);
+        assert!(calendar_range(day, "invalid", 1).is_err());
+    }
     #[tokio::test]
     async fn schedule_http_conflicts_and_browser_preferences_are_protected() {
         let mut db = Store::memory().unwrap();
@@ -601,4 +695,56 @@ mod tests {
             StatusCode::FORBIDDEN
         );
     }
+}
+
+#[derive(Template)]
+#[template(path = "general-settings.html")]
+struct GeneralSettings {
+    sidebar: super::Sidebar,
+}
+async fn general_settings(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
+    let actor = s.auth(&h, false)?;
+    let csrf = s.csrf_for(&h);
+    let sidebar = s
+        .run(move |db| super::build_sidebar(db, &actor, "", csrf))
+        .await?;
+    Ok(Html(
+        GeneralSettings { sidebar }
+            .render()
+            .map_err(|_| Error::Invalid("Could not render settings".into()))?,
+    )
+    .into_response())
+}
+
+#[derive(Template)]
+#[template(path = "feature-page.html")]
+struct FeaturePage {
+    sidebar: super::Sidebar,
+    title: String,
+    body: String,
+    review: bool,
+}
+pub(super) async fn render_feature(
+    s: &AppState,
+    h: &HeaderMap,
+    title: &str,
+    body: String,
+    review: bool,
+) -> Result<Response, ApiError> {
+    let actor = s.auth(h, false)?;
+    let csrf = s.csrf_for(h);
+    let sidebar = s
+        .run(move |db| super::build_sidebar(db, &actor, "", csrf))
+        .await?;
+    Ok(Html(
+        FeaturePage {
+            sidebar,
+            title: title.into(),
+            body,
+            review,
+        }
+        .render()
+        .map_err(|_| Error::Invalid("Could not render page".into()))?,
+    )
+    .into_response())
 }

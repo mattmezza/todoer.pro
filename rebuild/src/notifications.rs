@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 pub struct Preferences {
     pub timezone: String,
+    pub week_start: u32,
     pub email_opt_in: bool,
     pub quiet_start: Option<String>,
     pub quiet_end: Option<String>,
@@ -26,6 +27,7 @@ impl Default for Preferences {
     fn default() -> Self {
         Self {
             timezone: "UTC".into(),
+            week_start: 1,
             email_opt_in: false,
             quiet_start: None,
             quiet_end: None,
@@ -117,7 +119,10 @@ impl Store {
         zone(&value.timezone)?;
         time(&value.daily_time)?;
         time(&value.weekly_time)?;
-        if !(1..=7).contains(&value.weekly_day) || value.list_opt_out.len() > 1000 {
+        if !(1..=7).contains(&value.week_start)
+            || !(1..=7).contains(&value.weekly_day)
+            || value.list_opt_out.len() > 1000
+        {
             return Err(invalid("weekly day must be 1–7 and list overrides bounded"));
         }
         match (&value.quiet_start, &value.quiet_end) {
@@ -156,9 +161,28 @@ impl Store {
                 "planning range must be ordered and at most 366 days",
             ));
         }
+        self.planning_rows(actor, from, to, false)
+    }
+    pub(crate) fn planning_timeline(
+        &self,
+        actor: &str,
+        from: &str,
+        to: &str,
+    ) -> Result<Vec<PlannedTask>, Error> {
+        day(from)?;
+        day(to)?;
+        self.planning_rows(actor, from, to, true)
+    }
+    fn planning_rows(
+        &self,
+        actor: &str,
+        from: &str,
+        to: &str,
+        timeline: bool,
+    ) -> Result<Vec<PlannedTask>, Error> {
         let tz = zone(&self.planning_timezone(actor)?)?;
-        let mut q=self.conn.prepare("SELECT t.id,s.revision,s.document FROM tasks t JOIN task_schedule s ON s.task_id=t.id JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?1 JOIN lists l ON l.id=t.list_id WHERE t.deleted_at IS NULL AND t.complete=0 AND l.archived=0 AND a.rank>=1 ORDER BY t.id LIMIT 10000")?;
-        let rows = q.query_map([actor], |r| {
+        let mut q=self.conn.prepare("SELECT t.id,s.revision,s.document FROM tasks t JOIN task_schedule s ON s.task_id=t.id JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?1 JOIN lists l ON l.id=t.list_id WHERE t.deleted_at IS NULL AND (?2 OR t.complete=0) AND l.archived=0 AND a.rank>=1 ORDER BY t.id")?;
+        let rows = q.query_map(params![actor, timeline], |r| {
             Ok((
                 r.get::<_, String>(0)?,
                 r.get::<_, i64>(1)?,
@@ -169,7 +193,14 @@ impl Store {
         for row in rows {
             let (id, revision, document) = row?;
             let schedule: Schedule = decode(&document)?;
-            let dates = dates(&schedule, tz)?;
+            let dates = if timeline {
+                match &schedule.planned {
+                    Some(Moment::Date { date }) => vec![date.clone()],
+                    _ => Vec::new(),
+                }
+            } else {
+                dates(&schedule, tz)?
+            };
             if dates
                 .iter()
                 .any(|value| value.as_str() >= from && value.as_str() <= to)

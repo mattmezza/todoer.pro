@@ -156,8 +156,8 @@ fn validate(schedule: &Schedule) -> Result<(), Error> {
             }
         }
     }
-    if schedule.priority.is_some_and(|p| !(1..=3).contains(&p)) {
-        return Err(invalid("priority must be 1, 2 or 3"));
+    if schedule.priority.is_some_and(|p| !(0..=3).contains(&p)) {
+        return Err(invalid("priority must be 0, 1, 2 or 3"));
     }
     if schedule.reminders.len() > 10 {
         return Err(invalid("at most ten reminder intents are supported"));
@@ -604,6 +604,7 @@ impl Store {
         validate(&schedule)?;
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let before = checked(&tx, actor, id, 2, Some(revision))?;
+        let previous_schedule = state(&tx, &before)?.schedule;
         tx.execute(
             "UPDATE tasks SET revision=revision+1 WHERE id=?1",
             [&before.id],
@@ -611,6 +612,18 @@ impl Store {
         let after = task(&tx, &before.id)?;
         let state = write_schedule(&tx, actor, &after, &schedule)?;
         event(&tx, &after, "schedule", actor, Some(&before))?;
+        let previous = serde_json::to_value(previous_schedule).unwrap();
+        let current = serde_json::to_value(&schedule).unwrap();
+        let changes: Vec<&str> = [
+            ("planned", "planned_changed"),
+            ("due", "due_changed"),
+            ("priority", "priority_changed"),
+            ("reminders", "reminders_changed"),
+        ]
+        .into_iter()
+        .filter_map(|(field, action)| (previous[field] != current[field]).then_some(action))
+        .collect();
+        tx.execute("UPDATE history SET event=json_set(event,'$.changes',json(?1)) WHERE seq=last_insert_rowid()", [serde_json::to_string(&changes).unwrap()])?;
         tx.commit()?;
         Ok(state)
     }
@@ -1403,6 +1416,23 @@ mod tests {
             s.claim_reminders_channel("second-smtp", now, 100, Channel::Email)
                 .unwrap()
                 .is_empty()
+        );
+    }
+    #[test]
+    fn p0_is_persisted_as_highest_priority_and_out_of_range_is_rejected() {
+        let mut s = db();
+        let t = new_task(&mut s);
+        let mut value = schedule();
+        value.priority = Some(0);
+        let saved = s.set_schedule("dev", &t.id, 1, value.clone()).unwrap();
+        assert_eq!(
+            s.get_schedule("dev", &t.id).unwrap().schedule.priority,
+            Some(0)
+        );
+        value.priority = Some(4);
+        assert!(
+            s.set_schedule("dev", &t.id, saved.task_revision, value)
+                .is_err()
         );
     }
     #[test]

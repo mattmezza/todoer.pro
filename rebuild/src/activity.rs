@@ -13,11 +13,56 @@ pub struct ActivityItem {
     pub occurred_at: Option<i64>,
     pub undo_revision: Option<i64>,
     pub completed: bool,
+    pub actions: Vec<String>,
 }
 #[derive(Serialize)]
 pub struct ActivityPage {
     pub items: Vec<ActivityItem>,
     pub next_before: Option<i64>,
+}
+fn activity_actions(event: &str, before: Option<&str>) -> Vec<String> {
+    let value: serde_json::Value = serde_json::from_str(event).unwrap_or_default();
+    let old: serde_json::Value = before
+        .and_then(|s| serde_json::from_str(s).ok())
+        .unwrap_or_default();
+    let kind = value["kind"].as_str().unwrap_or("update");
+    if let Some(changes) = value["changes"].as_array() {
+        let actions: Vec<String> = changes
+            .iter()
+            .filter_map(|v| v.as_str().map(str::to_owned))
+            .collect();
+        if !actions.is_empty() {
+            return actions;
+        }
+    }
+    let mut actions = Vec::new();
+    if kind == "update" || kind == "undo" {
+        let task = &value["task"];
+        if !old.is_null() {
+            for (field, action) in [
+                (
+                    "complete",
+                    if task["complete"].as_bool() == Some(true) {
+                        "completed"
+                    } else {
+                        "reopened"
+                    },
+                ),
+                ("title", "title_changed"),
+                ("description", "description_changed"),
+                ("parent_id", "parent_changed"),
+                ("list_id", "moved"),
+            ] {
+                if task[field] != old[field] {
+                    actions.push(action.into());
+                }
+            }
+        }
+    }
+    if actions.is_empty() {
+        actions.push(kind.into());
+    }
+    actions
 }
 impl Store {
     pub fn entity_activity(
@@ -48,7 +93,7 @@ impl Store {
         } else {
             "EXISTS(SELECT 1 FROM lists scope WHERE scope.id=h.list_id AND scope.workspace_id=?2)"
         };
-        let mut statement=self.conn.prepare(&format!("SELECT h.seq,json_extract(h.event,'$.kind'),t.id,json_extract(h.event,'$.task.title'),coalesce(u.name,'Member'),coalesce(json_extract(h.event,'$.attribution'),'human'),h.occurred_at,CASE WHEN json_extract(h.event,'$.kind')='update' AND h.before_event IS NOT NULL AND t.revision=json_extract(h.event,'$.task.revision') AND live.rank>=2 THEN t.revision END,coalesce(json_extract(h.event,'$.task.complete'),0)=1 AND coalesce(json_extract(h.before_event,'$.complete'),0)=0 FROM history h JOIN actor_list_access old ON old.list_id=h.list_id AND old.actor_id=?1 JOIN tasks t ON t.id=json_extract(h.event,'$.task.id') JOIN actor_list_access live ON live.list_id=t.list_id AND live.actor_id=?1 LEFT JOIN users u ON u.id=h.actor WHERE {scope} AND (?3 IS NULL OR h.seq<?3) ORDER BY h.seq DESC LIMIT 51"))?;
+        let mut statement=self.conn.prepare(&format!("SELECT h.seq,json_extract(h.event,'$.kind'),t.id,json_extract(h.event,'$.task.title'),coalesce(u.name,'Member'),coalesce(json_extract(h.event,'$.attribution'),'human'),h.occurred_at,CASE WHEN json_extract(h.event,'$.kind')='update' AND h.before_event IS NOT NULL AND t.revision=json_extract(h.event,'$.task.revision') AND live.rank>=2 THEN t.revision END,coalesce(json_extract(h.event,'$.task.complete'),0)=1 AND coalesce(json_extract(h.before_event,'$.complete'),0)=0,h.event,h.before_event FROM history h JOIN actor_list_access old ON old.list_id=h.list_id AND old.actor_id=?1 JOIN tasks t ON t.id=json_extract(h.event,'$.task.id') JOIN actor_list_access live ON live.list_id=t.list_id AND live.actor_id=?1 LEFT JOIN users u ON u.id=h.actor WHERE {scope} AND (?3 IS NULL OR h.seq<?3) ORDER BY h.seq DESC LIMIT 51"))?;
         let mut items = statement
             .query_map(params![actor, id, before], |row| {
                 Ok(ActivityItem {
@@ -61,6 +106,10 @@ impl Store {
                     occurred_at: row.get(6)?,
                     undo_revision: row.get(7)?,
                     completed: row.get(8)?,
+                    actions: activity_actions(
+                        &row.get::<_, String>(9)?,
+                        row.get::<_, Option<String>>(10)?.as_deref(),
+                    ),
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -78,6 +127,16 @@ impl Store {
 mod tests {
     use super::*;
     use crate::core::{Capture, Change, NewTask};
+    #[test]
+    fn history_describes_reopening_and_combined_edits() {
+        let event =
+            r#"{"kind":"update","task":{"complete":false,"title":"New","description":"Changed"}}"#;
+        let before = r#"{"complete":true,"title":"Old","description":"Old description"}"#;
+        assert_eq!(
+            activity_actions(event, Some(before)),
+            vec!["reopened", "title_changed", "description_changed"]
+        );
+    }
     #[test]
     fn task_activity_is_bounded_scoped_and_revocation_is_live() {
         let mut db = Store::open(":memory:").unwrap();
@@ -127,6 +186,8 @@ mod tests {
             .unwrap();
         let page = db.entity_activity("dev", "task", &task.id, None).unwrap();
         assert!(page.items[0].completed);
+        assert_eq!(page.items[0].actions, vec!["completed"]);
+        assert_eq!(page.items[1].actions, vec!["title_changed"]);
         assert!(!page.items[1].completed);
         assert_eq!(page.items.len(), 50);
         assert_eq!(page.items[0].undo_revision, Some(task.revision));

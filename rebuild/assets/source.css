@@ -5265,9 +5265,14 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
   width: 20px;
   height: 20px;
 }
+.task-settings-pin,
 .task-settings-pin[aria-pressed='true'] {
-  color: #93c5fd;
-  background: #1b2940;
+  color: #94a3b8;
+  background: transparent;
+}
+.task-settings-pin:hover {
+  color: #e2e8f0;
+  background: #1b2638;
 }
 .list-settings-panel > header h2 {
   flex: 1;
@@ -5381,7 +5386,7 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
 
 /* Docked settings share the navigation surface and type scale. */
 .list-settings-panel.is-docked {
-  background: #050914;
+  background: var(--sidebar);
   border: 0;
   border-radius: 0;
   font-family: inherit;
@@ -5449,4 +5454,439 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
   border-color: transparent;
   outline: none;
   box-shadow: none;
+}
+
+.planning-tabs {
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.planning-list-page .planning-tabs a {
+  white-space: nowrap;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+.planning-list-page .planning-task {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+}
+.planning-row-meta {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.planning-row-meta .planning-date {
+  width: 124px;
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.planning-row-meta .task-priority-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.task-priority-summary[data-priority='0'] {
+  color: #fda4af;
+  background: rgb(244 63 94 / 0.2);
+}
+.planning-row-meta [data-priority='1'] {
+  color: #fca5a5;
+  background: rgb(239 68 68 / 0.14);
+}
+.planning-row-meta [data-priority='2'] {
+  color: #fcd34d;
+  background: rgb(245 158 11 / 0.12);
+}
+.planning-row-meta [data-priority='3'] {
+  color: #93c5fd;
+  background: rgb(59 130 246 / 0.1);
+}
+.priority-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.priority-option {
+  min-width: 0;
+}
+.priority-option > span {
+  white-space: nowrap;
+  gap: 5px;
+  justify-content: center;
+  padding-inline: 8px;
+}
+.task-page[data-priority='0'] .task-page-complete::before {
+  border-color: #fb7185;
+  border-width: 2px;
+}
+.planning-task.is-complete .task-title {
+  text-decoration: line-through;
+  color: #8192a8;
+}
+.planning-task.is-complete .planning-completion {
+  background: #64748b;
+  color: #050914;
+  text-align: center;
+  font-size: 13px;
+  line-height: 18px;
+}
+.planning-task.is-selected {
+  background: #101827;
+}
+.planning-detail-panel {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 44;
+  width: min(600px, 46vw);
+  background: var(--sidebar);
+  color: var(--text);
+  overflow-y: auto;
+  animation: planning-dock-in 140ms ease-out;
+}
+.planning-detail-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  background: var(--sidebar);
+  font-size: 14px;
+}
+.planning-detail-toolbar strong {
+  margin-right: auto;
+}
+.planning-detail-toolbar a {
+  color: #8192a8;
+  font-size: 13px;
+}
+.planning-detail-toolbar button {
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+}
+.planning-detail-content {
+  padding: 4px 20px 32px;
+}
+.planning-detail-content .task-page {
+  padding: 22px 0 0 30px;
+  margin: 0;
+  width: auto;
+  max-width: none;
+  font-size: 14px;
+}
+.planning-detail-content .task-page-heading {
+  flex-wrap: wrap;
+}
+.planning-detail-content .task-page-heading h1 {
+  flex-basis: 100%;
+  font-size: 24px;
+}
+.planning-detail-content .task-page-heading > .entity-reference {
+  margin-left: auto;
+}
+.planning-detail-content .breadcrumbs {
+  font-size: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.planning-detail-content .task-page-checklist {
+  margin-top: 28px;
+}
+.planning-quick-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 13px;
+}
+.planning-quick-actions > span {
+  color: #8192a8;
+  margin-right: 4px;
+}
+.planning-quick-actions button {
+  background: #151e2d;
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 13px;
+}
+.planning-quick-actions button:hover {
+  background: #243249;
+}
+.planning-quick-status {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 6px 0 0;
+}
+.planning-quick-status:empty {
+  display: none;
+}
+.general-settings {
+  max-width: 500px;
+}
+.general-settings h2 {
+  margin-bottom: 24px;
+}
+.general-settings label {
+  display: grid;
+  gap: 8px;
+}
+.general-settings .primary {
+  justify-self: start;
+}
+@media (min-width: 1100px) {
+  .planning-detail-open main[data-planning-today] {
+    margin-right: min(600px, 46vw);
+    padding-left: 28px;
+    padding-right: 24px;
+  }
+  .planning-detail-open .planning-task {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+  .planning-detail-open .planning-row-meta {
+    grid-column: 2;
+    justify-content: space-between;
+  }
+}
+@media (max-width: 1099px) {
+  .planning-detail-panel {
+    width: min(600px, calc(100vw - 24px));
+    box-shadow: -20px 0 50px #0009;
+  }
+}
+@media (max-width: 700px) {
+  .planning-list-page .planning-task {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+  .planning-row-meta {
+    grid-column: 2;
+    justify-content: space-between;
+    gap: 8px;
+  }
+}
+@keyframes planning-dock-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .planning-detail-panel {
+    animation: none;
+  }
+}
+
+.list-settings-panel .settings-tabs {
+  margin: 0 22px;
+  padding: 0;
+  gap: 0;
+  align-items: stretch;
+}
+.list-settings-panel .settings-tabs > button {
+  flex: 1 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border-radius: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 11px 8px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  min-height: 44px;
+}
+.list-settings-panel .settings-tabs > button[aria-selected='true'] {
+  border-bottom-color: var(--accent);
+  background: transparent;
+}
+.settings-content .planning-group > p {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 10px 0 16px;
+}
+.settings-content .reminder-card {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--hover);
+  min-width: 0;
+}
+.settings-content .reminder-card label,
+.settings-content .recurrence-compact label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  margin: 0;
+}
+.reminder-when,
+.recurrence-limits {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+.settings-content .reminder-card :is(input, select),
+.settings-content .recurrence-compact :is(input, select) {
+  min-width: 0;
+  width: 100%;
+  font-size: 13px;
+  min-height: 38px;
+  padding: 7px 9px;
+}
+.settings-content .planning-group button.reminder-remove {
+  justify-self: end;
+  padding: 3px 6px;
+  min-height: 28px;
+  font-size: 12px;
+  border: 0;
+  color: #94a3b8;
+  background: transparent;
+}
+.settings-content .planning-group button.reminder-add {
+  margin-top: 10px;
+  margin-bottom: 4px;
+  padding: 6px 10px;
+}
+.settings-content form.recurrence-compact {
+  padding: 12px 0 0;
+  margin: 0;
+  gap: 14px;
+}
+.settings-content .recurrence-compact > p {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 4px;
+}
+.settings-content .recurrence-compact fieldset {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+.settings-content .recurrence-compact fieldset label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.settings-content .recurrence-compact input[type='checkbox'] {
+  width: 14px;
+  min-height: 14px;
+}
+.recurrence-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 6px;
+  align-items: center;
+}
+.settings-content .recurrence-actions button {
+  margin: 0;
+}
+@media (max-width: 380px) {
+  .reminder-when,
+  .recurrence-limits {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.task-page-heading > .task-page-complete::before {
+  width: 28px;
+  height: 28px;
+}
+.planning-detail-content .task-page-heading > .task-page-complete::before {
+  width: 26px;
+  height: 26px;
+}
+
+:is(.task-page, .planning-row-meta) .task-priority-summary[data-priority='0'] {
+  color: #ff3b3b;
+  background: rgb(255 35 60 / 0.16);
+}
+:is(.task-page, .planning-row-meta) .task-priority-summary[data-priority='1'] {
+  color: #d99a32;
+  background: rgb(180 110 15 / 0.14);
+}
+:is(.task-page, .planning-row-meta) .task-priority-summary[data-priority='2'] {
+  color: #78aaff;
+  background: rgb(59 130 246 / 0.12);
+}
+:is(.task-page, .planning-row-meta) .task-priority-summary[data-priority='3'] {
+  color: var(--text);
+  background: transparent;
+}
+.priority-option[data-priority='0'] .ui-icon {
+  color: #ff3b3b;
+}
+.priority-option[data-priority='1'] .ui-icon {
+  color: #d99a32;
+}
+.priority-option[data-priority='2'] .ui-icon {
+  color: #78aaff;
+}
+.priority-option[data-priority='3'] .ui-icon {
+  color: inherit;
+}
+.task-page[data-priority='0'] .task-page-complete::before {
+  border-color: #ff3b3b;
+}
+.task-page[data-priority='1'] .task-page-complete::before {
+  border-color: #d99a32;
+}
+.task-page[data-priority='2'] .task-page-complete::before {
+  border-color: #78aaff;
+}
+.task-page[data-priority='3'] .task-page-complete::before {
+  border-color: #526377;
+}
+
+.settings-content .planning-actions:not(:has(button:not([hidden]))) {
+  display: none;
+}
+.shared-feature-content {
+  margin-top: 28px;
+  font-family: var(--font-sans);
+}
+.recurring-series-list {
+  list-style: none;
+  padding: 0;
+}
+.recurring-series-list > li {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+  line-height: 1.7;
+}
+.recurring-series-list form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.recurring-series-list button {
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 14px;
+}
+.shared-feature-content > .muted {
+  margin-top: 24px;
+}
+:is(.task-page, .planning-row-meta) .task-priority-summary .ui-icon {
+  color: inherit;
 }

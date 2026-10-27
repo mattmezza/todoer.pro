@@ -1,3 +1,32 @@
+const activityLabels = {
+  completed: ['Completed', 'completed this task'],
+  reopened: ['Reopened', 'reopened this task'],
+  title_changed: ['Title changed', 'changed the task title'],
+  description_changed: ['Description edited', 'edited the task description'],
+  planned_changed: ['Planned date changed', 'changed the planned date'],
+  due_changed: ['Due date changed', 'changed the due date'],
+  priority_changed: ['Priority changed', 'changed the priority'],
+  reminders_changed: ['Reminders changed', 'changed the reminders'],
+  create: ['Created', 'created this task'],
+  update: ['Task updated', 'updated this task'],
+  tags: ['Tags changed', 'changed the tags'],
+  section: ['Section changed', 'changed the section'],
+  reparent: ['Parent changed', 'changed the parent task'],
+  parent_changed: ['Parent changed', 'changed the parent task'],
+  moved: ['Moved', 'moved this task'],
+  move: ['Moved', 'moved this task'],
+  reorder: ['Reordered', 'reordered this task'],
+  schedule: ['Planning changed', 'changed the task planning'],
+  undo: ['Edit undone', 'undid an edit'],
+  trash: ['Moved to trash', 'moved this task to trash'],
+  delete: ['Moved to trash', 'moved this task to trash'],
+  restore: ['Restored', 'restored this task'],
+  references: ['References changed', 'changed the references'],
+  'recurrence-start': ['Recurrence started', 'started a recurring series'],
+  'recurrence-state': ['Recurrence changed', 'changed the recurring series'],
+  'recurrence-create': ['Recurring task created', 'created this recurring task'],
+  'recurrence-skip': ['Occurrence skipped', 'skipped this occurrence'],
+};
 import { confirmAction } from './confirm.js';
 export function mountActivity(container, kind, id) {
   let active = true,
@@ -35,7 +64,16 @@ export function mountActivity(container, kind, id) {
         const row = document.createElement('article');
         row.className = 'activity-item';
         const action = document.createElement('strong');
-        action.textContent = item.kind.replaceAll('_', ' ').replaceAll('-', ' ');
+        const actions = (
+          item.actions?.length ? item.actions : [item.completed ? 'completed' : item.kind]
+        ).map(
+          (key) =>
+            activityLabels[key] || [
+              key.replaceAll('_', ' ').replaceAll('-', ' '),
+              key.replaceAll('_', ' ').replaceAll('-', ' ') + ' this task',
+            ],
+        );
+        action.textContent = actions.map((value) => value[0]).join(' · ');
         row.append(action);
         if (kind === 'workspace') {
           const link = document.createElement('a');
@@ -44,7 +82,10 @@ export function mountActivity(container, kind, id) {
           row.append(link);
         }
         const meta = document.createElement('p');
-        meta.textContent = `${item.actor}${item.attribution === 'agent' ? ' · agent' : ''} · ${item.occurred_at ? new Date(item.occurred_at * 1000).toLocaleString() : 'Earlier change'}`;
+        const when = item.occurred_at
+          ? ` on ${new Date(item.occurred_at * 1000).toLocaleString()}`
+          : '';
+        meta.textContent = `${item.actor}${item.attribution === 'agent' ? ' (agent)' : ''} ${actions.map((value) => value[1]).join(' and ')}${when}.`;
         row.append(meta);
         if (item.undo_revision) {
           const undo = document.createElement('button');
