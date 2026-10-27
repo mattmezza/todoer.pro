@@ -89,3 +89,18 @@ refuses non-loopback servers. It does not bypass Google on a production server.
 - https://www.rfc-editor.org/rfc/rfc7636
 - https://www.rfc-editor.org/rfc/rfc8707
 - https://www.rfc-editor.org/rfc/rfc9700
+
+## Sign-in presentation and Google profile
+
+`/signin` and `/signup` use the same centered authentication card and a Google
+logo button. Both delegate to the verified Google flow, preserve a validated local
+return path and enforce the registration allowlist. The development sign-in stays
+explicitly separate. Email/password, email verification/reset, TOTP with recovery
+codes and WebAuthn/passkeys are requested follow-up work, not available controls.
+
+On Google login, the verified display name replaces only the initial `Todoer user`
+placeholder; a custom name is retained. The provider photo is stored and Google
+image hosts are allowed by the page CSP. Avatar failure, including an error before
+JavaScript attaches its listener, falls back to initials. Outside a space, sidebar
+email labels reveal two leading and two trailing local-part characters, separated
+by `***`; very short local parts reveal fewer to avoid overlapping characters.

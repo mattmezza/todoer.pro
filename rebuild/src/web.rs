@@ -235,6 +235,7 @@ pub fn router(state: AppState) -> Router {
         .route("/", get(home))
         .route("/sw.js", get(service_worker))
         .route("/signin", get(signin).post(login))
+        .route("/signup", get(signup))
         .route("/auth/google", get(browser_auth::google_start))
         .route("/auth/google/callback", get(browser_auth::google_callback))
         .route("/logout", post(logout))
@@ -326,28 +327,28 @@ fn encode_query(value: &str) -> String {
 struct SigninQuery {
     next: Option<String>,
 }
-async fn signin(State(s): State<AppState>, Query(q): Query<SigninQuery>) -> Html<String> {
-    if s.production.is_some() {
-        let next = q
-            .next
-            .as_deref()
-            .filter(|v| {
-                v.starts_with('/')
-                    && !v.starts_with("//")
-                    && !v.contains('\\')
-                    && !v.chars().any(char::is_control)
-            })
-            .unwrap_or("/");
-        let encoded: String = encode_query(next);
-        return Html(format!(
-            r#"<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sign in · Todoer</title><link rel="stylesheet" href="/assets/app.css"><main class="login"><a class="brand" href="/">todoer<span>.pro</span></a><h1>Your tasks, clearly.</h1><p>Sign in with an invited Google account.</p><a class="primary" href="/auth/google?next={encoded}">Continue with Google</a></main></html>"#
-        ));
-    }
-    Html(format!(
-        r#"<!doctype html><html lang="en"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign in · Todoer</title><link rel="stylesheet" href="/assets/app.css"><main class="login"><a class="brand" href="/">todoer<span>.pro</span></a><h1>Your day, with a little more clarity.</h1><p>This isolated rebuild uses synthetic data. Sign in below to use the isolated development workspace.</p><form method="post" action="/signin"><input type="hidden" name="csrf" value="{}"><button class="primary">Enter development workspace</button></form><p class="muted">Local development only · no access to your existing account</p></main></html>"#,
-        s.csrf
-    ))
+async fn signup(State(s): State<AppState>, Query(q): Query<SigninQuery>) -> Html<String> {
+    auth_screen(s, q, true)
 }
+async fn signin(State(s): State<AppState>, Query(q): Query<SigninQuery>) -> Html<String> {
+    auth_screen(s, q, false)
+}
+fn auth_screen(s: AppState, q: SigninQuery, signup: bool) -> Html<String> {
+    let next = browser_auth::safe_next(q.next.as_deref());
+    let encoded = encode_query(&next);
+    let title = if signup { "Make room for what matters." } else { "Welcome back." };
+    let intro = if signup { "A little clarity for everything you want to do." } else { "Your tasks, plans, and a little peace of mind." };
+    let action = if signup { "Sign up with Google" } else { "Continue with Google" };
+    let google = format!(r##"<a class="auth-google" href="/auth/google?next={encoded}"><svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#4285F4" d="M43.61 24.46c0-1.36-.12-2.66-.35-3.92H24v7.42h11a9.4 9.4 0 0 1-4.08 6.17v5h6.6c3.86-3.55 6.09-8.78 6.09-14.67Z"/><path fill="#34A853" d="M24 44c5.51 0 10.13-1.83 13.51-4.87l-6.6-5c-1.83 1.23-4.17 1.97-6.91 1.97-5.32 0-9.83-3.59-11.44-8.43H5.75v5.16A20.4 20.4 0 0 0 24 44Z"/><path fill="#FBBC05" d="M12.56 27.67a12.2 12.2 0 0 1 0-7.34v-5.16H5.75a20 20 0 0 0 0 17.66l6.81-5.16Z"/><path fill="#EA4335" d="M24 11.9c3 0 5.69 1.03 7.81 3.06l5.86-5.86A19.6 19.6 0 0 0 24 4 20.4 20.4 0 0 0 5.75 15.17l6.81 5.16C14.17 15.49 18.68 11.9 24 11.9Z"/></svg><span>{action}</span></a>"##);
+    let content = if s.production.is_some() {
+        let (switch_label, switch_action, switch_url) = if signup { ("Already have an account?", "Sign in", "signin") } else { ("New to Todoer?", "Create an account", "signup") };
+        format!(r#"{google}<p class="auth-access-note">Currently available to invited accounts.</p><p class="auth-switch">{switch_label} <a href="/{switch_url}?next={encoded}">{switch_action}</a></p>"#)
+    } else {
+        format!(r#"<form method="post" action="/signin"><input type="hidden" name="csrf" value="{}"><button class="primary auth-dev">Enter development workspace</button></form><p class="auth-access-note">Local development workspace · synthetic account</p>"#,s.csrf)
+    };
+    Html(format!(r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>{} · Todoer</title><link rel="stylesheet" href="/assets/app.css"></head><body class="auth-page"><main class="auth-shell"><a class="brand auth-brand" href="/">todoer<span>.pro</span></a><section class="auth-card" aria-labelledby="auth-heading"><div class="auth-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" width="26" height="26"><path d="m6 12 4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><h1 id="auth-heading">{title}</h1><p class="auth-intro">{intro}</p>{content}</section><p class="auth-footer">One thing at a time.</p></main></body></html>"#,if signup {"Create account"} else {"Sign in"}))
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Login {
@@ -1394,7 +1395,7 @@ async fn response_security(req: axum::extract::Request, next: axum::middleware::
     res.headers_mut()
         .entry("referrer-policy")
         .or_insert("same-origin".parse().unwrap());
-    res.headers_mut().insert("content-security-policy","default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://www.gravatar.com https://gravatar.com https://secure.gravatar.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'".parse().unwrap());
+    res.headers_mut().insert("content-security-policy","default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://www.gravatar.com https://gravatar.com https://secure.gravatar.com https://*.googleusercontent.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'".parse().unwrap());
     res
 }
 
