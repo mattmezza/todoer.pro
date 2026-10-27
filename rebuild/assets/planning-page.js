@@ -182,3 +182,20 @@ if (main) {
     close();
   });
 }
+
+// A URL-scoped override keeps account preferences unchanged.
+const zones = document.querySelector('#planning-zones');
+if (zones) {
+  for (const zone of ['UTC', ...(Intl.supportedValuesOf?.('timeZone') || [])]) {
+    const option = document.createElement('option');
+    option.value = zone;
+    zones.append(option);
+  }
+  const picker = document.querySelector('.planning-zone');
+  document.addEventListener('click', (event) => {
+    if (!picker.contains(event.target)) picker.open = false;
+  });
+  picker.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') picker.open = false;
+  });
+}

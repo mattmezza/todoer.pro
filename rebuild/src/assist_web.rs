@@ -6,7 +6,11 @@ use crate::assist::{
 
 pub(super) fn routes() -> Router<AppState> {
     Router::new()
-        .route("/assist", get(page))
+        .route("/settings/assist", get(page))
+        .route(
+            "/assist",
+            get(|| async { Redirect::to("/settings/assist") }),
+        )
         .route("/api/v1/assist/status", get(status))
         .route("/api/v1/assist/capture", post(capture))
         .route("/api/v1/assist/classify", post(classify))
@@ -22,6 +26,7 @@ pub(super) fn routes() -> Router<AppState> {
 #[derive(askama::Template)]
 #[template(path = "assist.html")]
 struct AssistPage {
+    sidebar: super::Sidebar,
     csrf: String,
     enabled: bool,
     lists: Vec<crate::core::List>,
@@ -32,6 +37,12 @@ async fn page(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiEr
         Ok(a) => a,
         Err(_) => return Ok(Redirect::to("/signin").into_response()),
     };
+    let sidebar_actor = actor.clone();
+    let csrf = s.csrf_for(&h);
+    let mut sidebar = s
+        .run(move |db| super::build_sidebar(db, &sidebar_actor, "", csrf))
+        .await?;
+    sidebar.settings_section = "assist".into();
     let a = actor.clone();
     let workspaces=s.run(move |db| { Ok(db.workspaces(&a)?.into_iter().filter(|w| db.conn.query_row("SELECT EXISTS(SELECT 1 FROM actor_workspace_access WHERE actor_id=?1 AND workspace_id=?2 AND rank>=2)", rusqlite::params![a,w.id], |r|r.get::<_,bool>(0)).unwrap_or(false)).collect()) }).await?;
     let lists = s
@@ -46,6 +57,7 @@ async fn page(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiEr
     use askama::Template;
     Ok(Html(
         AssistPage {
+            sidebar,
             csrf: s.csrf_for(&h),
             enabled: s.assist.enabled(),
             lists,
@@ -247,7 +259,7 @@ mod tests {
             .clone()
             .oneshot(
                 Request::builder()
-                    .uri("/assist")
+                    .uri("/settings/assist")
                     .header("cookie", &cookie)
                     .body(Body::empty())
                     .unwrap(),
