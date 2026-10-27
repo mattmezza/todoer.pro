@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 const root = document.querySelector('[data-assist]');
 if (root) {
   const error = root.querySelector('[data-error]');

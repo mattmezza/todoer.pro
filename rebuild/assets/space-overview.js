@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 import { editorAnchor, alignEditorField } from './seamless-editor.js';
 import { toast } from './toast.js';
 document.addEventListener('click', async (event) => {

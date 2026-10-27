@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 import { editorAnchor, alignEditorField } from './seamless-editor.js';
 import { preferredTimeFormatter } from './preferred-time.js';
 import { stowInfo, setSaveState, trackSave } from './quiet-info.js';

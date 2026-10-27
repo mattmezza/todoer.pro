@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 import { mountPublicSharing } from './public-sharing.js';
 import { mountStructure } from './task-structure.js';
 import { confirmAction } from './confirm.js';

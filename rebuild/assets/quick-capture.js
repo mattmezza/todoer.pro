@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 import { enqueueCapture, replayCaptures } from './offline.js';
 import { toast } from './toast.js';
 let dialog;

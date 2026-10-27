@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 export async function preferredTimeFormatter() {
   let timeZone = 'UTC';
   try {

@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 import { setSaveState } from './quiet-info.js';
 export function openExport(scope) {
   document.querySelector('[data-export-dialog]')?.close();

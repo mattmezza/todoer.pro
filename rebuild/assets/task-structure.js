@@ -1,3 +1,4 @@
+import { request as fetch } from './request.js';
 import { setSaveState, trackSave } from './quiet-info.js';
 async function request(id, body, endpoint = 'subtree/query') {
   const response = await fetch(`/api/v1/tasks/${encodeURIComponent(id)}/${endpoint}`, {
