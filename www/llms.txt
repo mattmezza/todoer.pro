@@ -1,0 +1,11 @@
+# Todoer
+
+Todoer is a task and project management application by Merola Software & Services in Zurich, Switzerland. Its Rust rebuild is under development and includes browser, REST API, CLI and MCP agent workflows. Availability and compatibility depend on the deployment and client.
+
+- [Product](https://todoer.pro/product.html): task organization, planning and collaboration.
+- [AI and agents](https://todoer.pro/agents.html): MCP, CLI, API, and reviewable agent workflows.
+- [About](https://todoer.pro/about.html): company and product information.
+- [Privacy](https://todoer.pro/privacy.html): draft privacy notice for the rebuild.
+- [Terms](https://todoer.pro/terms.html): draft terms for the rebuild.
+- [Agent workflow documentation](https://github.com/mattmezza/todoer.pro/blob/main/docs/rebuild/agent-workflow.md): implementation details and limitations.
+- [AI assistance documentation](https://github.com/mattmezza/todoer.pro/blob/main/docs/rebuild/assist.md): provider and review behavior.

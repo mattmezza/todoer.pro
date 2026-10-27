@@ -83,3 +83,7 @@ rust-agent-check: ## isolated CLI/MCP/S3 workflow fixture
 	uv run --no-project scripts/rebuild-agent-check.py
 rust-release-prepare: ## validate release policy without publishing or tagging
 	python3 scripts/rebuild-release-prepare.py self-test
+
+.PHONY: www-dev
+www-dev: ## serve the public website locally (override with port=8000)
+	python3 -m http.server $(or $(port),8000) --bind 127.0.0.1 --directory www
