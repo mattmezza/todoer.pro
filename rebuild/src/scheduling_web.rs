@@ -308,7 +308,9 @@ async fn calendar(
     }
     let (rows, spaces, selected) = s
         .run(move |db| {
-            let available = db.workspaces(&a)?;
+            let mut available = db.workspaces(&a)?;
+            let inactive = db.conn.prepare("SELECT workspace_id FROM workspace_lifecycle WHERE archived=1 OR deleted_at IS NOT NULL")?.query_map([], |r| r.get::<_,String>(0))?.collect::<Result<std::collections::HashSet<_>,_>>()?;
+            available.retain(|space| !inactive.contains(&space.id));
             let mut selected = std::collections::BTreeSet::new();
             for value in requested.split(',').filter(|v| !v.is_empty()) {
                 let id = crate::defaults::resolve(&db.conn, "workspace", value)?;
@@ -357,8 +359,9 @@ async fn calendar(
             3 => "P3 · Low",
             _ => "P2 · Medium",
         };
-        body.push_str(&format!(r#"<article class="task planning-task{}" data-planning-task="{}"><a class="planning-completion" href="/tasks/{}" aria-label="Open task">{}</a><div class="task-content"><a class="task-title" href="/tasks/{}">{}</a></div><span class="planning-row-meta"><span class="task-priority-summary" data-priority="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#flag"/></svg>{}</span><time class="planning-date" datetime="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#calendar"/></svg>{}</time></span></article>"#,
-          if row.task.complete { " is-complete" } else { "" }, esc(&row.task.id), esc(&row.task.id), if row.task.complete { "✓" } else { "" }, esc(&row.task.id), esc(&row.task.title), priority, priority_label, esc(&row.dates[0]), esc(&row.dates[0])));
+        let description = if row.task.description.trim().is_empty() { String::new() } else { format!("<div class=\"planning-task-description markdown\">{}</div>", crate::markdown::render(&row.task.description)) };
+        body.push_str(&format!(r#"<article class="task planning-task{}" data-planning-task="{}"><a class="planning-completion" href="/tasks/{}" aria-label="Open task">{}</a><div class="task-content"><a class="task-title" href="/tasks/{}">{}</a>{}</div><span class="planning-row-meta"><span class="task-priority-summary" data-priority="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#flag"/></svg>{}</span><time class="planning-date" datetime="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#calendar"/></svg>{}</time></span></article>"#,
+          if row.task.complete { " is-complete" } else { "" }, esc(&row.task.id), esc(&row.task.id), if row.task.complete { "✓" } else { "" }, esc(&row.task.id), esc(&row.task.title), description, priority, priority_label, esc(&row.dates[0]), esc(&row.dates[0])));
     }
     if body.is_empty() {
         body.push_str("<div class=\"planning-empty\"><h2>A little breathing room.</h2><p>Nothing planned here yet. Enjoy the space, or capture something you want to make time for.</p><a href=\"/capture\" class=\"primary\">Add a task</a></div>");
