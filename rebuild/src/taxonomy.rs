@@ -244,6 +244,44 @@ impl Store {
         tx.commit()?;
         Ok(updated)
     }
+    /// Promote one level, preserving the subtree, only after confirming its snapshot.
+    pub fn promote_subtree(
+        &mut self,
+        actor: &str,
+        id: &str,
+        expected: crate::subtree_query::SubtreeSnapshot,
+    ) -> Result<Task, Error> {
+        let mut write = crate::agent_ops::StoreWrite::new(self)?;
+        let old = task(&write.conn, id)?;
+        access_rank(&write.conn, actor, &old.list_id, 2)?;
+        let parent = old
+            .parent_id
+            .as_ref()
+            .ok_or_else(|| Error::Invalid("This task is already top-level".into()))?;
+        let current = crate::subtree_query::SubtreeSnapshot {
+            root_revision: old.revision,
+            list_revision: write.conn.query_row(
+                "SELECT revision FROM lists WHERE id=?1",
+                [&old.list_id],
+                |r| r.get(0),
+            )?,
+            list_sequence: write.conn.query_row(
+                "SELECT coalesce(max(seq),0) FROM history WHERE list_id=?1",
+                [&old.list_id],
+                |r| r.get(0),
+            )?,
+        };
+        if current != expected {
+            return Err(Error::Conflict(
+                "The hierarchy changed. Review the move again.".into(),
+            ));
+        }
+        let destination = task(&write.conn, parent)?.parent_id;
+        let result = write.reparent_subtree(actor, &old.id, destination, old.revision)?;
+        write.commit()?;
+        Ok(result)
+    }
+
     pub fn reparent_subtree(
         &mut self,
         actor: &str,
@@ -1233,6 +1271,69 @@ mod tests {
             Err(Error::Forbidden)
         ));
     }
+    #[test]
+    fn promote_keeps_descendants_appends_and_rejects_stale_confirmation() {
+        let mut db = db();
+        let root = new_task(&mut db, "inbox", "Root", None, "");
+        let child = new_task(&mut db, "inbox", "Child", Some(root.id.clone()), "");
+        let nested = new_task(&mut db, "inbox", "Nested", Some(child.id.clone()), "");
+        let leaf = new_task(&mut db, "inbox", "Leaf", Some(nested.id.clone()), "");
+        let snapshot = db
+            .read_subtree("dev", &nested.id, Default::default())
+            .unwrap()
+            .snapshot;
+        assert!(matches!(
+            db.promote_subtree("other", &nested.id, snapshot.clone()),
+            Err(Error::Forbidden)
+        ));
+        let promoted = db
+            .promote_subtree("dev", &nested.id, snapshot.clone())
+            .unwrap();
+        assert_eq!(promoted.parent_id.as_deref(), Some(root.id.as_str()));
+        assert!(promoted.position > task(&db.conn, &child.id).unwrap().position);
+        assert_eq!(
+            task(&db.conn, &leaf.id).unwrap().parent_id.as_deref(),
+            Some(nested.id.as_str())
+        );
+        assert!(matches!(
+            db.promote_subtree("dev", &nested.id, snapshot),
+            Err(Error::Conflict(_))
+        ));
+        let stale = db
+            .read_subtree("dev", &child.id, Default::default())
+            .unwrap()
+            .snapshot;
+        new_task(
+            &mut db,
+            "inbox",
+            "New descendant",
+            Some(child.id.clone()),
+            "",
+        );
+        assert!(matches!(
+            db.promote_subtree("dev", &child.id, stale),
+            Err(Error::Conflict(_))
+        ));
+        let fresh = db
+            .read_subtree("dev", &child.id, Default::default())
+            .unwrap()
+            .snapshot;
+        assert!(
+            db.promote_subtree("dev", &child.id, fresh)
+                .unwrap()
+                .parent_id
+                .is_none()
+        );
+        let top = db
+            .read_subtree("dev", &root.id, Default::default())
+            .unwrap()
+            .snapshot;
+        assert!(matches!(
+            db.promote_subtree("dev", &root.id, top),
+            Err(Error::Invalid(_))
+        ));
+    }
+
     #[test]
     fn sibling_reorder_requires_complete_set_and_list_revision() {
         let mut db = db();
