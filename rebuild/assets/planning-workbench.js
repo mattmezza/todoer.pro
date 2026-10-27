@@ -196,13 +196,16 @@ function planDialog(entry, initial) {
 }
 async function organize(entry) {
   const d = modal('Move to a list');
-  d.append(node('p', entry.task.title));
+  d.classList.add('destination-dialog');
+  d.append(node('h3', entry.task.title, 'destination-task-title'));
   const input = node('input');
   input.type = 'search';
   input.placeholder = 'Search lists or spaces…';
   input.setAttribute('aria-label', 'Search lists or spaces');
   const results = node('div', null, 'destination-results');
-  d.append(input, results);
+  const label = node('label', 'Choose a destination', 'destination-search-label');
+  label.append(input);
+  d.append(label, results);
   let version = 0,
     timer;
   async function search() {
