@@ -6,7 +6,7 @@
 {% include "mobile-nav.html" %}
 {% include "sidebar.html" %}
 <main id="main" class="workspace-main">
-<header class="workspace-header"><h1>Spaces</h1><p class="workspace-intro muted">Separate your projects, work and personal lists.</p></header><form method="get" class="space-archive-filter"><label><input type="checkbox" name="archived" value="true"{% if show_archived %} checked{% endif %} onchange="this.form.requestSubmit()"> Show archived</label><noscript><button type="submit">Apply</button></noscript></form>
+<header class="workspace-header"><h1>Spaces</h1><p class="workspace-intro muted">Separate your projects, work and personal lists.</p></header><form method="get" class="space-archive-filter"><label><input type="checkbox" name="archived" value="true"{% if show_archived %} checked{% endif %}> Show archived</label><noscript><button type="submit">Apply</button></noscript></form>
 <section aria-label="Your workspaces" class="workspace-rows">
 {% for workspace in workspaces %}
 <article class="workspace-row" data-workspace="{{ workspace.id }}" data-title="{{ workspace.title }}" data-revision="{{ workspace.revision }}">
