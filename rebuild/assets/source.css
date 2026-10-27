@@ -6288,3 +6288,7 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
   color: #94a3b8;
   font-size: 12px;
 }
+
+.planning-welcome:has(.planning-zone[open]) {
+  z-index: 30;
+}
