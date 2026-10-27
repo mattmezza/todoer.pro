@@ -42,10 +42,30 @@ export function openExport(scope) {
     };
     formats.append(b);
   }
-  const cancel = document.createElement('button');
-  cancel.textContent = 'Cancel';
-  cancel.onclick = () => d.close();
-  d.append(title, hint, formats, cancel);
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'dialog-close';
+  close.setAttribute('aria-label', 'Close export');
+  close.innerHTML =
+    '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg>';
+  close.onclick = () => d.close();
+  d.append(title, hint, formats, close);
+  let backdropPress = false;
+  const outside = (event) => {
+    const r = d.getBoundingClientRect();
+    return (
+      event.target === d &&
+      (event.clientX < r.left ||
+        event.clientX > r.right ||
+        event.clientY < r.top ||
+        event.clientY > r.bottom)
+    );
+  };
+  d.addEventListener('pointerdown', (event) => (backdropPress = outside(event)));
+  d.addEventListener('click', (event) => {
+    if (backdropPress && outside(event)) d.close();
+    backdropPress = false;
+  });
   d.addEventListener('close', () => d.remove(), { once: true });
   document.body.append(d);
   d.showModal();

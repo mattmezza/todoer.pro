@@ -7032,3 +7032,56 @@ form[data-list-edit] .inline-actions, .space-inline-editor > div,
 .planning-task-description { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; margin-top:5px; color:var(--muted); font-size:13px; line-height:1.5; }
 .planning-task-description :is(p,ul,ol,pre,h1,h2,h3) { margin:0; font-size:inherit; }
 .planning-task-description img { display:none; }
+.export-dialog { text-align:center; }
+.export-dialog h2 { justify-content:center; }
+.export-dialog h2::before { display:none; }
+.export-formats { justify-content:center; }
+.export-dialog .dialog-close { position:absolute; top:12px; right:12px; display:grid; place-items:center; width:32px; height:32px; padding:6px; color:var(--muted); }
+.export-dialog .dialog-close:hover { color:var(--text); background:var(--hover); border-radius:50%; }
+.calendar-caption { font:500 20px var(--font-sans); letter-spacing:-.3px; margin:0 0 14px; }
+.plan-controls { gap:4px; margin-bottom:18px; }
+.plan-summary { margin-bottom:20px; font-size:12px; }
+.plan-summary strong { font-weight:500; color:var(--muted); }
+.calendar-shell { border:1px solid var(--line); border-radius:12px; overflow:auto; max-height:calc(100dvh - 310px); min-height:340px; overscroll-behavior:contain; }
+.calendar-time-board { display:grid; grid-template-columns:58px repeat(var(--calendar-days),minmax(145px,1fr)); grid-template-rows:76px minmax(68px,auto) 1344px; min-width:min-content; }
+.calendar-corner,.calendar-day-heading { position:sticky; top:0; z-index:6; background:var(--bg); border-bottom:1px solid var(--line); }
+.calendar-corner { left:0; z-index:8; }
+.calendar-day-heading { display:flex; align-items:center; justify-content:center; flex-direction:column; gap:3px; padding:8px; color:var(--muted); border-left:1px solid var(--line); font-size:11px; }
+.calendar-day-heading button { display:grid; place-items:center; width:34px; height:34px; border-radius:50%; font:500 21px var(--font-sans); color:var(--text); }
+.calendar-day-heading.is-today { color:var(--accent); }
+.calendar-day-heading.is-today button { background:var(--accent); color:var(--bg); }
+.calendar-all-day-label { position:sticky; left:0; z-index:5; background:var(--bg); color:var(--muted); font-size:10px; padding:14px 6px; border-bottom:1px solid var(--line); }
+.calendar-all-day { position:relative; padding:6px 5px 22px; border-left:1px solid var(--line); border-bottom:1px solid var(--line); min-width:0; }
+.calendar-hours { position:sticky; left:0; z-index:4; background:var(--bg); color:var(--muted); font-size:10px; font-variant-numeric:tabular-nums; }
+.calendar-hours span { position:absolute; right:8px; transform:translateY(-50%); }
+.calendar-hours span:first-child { transform:none; }
+.calendar-day-track { position:relative; border-left:1px solid var(--line); min-width:0; }
+.calendar-day-track.is-today { background:rgb(96 165 250 / .018); }
+.calendar-hour-slot { display:block; width:100%; height:56px; border-bottom:1px solid var(--line); border-radius:0; }
+.calendar-hour-slot:hover { background:rgb(96 165 250 / .045); }
+.calendar-event.workbench-task { display:flex; align-items:flex-start; gap:6px; flex-wrap:nowrap; position:relative; border:0; border-left:2px solid #6085b1; background:#101b2b; border-radius:4px; padding:6px; margin:0 0 4px; font-size:12px; line-height:1.35; }
+.calendar-event .workbench-check { width:15px; height:15px; margin-top:1px; }
+.calendar-event .workbench-task-copy small { display:none; }
+.calendar-event .workbench-task-copy a { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
+.calendar-event .plan-time-action { flex:none; padding:0; margin:0; font-size:10px; white-space:nowrap; }
+.calendar-all-day .calendar-event .plan-time-action { font-size:0; width:14px; }
+.calendar-all-day .calendar-event .plan-time-action::after { content:'⋯'; font-size:12px; }
+.calendar-timed-event.workbench-task { position:absolute; left:4px; right:6px; z-index:2; box-shadow:0 1px 3px rgb(0 0 0 / .2); }
+.calendar-timed-event:hover { z-index:3; }
+.calendar-add { display:grid; place-items:center; width:22px; height:22px; font-size:18px; color:var(--muted); border-radius:50%; }
+.calendar-all-day > .calendar-add { position:absolute; right:5px; bottom:2px; }
+.calendar-add:hover { background:var(--hover); color:var(--text); }
+.calendar-now { position:absolute; left:0; right:0; height:1px; background:#ef6a70; pointer-events:none; z-index:3; }
+.calendar-now::before { content:''; position:absolute; width:7px; height:7px; border-radius:50%; background:inherit; left:-4px; top:-3px; }
+.calendar-month-board { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); border-top:1px solid var(--line); border-left:1px solid var(--line); border-radius:10px; overflow:hidden; }
+.calendar-month-weekday { padding:10px; text-align:center; font-size:11px; color:var(--muted); border-right:1px solid var(--line); border-bottom:1px solid var(--line); }
+.calendar-month-day { position:relative; min-width:0; min-height:145px; border-right:1px solid var(--line); border-bottom:1px solid var(--line); padding:6px; }
+.calendar-month-date { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; margin:0 auto 5px; font-size:12px; }
+.calendar-month-day.is-today .calendar-month-date { background:var(--accent); color:var(--bg); }
+.calendar-month-day.outside-month { opacity:.4; }
+.calendar-month-task { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; padding:3px 5px; margin-bottom:3px; border-radius:4px; background:#101b2b; }
+.calendar-month-task:hover { background:var(--hover); }
+.calendar-month-day .calendar-add { position:absolute; top:8px; right:4px; opacity:0; }
+.calendar-month-day:hover .calendar-add,.calendar-month-day:focus-within .calendar-add { opacity:1; }
+.calendar-more { font-size:10px; color:var(--muted); padding:3px 5px; }
+@media(max-width:700px) { .calendar-shell { max-height:calc(100dvh - 350px); } .calendar-month-day { min-height:100px; padding:2px; } .calendar-month-day .calendar-add { display:none; } .calendar-month-task { font-size:9px; padding:2px; } }
