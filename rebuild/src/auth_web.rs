@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 pub(super) struct ProductionAuth {
     pub store: Mutex<AuthStore>,
-    pub oidc: GoogleOidc,
+    pub oidc: Option<GoogleOidc>,
     pending: Mutex<HashMap<[u8; 32], PendingSignIn>>,
 }
 struct PendingSignIn {
@@ -68,6 +68,9 @@ impl AppState {
         oidc: GoogleOidc,
         origin: String,
     ) -> Self {
+        Self::production_optional(store, auth, Some(oidc), origin)
+    }
+    pub fn production_optional(store: Arc<Mutex<Store>>, auth: AuthStore, oidc: Option<GoogleOidc>, origin: String) -> Self {
         let mut state = Self::new(store, uuid::Uuid::new_v4().to_string(), origin);
         state.production = Some(Arc::new(ProductionAuth {
             store: Mutex::new(auth),
@@ -162,7 +165,8 @@ pub(super) async fn google_start(
         s.run(move |db| db.check_invitation(&token, None, &signer))
             .await?;
     }
-    let start = auth.oidc.begin_login();
+    if !auth.store.lock().map_err(|_|AuthError::Unauthorized)?.auth_policy()?.google_enabled { return Err(AuthError::Forbidden.into()); }
+    let start = auth.oidc.as_ref().ok_or(AuthError::Forbidden)?.begin_login();
     let binding = uuid::Uuid::new_v4().to_string();
     let hash = Sha256::digest(binding.as_bytes()).into();
     let mut pending = auth.pending.lock().map_err(|_| {
@@ -232,8 +236,9 @@ pub(super) async fn google_callback(
             "Google sign-in was cancelled".into(),
         ));
     }
+    if !auth.store.lock().map_err(|_|AuthError::Unauthorized)?.auth_policy()?.google_enabled { return Err(AuthError::Forbidden.into()); }
     let identity = auth
-        .oidc
+        .oidc.as_ref().ok_or(AuthError::Forbidden)?
         .complete_login(
             pending.oidc,
             q.state.as_deref().unwrap_or(""),
@@ -271,13 +276,8 @@ pub(super) async fn google_callback(
         s.run(move |db| db.claim_invitation(&actor, &token, &email, &signer))
             .await?;
     }
-    let grant = auth
-        .store
-        .lock()
-        .map_err(|_| AuthError::Unauthorized)?
-        .issue_session(&user.id, 43200)?;
     // New users receive a private destination using normal authorized operations.
-    let actor = user.id;
+    let actor = user.id.clone();
     let issuer = identity.issuer.clone();
     let subject = identity.subject.clone();
     let picture = identity.picture_url.clone();
@@ -290,6 +290,16 @@ pub(super) async fn google_callback(
         store.ensure_user_defaults(&actor)
     })
         .await?;
+    let epoch = auth.store.lock().map_err(|_|AuthError::Unauthorized)?.epoch(&user.id)?;
+    if auth.store.lock().map_err(|_|AuthError::Unauthorized)?.has_mfa(&user.id)? {
+        return account_http::mfa_redirect(&s,user.id,epoch,pending.next);
+    }
+    let grant = auth
+        .store
+        .lock()
+        .map_err(|_| AuthError::Unauthorized)?
+        .issue_session(&user.id, 43200)?;
+    auth.store.lock().map_err(|_|AuthError::Unauthorized)?.mark_recent(&grant.token)?;
     let mut response = Redirect::to(&pending.next).into_response();
     let secure = if s.origin.starts_with("https://") {
         "; Secure"

@@ -60,15 +60,15 @@ pub enum Permission {
     Admin,
 }
 pub struct AuthStore {
-    conn: Connection,
+    pub(crate) conn: Connection,
 }
-fn hash(value: &str) -> String {
+pub(crate) fn hash(value: &str) -> String {
     format!("{:x}", Sha256::digest(value.as_bytes()))
 }
-fn secret() -> String {
+pub(crate) fn secret() -> String {
     format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple())
 }
-fn now() -> i64 {
+pub(crate) fn now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("system clock before epoch")
@@ -82,7 +82,7 @@ fn expiry(ttl: i64) -> Result<i64, AuthError> {
     }
     Ok(now() + ttl)
 }
-fn email(value: &str) -> Result<String, AuthError> {
+pub(crate) fn email(value: &str) -> Result<String, AuthError> {
     let value = value.trim().to_lowercase();
     if value.len() > 320 || !value.contains('@') || value.chars().any(char::is_whitespace) {
         return Err(AuthError::Invalid("invalid email".into()));
@@ -96,6 +96,7 @@ impl AuthStore {
         conn.pragma_update(None, "foreign_keys", true)?;
         conn.execute_batch(include_str!("../migrations/004_auth.sql"))?;
         conn.execute_batch(include_str!("../migrations/007_auth_oauth.sql"))?;
+        conn.execute_batch(include_str!("../migrations/035_account_security.sql"))?;
         Ok(Self { conn })
     }
     pub fn memory() -> Result<Self, AuthError> {
@@ -166,6 +167,7 @@ impl AuthStore {
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         if let Some(identity)=tx.query_row("SELECT u.id,u.name FROM auth_identities i JOIN users u ON u.id=i.user_id WHERE i.issuer=?1 AND i.subject=?2",params![issuer,subject],|r|Ok(Identity{id:r.get(0)?,name:r.get(1)?})).optional()?{
             tx.execute("UPDATE auth_identities SET email=?1 WHERE issuer=?2 AND subject=?3",params![address,issuer,subject])?;
+            crate::account_security::bootstrap_admin(&tx, &identity.id, &address)?;
             tx.commit()?;
             return Ok(identity)
         }
@@ -174,6 +176,7 @@ impl AuthStore {
             [&address],
             |r| r.get(0),
         )?;
+        if !crate::account_security::policy(&tx)?.signup_enabled { return Err(AuthError::Forbidden); }
         if !allowed && !invited {
             return Err(AuthError::Forbidden);
         }
@@ -189,6 +192,7 @@ impl AuthStore {
             "INSERT INTO auth_identities(issuer,subject,user_id,email) VALUES(?1,?2,?3,?4)",
             params![issuer, subject, identity.id, address],
         )?;
+        crate::account_security::bootstrap_admin(&tx, &identity.id, &address)?;
         if tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='user_defaults')",
             [],

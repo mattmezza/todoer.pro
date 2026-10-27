@@ -3,6 +3,7 @@ pub mod agent_ops;
 pub mod assist;
 mod audit;
 pub mod auth;
+pub mod account_security;
 pub mod capture_at;
 pub mod cli_auth;
 pub mod core;

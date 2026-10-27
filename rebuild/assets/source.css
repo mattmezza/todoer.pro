@@ -7250,3 +7250,17 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .auth-dev { width:100%; min-height:48px; }
 @media(max-width:480px) { .auth-card { padding:28px 22px; } }
 @media(prefers-color-scheme:light) { .auth-card { background:rgb(255 255 255 / .8); } }
+
+.auth-card form { display:grid; gap:16px; text-align:left; }
+.auth-card form label { display:grid; gap:7px; font-size:13px; font-weight:500; }
+.auth-card form input { width:100%; min-height:46px; border-radius:8px; background:var(--field); padding:10px 12px; }
+.auth-card form .primary { width:100%; min-height:46px; margin-top:4px; text-align:center; }
+.auth-divider { display:flex; align-items:center; gap:12px; font-size:12px; color:var(--muted); margin:24px 0; }
+.auth-divider::before,.auth-divider::after { content:''; height:1px; flex:1; background:var(--line); }
+.auth-forgot { text-align:right; color:var(--accent); font-size:12px; }
+.auth-passkey { color:var(--accent); font-size:13px; min-height:44px; margin-top:12px; }
+[data-auth-notice] { margin-top:16px; font-size:13px; color:var(--muted); line-height:1.5; }
+[data-auth-notice].error { color:#fca5a5; }
+[data-account-security] h3 { font-size:17px; font-weight:600; margin-top:32px; margin-bottom:10px; }
+.security-key-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0; }
+[data-recovery-codes] { white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; padding:16px; background:var(--field); border-radius:10px; }
