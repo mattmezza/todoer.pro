@@ -394,7 +394,6 @@ impl Store {
             params![id, owner],
         )?;
         crate::slugs::workspace(&tx, &id)?;
-        crate::defaults::workspace(&tx, &id)?;
         crate::defaults::public_id(&tx, "workspace", &id)?;
         let result = workspace_raw(&tx, &id)?;
         tx.commit()?;
@@ -517,6 +516,7 @@ impl Store {
         bump_workspace(&tx, &input.workspace_id)?;
         crate::slugs::list(&tx, &id)?;
         crate::defaults::list(&tx, &id)?;
+        tx.execute("INSERT OR IGNORE INTO workspace_defaults(workspace_id,list_id) VALUES(?1,?2)", params![input.workspace_id,id])?;
         crate::defaults::public_id(&tx, "list", &id)?;
         let result = list_raw(&tx, &id)?;
         tx.commit()?;
@@ -986,7 +986,8 @@ impl Store {
             "DELETE FROM workspace_defaults WHERE workspace_id=?1 AND list_id=?2",
             params![preview.source_workspace_id, list],
         )?;
-        crate::defaults::workspace(&tx, &preview.source_workspace_id)?;
+        tx.execute("INSERT OR IGNORE INTO workspace_defaults(workspace_id,list_id) SELECT ?1,id FROM lists WHERE workspace_id=?1 AND archived=0 ORDER BY position,id LIMIT 1", [&preview.source_workspace_id])?;
+        tx.execute("INSERT OR IGNORE INTO workspace_defaults(workspace_id,list_id) VALUES(?1,?2)", params![input.destination_workspace_id,list])?;
         crate::slugs::list(&tx, list)?;
         crate::taxonomy::remap_tags_after_move(&tx, actor, &ids, list)?;
         for id in ids {
@@ -1536,11 +1537,7 @@ mod tests {
             "dev",
             &w.id,
             revision,
-            &[
-                b.id.clone(),
-                a.id.clone(),
-                db.default_list("dev", &w.id).unwrap(),
-            ],
+            &[b.id.clone(), a.id.clone()],
         )
         .unwrap();
         assert!(

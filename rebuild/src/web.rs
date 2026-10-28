@@ -1665,8 +1665,11 @@ async fn capture_page(
                 db.list_permission(&actor, &l.id)
                     .is_ok_and(|rank| rank >= 2)
             });
-            let default = Some(db.personal_inbox(&actor)?);
-            Ok((lists, default))
+            let inbox = db.personal_inbox(&actor)?;
+            if !lists.iter().any(|list|list.id==inbox) {
+                lists.insert(0,List { id:inbox.clone(),title:"Inbox".into(),description:"Capture first. Plan or file when ready.".into(),revision:0 });
+            }
+            Ok((lists, Some(inbox)))
         })
         .await?;
     let selected = q

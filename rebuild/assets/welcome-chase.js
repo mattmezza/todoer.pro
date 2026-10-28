@@ -1,6 +1,111 @@
-// A tiny, dependency-free 3D-projected character. The gait uses two-link leg IK:
-// stance feet move backward at ground speed, then lift through a smooth swing.
-// Decorative only: it never touches real tasks or intercepts input.
+// Conservative drawing envelopes include hands, waving arms and the tilted card.
+// Keeping their horizontal envelopes apart also guarantees separation in midair.
+export const HUMAN_EXTENT = 40;
+export const TASK_EXTENT = 90;
+export const MIN_GAP = HUMAN_EXTENT + TASK_EXTENT + 14;
+const chores = [
+  'Sort receipts',
+  'Fold laundry',
+  'Take bins out',
+  'File invoices',
+  'Wipe counters',
+  'Match socks',
+  'Clear inbox',
+  'Water plants',
+  'Dust shelves',
+  'Refill soap',
+];
+const mix = (a, b, t) => a + (b - a) * t;
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const smooth = (t) => t * t * (3 - 2 * t);
+
+// Kept independent of the canvas so wrap, spacing and offscreen finishes can be
+// exercised at many frame rates without screenshots or animation test hooks.
+export class ChaseMotion {
+  constructor(width) {
+    this.width = width;
+    this.human = 65;
+    this.gap = 220;
+    this.time = this.modeTime = this.velocity = this.gait = this.jump = 0;
+    this.jumpAge = 1;
+    this.rest = this.finishing = this.gather = false;
+    this.caughtAt = null;
+    this.wraps = 0;
+  }
+  get task() {
+    return this.human + this.gap;
+  }
+  get label() {
+    return chores[this.wraps % chores.length];
+  }
+  get phase() {
+    return this.caughtAt !== null
+      ? 'celebrate'
+      : this.finishing
+        ? 'catch'
+        : this.rest
+          ? 'rest'
+          : 'chase';
+  }
+  finish() {
+    this.finishing = true;
+    this.rest = false;
+    // If the task has already left, keep running through the same screen exit
+    // and re-enter naturally before the final catch. Never teleport visible actors.
+    this.gather = this.task < 210 || this.task > this.width - TASK_EXTENT - 16;
+  }
+  advance(dt) {
+    this.time += dt;
+    this.modeTime += dt;
+    if (!this.finishing) {
+      if (this.modeTime > (this.rest ? 4 : 10)) {
+        this.rest = !this.rest;
+        this.modeTime = 0;
+      }
+      const speed = this.rest ? 0 : 320 + Math.sin(this.time * 0.8) * 20;
+      this.velocity = mix(this.velocity, speed, 1 - Math.exp(-dt * 8));
+      const previousTask = this.task;
+      this.human += this.velocity * dt;
+      const target = this.rest ? 210 : 196 + Math.sin(this.time * 1.3) * 47;
+      this.gap = Math.max(
+        MIN_GAP,
+        previousTask - this.human,
+        mix(this.gap, target, 1 - Math.exp(-dt * 4)),
+      );
+      if (!this.rest && this.gap < 161 && this.jumpAge > 0.72) this.jumpAge = 0;
+      this.jumpAge += dt;
+      this.jump =
+        this.jumpAge < 0.72 ? Math.sin((this.jumpAge / 0.72) * Math.PI) * 45 : 0;
+    } else {
+      this.jump *= Math.exp(-dt * 12);
+      if (this.gather) {
+        this.velocity = mix(this.velocity, 400, 1 - Math.exp(-dt * 10));
+        this.human += this.velocity * dt;
+        if (this.task >= 210 && this.task <= this.width - TASK_EXTENT - 16)
+          this.gather = false;
+      } else if (this.caughtAt === null) {
+        const speed = Math.min(340, Math.max(0, this.gap - MIN_GAP) * 10);
+        this.velocity = mix(this.velocity, speed, 1 - Math.exp(-dt * 14));
+        const distance = Math.min(this.gap - MIN_GAP, this.velocity * dt);
+        this.human += distance;
+        this.gap -= distance; // the task stays still, safely beyond the hand
+        if (this.gap <= MIN_GAP + 0.5) {
+          this.velocity = 0;
+          this.caughtAt = this.time;
+        }
+      }
+    }
+    // The task exits first; only wrap once the runner has also completely left.
+    // Both re-enter from the left in the same order, with exactly the same gap.
+    if (this.human > this.width + HUMAN_EXTENT + 12) {
+      this.human = -this.gap - TASK_EXTENT - 24;
+      this.wraps++;
+    }
+    const stride = 38 * clamp(this.velocity / 200, 0, 1);
+    if (stride > 0.1) this.gait += ((this.velocity * dt * 0.38) / stride) * Math.PI * 2;
+  }
+}
+
 export function welcomeChase() {
   const desktop = matchMedia(
     '(min-width: 1024px) and (pointer: fine), (min-width: 1024px) and (pointer: none)',
@@ -8,47 +113,29 @@ export function welcomeChase() {
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
-  if (!ctx) return { finish: () => Promise.resolve() };
+  if (!ctx) return { finish: () => Promise.resolve(), remove() {} };
   canvas.className = 'welcome-chase';
   canvas.setAttribute('aria-hidden', 'true');
   canvas.dataset.phase = 'chase';
   canvas.dataset.complete = 'false';
-  let width = innerWidth,
-    frame,
+  const motion = new ChaseMotion(innerWidth);
+  const ink = '#aab6c7';
+  let frame,
     last,
-    time = 0,
-    modeTime = 0;
-  let human = 54,
-    task = human + 92,
-    direction = 1,
-    facing = 1;
-  let velocity = 0,
-    gait = 0,
-    rest = false,
-    jump = 0,
-    jumpAge = 1,
-    jumpLength = 0.8;
-  let finishTime = null,
-    caughtAt = null,
     resolveFinish,
     finishPromise,
-    finishTimeout;
-  let particles = [];
-  // Use the empty left gutter, so the chase never runs across the setup choices.
-  let trackWidth = Math.max(190, (width - 600) / 2 - 20);
-  const enabled = () => desktop.matches && !reduced.matches;
-  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-  const mix = (a, b, t) => a + (b - a) * t;
-  const smooth = (t) => t * t * (3 - 2 * t);
+    finishTimeout,
+    particles = [];
+  let disposed = false;
+  const enabled = () => !disposed && desktop.matches && !reduced.matches;
   function resize() {
-    width = innerWidth;
-    trackWidth = Math.max(190, (width - 600) / 2 - 20);
-    const ratio = Math.min(devicePixelRatio || 1, 2);
-    canvas.width = Math.round(width * ratio);
+    // Use the rendered width so a page scrollbar cannot squash thin strokes.
+    motion.width = canvas.getBoundingClientRect().width || innerWidth;
+    // Supersample thin moving limbs even on standard-density desktop screens.
+    const ratio = Math.max(2, Math.min(devicePixelRatio || 1, 3));
+    canvas.width = Math.round(motion.width * ratio);
     canvas.height = Math.round(128 * ratio);
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    human = clamp(human, 48, trackWidth - 48);
-    task = clamp(task, 32, trackWidth - 32);
+    ctx.setTransform(canvas.width / motion.width, 0, 0, ratio, 0, 0);
   }
   function ellipse(x, y, rx, ry, fill) {
     ctx.beginPath();
@@ -56,218 +143,170 @@ export function welcomeChase() {
     ctx.fillStyle = fill;
     ctx.fill();
   }
-  function capsule(a, b, radius, colors) {
-    const dx = b[0] - a[0],
-      dy = b[1] - a[1],
-      length = Math.hypot(dx, dy) || 1;
-    const nx = (-dy / length) * radius,
-      ny = (dx / length) * radius;
-    const light = ctx.createLinearGradient(a[0] - nx, a[1] - ny, a[0] + nx, a[1] + ny);
-    light.addColorStop(0, colors[0]);
-    light.addColorStop(0.38, colors[1]);
-    light.addColorStop(1, colors[2]);
+  function capsule(a, b, radius) {
     ctx.lineWidth = radius * 2;
     ctx.lineCap = 'round';
-    ctx.strokeStyle = light;
+    ctx.strokeStyle = ink;
     ctx.beginPath();
     ctx.moveTo(...a);
     ctx.lineTo(...b);
     ctx.stroke();
   }
-  function sphere(x, y, r, colors) {
-    const light = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r);
-    light.addColorStop(0, colors[0]);
-    light.addColorStop(0.65, colors[1]);
-    light.addColorStop(1, colors[2]);
-    ellipse(x, y, r, r, light);
-  }
-  function knee(hip, foot, bend) {
+  function knee(hip, foot) {
     const dx = foot[0] - hip[0],
       dy = foot[1] - hip[1];
-    const d = Math.min(Math.hypot(dx, dy), 30.9),
-      h = Math.sqrt(Math.max(0, 15.5 ** 2 - (d * d) / 4));
-    const length = Math.hypot(dx, dy) || 1;
+    const distance = Math.hypot(dx, dy) || 1;
+    const h = Math.sqrt(Math.max(0, 15.5 ** 2 - Math.min(distance, 30.9) ** 2 / 4));
     return [
-      (hip[0] + foot[0]) / 2 - (dy / length) * h * bend,
-      (hip[1] + foot[1]) / 2 + (dx / length) * h * bend,
+      (hip[0] + foot[0]) / 2 - (dy / distance) * h,
+      (hip[1] + foot[1]) / 2 + (dx / distance) * h,
     ];
   }
   function drawHuman(celebration) {
-    const running = clamp(Math.abs(velocity) / 100, 0, 1);
-    const breath = Math.sin(time * 3) * (1 - running) * 0.8;
-    const bob = running * (1.3 + Math.cos(gait * 2) * 1.3);
+    const { human, velocity, gait, time, rest, finishing, gap } = motion;
+    const running = clamp(velocity / 200, 0, 1);
+    const breath = Math.sin(time * 2.8) * (1 - running) * 0.65;
+    const bob = running * (1 - Math.cos(gait * 2)) * 1.4;
     const joy = celebration
-      ? Math.max(0, Math.sin(celebration * 9)) * 10 * Math.max(0, 1 - celebration / 2)
+      ? Math.max(0, Math.sin(celebration * 10)) * 9 * Math.max(0, 1 - celebration / 1.5)
       : 0;
-    const lean = running * 5 + (rest && !celebration ? 3 : 0);
-    const ground = 125;
-    ellipse(human, ground - 1, 18 - joy * 0.2, 2.5, '#00000030');
-    // A slight depth offset exposes both sides rather than a flat stick figure.
-    const p = (x, y, z = 0) => [
-      human + facing * (x + z * 0.28),
-      ground - y - joy + z * 0.12,
-    ];
-    const skin = ['#f8d8b5', '#eeb88d', '#b97557'];
-    const farSkin = ['#dca27d', '#cc926e', '#955e4c'];
-    const blue = ['#6588ca', '#4269ac', '#253b71'];
-    const farBlue = ['#3e5e96', '#2b477d', '#1e3057'];
+    const lean = running * (7 + Math.sin(gait) * 0.7) + (rest ? 2 : 0);
+    const p = (x, y, z = 0) => [human + x + z * 0.22, 125 - y - joy + z * 0.1];
+    ellipse(human, 124, 17 - joy * 0.2, 2.3, '#00000025');
     function leg(offset, depth) {
       const phase = (((gait / (Math.PI * 2) + offset) % 1) + 1) % 1;
-      const stance = 0.56;
-      const stride = 25 * running;
+      const stance = 0.38,
+        stride = 38 * running;
+      const swing = (phase - stance) / (1 - stance);
       const x =
-        phase < stance
-          ? stride * (0.5 - phase / stance)
-          : -stride * 0.5 + stride * smooth((phase - stance) / (1 - stance));
-      const lift =
-        phase < stance
-          ? 0
-          : Math.sin(((phase - stance) / (1 - stance)) * Math.PI) * 15 * running;
-      const hip = [0, 31 + bob + breath],
+        phase < stance ? stride * (0.5 - phase / stance) : stride * (smooth(swing) - 0.5);
+      const lift = phase < stance ? 0 : Math.sin(swing * Math.PI) ** 1.3 * 19 * running;
+      const hip = [0, 27 + bob + breath],
         foot = [x + (1 - running) * (offset ? -4 : 4), 3 + lift];
-      const k = knee(hip, foot, 1);
-      const colors = depth < 0 ? farBlue : blue;
-      capsule(p(...hip, depth), p(...k, depth), 3.5, colors);
-      capsule(p(...k, depth), p(...foot, depth), 2.8, colors);
-      const shoe = p(foot[0] + 2, foot[1] - 0.5, depth);
-      capsule([shoe[0] - facing * 2, shoe[1]], [shoe[0] + facing * 5, shoe[1]], 2.5, [
-        '#f5f1e8',
-        '#dddde2',
-        '#919baa',
-      ]);
+      const joint = knee(hip, foot);
+      capsule(p(...hip, depth), p(...joint, depth), 1.9);
+      capsule(p(...joint, depth), p(...foot, depth), 1.7);
       capsule(
-        [shoe[0] - facing * 2, shoe[1] + 1.6],
-        [shoe[0] + facing * 5, shoe[1] + 1.6],
-        0.65,
-        ['#fff', '#fff', '#b8c2d3'],
+        p(foot[0] - 1, foot[1] - 0.4, depth),
+        p(foot[0] + 5, foot[1] - 0.4, depth),
+        1.8,
       );
     }
-    function arm(side, depth) {
-      const swing = Math.sin(gait + (side ? Math.PI : 0)) * running;
-      const shoulder = [lean, 51 + bob + breath];
-      let elbow = [lean + swing * 10 - 2, 41 + bob + breath];
-      let hand = [elbow[0] + 6, elbow[1] + 5];
-      if (rest && !celebration && running < 0.1) {
-        elbow = [7, 40 + breath];
-        hand = [5, 32 + breath];
+    function arm(offset, depth) {
+      // Oppose the leg, with a relaxed bent elbow rather than a rigid pendulum.
+      const angle = -Math.cos(gait + offset * Math.PI * 2) * 0.85 * running;
+      const shoulder = [lean, 46 + bob + breath];
+      let elbow = [
+        shoulder[0] + Math.sin(angle) * 12,
+        shoulder[1] - Math.cos(angle) * 12,
+      ];
+      let hand = [
+        elbow[0] + Math.cos(angle + 0.4) * 10,
+        elbow[1] + Math.sin(angle + 0.4) * 10,
+      ];
+      if (rest && running < 0.1) {
+        elbow = [7, 36 + breath];
+        hand = [4, 28 + breath];
       }
-      if (finishTime !== null && caughtAt === null && Math.abs(task - human) < 55) {
-        elbow = [14, 44];
-        hand = [25, 43];
+      if (finishing && !celebration && gap < MIN_GAP + 30) {
+        elbow = [18, 39];
+        hand = [34, 43];
       }
       if (celebration) {
-        elbow = [side ? 12 : -10, 60];
-        hand = [side ? 17 : -13, 71 + Math.sin(celebration * 12 + side) * 2];
+        elbow = [offset ? -10 : 12, 57];
+        hand = [offset ? -14 : 17, 67 + Math.sin(celebration * 12 + offset) * 2];
       }
-      capsule(p(...shoulder, depth), p(...elbow, depth), 2.8, depth < 0 ? farSkin : skin);
-      capsule(p(...elbow, depth), p(...hand, depth), 2.5, depth < 0 ? farSkin : skin);
-      const h = p(...hand, depth);
-      sphere(...h, 2.7, depth < 0 ? farSkin : skin);
+      capsule(p(...shoulder, depth), p(...elbow, depth), 1.7);
+      capsule(p(...elbow, depth), p(...hand, depth), 1.5);
     }
-    arm(0, -5);
-    leg(0.5, -4);
-    capsule(p(0, 31), p(lean, 49), 7, ['#ffcc78', '#f7a84a', '#bf6f2d']);
-    capsule(p(0, 30), p(1, 34), 6, blue);
-    leg(0, 4);
-    capsule(p(lean, 51), p(lean + 1, 57), 3, skin);
-    const head = p(lean + 1, 63 + bob + breath);
-    sphere(...head, 8, skin);
-    // Sculpted hair cap, ear and a small profile nose.
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(head[0], head[1], 8.3, 0, Math.PI * 2);
-    ctx.clip();
-    ellipse(head[0] - facing * 3, head[1] - 5.5, 9, 6, '#473b3b');
-    ellipse(head[0] - facing * 6, head[1] - 1.5, 3, 5, '#392f35');
-    ctx.restore();
-    sphere(head[0] - facing * 1.5, head[1] + 1, 2.1, skin);
-    sphere(head[0] + facing * 7.2, head[1] + 0.8, 2, skin);
-    ellipse(head[0] + facing * 4.3, head[1] - 1, 0.8, 1, '#302b39');
-    ctx.strokeStyle = '#9c5e52';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(head[0] + facing * 4, head[1] + 2.5, 2, 0.15, 1.9);
-    ctx.stroke();
-    arm(1, 5);
-    if (rest && !celebration && running < 0.1) {
-      // A tiny exhale, instead of text or UI competing with the form.
-      const puff = (time * 0.7) % 1;
+    arm(0.5, -4);
+    leg(0.5, -3);
+    capsule(p(0, 28 + breath), p(lean, 45 + bob + breath), 3);
+    leg(0, 3);
+    capsule(p(lean, 47 + bob + breath), p(lean + 1, 52 + bob + breath), 1.8);
+    const head = p(lean + 1, 59 + bob + breath);
+    ellipse(...head, 5.5, 5.5, ink);
+    arm(0, 4);
+    if (rest && running < 0.1 && !celebration) {
+      const puff = (time * 0.65) % 1;
       ellipse(
-        head[0] + facing * (14 + puff * 12),
-        head[1] + 4 - puff * 7,
+        head[0] + 12 + puff * 11,
+        head[1] + 3 - puff * 6,
         2 + puff * 2,
-        1.4,
-        `rgba(148,163,184,${0.35 * (1 - puff)})`,
+        1.2,
+        `rgba(148,163,184,${0.3 * (1 - puff)})`,
       );
     }
   }
   function drawTask(celebration) {
+    const { task, rest, time, jump, jumpAge, caughtAt } = motion;
     const checked = caughtAt !== null;
-    const tease = rest && !checked;
-    const bounce = tease ? Math.abs(Math.sin(time * 5)) * 7 : 0;
+    const bounce = rest && !checked ? Math.abs(Math.sin(time * 5)) * 7 : 0;
     const y =
-      125 -
-      23 -
+      102 -
       jump -
       bounce -
-      (celebration ? Math.sin(Math.min(1, celebration) * Math.PI) * 9 : 0);
-    ellipse(task, 124, 20 - jump * 0.15, 2.5, `rgba(0,0,0,${0.18 - jump * 0.002})`);
+      (celebration ? Math.sin(Math.min(1, celebration) * Math.PI) * 6 : 0);
+    ellipse(task, 124, 34 - jump * 0.2, 2.3, `rgba(0,0,0,${0.16 - jump * 0.002})`);
     ctx.save();
     ctx.translate(task, y);
     ctx.rotate(
-      tease
-        ? Math.sin(time * 5) * 0.13
+      rest && !checked
+        ? Math.sin(time * 5) * 0.07
         : jump > 0
-          ? Math.sin((jumpAge / jumpLength) * Math.PI) * direction * -0.2
-          : Math.sin(time * 3) * 0.025,
+          ? -Math.sin((jumpAge / 0.72) * Math.PI) * 0.08
+          : 0.012 * Math.sin(time * 3),
     );
-    // Extruded edge and a shaded paper face give the little task some volume.
-    ctx.fillStyle = checked ? '#21876b' : '#6281b4';
+    ctx.fillStyle = checked ? '#52a98b' : '#8995a8';
     ctx.beginPath();
-    ctx.roundRect(-22, -17, 46, 33, 7);
+    ctx.roundRect(-77, -14, 156, 32, 6);
     ctx.fill();
-    const paper = ctx.createLinearGradient(-20, -18, 20, 16);
-    paper.addColorStop(0, checked ? '#b0f7d3' : '#f4f7ff');
-    paper.addColorStop(1, checked ? '#6bd7aa' : '#cbd9ef');
+    const paper = ctx.createLinearGradient(0, -17, 0, 15);
+    paper.addColorStop(0, checked ? '#d1fae5' : '#f1f5f9');
+    paper.addColorStop(1, checked ? '#a7e6cb' : '#dce3ed');
     ctx.fillStyle = paper;
     ctx.beginPath();
-    ctx.roundRect(-24, -20, 46, 33, 6);
+    ctx.roundRect(-79, -17, 156, 32, 6);
     ctx.fill();
-    ctx.strokeStyle = checked ? '#167b5c' : '#7e96ba';
-    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = checked ? '#268664' : '#8291a6';
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
-    ctx.arc(-12, -3, 5.7, 0, Math.PI * 2);
+    ctx.roundRect(-67, -7, 12, 12, 3);
     ctx.stroke();
     if (checked) {
-      ctx.strokeStyle = '#14714e';
-      ctx.lineWidth = 2.4;
+      ctx.strokeStyle = '#21805d';
+      ctx.lineWidth = 2;
       ctx.lineJoin = 'round';
       ctx.beginPath();
-      ctx.moveTo(-15, -3);
-      ctx.lineTo(-12, 0);
-      ctx.lineTo(-7, -6);
+      ctx.moveTo(-64, -1);
+      ctx.lineTo(-61, 2);
+      ctx.lineTo(-57, -4);
       ctx.stroke();
     }
-    // Eyes and a cheeky smile; hands wave only while the runner rests.
-    ellipse(4, -6, 1.2, 1.8, '#405676');
-    ellipse(12, -6, 1.2, 1.8, '#405676');
-    ctx.strokeStyle = '#405676';
-    ctx.lineWidth = 1.3;
-    ctx.beginPath();
-    ctx.arc(8, -3, 4, 0.1, Math.PI - 0.1);
-    ctx.stroke();
-    if (tease || checked) {
+    ctx.font = '500 12px system-ui, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = checked ? '#246a53' : '#435166';
+    ctx.fillText(motion.label, -45, -0.5);
+    if (checked) {
+      ctx.strokeStyle = '#438b71';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-45, 0);
+      ctx.lineTo(-45 + ctx.measureText(motion.label).width, 0);
+      ctx.stroke();
+    }
+    if (rest || checked) {
       for (const side of [-1, 1]) {
-        ctx.strokeStyle = checked ? '#47b98d' : '#8da9d1';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = checked ? '#79b69c' : '#a7b4c8';
+        ctx.lineWidth = 1.8;
         ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.moveTo(side * 22, -3);
+        ctx.moveTo(side * 78, -2);
         ctx.quadraticCurveTo(
-          side * 28,
-          -9,
-          side * 30,
-          -14 + Math.sin(time * 9 + side) * 4,
+          side * 84,
+          -8,
+          side * 88,
+          -12 + Math.sin(time * 9 + side) * 3,
         );
         ctx.stroke();
       }
@@ -275,13 +314,13 @@ export function welcomeChase() {
     ctx.restore();
   }
   function confetti() {
-    particles = Array.from({ length: 30 }, (_, i) => ({
-      x: task,
+    particles = Array.from({ length: 24 }, (_, i) => ({
+      x: motion.task,
       y: 87,
       vx: Math.cos(i * 2.4) * (35 + (i % 5) * 15),
       vy: -65 - (i % 7) * 15,
       age: 0,
-      color: ['#60a5fa', '#a78bfa', '#34d399', '#fbbf24', '#f472b6'][i % 5],
+      color: ['#94a3b8', '#cbd5e1', '#6ee7b7'][i % 3],
     }));
   }
   function done() {
@@ -297,76 +336,16 @@ export function welcomeChase() {
     if (!enabled() || document.hidden) return;
     const dt = Math.min((now - (last || now)) / 1000, 0.04);
     last = now;
-    time += dt;
-    modeTime += dt;
-    if (finishTime === null) {
-      if (modeTime > (rest ? 4 : 10)) {
-        rest = !rest;
-        modeTime = 0;
-        canvas.dataset.phase = rest ? 'rest' : 'chase';
-      }
-      if (!rest) {
-        const gap = (task - human) * direction;
-        // Slow down just enough for a near miss, then leap and escape.
-        let taskSpeed = modeTime % 4.6 < 2.8 ? 88 : 40;
-        if (gap < 53 && jumpAge >= jumpLength) {
-          jumpAge = 0;
-          jumpLength = 0.85;
-        }
-        if (jumpAge < jumpLength) taskSpeed = 145;
-        task += direction * taskSpeed * dt;
-        if ((task > trackWidth - 40 && direction > 0) || (task < 40 && direction < 0)) {
-          // Jump over the runner to turn around at the edge of the window.
-          direction *= -1;
-          jumpAge = 0;
-          jumpLength = 1.1;
-        }
-        const desired = direction * (gap > 170 ? 128 : 105);
-        velocity = mix(velocity, desired, Math.min(1, dt * 4));
-      } else {
-        velocity *= Math.exp(-dt * 5);
-        const target = clamp(human + facing * 80, 40, trackWidth - 40);
-        task = mix(task, target, Math.min(1, dt * 2));
-      }
-      jumpAge += dt;
-      jump = jumpAge < jumpLength ? Math.sin((jumpAge / jumpLength) * Math.PI) * 53 : 0;
-    } else {
-      finishTime += dt;
-      jump = mix(jump, 0, Math.min(1, dt * 10));
-      rest = false;
-      if (caughtAt === null) {
-        const distance = task - human;
-        direction = Math.sign(distance) || direction;
-        velocity = mix(
-          velocity,
-          direction * Math.min(175, Math.max(45, (Math.abs(distance) - 28) * 5)),
-          Math.min(1, dt * 7),
-        );
-        if (Math.abs(distance) < 34 || finishTime > 1.7) {
-          human = task - direction * 32;
-          velocity = 0;
-          caughtAt = time;
-          canvas.dataset.phase = 'celebrate';
-          canvas.dataset.complete = 'true';
-          confetti();
-        }
-      } else {
-        velocity = 0;
-        if (time - caughtAt > 1.7) done();
-      }
+    const wasCaught = motion.caughtAt !== null;
+    motion.advance(dt);
+    if (!wasCaught && motion.caughtAt !== null) {
+      canvas.dataset.complete = 'true';
+      confetti();
     }
-    human = clamp(human + velocity * dt, 40, trackWidth - 40);
-    task = clamp(task, 30, trackWidth - 30);
-    if (Math.abs(velocity) > 5)
-      facing = mix(facing, Math.sign(velocity), Math.min(1, dt * 10));
-    // A 25px stance across 56% of a cycle tracks the actual world speed.
-    gait +=
-      ((Math.abs(velocity) * dt * 0.56) /
-        (25 * Math.max(0.05, Math.min(1, Math.abs(velocity) / 100)))) *
-      Math.PI *
-      2;
-    ctx.clearRect(0, 0, width, 128);
-    const celebration = caughtAt === null ? 0 : time - caughtAt + 0.001;
+    canvas.dataset.phase = motion.phase;
+    ctx.clearRect(0, 0, motion.width, 128);
+    const celebration =
+      motion.caughtAt === null ? 0 : motion.time - motion.caughtAt + 0.001;
     drawHuman(celebration);
     drawTask(celebration);
     for (const particle of particles) {
@@ -374,7 +353,7 @@ export function welcomeChase() {
       particle.vy += 130 * dt;
       particle.x += particle.vx * dt;
       particle.y += particle.vy * dt;
-      ctx.globalAlpha = Math.max(0, 1 - particle.age / 1.7);
+      ctx.globalAlpha = Math.max(0, 1 - particle.age / 1.5);
       ctx.fillStyle = particle.color;
       ctx.save();
       ctx.translate(particle.x, particle.y);
@@ -383,6 +362,7 @@ export function welcomeChase() {
       ctx.restore();
     }
     ctx.globalAlpha = 1;
+    if (celebration > 1.5) done();
     if (canvas.dataset.phase !== 'done') frame = requestAnimationFrame(tick);
   }
   function sync() {
@@ -401,24 +381,28 @@ export function welcomeChase() {
   reduced.addEventListener('change', sync);
   document.addEventListener('visibilitychange', sync);
   window.addEventListener('resize', resize);
-  window.addEventListener(
-    'pagehide',
-    () => {
-      if (frame) cancelAnimationFrame(frame);
-      done();
-    },
-    { once: true },
-  );
+  function remove() {
+    disposed = true;
+    if (frame) cancelAnimationFrame(frame);
+    canvas.remove();
+    desktop.removeEventListener('change', sync);
+    reduced.removeEventListener('change', sync);
+    document.removeEventListener('visibilitychange', sync);
+    window.removeEventListener('resize', resize);
+    window.removeEventListener('pagehide', remove);
+    done();
+  }
+  window.addEventListener('pagehide', remove, { once: true });
   sync();
   return {
+    remove,
     finish() {
       if (!enabled() || document.hidden) return Promise.resolve();
       if (finishPromise) return finishPromise;
+      motion.finish();
       canvas.dataset.phase = 'catch';
-      finishTime = 0;
       finishPromise = new Promise((resolve) => (resolveFinish = resolve));
-      // A completion animation must never hold navigation hostage.
-      finishTimeout = setTimeout(done, 3800);
+      finishTimeout = setTimeout(done, 4500);
       return finishPromise;
     },
   };

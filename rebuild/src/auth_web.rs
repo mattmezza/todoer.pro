@@ -277,7 +277,7 @@ pub(super) async fn google_callback(
         s.run(move |db| db.claim_invitation(&actor, &token, &email, &signer))
             .await?;
     }
-    // New users receive a private destination using normal authorized operations.
+    // Sign-in updates identity metadata; destinations are chosen in Welcome.
     let actor = user.id.clone();
     let issuer = identity.issuer.clone();
     let subject = identity.subject.clone();
@@ -288,7 +288,6 @@ pub(super) async fn google_callback(
         if let Some(name) = display_name.as_deref().map(str::trim).filter(|n| !n.is_empty() && n.chars().count() <= 200) {
             store.conn.execute("UPDATE users SET name=?1 WHERE id=?2 AND name='Todoer user'", rusqlite::params![name,actor])?;
         }
-        store.ensure_user_defaults(&actor)?;
         store.welcome_pending(&actor)
     })
         .await?;

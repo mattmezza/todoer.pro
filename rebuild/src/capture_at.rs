@@ -32,6 +32,19 @@ impl Store {
         )
         .map_err(|_| Error::Invalid("invalid capture".into()))?;
         let mut tx = crate::agent_ops::StoreWrite::new(self)?;
+        if input.list_id.starts_with("intake:")
+            && !tx.conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM lists WHERE id=?1)",
+                [&input.list_id],
+                |r| r.get::<_, bool>(0),
+            )?
+        {
+            let user = crate::core::actor_user(&tx.conn, actor, 2)?;
+            if input.list_id != format!("intake:{user}") {
+                return Err(Error::Forbidden);
+            }
+            crate::planning::ensure_personal_inbox(&tx.conn, actor)?;
+        }
         crate::core::access_rank(&tx.conn, actor, &input.list_id, 2)?;
         if let Some((old, response)) = tx
             .conn
@@ -224,6 +237,47 @@ impl Store {
 mod tests {
     use super::*;
     use crate::{core::NewTask, workspace::SectionInput};
+    #[test]
+    fn smart_capture_creates_lazy_inbox_atomically_and_retries() {
+        let mut db = Store::memory().unwrap();
+        db.conn
+            .execute("INSERT INTO users VALUES('new-user','new')", [])
+            .unwrap();
+        db.conn
+            .execute("INSERT INTO users VALUES('other-user','other')", [])
+            .unwrap();
+        let inbox = db.personal_inbox("new-user").unwrap();
+        let request = || Capture {
+            list_id: inbox.clone(),
+            tasks: vec![NewTask {
+                title: "First task".into(),
+                description: "".into(),
+                parent_id: None,
+            }],
+        };
+        let metadata = CaptureMetadata {
+            priority: Some(0),
+            ..Default::default()
+        };
+        assert!(
+            db.capture_with_metadata("other-user", "bad", request(), None, metadata.clone())
+                .is_err()
+        );
+        let first = db
+            .capture_with_metadata("new-user", "first", request(), None, metadata.clone())
+            .unwrap();
+        let retry = db
+            .capture_with_metadata("new-user", "first", request(), None, metadata)
+            .unwrap();
+        assert_eq!(first[0].id, retry[0].id);
+        assert_eq!(
+            db.get_schedule("new-user", &first[0].id)
+                .unwrap()
+                .schedule
+                .priority,
+            Some(0)
+        );
+    }
     #[test]
     fn smart_capture_retries_and_rolls_back_metadata_errors() {
         let mut db = Store::memory().unwrap();

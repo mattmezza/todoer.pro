@@ -384,7 +384,8 @@ mod tests {
             .unwrap();
         assert!(w.id.starts_with("s_"));
         assert_eq!(w.id.len(), 14);
-        let inbox = db.default_list("dev", &w.id).unwrap();
+        assert!(db.default_list("dev", &w.id).is_err());
+        let inbox = db.create_list("dev", crate::workspace::CreateList { workspace_id:w.id.clone(),title:"Inbox".into(),description:String::new(),restricted:false }).unwrap().id;
         assert!(inbox.starts_with("l_"));
         assert!(db.sections("dev", &inbox).unwrap().is_empty());
         let hidden: String = db
@@ -555,63 +556,20 @@ mod tests {
         );
     }
     #[test]
-    fn verified_new_identity_commits_defaults_with_identity_or_rolls_back() {
-        let path =
-            std::env::temp_dir().join(format!("todoer-default-auth-{}.db", uuid::Uuid::new_v4()));
-        let db = Store::open(path.to_str().unwrap()).unwrap();
-        let mut auth = crate::auth::AuthStore::open(path.to_str().unwrap()).unwrap();
+    fn verified_identity_and_repeat_login_create_no_structure() {
+        let mut core = Store::memory().unwrap();
+        let mut auth = crate::auth::AuthStore { conn: core.conn };
         auth.allow_email("new@example.test").unwrap();
-        db.conn.execute_batch("CREATE TRIGGER reject_first_section BEFORE INSERT ON sections BEGIN SELECT RAISE(ABORT,'test failure'); END;").unwrap();
-        assert!(
-            auth.accept_identity(
-                "https://accounts.google.com",
-                "new-sub",
-                "new@example.test",
-                true
-            )
-            .is_err()
-        );
-        assert_eq!(
-            db.conn
-                .query_row("SELECT count(*) FROM users", [], |r| r.get::<_, i64>(0))
-                .unwrap(),
-            0
-        );
-        db.conn
-            .execute_batch("DROP TRIGGER reject_first_section")
-            .unwrap();
-        let user = auth
-            .accept_identity(
-                "https://accounts.google.com",
-                "new-sub",
-                "new@example.test",
-                true,
-            )
-            .unwrap();
-        let space: String = db
-            .conn
-            .query_row(
-                "SELECT workspace_id FROM user_defaults WHERE user_id=?1",
-                [&user.id],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert!(db.default_list(&user.id, &space).unwrap().starts_with("l_"));
-        assert_eq!(
-            auth.accept_identity(
-                "https://accounts.google.com",
-                "new-sub",
-                "new@example.test",
-                true
-            )
-            .unwrap()
-            .id,
-            user.id
-        );
-        drop(auth);
-        drop(db);
-        let _ = std::fs::remove_file(path);
+        let user = auth.accept_identity("https://accounts.google.com","new-sub","new@example.test",true).unwrap();
+        assert_eq!(auth.accept_identity("https://accounts.google.com","new-sub","new@example.test",true).unwrap().id,user.id);
+        auth.issue_session(&user.id,60).unwrap();
+        core = Store { conn: auth.conn };
+        assert!(core.welcome_pending(&user.id).unwrap());
+        core.welcome(&user.id).unwrap();
+        assert!(core.intake_tasks(&user.id).unwrap().is_empty());
+        assert_eq!(core.conn.query_row("SELECT (SELECT count(*) FROM workspaces)+(SELECT count(*) FROM lists)+(SELECT count(*) FROM sections)",[],|r|r.get::<_,i64>(0)).unwrap(),0);
     }
+
 }
 
 #[cfg(test)]

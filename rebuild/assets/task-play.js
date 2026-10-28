@@ -1,4 +1,5 @@
 import { request as fetch } from './request.js';
+import { welcomeChase } from './welcome-chase.js';
 function mountCards() {
   const toy = document.createElement('button');
   toy.className = 'task-play';
@@ -395,9 +396,11 @@ if (
     toy =
       value.fun_animations === false
         ? null
-        : value.fun_animation === 'tasks'
-          ? mountFunnyTasks()
-          : mountCards();
+        : value.fun_animation === 'chase'
+          ? welcomeChase()
+          : value.fun_animation === 'tasks'
+            ? mountFunnyTasks()
+            : mountCards();
   }
   document.addEventListener('todoer-play-preferences', (event) => apply(event.detail));
   fetch('/api/v1/notification-preferences', { cache: 'no-store' })

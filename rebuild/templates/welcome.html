@@ -9,7 +9,7 @@
 </head>
 <body class="welcome-page">
 <main class="welcome-shell" data-welcome data-next="{{ next }}">
-<header class="welcome-top"><a class="brand" href="/">todoer<span>.pro</span></a><button type="button" data-welcome-skip disabled>Skip for now <svg class="ui-icon" width="14" height="14" aria-hidden="true"><use href="/assets/icons.svg#open"/></svg></button></header>
+<header class="welcome-top"><a class="brand" href="/">todoer<span>.pro</span></a></header>
 <section class="welcome-content" aria-labelledby="welcome-heading">
 <div class="welcome-progress" aria-label="Welcome progress"><span data-welcome-count>Step 1 of 2</span><i class="active"></i><i></i></div>
 <h1 id="welcome-heading" tabindex="-1">Where would a little more order help?</h1>
@@ -17,8 +17,8 @@
 <p data-welcome-loading role="status">Getting things ready…</p>
 <form data-welcome-setup hidden>
 <fieldset class="welcome-choices"><legend class="sr-only">Choose one or both areas of your life</legend>
-<label class="welcome-choice"><input type="checkbox" name="space" value="personal"><span class="welcome-choice-mark" aria-hidden="true">✓</span><strong>Personal</strong><small>Everyday life, plans, and things to remember.</small><span class="welcome-destination">@personal</span></label>
-<label class="welcome-choice"><input type="checkbox" name="space" value="work"><span class="welcome-choice-mark" aria-hidden="true">✓</span><strong>Work</strong><small>Projects, priorities, and things to deliver.</small><span class="welcome-destination">@work</span></label>
+<label class="welcome-choice"><input type="checkbox" name="space" value="personal"><span class="welcome-choice-mark" aria-hidden="true">✓</span><strong><svg class="ui-icon welcome-choice-icon" width="22" height="22" aria-hidden="true"><use href="/assets/icons.svg#home"/></svg>Personal</strong><small>Everyday life, plans, and things to remember.</small><span class="welcome-destination">@personal</span></label>
+<label class="welcome-choice"><input type="checkbox" name="space" value="work"><span class="welcome-choice-mark" aria-hidden="true">✓</span><strong><svg class="ui-icon welcome-choice-icon" width="22" height="22" aria-hidden="true"><use href="/assets/icons.svg#briefcase"/></svg>Work</strong><small>Projects, priorities, and things to deliver.</small><span class="welcome-destination">@work</span></label>
 </fieldset>
 <p class="welcome-hint">Choose one or both. You can always add more.</p>
 <button type="submit" class="primary welcome-continue" disabled>Continue <span aria-hidden="true">→</span></button>
