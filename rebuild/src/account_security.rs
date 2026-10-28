@@ -377,10 +377,6 @@ impl AuthStore {
             ],
         )?;
         ensure_security(&tx, &user.id)?;
-        crate::defaults::user(&tx, &user.id).map_err(|e| match e {
-            crate::core::Error::Database(e) => AuthError::Database(e),
-            other => invalid(&other.to_string()),
-        })?;
         bootstrap_admin(&tx, &user.id, &address)?;
         tx.execute(
             "DELETE FROM auth_account_tokens WHERE hash=?1",
@@ -798,7 +794,9 @@ mod tests {
         db.conn
             .execute("UPDATE auth_policy SET signup_enabled=1", [])
             .unwrap();
+        let count: i64 = db.conn.query_row("SELECT (SELECT count(*) FROM workspaces)+(SELECT count(*) FROM lists)",[],|r|r.get(0)).unwrap();
         let identity = db.verify_registration(&token).unwrap();
+        assert_eq!(db.conn.query_row("SELECT (SELECT count(*) FROM workspaces)+(SELECT count(*) FROM lists)",[],|r|r.get::<_,i64>(0)).unwrap(),count);
         assert_eq!(identity.name, "User");
         assert!(db.verify_registration(&token).is_err());
         let (_, encoded) = db.password_record("USER@example.test").unwrap().unwrap();

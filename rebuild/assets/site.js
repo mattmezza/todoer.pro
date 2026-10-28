@@ -91,7 +91,7 @@ document.addEventListener('keydown', (event) => {
     } else if (form?.matches('.inline-entity-form')) {
       event.preventDefault();
       const cancel = form.querySelector(
-        '[data-list-edit-cancel],[data-section-add-cancel]',
+        '[data-list-edit-cancel],[data-space-edit-cancel],[data-section-add-cancel]',
       );
       if (cancel) cancel.click();
       else form.hidden = true;

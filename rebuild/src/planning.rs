@@ -23,29 +23,32 @@ pub struct Placement {
     pub timezone: String,
     pub priority: Option<u8>,
 }
+// Called only inside an explicit task write (or the development fixture).
+pub(crate) fn ensure_personal_inbox(c: &rusqlite::Connection, actor: &str) -> Result<String, Error> {
+    let user = crate::core::actor_user(c, actor, 2)?;
+    if let Some(id) = c.query_row("SELECT list_id FROM user_inboxes WHERE user_id=?1",[&user],|r|r.get::<_,String>(0)).optional()? { return Ok(id); }
+    let id = format!("intake:{user}");
+    c.execute("INSERT INTO lists(id,title,description,workspace_id) VALUES(?1,'Inbox','Capture first. Plan or file when ready.',NULL)",[&id])?;
+    c.execute("INSERT INTO memberships(list_id,user_id) VALUES(?1,?2)",params![id,user])?;
+    c.execute("INSERT INTO user_inboxes(user_id,list_id) VALUES(?1,?2)",params![user,id])?;
+    crate::defaults::list(c,&id)?;
+    crate::slugs::list(c,&id)?;
+    crate::defaults::public_id(c,"list",&id)?;
+    Ok(id)
+}
 impl Store {
     pub fn personal_inbox(&self, actor: &str) -> Result<String, Error> {
         let user = actor_identity(&self.conn, actor)?.0;
-        let id: String = self.conn.query_row(
-            "SELECT list_id FROM user_inboxes WHERE user_id=?1",
-            [user],
-            |r| r.get(0),
-        )?;
-        access_rank(&self.conn, actor, &id, 1)?;
-        Ok(id)
+        let id: Option<String> = self.conn.query_row("SELECT list_id FROM user_inboxes WHERE user_id=?1", [&user], |r|r.get(0)).optional()?;
+        match id {
+            Some(id) => { access_rank(&self.conn,actor,&id,1)?; Ok(id) }
+            None => { crate::core::actor_user(&self.conn,actor,1)?; Ok(format!("intake:{user}")) }
+        }
     }
     pub fn intake_tasks(&self, actor: &str) -> Result<Vec<PlanEntry>, Error> {
         let inbox = self.personal_inbox(actor)?;
-        self.plan_entries(actor, None, None, Some(&inbox))
-            .map(|rows| {
-                rows.into_iter()
-                    .filter(|r| {
-                        !r.task.complete
-                            && r.task.parent_id.is_none()
-                            && r.schedule.planned.is_none()
-                    })
-                    .collect()
-            })
+        if !self.conn.query_row("SELECT EXISTS(SELECT 1 FROM lists WHERE id=?1)",[&inbox],|r|r.get::<_,bool>(0))? { return Ok(vec![]); }
+        self.plan_entries(actor,None,None,Some(&inbox)).map(|rows| rows.into_iter().filter(|r| !r.task.complete && r.task.parent_id.is_none() && r.schedule.planned.is_none()).collect())
     }
     pub fn plan_entries(
         &self,

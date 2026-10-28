@@ -68,6 +68,11 @@ test('two-question welcome defers creation, resumes, and safely retries completi
   await lists.getByRole('button', { name: 'Start organizing' }).click();
   await expect(page).toHaveURL(/\/lists\//);
   const after = await inventory(page);
+  const workspaces = await (await page.request.get('/api/v1/workspaces')).json();
+  for (const title of ['personal', 'work']) {
+    const space = workspaces.find((item) => item.title.toLowerCase() === title);
+    expect(space?.description.length).toBeGreaterThan(0);
+  }
   expect((await (await page.request.get('/api/v1/onboarding')).json()).status).toBe(
     'complete',
   );
@@ -99,6 +104,9 @@ test('desktop runner rests, never completes early, and celebrates on completion'
   await enter(page);
   const canvas = page.locator('canvas.welcome-chase');
   await expect(canvas).toBeVisible();
+  expect(
+    await canvas.evaluate((el) => el.height / el.getBoundingClientRect().height),
+  ).toBeGreaterThanOrEqual(2);
   await expect(canvas).toHaveAttribute('data-complete', 'false');
   await expect(canvas).toHaveAttribute('data-phase', 'rest', { timeout: 16000 });
   await page.screenshot({
@@ -175,7 +183,7 @@ test('mobile stays simple, defers installation, and has no runner', async ({
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBeTruthy();
   const original = await inventory(page);
-  await page.getByRole('button', { name: 'Skip for now' }).click();
+  await page.getByRole('button', { name: 'I’ll decide on lists later' }).click();
   await expect(page).not.toHaveURL(/\/welcome/);
   expect(await inventory(page)).toEqual(original);
   await context.close();

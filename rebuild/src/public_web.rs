@@ -244,7 +244,8 @@ mod tests {
                 },
             )
             .unwrap();
-        let list = db.default_list("dev", &space.id).unwrap();
+        assert!(db.default_list("dev", &space.id).is_err());
+        let list = db.create_list("dev", crate::workspace::CreateList { workspace_id:space.id.clone(),title:"Inbox".into(),description:String::new(),restricted:false }).unwrap().id;
         let task = db
             .capture(
                 "dev",

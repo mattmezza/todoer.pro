@@ -126,7 +126,7 @@ impl Store {
         value: Preferences,
     ) -> Result<Preferences, Error> {
         let user = actor_user(&self.conn, actor, 3)?;
-        if !matches!(value.fun_animation.as_str(), "cards" | "tasks") {
+        if !matches!(value.fun_animation.as_str(), "cards" | "tasks" | "chase") {
             return Err(invalid("Unknown playful animation"));
         }
         zone(&value.timezone)?;
@@ -303,6 +303,9 @@ mod tests {
         let saved = db.notification_preferences("dev").unwrap();
         assert!(!saved.fun_animations);
         assert_eq!(saved.fun_animation, "tasks");
+        value.fun_animation = "chase".into();
+        value.fun_animations = true;
+        assert_eq!(db.set_notification_preferences("dev",value.clone()).unwrap().fun_animation,"chase");
         value.fun_animation = "unknown".into();
         assert!(db.set_notification_preferences("dev", value).is_err());
     }
