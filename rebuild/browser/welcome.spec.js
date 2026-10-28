@@ -4,36 +4,48 @@ async function enter(page) {
   await page.goto('/signin');
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
   await page.goto('/welcome');
-  await expect(page.locator('[data-welcome-setup]')).toBeVisible();
+  // A previous scenario may have left a resumable draft.
+  const back = page.locator('[data-welcome-back]');
+  await expect(page.locator('[data-welcome-loading]')).toBeHidden();
+  if (await back.isVisible()) await back.click();
+  const form = page.locator('[data-welcome-setup]');
+  await expect(form).toBeVisible();
+  for (const input of await form.locator('input').all()) await input.uncheck();
+  return form;
 }
-test('space then list: slug names, colors, resume and safe completion retry', async ({
+async function inventory(page) {
+  return (await (await page.request.get('/api/v1/lists')).json()).map((l) => l.id).sort();
+}
+test('two-question welcome defers creation, resumes, and safely retries completion', async ({
   page,
 }) => {
-  await enter(page);
-  const original = await (await page.request.get('/api/v1/lists')).json();
-  await page.getByRole('button', { name: 'Together', exact: true }).click();
-  await expect(page.locator('[data-preview-space]')).toHaveText('home');
-  await expect(page.locator('[data-preview-list-card]')).toBeHidden();
-  await page.getByLabel('Space name', { exact: false }).fill('Our Home');
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const form = await enter(page);
+  const original = await inventory(page);
+  await expect(
+    form.getByRole('button', { name: 'Continue', exact: true }),
+  ).toBeDisabled();
+  await form.getByRole('checkbox', { name: 'Personal', exact: false }).check();
+  await form.getByRole('checkbox', { name: 'Work', exact: false }).check();
   await page.screenshot({
     path: '.local/rebuild/welcome-desktop.png',
     fullPage: true,
     animations: 'disabled',
   });
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  const form = page.locator('[data-welcome-list]');
-  await expect(form).toBeVisible();
-  await expect(page.locator('[data-preview-space]')).toHaveText('our-home');
-  await expect(form.locator('[name=list]')).toHaveValue('chores');
-  await expect(form.locator('[name=color]:checked')).toHaveValue('green');
+  await form.getByRole('button', { name: 'Continue', exact: true }).click();
+  const lists = page.locator('[data-welcome-lists]');
+  await expect(lists).toBeVisible();
+  expect(await inventory(page)).toEqual(original);
   await page.reload();
-  await expect(form).toBeVisible();
-  await form.getByLabel('List name', { exact: false }).fill('Home Chores');
-  await expect(form.locator('[name=list]')).toHaveValue('home-chores');
-  await form.getByLabel('Pink', { exact: true }).check();
-  await expect(page.locator('[data-preview-color]')).toHaveClass(/swatch-pink/);
+  await expect(lists).toBeVisible();
+  const personal = lists.getByRole('group', { name: '@personal', exact: true });
+  const work = lists.getByRole('group', { name: '@work', exact: true });
+  await personal.getByRole('checkbox', { name: 'Groceries', exact: false }).check();
+  await personal.getByRole('checkbox', { name: 'Home chores', exact: false }).check();
+  await work.getByRole('checkbox', { name: 'Weekly priorities', exact: false }).check();
   await page.screenshot({
-    path: '.local/rebuild/welcome-list-desktop.png',
+    path: '.local/rebuild/welcome-lists-desktop.png',
     fullPage: true,
     animations: 'disabled',
   });
@@ -44,19 +56,88 @@ test('space then list: slug names, colors, resume and safe completion retry', as
     await route.fetch();
     await route.abort('failed');
   });
-  await form.getByRole('button', { name: 'Create my list' }).click();
+  await lists.getByRole('button', { name: 'Start organizing' }).click();
   await expect(page.locator('[data-welcome-error]')).toBeVisible();
-  await form.getByRole('button', { name: 'Create my list' }).click();
+  await expect(
+    personal.getByRole('checkbox', { name: 'Groceries', exact: false }),
+  ).toBeChecked();
+  await expect(page.locator('canvas.welcome-chase')).toHaveAttribute(
+    'data-complete',
+    'false',
+  );
+  await lists.getByRole('button', { name: 'Start organizing' }).click();
   await expect(page).toHaveURL(/\/lists\//);
-  const current = await (await page.request.get('/api/v1/lists')).json();
-  expect(current.map((l) => l.id).sort()).toEqual(original.map((l) => l.id).sort());
-  expect(current.some((l) => l.title === 'home-chores')).toBeTruthy();
+  const after = await inventory(page);
   expect((await (await page.request.get('/api/v1/onboarding')).json()).status).toBe(
     'complete',
   );
+  // Reopening the same choices reuses destinations instead of duplicating them.
+  await enter(page);
+  await form.getByRole('checkbox', { name: 'Personal', exact: false }).check();
+  await form.getByRole('checkbox', { name: 'Work', exact: false }).check();
+  await form.getByRole('button', { name: 'Continue', exact: true }).click();
+  await lists
+    .getByRole('group', { name: '@personal', exact: true })
+    .getByRole('checkbox', { name: 'Groceries', exact: false })
+    .check();
+  await lists
+    .getByRole('group', { name: '@personal', exact: true })
+    .getByRole('checkbox', { name: 'Home chores', exact: false })
+    .check();
+  await lists
+    .getByRole('group', { name: '@work', exact: true })
+    .getByRole('checkbox', { name: 'Weekly priorities', exact: false })
+    .check();
+  await lists.getByRole('button', { name: 'Start organizing' }).click();
+  await expect(page).toHaveURL(/\/lists\//);
+  expect(await inventory(page)).toEqual(after);
+  expect(errors).toEqual([]);
 });
-
-test('mobile welcome stays compact, suppresses installation, and can be skipped', async ({
+test('desktop runner rests, never completes early, and celebrates on completion', async ({
+  page,
+}) => {
+  await enter(page);
+  const canvas = page.locator('canvas.welcome-chase');
+  await expect(canvas).toBeVisible();
+  await expect(canvas).toHaveAttribute('data-complete', 'false');
+  await expect(canvas).toHaveAttribute('data-phase', 'rest', { timeout: 16000 });
+  await page.screenshot({
+    path: '.local/rebuild/welcome-chase-rest.png',
+    fullPage: true,
+  });
+  await expect(canvas).toHaveAttribute('data-complete', 'false');
+  await expect(canvas).toHaveAttribute('data-phase', 'chase', { timeout: 7000 });
+  await page
+    .locator('[data-welcome-setup]')
+    .getByRole('checkbox', { name: 'Personal', exact: false })
+    .check();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  // Hold navigation to observe the actual completion ceremony.
+  await page.route('**/space/*', (route) => route.abort());
+  await page.getByRole('button', { name: 'I’ll decide on lists later' }).click();
+  await expect(page.locator('[data-welcome]')).toHaveAttribute('data-ready', 'true');
+  await expect(canvas).toHaveAttribute('data-phase', 'celebrate', { timeout: 4000 });
+  await expect(canvas).toHaveAttribute('data-complete', 'true');
+  await expect(page.locator('.welcome-content')).toHaveCSS('opacity', '0');
+  await expect(page.locator('[data-welcome-complete]')).toBeVisible();
+  await page.screenshot({
+    path: '.local/rebuild/welcome-chase-celebrate.png',
+    fullPage: true,
+  });
+});
+test('reduced motion skips the runner and completion delay', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await enter(page);
+  await expect(page.locator('canvas.welcome-chase')).toHaveCount(0);
+  await page
+    .locator('[data-welcome-setup]')
+    .getByRole('checkbox', { name: 'Work', exact: false })
+    .check();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await page.getByRole('button', { name: 'I’ll decide on lists later' }).click();
+  await expect(page).toHaveURL(/\/space\//);
+});
+test('mobile stays simple, defers installation, and has no runner', async ({
   browser,
   browserName,
 }) => {
@@ -73,26 +154,29 @@ test('mobile welcome stays compact, suppresses installation, and can be skipped'
     if (location.pathname === '/welcome')
       localStorage.removeItem('todoer-install-notice-v1');
   });
-  await page.goto('/signin');
-  await page.getByRole('button', { name: 'Enter development workspace' }).click();
-  await page.goto('/welcome');
-  await expect(page.locator('[data-welcome-setup]')).toBeVisible();
-  expect(
-    await page.evaluate(() => localStorage.getItem('todoer-install-notice-v1')),
-  ).toBeNull();
+  const form = await enter(page);
   await expect(page.locator('.pwa-install-notice')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Work', exact: true }).click();
-  await expect(page.locator('[data-preview-space]')).toHaveText('work');
-  await page.screenshot({ path: '.local/rebuild/welcome-mobile.png', fullPage: true });
+  await expect(page.locator('canvas.welcome-chase')).toHaveCount(0);
+  await form.getByRole('checkbox', { name: 'Personal', exact: false }).check();
+  await page.screenshot({
+    path: '.local/rebuild/welcome-mobile.png',
+    fullPage: true,
+    animations: 'disabled',
+  });
+  await form.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page.locator('[data-welcome-lists]')).toBeVisible();
+  await expect(page.getByRole('group', { name: '@work', exact: true })).toHaveCount(0);
+  await page.screenshot({
+    path: '.local/rebuild/welcome-lists-mobile.png',
+    fullPage: true,
+    animations: 'disabled',
+  });
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBeTruthy();
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await expect(page.locator('[data-welcome-list]')).toBeVisible();
+  const original = await inventory(page);
   await page.getByRole('button', { name: 'Skip for now' }).click();
   await expect(page).not.toHaveURL(/\/welcome/);
-  expect((await (await page.request.get('/api/v1/onboarding')).json()).status).toBe(
-    'skipped',
-  );
+  expect(await inventory(page)).toEqual(original);
   await context.close();
 });

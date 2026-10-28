@@ -43,6 +43,7 @@ const STATIC = [
   '/assets/offline.js',
   '/assets/pwa.js',
   '/assets/welcome.js',
+  '/assets/welcome-chase.js',
   '/assets/manifest.webmanifest',
   '/assets/icon192.png',
   '/assets/apple-touch-icon.png',
