@@ -12,11 +12,14 @@ Reference prefixes are:
 
 | Prefix | Target | Example |
 | --- | --- | --- |
-| `@` | Workspace | `@[Weekly planning]` |
+| `@` | Space | `@[Weekly planning]` |
 | `#` | List | `#Groceries` or `#LIST_UUID` |
 | `$` | Section | `$[Next steps]` |
-| `%` | Task | `%T-existing-reference`, `%TASK_UUID`, or an unambiguous UUID prefix of at least eight characters |
+| `%` | Top-level task | `%T-existing-reference`, `%TASK_UUID`, or an unambiguous UUID prefix of at least eight characters |
+| `^` | Subtask at any depth | `^TASK_ID` or `^[Task title]` |
 | `+` | Tag | `+urgent` or `+[high priority]` |
+
+Task and subtask prefixes follow the current parent relationship, including after reparenting. `%` resolves only top-level tasks; `^` resolves only tasks with a parent. Autocomplete choices include their canonical `prefix`. Existing saved reference bindings keep their target IDs and rendered links.
 
 Bare names use letters, digits, underscores and hyphens; brackets allow spaces and other literal name characters. Trailing punctuation remains ordinary text. Code spans, fenced code blocks, existing Markdown links/images, escaped prefixes, email addresses and prefixes embedded in words do not become references. Parsing uses CommonMark events and source ranges. Rendering injects typed link/text events and sanitizes the resulting HTML with the same image-removal policy as ordinary Markdown.
 

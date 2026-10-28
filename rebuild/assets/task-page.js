@@ -372,6 +372,14 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     if (!alive) return;
     showCompletion();
     root.dataset.parentId = task.parent_id || '';
+    const referenceButton = get('[data-copy-task-reference]');
+    if (referenceButton) {
+      const reference = `${task.parent_id ? '^' : '%'}${referenceButton.dataset.copyTaskReference.replace(/^[%^]/, '')}`;
+      referenceButton.dataset.copyTaskReference = reference;
+      referenceButton.textContent = reference;
+      const crumb = get('.breadcrumbs [aria-current="page"]');
+      if (crumb) crumb.textContent = reference;
+    }
     let promote = get('.task-context-menu [data-task-promote]');
     if (!promote) {
       promote = document.createElement('button');promote.type = 'button';

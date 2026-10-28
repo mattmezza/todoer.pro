@@ -405,7 +405,7 @@ impl TodoerMcp {
         )
     }
     #[tool(
-        description = "Resolve exact @workspace/#list/$section/%task/+tag references, autocomplete accessible choices, review unresolved saved-source occurrences, explicitly bind a choice with current source revision, or read authorized backlinks. Resolve never chooses ambiguous candidates. Bind increments task/comment source revision and preserves other stable bindings. Code spans/blocks and existing links remain literal."
+        description = "Resolve exact @space/#list/$section/%task/^subtask/+tag references, autocomplete accessible choices, review unresolved saved-source occurrences, explicitly bind a choice with current source revision, or read authorized backlinks. Resolve never chooses ambiguous candidates. Bind increments task/comment source revision and preserves other stable bindings. Code spans/blocks and existing links remain literal."
     )]
     async fn references(
         &self,

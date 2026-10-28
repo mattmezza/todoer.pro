@@ -128,7 +128,7 @@ if (bell) {
       const item = document.createElement('article');
       item.className = `notification-item${n.unread ? ' unread' : ''}`;
       const link = document.createElement('a');
-      link.href = `/tasks/${encodeURIComponent(n.task_reference.replace(/^%/, ''))}`;
+      link.href = `/tasks/${encodeURIComponent(n.task_reference.replace(/^[%^]/, ''))}`;
       const text = document.createElement('span');
       text.className = 'notification-text';
       const kind = document.createElement('small');

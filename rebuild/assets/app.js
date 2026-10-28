@@ -540,7 +540,7 @@ async function openTask(id, push = true) {
     if (!editor) throw new Error('Task not found');
     $('#edit-title').value = editor.title;
     $('#edit-description').value = editor.description;
-    $('#editor-reference').textContent = `%${editor.reference}`;
+    $('#editor-reference').textContent = `${editor.parent_id ? '^' : '%'}${editor.reference}`;
     $('#edit-error').textContent = '';
     const saved = sessionStorage.getItem(`todoer:${account}:edit:${editor.id}`);
     if (saved) {

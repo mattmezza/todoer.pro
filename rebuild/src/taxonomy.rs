@@ -21,6 +21,7 @@ pub enum TagSelector {
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct ReferenceChoice {
+    pub prefix: &'static str,
     pub kind: String,
     pub id: String,
     pub label: String,
@@ -524,10 +525,16 @@ fn prefix_kind(ch: char) -> Option<&'static str> {
         '@' => Some("workspace"),
         '#' => Some("list"),
         '$' => Some("section"),
-        '%' => Some("task"),
+        '%' | '^' => Some("task"),
         '+' => Some("tag"),
         _ => None,
     }
+}
+fn entity_prefix(kind: &str) -> &'static str {
+    match kind { "workspace" => "@", "list" => "#", "section" => "$", "task" => "%", "tag" => "+", _ => "" }
+}
+fn matches_task_prefix(token: &str, choice: &ReferenceChoice) -> bool {
+    choice.kind != "task" || token.starts_with(choice.prefix)
 }
 fn token_char(ch: char) -> bool {
     ch.is_alphanumeric() || matches!(ch, '_' | '-')
@@ -586,7 +593,7 @@ fn tokens(raw: &str) -> Vec<Token> {
                 == 1;
             if escaped
                 || previous.is_some_and(|c| {
-                    token_char(c) || matches!(c, '/' | '@' | '#' | '$' | '%' | '+')
+                    token_char(c) || matches!(c, '/' | '@' | '#' | '$' | '%' | '^' | '+')
                 })
             {
                 cursor += ch.len_utf8();
@@ -687,6 +694,7 @@ fn candidates(c: &Connection, actor: &str, kind: &str) -> Result<Vec<ReferenceCh
                 let (id, title) = row?;
                 if workspace_visible(c, actor, &id, 1).is_ok() {
                     result.push(ReferenceChoice {
+                        prefix: entity_prefix(kind),
                         kind: kind.into(),
                         id,
                         label: title,
@@ -703,6 +711,7 @@ fn candidates(c: &Connection, actor: &str, kind: &str) -> Result<Vec<ReferenceCh
                 let (id, label) = row?;
                 let context = list_context(c, actor, &id)?;
                 result.push(ReferenceChoice {
+                    prefix: entity_prefix(kind),
                     kind: kind.into(),
                     id,
                     label,
@@ -715,6 +724,7 @@ fn candidates(c: &Connection, actor: &str, kind: &str) -> Result<Vec<ReferenceCh
             for row in stmt.query_map([actor], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))? {
                 let (id, label, context) = row?;
                 result.push(ReferenceChoice {
+                    prefix: entity_prefix(kind),
                     kind: kind.into(),
                     id,
                     label,
@@ -723,10 +733,11 @@ fn candidates(c: &Connection, actor: &str, kind: &str) -> Result<Vec<ReferenceCh
             }
         }
         "task" => {
-            let mut stmt=c.prepare("SELECT t.id,t.title,l.title||' · '||t.reference FROM tasks t JOIN lists l ON l.id=t.list_id JOIN actor_list_access a ON a.list_id=l.id WHERE a.actor_id=?1 AND t.deleted_at IS NULL AND l.archived=0 ORDER BY t.id LIMIT 1000")?;
-            for row in stmt.query_map([actor], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))? {
-                let (id, label, context) = row?;
+            let mut stmt=c.prepare("SELECT t.id,t.title,l.title||' · '||t.reference,t.parent_id IS NOT NULL FROM tasks t JOIN lists l ON l.id=t.list_id JOIN actor_list_access a ON a.list_id=l.id WHERE a.actor_id=?1 AND t.deleted_at IS NULL AND l.archived=0 ORDER BY t.id LIMIT 1000")?;
+            for row in stmt.query_map([actor], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get::<_,bool>(3)?)))? {
+                let (id, label, context, subtask) = row?;
                 result.push(ReferenceChoice {
+                    prefix: if subtask { "^" } else { "%" },
                     kind: kind.into(),
                     id,
                     label,
@@ -743,6 +754,7 @@ fn candidates(c: &Connection, actor: &str, kind: &str) -> Result<Vec<ReferenceCh
                 if visible_tag(c, actor, &id)? {
                     let context = tag_context(c, actor, &id)?;
                     result.push(ReferenceChoice {
+                        prefix: entity_prefix(kind),
                         kind: kind.into(),
                         id,
                         label,
@@ -761,7 +773,8 @@ fn exact_matches(
     token: &Token,
 ) -> Result<Vec<ReferenceChoice>, Error> {
     if let Some((label, _)) = target(c, actor, token.kind, &token.query)? {
-        return Ok(vec![ReferenceChoice {
+        let choice = ReferenceChoice {
+            prefix: if token.kind == "task" { task(c, &token.query)?.reference_prefix() } else { entity_prefix(token.kind) },
             kind: token.kind.into(),
             id: if token.kind == "task" {
                 task(c, &token.query)?.id
@@ -770,7 +783,8 @@ fn exact_matches(
             },
             label,
             context: String::new(),
-        }]);
+        };
+        return Ok(if matches_task_prefix(&token.raw, &choice) { vec![choice] } else { vec![] });
     }
     let query = token.query.to_lowercase();
     let mut choices = candidates(c, actor, token.kind)?;
@@ -786,17 +800,19 @@ fn exact_matches(
                         .is_some_and(|reference| reference.to_lowercase() == query)))
     });
     if token.kind == "task" && token.query.len() >= 8 {
-        let mut stmt=c.prepare("SELECT t.id,t.title,l.title||' · '||t.reference FROM tasks t JOIN lists l ON l.id=t.list_id JOIN actor_list_access a ON a.list_id=l.id WHERE a.actor_id=?1 AND substr(t.id,1,length(?2))=?2 AND t.deleted_at IS NULL ORDER BY t.id LIMIT 31")?;
+        let mut stmt=c.prepare("SELECT t.id,t.title,l.title||' · '||t.reference,t.parent_id IS NOT NULL FROM tasks t JOIN lists l ON l.id=t.list_id JOIN actor_list_access a ON a.list_id=l.id WHERE a.actor_id=?1 AND substr(t.id,1,length(?2))=?2 AND t.deleted_at IS NULL ORDER BY t.id LIMIT 31")?;
         for row in stmt.query_map(params![actor, token.query], |r| {
             Ok((
                 r.get::<_, String>(0)?,
                 r.get::<_, String>(1)?,
                 r.get::<_, String>(2)?,
+                r.get::<_, bool>(3)?,
             ))
         })? {
-            let (id, label, context) = row?;
+            let (id, label, context, subtask) = row?;
             if !choices.iter().any(|choice| choice.id == id) {
                 choices.push(ReferenceChoice {
+                    prefix: if subtask { "^" } else { "%" },
                     kind: "task".into(),
                     id,
                     label,
@@ -805,6 +821,7 @@ fn exact_matches(
             }
         }
     }
+    choices.retain(|choice| matches_task_prefix(&token.raw, choice));
     choices.sort_by(|a, b| a.id.cmp(&b.id));
     Ok(choices)
 }
@@ -1091,6 +1108,7 @@ impl Store {
         let mut result = Vec::new();
         for kind in kinds {
             for candidate in candidates(&self.conn, actor, kind)? {
+                if kind == "task" && first.is_some_and(|ch| matches!(ch, '%' | '^')) && !matches_task_prefix(query, &candidate) { continue; }
                 if candidate.label.to_lowercase().starts_with(&needle)
                     || candidate.id.starts_with(&needle)
                     || candidate
@@ -1459,6 +1477,40 @@ mod tests {
         );
     }
     #[test]
+    fn task_and_subtask_symbols_follow_structure_at_every_depth() {
+        let mut db = db();
+        let root = new_task(&mut db, "inbox", "Same name", None, "");
+        let child = new_task(&mut db, "inbox", "Same name", Some(root.id.clone()), "");
+        let nested = new_task(&mut db, "inbox", "Nested", Some(child.id.clone()), "");
+        for (task, prefix) in [(&root, "%"), (&child, "^"), (&nested, "^")] {
+            let reference = crate::defaults::public_id(&db.conn, "task", &task.id).unwrap();
+            let resolved = db.resolve_reference("dev", &format!("{prefix}{reference}")).unwrap();
+            assert_eq!(resolved.choices.len(), 1);
+            assert_eq!(resolved.choices[0].id, task.id);
+            assert_eq!(resolved.choices[0].prefix, prefix);
+            let wrong = if prefix == "%" { "^" } else { "%" };
+            assert!(db.resolve_reference("dev", &format!("{wrong}{reference}")).unwrap().choices.is_empty());
+        }
+        assert_eq!(db.resolve_reference("dev", "%[Same name]").unwrap().choices[0].id, root.id);
+        assert_eq!(db.resolve_reference("dev", "^[Same name]").unwrap().choices[0].id, child.id);
+        assert!(db.reference_autocomplete("dev", "%", 30).unwrap().iter().all(|c| c.prefix == "%"));
+        let children = db.reference_autocomplete("dev", "^", 30).unwrap();
+        assert_eq!(children.len(), 2);
+        assert!(children.iter().all(|c| c.prefix == "^"));
+        let raw = format!("See %{} and ^{} and ^{}.", root.reference, child.reference, nested.reference);
+        let source = new_task(&mut db, "inbox", "References", None, &raw);
+        assert!(index_references(&db.conn, "dev", "task", &source.id, &raw).unwrap().is_empty());
+        let html = render_references(&db.conn, "dev", "task", &source.id, &raw).unwrap();
+        for task in [&root, &child, &nested] { assert!(html.contains(&format!("/tasks/{}", task.id))); }
+        let report = db.readable_report("dev", &crate::reports::ReportScope { kind: "task".into(), id: Some(root.id.clone()), ..Default::default() }).unwrap();
+        assert_eq!(report.tasks.len(), 3);
+        for task in report.tasks { assert!(task.reference.starts_with(if task.parent_id.is_some() { '^' } else { '%' })); }
+        let query = crate::search::Query { text: format!("^{}", nested.reference), status: "all".into(), ..Default::default() };
+        let hits = db.query("dev", &query).unwrap().hits;
+        assert_eq!(hits.len(), 1);
+        assert!(hits[0].reference.as_ref().unwrap().starts_with('^'));
+    }
+    #[test]
     fn stored_targets_survive_renames_and_hide_after_access_loss_or_deletion() {
         let mut db = db();
         let referenced = new_task(&mut db, "inbox", "Original target", None, "");
@@ -1601,7 +1653,7 @@ impl Store {
         let parsed = tokens(input);
         if parsed.len() != 1 || parsed[0].raw != input {
             return Err(Error::Invalid(
-                "provide exactly one @workspace, #list, $section, %task or +tag reference".into(),
+                "provide exactly one @space, #list, $section, %task, ^subtask or +tag reference".into(),
             ));
         }
         Ok(ReferenceResolution {
