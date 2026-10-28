@@ -7765,3 +7765,6 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .quick-capture-actions .quick-capture-repeat { margin: 0; line-height: 1; }
 .quick-capture-actions .quick-capture-repeat input[type='checkbox'] { width: 1rem; height: 1rem; min-height: 0; padding: 0; margin: 0; }
 .quick-capture-footer .capture-help { font-size: 0.75rem; opacity: 0.75; }
+.quick-capture-footer .capture-help button { color: inherit; font: inherit; padding: 0; text-decoration: none; }
+.quick-capture-footer .capture-help button:hover { color: var(--text); }
+.capture-help [hidden] { display: none !important; }
