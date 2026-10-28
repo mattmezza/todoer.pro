@@ -49,30 +49,106 @@ export async function clearPwa(scope) {
   }
 }
 
-// Browsers without an install prompt retain the platform instructions.
+// Installation is a device-level suggestion, rather than an account notification.
+const installNoticeKey = 'todoer-install-notice-v1';
+const standalone = () =>
+  matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+const mobileDevice = () =>
+  navigator.userAgentData?.mobile ||
+  /Android|iPhone|iPad|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 let installPrompt;
+let installNotice;
+
+async function promptInstall(button) {
+  if (!installPrompt) return;
+  button.disabled = true;
+  try {
+    await installPrompt.prompt();
+    await installPrompt.userChoice;
+    installNotice?.remove();
+  } catch {
+    const status = document.querySelector('[data-install-status]');
+    if (status)
+      status.textContent =
+        'Use your browser’s Add to Home Screen option to install Todoer.';
+  } finally {
+    installPrompt = null;
+    document.querySelectorAll('[data-install-app]').forEach((el) => {
+      el.hidden = true;
+    });
+    button.disabled = false;
+  }
+}
+function wireInstallButtons() {
+  document.querySelectorAll('[data-install-app]').forEach((button) => {
+    button.hidden = !installPrompt;
+    button.onclick = () => promptInstall(button);
+  });
+}
 window.addEventListener('beforeinstallprompt', (event) => {
-  const button = document.querySelector('[data-install-app]');
-  if (!button) return;
   event.preventDefault();
   installPrompt = event;
-  button.hidden = false;
-  button.onclick = async () => {
-    button.disabled = true;
-    try {
-      await installPrompt.prompt();
-      await installPrompt.userChoice;
-    } finally {
-      installPrompt = null;
-      button.hidden = true;
-      button.disabled = false;
-    }
-  };
+  wireInstallButtons();
 });
 function installed() {
-  document.querySelector('[data-install-app]')?.setAttribute('hidden', '');
+  installNotice?.remove();
+  installPrompt = null;
+  wireInstallButtons();
   const status = document.querySelector('[data-install-status]');
   if (status) status.textContent = 'Todoer is installed and opens as its own app.';
 }
 window.addEventListener('appinstalled', installed);
-if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) installed();
+if (standalone()) installed();
+
+function suggestInstall() {
+  if (
+    !isSecureContext ||
+    standalone() ||
+    !mobileDevice() ||
+    !document.querySelector('meta[name="account-id"]')?.content
+  )
+    return;
+  try {
+    if (localStorage.getItem(installNoticeKey)) return;
+    localStorage.setItem(installNoticeKey, 'seen');
+  } catch {
+    // Avoid a recurring prompt when storage is unavailable.
+    return;
+  }
+  installNotice = document.createElement('section');
+  installNotice.className = 'pwa-install-notice';
+  installNotice.setAttribute('role', 'status');
+  installNotice.setAttribute('aria-label', 'Install Todoer');
+  const logo = document.createElement('img');
+  logo.src = '/assets/icon192.png';
+  logo.alt = '';
+  logo.width = logo.height = 40;
+  const text = document.createElement('div');
+  const heading = document.createElement('strong');
+  heading.textContent = 'Keep Todoer close';
+  const description = document.createElement('p');
+  const apple =
+    /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  description.textContent = apple
+    ? 'Choose Share → Add to Home Screen, then open Todoer from its icon. You can enable push notifications there too.'
+    : 'Install Todoer for quick access from your Home Screen. Use Install app or Add to Home Screen in your browser menu.';
+  const action = document.createElement('button');
+  action.type = 'button';
+  action.className = 'primary';
+  action.dataset.installApp = '';
+  action.textContent = 'Install Todoer';
+  action.hidden = true;
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'pwa-install-dismiss';
+  close.setAttribute('aria-label', 'Dismiss installation suggestion');
+  close.textContent = '×';
+  close.onclick = () => installNotice.remove();
+  text.append(heading, description, action);
+  installNotice.append(logo, text, close);
+  document.body.append(installNotice);
+  wireInstallButtons();
+}
+suggestInstall();
