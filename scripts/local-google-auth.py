@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run real Google authentication against a separate local database."""
+import base64
 import json
 import os
 from pathlib import Path
@@ -22,10 +23,17 @@ if not key_path.exists():
     fd = os.open(key_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     with os.fdopen(fd, 'w') as file:
         file.write(secrets.token_hex(32))
+push_key_path = state / 'push-local.key'
+if not push_key_path.exists():
+    fd = os.open(push_key_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    with os.fdopen(fd, 'w') as file:
+        file.write(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip('='))
 # Use only deliberate configuration, rather than inherited development adapters/workers.
 env = {key: value for key, value in os.environ.items() if not key.startswith('TODOER_')}
-env.update({key:value for key,value in os.environ.items() if key.startswith('TODOER_SMTP_') or key in ('TODOER_AUTH_ADMIN_EMAILS','TODOER_GOOGLE_LOGIN_ENABLED','TODOER_SIGNUP_ENABLED')})
+env.update({key:value for key,value in os.environ.items() if key.startswith(('TODOER_SMTP_', 'TODOER_PUSH_')) or key in ('TODOER_AUTH_ADMIN_EMAILS','TODOER_GOOGLE_LOGIN_ENABLED','TODOER_SIGNUP_ENABLED')})
 env.update({
+    'TODOER_PUSH_VAPID_PRIVATE_KEY': env.get('TODOER_PUSH_VAPID_PRIVATE_KEY', push_key_path.read_text().strip()),
+    'TODOER_PUSH_VAPID_SUBJECT': env.get('TODOER_PUSH_VAPID_SUBJECT', 'mailto:' + email.split(',')[0].strip()),
     'TODOER_DEV_AUTH': '0',
     'TODOER_RUST_DB': str(state / 'google-auth.db'),
     'TODOER_RUST_PORT': '8094',

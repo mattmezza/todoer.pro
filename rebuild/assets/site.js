@@ -1,3 +1,4 @@
+import './notification-center.js';
 import { request as fetch } from './request.js';
 import './home-filters.js';
 import './settings-feedback.js';

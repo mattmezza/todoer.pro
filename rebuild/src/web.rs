@@ -1,3 +1,5 @@
+#[path = "notification_web.rs"]
+mod notification_http;
 #[path = "public_web.rs"]
 mod public_http;
 #[path = "activity_web.rs"]
@@ -298,6 +300,7 @@ pub fn router(state: AppState) -> Router {
         .merge(statistics_http::routes())
         .merge(assist_http::routes())
         .merge(jobs_http::routes())
+        .merge(notification_http::routes())
         .merge(task_page::routes())
         .merge(section_move_http::routes())
         .merge(taxonomy_http::routes())

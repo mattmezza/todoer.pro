@@ -122,6 +122,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_assist(todoer::assist::AssistService::from_env()?)
         .with_storage(storage)
         .with_push(todoer::push::PushTransport::from_env()?);
+    let inbox_worker = state.start_inbox_worker();
     let statistics_worker = state.start_statistics_worker();
     let push_worker = state.start_push_worker();
     let notifications = todoer::notifications::Notifications::from_env()?;
@@ -155,6 +156,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     state.request_shutdown();
     let _ = tokio::time::timeout(std::time::Duration::from_secs(10), statistics_worker).await;
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(3), inbox_worker).await;
     if let Some(worker) = push_worker {
         let _ = tokio::time::timeout(std::time::Duration::from_secs(30), worker).await;
     }

@@ -16,6 +16,7 @@ const STATIC = [
   '/assets/app.css',
   '/assets/app.js',
   '/assets/site.js',
+  '/assets/notification-center.js',
   '/assets/task-play.js',
   '/assets/planning-page.js',
   '/assets/general-settings.js',
@@ -224,10 +225,11 @@ self.addEventListener('push', (event) => {
       }
       if (!payload || !notificationPath(payload.url)) return;
       const summary = payload.url === '/review';
+      const inbox = payload.url === '/notifications';
       await self.registration.showNotification(
-        summary ? 'Todoer summary' : 'Todoer reminder',
+        inbox ? 'Todoer notification' : summary ? 'Todoer summary' : 'Todoer reminder',
         {
-          body: summary
+          body: inbox ? 'Open Todoer for your notifications.' : summary
             ? 'Open Todoer for your review.'
             : 'Open Todoer to review your reminder.',
           icon: '/legacy-assets/favicon.png',
@@ -265,6 +267,7 @@ self.addEventListener('notificationclick', (event) => {
 
 function notificationPath(path) {
   return (
+    path === '/notifications' ||
     path === '/review' ||
     (typeof path === 'string' && /^\/tasks\/[a-zA-Z0-9-]+$/.test(path))
   );
