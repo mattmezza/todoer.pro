@@ -28,16 +28,21 @@ at completion. The mobile PWA installation prompt waits until after Welcome.
 ## Desktop chase
 
 `welcome-chase.js` draws one decorative canvas at the bottom edge of desktop
-windows (1024px+, without a coarse touch pointer). It uses projected shaded capsules and
-spheres for a miniature human, two-link leg IK and ground-speed stance feet,
-opposite arm swings, breathing/rest periods and a jumping task. The chase uses the empty left gutter along the bottom edge, so it does not
-cross the form. The task escapes
-near misses and jumps over the runner at window edges. It waves while the human
-rests. These are fictional objects, unrelated to account tasks.
+windows (1024px+, without a coarse touch pointer). A simple monochrome human
+runs with two-link leg IK, a short ground-contact phase, opposite bent-arm swings
+and a speed-matched stride. The task is a checkbox card labeled “Sort receipts”.
+It jumps away near the runner and waves during rest periods.
+
+The chase makes fast one-way passes across the bottom edge. Both actors completely
+exit before wrapping together offscreen to re-enter from the left. It does not
+reverse at the screen edge; rests can also happen outside the window. Conservative
+horizontal drawing envelopes (including hands, waving arms and card tilt) stay at
+least 14px apart throughout the chase and finale. These are fictional objects,
+unrelated to account tasks.
 
 Successful completion fades the form downward, lets the runner catch and check
 the task, and celebrates with a short jump/confetti sequence before navigating.
-Failed saves never trigger that ending. A 3.8-second bound prevents animation
+Failed saves never trigger that ending. A 4.5-second bound prevents animation
 from holding navigation. Reduced motion, mobile and hidden tabs skip the sequence;
 normal animation frames pause when the tab is hidden. The canvas does not receive
 pointer events or appear in the accessibility tree. No runtime dependencies,
@@ -47,3 +52,8 @@ Validation covers draft-only writes, atomic completion, input validation, retrie
 reopening without duplicates, and skip/undecided behavior. Browser scenarios cover
 both selected spaces, grouped list choices, reload, lost responses, desktop rest
 and celebration, reduced motion, mobile layout and installation deferral.
+
+Motion invariants can be checked independently with
+`node --test rebuild/tests/welcome-chase-motion.test.mjs`. Tests simulate multiple
+window sizes/frame rates, verify separation on every frame, check that wrapping
+happens entirely offscreen, and complete from different chase/rest/resize states.
