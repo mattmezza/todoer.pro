@@ -6,11 +6,10 @@ test('space name and description share an inline editor and retain drafts on err
 }) => {
   await page.goto('/signin');
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  await page.goto('/spaces');
+  const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
   const response = await page.request.post('/api/v1/workspaces', {
-    headers: {
-      Authorization: 'Bearer local-integration-token-not-for-production',
-      'Idempotency-Key': randomUUID(),
-    },
+    headers: { 'X-CSRF-Token': csrf, 'Idempotency-Key': randomUUID() },
     data: {
       title: `Edit ${randomUUID().slice(0, 8)}`,
       description: 'Original **description**',
