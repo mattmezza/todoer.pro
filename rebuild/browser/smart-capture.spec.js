@@ -287,6 +287,46 @@ test('suggestions support Ctrl-N, Ctrl-P, arrows and Tab', async ({ page }) => {
   await task.press('ArrowDown');
   await task.press('Tab');
   await expect(task).toHaveValue('buy @People');
+  await task.fill('buy @pe');
+  await task.press('Enter');
+  await expect(task).toHaveValue('buy @Personal');
+  await expect(task).toBeVisible();
+});
+
+test('Enter accepts a suggestion before submitting and Shift temporarily reverses keep adding', async ({ page }) => {
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  await page.goto('/inbox');
+  await page.getByRole('link', { name: 'Capture a task…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'What’s on your mind?' });
+  const title = dialog.getByLabel('Task', { exact: true });
+  const repeat = dialog.getByLabel('Keep adding');
+  await expect(repeat).not.toBeChecked();
+  const first = `Enter suggestion ${Date.now()}`;
+  await title.fill(`${first} #in`);
+  await expect(dialog.getByRole('option', { name: '#Inbox' })).toBeVisible();
+  await title.press('Enter');
+  await expect(title).toHaveValue(`${first} #Inbox`);
+  await expect(dialog).toBeVisible();
+  await page.keyboard.down('Shift');
+  await expect(repeat).toBeChecked();
+  await page.keyboard.press('Enter');
+  await expect(title).toHaveValue('');
+  await expect(dialog).toBeVisible();
+  await page.keyboard.up('Shift');
+  await expect(repeat).not.toBeChecked();
+  await repeat.check();
+  await page.reload();
+  await page.getByRole('link', { name: 'Capture a task…' }).click();
+  await expect(repeat).toBeChecked();
+  await title.fill(`Shift closes ${Date.now()}`);
+  await page.keyboard.down('Shift');
+  await expect(repeat).not.toBeChecked();
+  await page.keyboard.press('Enter');
+  await expect(dialog).not.toBeVisible();
+  await page.keyboard.up('Shift');
+  await page.getByRole('link', { name: 'Capture a task…' }).click();
+  await expect(repeat).toBeChecked();
 });
 
 test('priority is previewed without a selector and literal text can be restored', async ({

@@ -259,7 +259,7 @@ export function mountSmartCapture(form) {
       const selected = suggestions.children[active];
       title.setAttribute('aria-activedescendant', selected.id);
       selected.scrollIntoView({ block: 'nearest' });
-    } else if (event.key === 'Tab' && !event.shiftKey) {
+    } else if ((event.key === 'Tab' && !event.shiftKey) || event.key === 'Enter') {
       event.preventDefault();
       event.stopPropagation();
       choose(active);
