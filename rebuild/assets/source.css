@@ -7772,3 +7772,57 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 @media(max-width:640px) { .settings-preference-card { padding:20px; } }
 .settings-page label.settings-check:has(small) { align-items:flex-start; }
 .settings-page .settings-check:has(small) > input[type='checkbox'] { margin-top:4px; }
+
+.settings-card-heading { display:flex; align-items:flex-start; gap:14px; margin-bottom:20px; }
+.settings-card-icon { width:36px; height:36px; border-radius:10px; display:grid; place-items:center; background:var(--bg); color:var(--accent); flex-shrink:0; }
+.settings-screen-content .settings-card-heading h2 { margin:0 0 4px; }
+.settings-screen-content .settings-card-heading p { margin:0; }
+.device-browser-actions { display:flex; flex-wrap:wrap; gap:10px; }
+.settings-screen-content .device-browser-actions button { margin:0; }
+.settings-screen-content .device-browser-status { margin-bottom:18px; }
+.device-name-option { margin-top:16px; }
+.device-name-option label { max-width:340px; }
+.settings-preference-card label.device-account-toggle { padding-top:20px; margin-top:20px; border-top:1px solid var(--line); }
+.device-entry { display:flex; align-items:center; gap:14px; padding:18px 0; border-top:1px solid var(--line); }
+.device-entry-icon { color:var(--muted); flex-shrink:0; }
+.device-entry-info { min-width:0; flex:1; }
+.device-entry h3 { font-size:15px; font-weight:600; overflow-wrap:anywhere; margin:0 0 6px; }
+.device-entry-info small { display:block; color:var(--muted); font-size:12px; margin-top:6px; }
+.device-entry form { margin:0; flex-shrink:0; }
+.device-revoke { color:var(--muted); padding:8px 10px; font-size:13px; border-radius:8px; }
+.device-revoke:hover { color:var(--text); background:var(--hover); }
+.delivery-badge { display:inline-flex; align-items:center; font-size:12px; line-height:1.5; border-radius:20px; padding:3px 9px; background:var(--hover); color:var(--muted); white-space:nowrap; }
+.delivery-success { color:light-dark(#17724e,#81d4ae); background:light-dark(#def3e8,#1d423630); }
+.delivery-waiting { color:var(--accent); background:color-mix(in srgb,var(--accent) 10%,transparent); }
+.delivery-warning { color:light-dark(#975414,#f5c581); background:light-dark(#fff0da,#6c482030); }
+.settings-empty { display:flex; flex-direction:column; align-items:center; text-align:center; gap:12px; padding:32px 12px; }
+.settings-empty > svg { width:30px; height:30px; color:var(--muted); }
+.settings-screen-content .settings-empty p { margin:0; max-width:400px; color:var(--muted); }
+.settings-footer-help { margin:24px 0; font-size:14px; color:var(--muted); max-width:680px; }
+.settings-footer-help > a { display:flex; justify-content:space-between; align-items:center; gap:12px; color:var(--text); padding:8px 0; }
+.settings-footer-help details { margin-top:16px; }
+.settings-footer-help summary { cursor:pointer; }
+.settings-footer-help p { font-size:13px; line-height:1.65; }
+.settings-screen-content > form.delivery-toolbar { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; max-width:680px; margin:0 0 24px; }
+.delivery-toolbar label { flex:1; min-width:160px; }
+.delivery-toolbar select { min-height:44px; width:100%; }
+.delivery-toolbar button { min-height:44px; }
+.delivery-refresh { display:flex; gap:8px; align-items:center; color:var(--muted); }
+.delivery-entry header { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+.settings-screen-content .delivery-entry header h2 { margin:0; font-size:16px; }
+.delivery-entry header > .delivery-badge { margin-left:auto; }
+.delivery-channel { font-size:13px; }
+.settings-screen-content .delivery-entry .delivery-description { margin:0 0 12px; font-size:14px; }
+.settings-screen-content .delivery-reason { display:flex; align-items:flex-start; gap:8px; color:var(--muted); font-size:13px; margin:0 0 14px; }
+.delivery-reason svg { flex-shrink:0; margin-top:3px; }
+.settings-screen-content .delivery-schedule { display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px; font-size:13px; margin:0 0 12px; }
+.delivery-schedule span { color:var(--muted); }
+.device-delivery-counts { display:flex; flex-wrap:wrap; gap:14px; font-size:12px; color:var(--muted); margin-bottom:12px; }
+.delivery-details { border-top:1px solid var(--line); padding-top:10px; }
+.delivery-details summary { color:var(--muted); }
+.delivery-details dl { font-size:13px; margin-top:12px; }
+.delivery-details dl > div { display:grid; grid-template-columns:150px minmax(0,1fr); gap:12px; margin:8px 0; }
+.delivery-details dt { color:var(--muted); }
+.delivery-details dd { margin:0; overflow-wrap:anywhere; }
+.delivery-pagination { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:24px 0; }
+@media(max-width:640px) { .delivery-details dl > div { grid-template-columns:1fr; gap:2px; } .delivery-toolbar .delivery-refresh { font-size:13px; } }
