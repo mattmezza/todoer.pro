@@ -1,7 +1,7 @@
 // One accessible, styled confirmation surface for every destructive action.
 // Queue callers so a second action cannot steal the first dialog's response.
 let pending = Promise.resolve();
-export function confirmAction(message) {
+export function confirmAction(message, options = {}) {
   const next = pending.then(
     () =>
       new Promise((resolve) => {
@@ -11,7 +11,7 @@ export function confirmAction(message) {
         dialog.setAttribute('aria-describedby', 'confirmation-message');
         const title = document.createElement('h2');
         title.id = 'confirmation-heading';
-        title.textContent = 'Confirm change';
+        title.textContent = options.title || 'Confirm change';
         const text = document.createElement('p');
         text.id = 'confirmation-message';
         text.textContent = message;
@@ -37,6 +37,7 @@ export function confirmAction(message) {
               : /discard/i.test(message)
                 ? 'Discard'
                 : 'Confirm';
+        if (options.acceptLabel) accept.textContent = options.acceptLabel;
         form.append(cancel, accept);
         dialog.append(title, text, form);
         document.body.append(dialog);

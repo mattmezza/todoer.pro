@@ -282,7 +282,7 @@ impl AuthStore {
         let principal = self.authenticate_session(token, None, false)?;
         let recent:bool=self.conn.query_row("SELECT EXISTS(SELECT 1 FROM auth_recent_sessions WHERE token_hash=?1 AND authenticated_at>?2)",params![hash(token),now()-300],|r|r.get(0))?;
         if !recent {
-            return Err(invalid("Sign in again to change account security"));
+            return Err(AuthError::ReauthenticationRequired);
         }
         Ok(principal.actor)
     }

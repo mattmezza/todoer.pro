@@ -4,6 +4,42 @@ import { confirmAction } from './confirm.js';
 import { passkey } from './passkeys.js';
 const root = document.querySelector('[data-account-security]');
 const csrf = document.querySelector('meta[name=csrf-token]').content;
+let activeSection = '';
+root?.querySelectorAll('.security-card').forEach((card, i) => {
+  card.id = `security-section-${i}`;
+});
+root?.addEventListener(
+  'click',
+  (event) => {
+    activeSection = event.target.closest('.security-card')?.id || '';
+  },
+  true,
+);
+root?.addEventListener(
+  'submit',
+  (event) => {
+    activeSection = event.target.closest('.security-card')?.id || '';
+  },
+  true,
+);
+root?.querySelector('[data-download-recovery]')?.addEventListener('click', () => {
+  const codes = root.querySelector('[data-recovery-codes]').textContent;
+  if (!codes.trim()) return;
+  const blob = new Blob(
+    [
+      `Todoer recovery codes\n\nKeep these codes somewhere safe. Each code can be used once.\n\n${codes}\n`,
+    ],
+    { type: 'text/plain;charset=utf-8' },
+  );
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'todoer-recovery-codes.txt';
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
 let busy = false,
   setupId = '',
   policy,
@@ -15,7 +51,11 @@ async function api(path, body, method = 'POST') {
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const data = await response.json();
-  if (!response.ok) throw Error(data.error?.message || 'Request failed');
+  if (!response.ok) {
+    const error = Error(data.error?.message || 'Request failed');
+    error.code = data.error?.code;
+    throw error;
+  }
   return data;
 }
 function showCodes(codes) {
@@ -37,6 +77,21 @@ async function run(fn) {
   try {
     await fn();
   } catch (e) {
+    if (e.code === 'reauthentication_required' || e.code === 'unauthorized') {
+      if (
+        await confirmAction(
+          'For your security, sign in again before changing these settings. You’ll return here to complete your action.',
+          { title: 'Sign in again', acceptLabel: 'Sign in now' },
+        )
+      ) {
+        const next =
+          location.pathname +
+          location.search +
+          (activeSection ? `#${activeSection}` : location.hash);
+        location.assign('/signin?next=' + encodeURIComponent(next));
+      }
+      return;
+    }
     toast(
       e.name === 'NotAllowedError'
         ? 'Passkey request cancelled or unavailable.'
@@ -46,7 +101,8 @@ async function run(fn) {
   } finally {
     busy = false;
     previous.forEach((disabled, b) => {
-      if (b.isConnected) b.disabled = disabled || reauth;
+      if (b.isConnected)
+        b.disabled = (disabled || reauth) && !b.matches('[data-download-recovery]');
     });
   }
 }
@@ -181,4 +237,15 @@ if (policyForm) {
     });
   });
 }
-if (root) load().catch((e) => toast(e.message, 'error'));
+if (root)
+  load()
+    .then(() => {
+      const section = [...root.querySelectorAll('.security-card')].find(
+        (card) => `#${card.id}` === location.hash,
+      );
+      if (section) {
+        section.scrollIntoView({ block: 'center' });
+        section.querySelector('input,button')?.focus({ preventScroll: true });
+      }
+    })
+    .catch((e) => toast(e.message, 'error'));

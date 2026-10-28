@@ -108,12 +108,15 @@ document.addEventListener('keydown', (event) => {
     }
   }
 });
+let signingOut = false;
 document
   .querySelector('.account-menu form[action="/logout"]')
   ?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (signingOut) return;
     const account = document.querySelector('meta[name="account-id"]')?.content;
     const csrf = new FormData(event.target).get('csrf');
+    signingOut = true;
     try {
       const pending = account ? await listPending(account) : [];
       if (
@@ -123,10 +126,12 @@ document
         ))
       )
         return;
-      const response = await fetch('/logout', {
+      // A successful sign-out intentionally follows a redirect to /signin.
+      const response = await globalThis.fetch('/logout', {
         method: 'POST',
         headers: { 'X-CSRF-Token': csrf },
         credentials: 'same-origin',
+        signal: AbortSignal.timeout(15000),
       });
       if (!response.ok)
         throw new Error('Reconnect to sign out. Your drafts remain on this device.');
@@ -139,13 +144,13 @@ document
         if (key.startsWith('todoer:')) sessionStorage.removeItem(key);
       location.assign('/signin');
     } catch (error) {
-      let status = document.querySelector('#notice');
-      if (!status) {
-        status = document.createElement('p');
-        status.setAttribute('role', 'alert');
-        event.target.append(status);
-      }
-      status.textContent = error.message;
+      toast(
+        error instanceof TypeError || error.name === 'TimeoutError'
+          ? 'Could not reach the server to sign out. Please reconnect and try again.'
+          : error.message,
+      );
+    } finally {
+      signingOut = false;
     }
   });
 

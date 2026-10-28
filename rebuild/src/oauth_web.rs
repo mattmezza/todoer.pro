@@ -40,7 +40,7 @@ fn storage(error: AuthError) -> OAuthError {
             "invalid_grant",
             "Grant is invalid or expired".into(),
         ),
-        AuthError::Forbidden => OAuthError(
+        AuthError::Forbidden | AuthError::ReauthenticationRequired => OAuthError(
             StatusCode::FORBIDDEN,
             "access_denied",
             "Access denied".into(),

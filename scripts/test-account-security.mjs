@@ -125,8 +125,15 @@ try {
     .locator('[data-auth-notice]')
     .filter({ hasText: 'verification link' })
     .waitFor();
-  assert(!await page.locator('[data-auth-form]').isVisible(), 'Signup form should disappear after success');
-  assert(await page.locator('.auth-confirmation use').getAttribute('href') === '/assets/icons.svg#inbox', 'Signup confirmation needs its inbox icon');
+  assert(
+    !(await page.locator('[data-auth-form]').isVisible()),
+    'Signup form should disappear after success',
+  );
+  assert(
+    (await page.locator('.auth-confirmation use').getAttribute('href')) ===
+      '/assets/icons.svg#inbox',
+    'Signup confirmation needs its inbox icon',
+  );
   const token = await message(/verify-email#token=([a-f0-9]+)/);
   await page.goto(base + '/verify-email#token=' + token);
   await page.getByRole('button', { name: 'Verify email & create account' }).click();
@@ -221,6 +228,9 @@ try {
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await page.waitForURL('**/signin?step=mfa');
+  // A rejected/replayed enrollment code must not destroy the pending sign-in.
+  const rejected = await post('/auth/local/mfa', { code: 'not-a-code' });
+  assert(rejected.status() === 400, 'invalid MFA code should be rejected');
   await page
     .getByLabel('Authenticator or recovery code', { exact: true })
     .fill(totp(seed, 1));
@@ -261,14 +271,14 @@ try {
   await page.locator('[data-add-passkey] button').click();
   await page.locator('[data-recovery-panel]').waitFor({ state: 'visible' });
   codes = (await page.locator('[data-recovery-codes]').textContent()).trim().split('\n');
-  await page.goto(base + '/signin');
+  await page.goto(base + '/signin?next=%2Fsettings%2Fsecurity%3Freauth%3D1');
   await page.getByLabel('Email', { exact: true }).fill(email);
   let assertion;
   page.on('request', (r) => {
     if (r.url().endsWith('/auth/passkey/finish')) assertion = r.postDataJSON();
   });
   await page.getByRole('button', { name: 'Sign in with a passkey' }).click();
-  await page.waitForURL('**/today');
+  await page.waitForURL('**/settings/security?reauth=1');
   assert(assertion, 'WebAuthn assertion missing');
   assert(
     (await post('/auth/passkey/finish', assertion)).status() !== 200,
