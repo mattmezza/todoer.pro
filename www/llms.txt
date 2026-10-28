@@ -4,7 +4,7 @@
 
 - [Everything in its place.<br>You, back in motion.](https://todoer.pro/product.html): A focused home for your tasks, project context and next actions.
 - [Don’t leave your next step<br>buried in a chat.](https://todoer.pro/agents.html): Connect the thinking you do with AI to the work you want to finish.
-- [More room<br>for the rest of your life.](https://todoer.pro/about.html): Less remembering. A little more doing.
+- [A little more room<br>to be you.](https://todoer.pro/about.html): Todoer exists to make the space between an idea and doing it feel smaller.
 - [Let’s talk.](https://todoer.pro/contact.html): A question, an idea, or something we can help with?
 - [Your work is personal.<br>Here’s how we handle it.](https://todoer.pro/privacy.html): Privacy information for Todoer.
 - [Clear terms. Shared expectations.](https://todoer.pro/terms.html): Terms information for Todoer.
