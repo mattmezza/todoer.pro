@@ -80,11 +80,13 @@ test('bell, animated arrival, panel, pagination and failed acknowledgements', as
 
 test('real overdue task reaches the inbox without push and opens its task page', async ({
   page,
-  request,
 }) => {
-  const auth = { Authorization: 'Bearer local-integration-token-not-for-production' };
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  await page.goto('/lists/inbox');
+  const auth = { 'X-CSRF-Token': await page.locator('meta[name=csrf-token]').getAttribute('content') };
   const title = `Notification acceptance ${Date.now()}`;
-  const capture = await request.post('/api/v1/capture', {
+  const capture = await page.request.post('/api/v1/capture', {
     headers: { ...auth, 'Idempotency-Key': title },
     data: {
       list_id: 'inbox',
@@ -94,7 +96,7 @@ test('real overdue task reaches the inbox without push and opens its task page',
   expect(capture.ok(), await capture.text()).toBe(true);
   const tasks = await capture.json();
   const task = Array.isArray(tasks) ? tasks[0] : tasks.tasks[0];
-  const schedule = await request.put(`/api/v1/tasks/${task.id}/schedule`, {
+  const schedule = await page.request.put(`/api/v1/tasks/${task.id}/schedule`, {
     headers: auth,
     data: {
       revision: task.revision,

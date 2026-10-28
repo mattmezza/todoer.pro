@@ -230,3 +230,72 @@ test('planning and activity panels use placeholders while preserving task conten
     'data-loading-pending',
   );
 });
+
+test('a background response cannot replace the row under an active pointer interaction', async ({
+  page,
+}) => {
+  await login(page);
+  await page.goto('/lists/inbox');
+  const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
+  const intake = await (await page.request.get('/api/v1/inbox')).json();
+  const captured = await page.request.post('/api/v1/capture', {
+    headers: { 'X-CSRF-Token': csrf, 'Idempotency-Key': crypto.randomUUID() },
+    data: {
+      list_id: intake.list_id,
+      tasks: [{ title: 'Pointer-safe task', description: '' }],
+    },
+  });
+  expect(captured.ok()).toBe(true);
+  const [task] = await captured.json();
+  const initial = await (await page.request.get('/api/v1/inbox')).json();
+  let changed = false;
+  const delayed = gate();
+  await page.route('**/api/v1/inbox', async (route) => {
+    if (changed) await delayed.wait;
+    const data = structuredClone(initial);
+    if (changed)
+      data.entries.find((entry) => entry.task.id === task.id).task.title =
+        'Updated after the interaction';
+    await route.fulfill({ json: data });
+  });
+  await page.goto('/inbox');
+  const content = page.locator('[data-workbench-content]');
+  const row = content.locator(`[data-task-id="${task.id}"]`);
+  await expect(row).toContainText('Pointer-safe task');
+  await row.evaluate((el) => {
+    window.pointerOriginalRow = el;
+    el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+  });
+  changed = true;
+  await page.evaluate(() =>
+    document.dispatchEvent(new Event('todoer:workbench-refresh')),
+  );
+  await expect(content).toHaveAttribute('aria-busy', 'true');
+  delayed.release();
+  await expect(content).not.toHaveAttribute('aria-busy');
+  expect(await page.evaluate(() => window.pointerOriginalRow.isConnected)).toBe(true);
+  await expect(row).toContainText('Pointer-safe task');
+  await page.evaluate(() =>
+    document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })),
+  );
+  await expect(row).toContainText('Updated after the interaction');
+});
+
+test('server HTML conceals initial settings before their JavaScript finishes downloading', async ({
+  page,
+}) => {
+  await login(page);
+  const delayed = gate();
+  await page.route('**/assets/general-settings.js', async (route) => {
+    await delayed.wait;
+    await route.continue();
+  });
+  await page.goto('/settings', { waitUntil: 'commit' });
+  const form = page.locator('[data-calendar-preferences]');
+  await expect(form).toHaveAttribute('data-loading-pending', 'form');
+  await expect(form.locator('[name=timezone]')).toBeHidden();
+  await expect(page.getByRole('heading', { name: 'General settings' })).toBeVisible();
+  delayed.release();
+  await expect(form).not.toHaveAttribute('data-loading-pending');
+  await expect(form.locator('[name=timezone]')).toBeVisible();
+});

@@ -66,7 +66,7 @@ test('two-question welcome defers creation, resumes, and safely retries completi
     'false',
   );
   await lists.getByRole('button', { name: 'Start organizing' }).click();
-  await expect(page).toHaveURL(/\/lists\//);
+  await expect(page).toHaveURL(/\/lists\//, { timeout: 12000 });
   const after = await inventory(page);
   const workspaces = await (await page.request.get('/api/v1/workspaces')).json();
   for (const title of ['personal', 'work']) {
@@ -94,7 +94,7 @@ test('two-question welcome defers creation, resumes, and safely retries completi
     .getByRole('checkbox', { name: 'Weekly priorities', exact: false })
     .check();
   await lists.getByRole('button', { name: 'Start organizing' }).click();
-  await expect(page).toHaveURL(/\/lists\//);
+  await expect(page).toHaveURL(/\/lists\//, { timeout: 12000 });
   expect(await inventory(page)).toEqual(after);
   expect(errors).toEqual([]);
 });

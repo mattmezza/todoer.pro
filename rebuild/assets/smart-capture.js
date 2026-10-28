@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { parseCapture } from './smart-capture-parser.mjs';
 import { request } from './request.js';
 let cached;
@@ -76,6 +77,8 @@ export function mountSmartCapture(form) {
   help.append(helpButton, helpText);
   block.append(info, controls, help);
   wrapper.insertAdjacentElement('afterend', block);
+  let optionsLoaded = false;
+  const previewLoading = beginLoading(info, { variant: 'text' });
   let data = null,
     literal = false,
     parsed = null,
@@ -101,6 +104,8 @@ export function mountSmartCapture(form) {
     title.removeAttribute('aria-activedescendant');
   }
   function renderPreview(v) {
+    info.hidden = !v.title.trim();
+    if (!optionsLoaded) return;
     info.replaceChildren();
     if (v.title.trim()) {
       const caption = document.createElement('span');
@@ -299,6 +304,8 @@ export function mountSmartCapture(form) {
   form.querySelector('[name=list_id]')?.addEventListener('change', setup);
   const ready = options().then((value) => {
     data = value;
+    optionsLoaded = true;
+    previewLoading.finish();
     setup();
   });
   setup();
