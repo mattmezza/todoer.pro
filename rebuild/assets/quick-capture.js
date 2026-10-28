@@ -79,7 +79,11 @@ export async function openCapture(listId) {
     description.addEventListener('input', resize);
     form.querySelector('p')?.remove();
     const smart = mountSmartCapture(form);
-    form.querySelector('.smart-capture-input').after(descriptionLabel, description);
+    const fields = document.createElement('div');
+    fields.className = 'quick-capture-fields';
+    const titleInput = form.querySelector('.smart-capture-input');
+    titleInput.before(fields);
+    fields.append(titleInput, descriptionLabel, description);
     const footer = document.createElement('div');
     footer.className = 'quick-capture-footer';
     const submit = form.querySelector('[type=submit]');

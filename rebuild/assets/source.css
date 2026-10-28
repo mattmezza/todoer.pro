@@ -7662,10 +7662,11 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .capture-result .capture-literal:hover { color: var(--text); background: var(--hover); }
 .quick-capture-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
 .quick-capture-footer .capture-help { color: var(--muted); font-size: 0.875rem; }
+.quick-capture-fields { display: grid; gap: 0; }
 .quick-capture-form textarea.quick-capture-description {
   width: 100%;
   min-height: 44px;
-  padding: 10px 0;
+  padding: 4px 0 10px;
   background: transparent;
   border: 0;
   border-radius: 0;
