@@ -1497,7 +1497,7 @@ async fn response_security(req: axum::extract::Request, next: axum::middleware::
     res.headers_mut()
         .entry("referrer-policy")
         .or_insert("same-origin".parse().unwrap());
-    res.headers_mut().insert("content-security-policy","default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://www.gravatar.com https://gravatar.com https://secure.gravatar.com https://*.googleusercontent.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'".parse().unwrap());
+    res.headers_mut().insert("content-security-policy","default-src 'self'; script-src 'self'; style-src 'self' https://fonts.bunny.net; font-src 'self' https://fonts.bunny.net; img-src 'self' data: https://www.gravatar.com https://gravatar.com https://secure.gravatar.com https://*.googleusercontent.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'".parse().unwrap());
     res
 }
 

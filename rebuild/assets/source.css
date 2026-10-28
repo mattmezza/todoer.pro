@@ -1,7 +1,8 @@
+@import url("https://fonts.bunny.net/css?family=geist:400,500,600,700,800&display=swap");
 @import 'tailwindcss';
 @source "../templates";
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif;
 }
 :root {
   color-scheme: dark;
@@ -4914,7 +4915,7 @@ textarea {
   flex-direction: row;
   align-items: flex-start;
   gap: 4px;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-weight: 800;
   font-size: 24px;
   line-height: 1.3333;
@@ -7137,9 +7138,9 @@ dialog.destination-dialog label.destination-search-label { display:grid; gap:8px
 main.auth-shell { max-width:440px; margin-inline:auto; }
 .auth-brand { display:block; width:fit-content; margin:0 auto 36px; }
 .auth-card { padding:36px; background:rgb(15 23 42 / .7); border-radius:20px; box-shadow:0 24px 80px rgb(0 0 0 / .15); text-align:center; }
-.auth-card h1 { font-family:ui-sans-serif,system-ui,sans-serif; font-size:30px; font-weight:650; line-height:1.2; letter-spacing:-.035em; margin:0 0 12px; }
+.auth-card h1 { font-family:var(--font-sans); font-size:30px; font-weight:650; line-height:1.2; letter-spacing:-.035em; margin:0 0 12px; }
 .auth-intro { color:var(--muted); font-size:15px; line-height:1.6; margin:0 0 30px; }
-.auth-google { display:flex; align-items:center; justify-content:center; gap:12px; background:#fff; color:#1f1f1f; min-height:48px; border-radius:8px; font-family:Arial,sans-serif; font-size:14px; font-weight:500; transition:background .15s; }
+.auth-google { display:flex; align-items:center; justify-content:center; gap:12px; background:#fff; color:#1f1f1f; min-height:48px; border-radius:8px; font-family:var(--font-sans); font-size:14px; font-weight:500; transition:background .15s; }
 .auth-google:hover { background:#edf2fa; }
 .auth-google svg { flex-shrink:0; }
 .auth-access-note { margin-top:16px; color:var(--muted); font-size:12px; line-height:1.5; }
