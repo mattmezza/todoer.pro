@@ -120,19 +120,36 @@ export function mountSmartCapture(form) {
         (d) => d.list_id === fallbackId,
       );
       const destination = v.destination || fallbackDestination;
-      const location = destination
-        ? `@${destination.space} / #${destination.list}`
-        : defaultName || 'Current list';
-      target.textContent = `To ${location}`;
+      target.append('To ');
+      if (destination) target.append(`@${destination.space} / `);
+      const list = document.createElement('span');
+      list.className = 'capture-destination-list';
+      list.textContent = destination ? `#${destination.list}` : defaultName || 'Current list';
+      const listId = destination?.list_id || fallbackId;
+      const color = data?.list_colors && listId in data.list_colors
+        ? data.list_colors[listId] || 'blue'
+        : null;
+      if (/^#[0-9a-f]{6}$/i.test(color || '')) list.style.color = color;
+      else if (['blue', 'green', 'amber', 'red', 'violet', 'pink', 'gray'].includes(color))
+        list.classList.add(`list-color-${color}`);
+      target.append(list);
       info.append(caption, text, target);
-      const metadata = [
-        v.due && `Due ${v.due}`,
-        v.priority !== null && `P${v.priority}`,
-        ...v.tags.map((t) => `+${t}`),
-      ].filter(Boolean);
+      const metadata = [];
+      if (v.due) metadata.push(document.createTextNode(`Due ${v.due}`));
+      if (v.priority !== null) {
+        const priority = document.createElement('span');
+        priority.className = 'capture-priority';
+        priority.dataset.priority = v.priority;
+        priority.textContent = `P${v.priority}`;
+        metadata.push(priority);
+      }
+      metadata.push(...v.tags.map((tag) => document.createTextNode(`+${tag}`)));
       if (metadata.length) {
         const details = document.createElement('span');
-        details.textContent = metadata.join(' · ');
+        metadata.forEach((item, index) => {
+          if (index) details.append(' · ');
+          details.append(item);
+        });
         info.append(details);
       }
     }

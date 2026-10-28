@@ -922,9 +922,11 @@ async fn capture_options(State(s): State<AppState>, h: HeaderMap) -> Result<Json
     Ok(Json(s.run(move |db| {
         let prefs=read_capture_preferences(db,&actor)?;
         let mut destinations=Vec::new();
+        let mut list_colors=std::collections::BTreeMap::new();
         let mut tags = std::collections::BTreeSet::new();
         for list in db.lists(&actor)? {
             if crate::core::access_rank(&db.conn,&actor,&list.id,2).is_err() {continue;}
+            list_colors.insert(list.id.clone(), db.list_color(&actor, &list.id)?);
             for tag in db.list_tags(&actor, &list.id, "", 100)? { tags.insert(tag.name); }
             let workspace = db.list_info(&actor, &list.id)?;
             if workspace.archived { continue; }
@@ -935,7 +937,7 @@ async fn capture_options(State(s): State<AppState>, h: HeaderMap) -> Result<Json
                 }
             }
         }
-        Ok(json!({"preferences":{"smart_enabled":prefs.smart_enabled,"date_enabled":prefs.date_enabled,"repeat_capture":prefs.repeat_capture},"destinations":destinations,"tags":tags}))
+        Ok(json!({"preferences":{"smart_enabled":prefs.smart_enabled,"date_enabled":prefs.date_enabled,"repeat_capture":prefs.repeat_capture},"destinations":destinations,"list_colors":list_colors,"tags":tags}))
     }).await?))
 }
 #[derive(Deserialize)]
