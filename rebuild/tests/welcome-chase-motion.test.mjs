@@ -54,8 +54,9 @@ test('completion from any point of a pass returns on-screen and never overlaps',
     for (const start of [0, 1, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20, 28]) {
       const motion = new ChaseMotion(width);
       for (let i = 0; i < start * 60; i++) motion.advance(1 / 60);
+      const fromRight = motion.task > width / 2;
       motion.finish();
-      for (let i = 0; i < 60 * 3 && motion.caughtAt === null; i++) {
+      for (let i = 0; i < 60 * 4 && motion.caughtAt === null; i++) {
         motion.advance(1 / 60);
         separate(motion);
         assert.ok(motion.taskFlight >= motion.humanFlight);
@@ -65,6 +66,7 @@ test('completion from any point of a pass returns on-screen and never overlaps',
         null,
         `finish took too long: width ${width}, start ${start}`,
       );
+      assert.equal(motion.direction, fromRight ? -1 : 1);
       assert.ok(Math.abs((motion.human - HUMAN_EXTENT + motion.task + TASK_EXTENT) / 2 - width / 2) < 0.01);
       assert.equal(motion.taskFlight, 1);
       assert.equal(motion.humanFlight, 1);
@@ -85,7 +87,7 @@ test('resizing while offscreen preserves the gap and permits a visible finish', 
     separate(motion);
   }
   motion.finish();
-  for (let i = 0; i < 180 && motion.caughtAt === null; i++) {
+  for (let i = 0; i < 240 && motion.caughtAt === null; i++) {
     motion.advance(1 / 60);
     separate(motion);
   }
