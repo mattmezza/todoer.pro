@@ -3,6 +3,18 @@
 export const HUMAN_EXTENT = 40;
 export const TASK_EXTENT = 90;
 export const MIN_GAP = HUMAN_EXTENT + TASK_EXTENT + 14;
+const chores = [
+  'Sort receipts',
+  'Fold laundry',
+  'Take bins out',
+  'File invoices',
+  'Wipe counters',
+  'Match socks',
+  'Clear inbox',
+  'Water plants',
+  'Dust shelves',
+  'Refill soap',
+];
 const mix = (a, b, t) => a + (b - a) * t;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const smooth = (t) => t * t * (3 - 2 * t);
@@ -22,6 +34,9 @@ export class ChaseMotion {
   }
   get task() {
     return this.human + this.gap;
+  }
+  get label() {
+    return chores[this.wraps % chores.length];
   }
   get phase() {
     return this.caughtAt !== null
@@ -47,11 +62,16 @@ export class ChaseMotion {
         this.rest = !this.rest;
         this.modeTime = 0;
       }
-      const speed = this.rest ? 0 : 235 + Math.sin(this.time * 0.8) * 16;
+      const speed = this.rest ? 0 : 320 + Math.sin(this.time * 0.8) * 20;
       this.velocity = mix(this.velocity, speed, 1 - Math.exp(-dt * 8));
+      const previousTask = this.task;
       this.human += this.velocity * dt;
       const target = this.rest ? 210 : 196 + Math.sin(this.time * 1.3) * 47;
-      this.gap = Math.max(MIN_GAP, mix(this.gap, target, 1 - Math.exp(-dt * 4)));
+      this.gap = Math.max(
+        MIN_GAP,
+        previousTask - this.human,
+        mix(this.gap, target, 1 - Math.exp(-dt * 4)),
+      );
       if (!this.rest && this.gap < 161 && this.jumpAge > 0.72) this.jumpAge = 0;
       this.jumpAge += dt;
       this.jump =
@@ -59,12 +79,12 @@ export class ChaseMotion {
     } else {
       this.jump *= Math.exp(-dt * 12);
       if (this.gather) {
-        this.velocity = mix(this.velocity, 350, 1 - Math.exp(-dt * 10));
+        this.velocity = mix(this.velocity, 400, 1 - Math.exp(-dt * 10));
         this.human += this.velocity * dt;
         if (this.task >= 210 && this.task <= this.width - TASK_EXTENT - 16)
           this.gather = false;
       } else if (this.caughtAt === null) {
-        const speed = Math.min(300, Math.max(0, this.gap - MIN_GAP) * 10);
+        const speed = Math.min(340, Math.max(0, this.gap - MIN_GAP) * 10);
         this.velocity = mix(this.velocity, speed, 1 - Math.exp(-dt * 14));
         const distance = Math.min(this.gap - MIN_GAP, this.velocity * dt);
         this.human += distance;
@@ -99,8 +119,7 @@ export function welcomeChase() {
   canvas.dataset.phase = 'chase';
   canvas.dataset.complete = 'false';
   const motion = new ChaseMotion(innerWidth);
-  const clay = ['#e2e8f0', '#b6c1d1', '#78869b'];
-  const shaded = ['#9aa8bb', '#8492a7', '#58677e'];
+  const ink = '#aab6c7';
   let frame,
     last,
     resolveFinish,
@@ -121,30 +140,14 @@ export function welcomeChase() {
     ctx.fillStyle = fill;
     ctx.fill();
   }
-  function capsule(a, b, radius, colors = clay) {
-    const dx = b[0] - a[0],
-      dy = b[1] - a[1],
-      length = Math.hypot(dx, dy) || 1;
-    const nx = (-dy / length) * radius,
-      ny = (dx / length) * radius;
-    const light = ctx.createLinearGradient(a[0] - nx, a[1] - ny, a[0] + nx, a[1] + ny);
-    light.addColorStop(0, colors[0]);
-    light.addColorStop(0.38, colors[1]);
-    light.addColorStop(1, colors[2]);
+  function capsule(a, b, radius) {
     ctx.lineWidth = radius * 2;
     ctx.lineCap = 'round';
-    ctx.strokeStyle = light;
+    ctx.strokeStyle = ink;
     ctx.beginPath();
     ctx.moveTo(...a);
     ctx.lineTo(...b);
     ctx.stroke();
-  }
-  function sphere(x, y, r) {
-    const light = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r);
-    light.addColorStop(0, clay[0]);
-    light.addColorStop(0.65, clay[1]);
-    light.addColorStop(1, clay[2]);
-    ellipse(x, y, r, r, light);
   }
   function knee(hip, foot) {
     const dx = foot[0] - hip[0],
@@ -177,15 +180,13 @@ export function welcomeChase() {
       const lift = phase < stance ? 0 : Math.sin(swing * Math.PI) ** 1.3 * 19 * running;
       const hip = [0, 27 + bob + breath],
         foot = [x + (1 - running) * (offset ? -4 : 4), 3 + lift];
-      const joint = knee(hip, foot),
-        colors = depth < 0 ? shaded : clay;
-      capsule(p(...hip, depth), p(...joint, depth), 2.8, colors);
-      capsule(p(...joint, depth), p(...foot, depth), 2.3, colors);
+      const joint = knee(hip, foot);
+      capsule(p(...hip, depth), p(...joint, depth), 1.9);
+      capsule(p(...joint, depth), p(...foot, depth), 1.7);
       capsule(
         p(foot[0] - 1, foot[1] - 0.4, depth),
         p(foot[0] + 5, foot[1] - 0.4, depth),
-        2.3,
-        colors,
+        1.8,
       );
     }
     function arm(offset, depth) {
@@ -212,19 +213,16 @@ export function welcomeChase() {
         elbow = [offset ? -10 : 12, 57];
         hand = [offset ? -14 : 17, 67 + Math.sin(celebration * 12 + offset) * 2];
       }
-      const colors = depth < 0 ? shaded : clay;
-      capsule(p(...shoulder, depth), p(...elbow, depth), 2.3, colors);
-      capsule(p(...elbow, depth), p(...hand, depth), 2.1, colors);
+      capsule(p(...shoulder, depth), p(...elbow, depth), 1.7);
+      capsule(p(...elbow, depth), p(...hand, depth), 1.5);
     }
     arm(0.5, -4);
     leg(0.5, -3);
-    capsule(p(0, 28 + breath), p(lean, 45 + bob + breath), 5.3);
+    capsule(p(0, 28 + breath), p(lean, 45 + bob + breath), 3);
     leg(0, 3);
-    capsule(p(lean, 47 + bob + breath), p(lean + 1, 52 + bob + breath), 2.5);
+    capsule(p(lean, 47 + bob + breath), p(lean + 1, 52 + bob + breath), 1.8);
     const head = p(lean + 1, 59 + bob + breath);
-    sphere(...head, 6.6);
-    // One quiet profile detail. No outfit, hair palette or miniature accessories.
-    ellipse(head[0] + 4, head[1] - 0.7, 0.7, 1, '#475569');
+    ellipse(...head, 5.5, 5.5, ink);
     arm(0, 4);
     if (rest && running < 0.1 && !celebration) {
       const puff = (time * 0.65) % 1;
@@ -285,13 +283,13 @@ export function welcomeChase() {
     ctx.font = '500 12px system-ui, sans-serif';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = checked ? '#246a53' : '#435166';
-    ctx.fillText('Sort receipts', -45, -0.5);
+    ctx.fillText(motion.label, -45, -0.5);
     if (checked) {
       ctx.strokeStyle = '#438b71';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(-45, 0);
-      ctx.lineTo(30, 0);
+      ctx.lineTo(-45 + ctx.measureText(motion.label).width, 0);
       ctx.stroke();
     }
     if (rest || checked) {
