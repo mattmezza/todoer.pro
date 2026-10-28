@@ -183,7 +183,7 @@ test('mobile stays simple, defers installation, and has no runner', async ({
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBeTruthy();
   const original = await inventory(page);
-  await page.getByRole('button', { name: 'Skip for now' }).click();
+  await page.getByRole('button', { name: 'I’ll decide on lists later' }).click();
   await expect(page).not.toHaveURL(/\/welcome/);
   expect(await inventory(page)).toEqual(original);
   await context.close();
