@@ -60,6 +60,7 @@ export async function openCapture() {
     destination.hidden = true;
     if (destinationLabel) destinationLabel.hidden = true;
     const details = form.querySelector('details');
+    details?.querySelector('summary')?.classList.add('secondary');
     const description = form.querySelector('[name=description]');
     description.rows = 1;
     const resize = () => {
