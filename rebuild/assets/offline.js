@@ -38,6 +38,7 @@ export async function enqueueCapture(
   title,
   description = '',
   section_id = null,
+  metadata = null,
 ) {
   validScope(scope);
   const key = crypto.randomUUID();
@@ -49,6 +50,7 @@ export async function enqueueCapture(
       list_id,
       tasks: [{ title, description, parent_id: null }],
       ...(section_id ? { section_id } : {}),
+      ...(metadata ? { metadata } : {}),
     },
     createdAt: Date.now(),
     status: 'pending',

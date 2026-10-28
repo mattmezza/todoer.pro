@@ -1,4 +1,5 @@
 import { enqueueCapture } from './offline.js';
+import { mountSmartCapture } from './smart-capture.js';
 export function mountCaptures({
   account,
   listId,
@@ -34,6 +35,7 @@ export function mountCaptures({
         title(form).value = saved.title || '';
         description(form).value = saved.description || '';
       }
+      mountSmartCapture(form);
       if (!form.dataset.captureMounted) {
         form.hidden = !(title(form).value || description(form).value);
         form.dataset.captureMounted = 'true';
@@ -74,7 +76,8 @@ export function mountCaptures({
     if (!form) return;
     event.preventDefault();
     if (!canWrite || form.dataset.busy === 'true') return;
-    const text = title(form).value.trim(),
+    const interpreted = mountSmartCapture(form).get();
+    const text = interpreted.title,
       brief = description(form).value;
     if (!text) return;
     form.dataset.busy = 'true';
@@ -82,8 +85,16 @@ export function mountCaptures({
     const button = form.querySelector('[type="submit"]');
     button.disabled = true;
     try {
-      await enqueueCapture(account, listId, text, brief, section(form));
+      await enqueueCapture(
+        account,
+        interpreted.list_id || listId,
+        text,
+        brief,
+        interpreted.list_id && interpreted.list_id !== listId ? null : section(form),
+        interpreted.metadata,
+      );
       title(form).value = '';
+      mountSmartCapture(form).reset();
       description(form).value = '';
       sessionStorage.removeItem(key(section(form)));
       if (!section(form)) sessionStorage.removeItem(`todoer:${account}:draft:${listId}`);
