@@ -1010,62 +1010,6 @@ input[type='checkbox'] {
   background: transparent;
 }
 
-.assist-main > p {
-  max-width: 65ch;
-  line-height: 1.6;
-  margin-top: 16px;
-}
-.assist-main section {
-  border-top: 1px solid var(--line);
-  padding-top: 28px;
-  margin-top: 32px;
-}
-.assist-main h2 {
-  font-size: 20px;
-  font-weight: 600;
-  margin-bottom: 20px;
-}
-.assist-main label {
-  display: grid;
-  gap: 8px;
-  margin: 4px 0;
-}
-.assist-main label:has(input[type='checkbox']) {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 44px;
-}
-.assist-main textarea,
-.assist-main select,
-.assist-main label > input:not([type='checkbox']) {
-  width: 100%;
-}
-.assist-main select {
-  min-height: 44px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 10px 12px;
-  background: var(--field);
-  color: var(--text);
-}
-.assist-main details summary {
-  min-height: 44px;
-  padding: 12px 0;
-  color: var(--accent);
-  cursor: pointer;
-}
-.assist-main details label {
-  margin-bottom: 16px;
-}
-.assist-main [data-capture-result]:not(:empty),
-.assist-main [data-draft-result]:not(:empty),
-.assist-main [data-error]:not(:empty) {
-  margin-top: 16px;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-}
-
 .planning-page main {
   max-width: 960px;
 }
@@ -6161,9 +6105,6 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
 .settings-screen-content .muted,
 .settings-page .general-settings .muted {
   font-size: 14px;
-}
-.settings-page .assist-main h1 {
-  font-family: var(--font-sans);
 }
 [data-mute-choices] {
   max-height: 240px;
