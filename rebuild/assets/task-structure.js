@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { setSaveState, trackSave } from './quiet-info.js';
 async function request(id, body, endpoint = 'subtree/query') {
@@ -68,7 +69,7 @@ export function mountStructure(container, id) {
   const status = document.createElement('p');
   status.role = 'status';
   status.className = 'muted';
-  status.textContent = 'Loading hierarchy…';
+  status.textContent = '';
   const view = document.createElement('div');
   view.className = 'task-structure-view';
   const heading = document.createElement('h3');heading.textContent = 'Task hierarchy';
@@ -79,6 +80,7 @@ export function mountStructure(container, id) {
   more.hidden = true;
   container.append(heading, status, view, more);
   async function load(first = false) {
+    const skeleton = beginLoading(view, { variant: 'tree', preserve: items.length > 0 });
     more.disabled = true;
     try {
       if (first) {
@@ -99,8 +101,12 @@ export function mountStructure(container, id) {
       view.replaceChildren(tree(items, id));
       more.hidden = !cursor;
     } catch (error) {
-      if (alive) status.textContent = error.message;
+      if (alive) {
+        status.textContent = error.message;
+        skeleton.fail(error.message, () => load(first));
+      }
     } finally {
+      skeleton.finish();
       more.disabled = false;
     }
   }

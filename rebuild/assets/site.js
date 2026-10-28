@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import './notification-center.js';
 import { request as fetch } from './request.js';
 import './home-filters.js';
@@ -411,8 +412,9 @@ if (accountMenu) {
       <div class="about-logo">todoer<sup>pro</sup></div>
       <p class="about-tagline">Get things done, like a pro!</p>
       <p class="about-creator">Made with <span aria-label="love">♥</span> by <a href="https://matteo.merola.co" target="_blank" rel="noopener">Matteo Merola <span class="about-handle">(@mattmezza)</span></a></p>
-      <footer><a href="https://matteo.merola.co/software" target="_blank" rel="noopener">Merola Software &amp; Services</a><address>Wartauweg 19, 8049 Zurich<br>Switzerland</address><p class="about-release" aria-live="polite">Loading release…</p></footer>`;
+      <footer><a href="https://matteo.merola.co/software" target="_blank" rel="noopener">Merola Software &amp; Services</a><address>Wartauweg 19, 8049 Zurich<br>Switzerland</address><p class="about-release" aria-live="polite"></p></footer>`;
     const release = modal.querySelector('.about-release');
+    const skeleton = beginLoading(release, { variant: 'text' });
     fetch('/api/v1/capabilities', { cache: 'no-store' })
       .then((response) => {
         if (!response.ok) throw Error();
@@ -423,7 +425,7 @@ if (accountMenu) {
       })
       .catch(() => {
         release.textContent = 'Release information unavailable';
-      });
+      }).finally(() => skeleton.finish());
     modal.querySelector('.about-close').onclick = () => modal.close();
     modal.addEventListener('close', () => {
       modal.remove();

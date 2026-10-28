@@ -10,14 +10,14 @@ const toolbar = main?.querySelector('[data-workbench-toolbar]');
 const status = main?.querySelector('[data-workbench-status]');
 let pointerHeld = false, deferredRefresh = false;
 function resumeRefresh() {
-  if (deferredRefresh && !pointerHeld && !content?.querySelector('input:focus,textarea:focus,select:focus')) {
+  if (deferredRefresh && !pointerHeld && !main?.querySelector('input:focus,textarea:focus,select:focus')) {
     deferredRefresh = false;
     load();
   }
 }
-document.addEventListener('pointerdown', event => { pointerHeld = Boolean(content?.contains(event.target)); }, true);
+document.addEventListener('pointerdown', event => { pointerHeld = Boolean(main?.contains(event.target)); }, true);
 for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, () => { pointerHeld = false; setTimeout(resumeRefresh, 0); }, true);
-content?.addEventListener('focusout', () => setTimeout(resumeRefresh, 0));
+main?.addEventListener('focusout', () => setTimeout(resumeRefresh, 0));
 let inboxId,
   entries = [],
   generation = 0;
@@ -233,6 +233,7 @@ async function organize(entry) {
     timer;
   async function search() {
     const v = ++version;
+    const skeleton = beginLoading(results);
     try {
       const r = await api('triage/destinations?q=' + encodeURIComponent(input.value));
       if (v !== version || !d.isConnected) return;
@@ -269,12 +270,13 @@ async function organize(entry) {
       }
       if (!r.choices.length) results.append(node('p', 'No matching lists.', 'muted'));
     } catch (e) {
+      if (v === version) skeleton.fail(e.message, search);
       fail(e);
-    }
+    } finally { skeleton.finish(); }
   }
   input.oninput = () => {
     version++;
-    results.replaceChildren(node('p', 'Searching…', 'muted'));
+    beginLoading(results);
     clearTimeout(timer);
     timer = setTimeout(search, 180);
   };
@@ -757,7 +759,7 @@ async function load() {
     if (version !== generation) return;
     if (sameSelection && content.dataset.loaded === 'true') {
       if (JSON.stringify(entries) === JSON.stringify(data.entries)) return;
-      if (pointerHeld || content.querySelector('input:focus,textarea:focus,select:focus')) {
+      if (pointerHeld || main.querySelector('input:focus,textarea:focus,select:focus')) {
         deferredRefresh = true;
         return;
       }

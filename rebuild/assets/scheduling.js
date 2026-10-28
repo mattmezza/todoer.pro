@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { preferredTimeFormatter, zonedLocalTimestamp } from './preferred-time.js';
 import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
@@ -755,6 +756,7 @@ export function mountScheduling({
       );
     const version = ++loadVersion;
     loading = true;
+    const skeleton = beginLoading(root, { variant: 'planning', preserve: Boolean(storedSchedule || scheduleDraft || recurrenceDraft) });
     try {
       const result = await request(`/tasks/${encodeURIComponent(taskId)}/schedule`);
       if (!active || version !== loadVersion) return;
@@ -773,10 +775,12 @@ export function mountScheduling({
       if (scheduleDraft) queueAutoSave();
     } catch (e) {
       if (active) {
+        skeleton.fail(e.message, () => load(true));
         say(`Could not load schedule: ${e.message}. Your draft is preserved.`, true);
         if (scheduleDraft || recurrenceDraft) setDisabled(false);
       }
     } finally {
+      skeleton.finish();
       loading = false;
     }
   }

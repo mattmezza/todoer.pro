@@ -196,7 +196,11 @@ if (bell) {
   }
   let recentLoaded = false, centerLoaded = false;
   async function refresh() {
-    if (polling || document.hidden || !navigator.onLine) return;
+    if (polling || document.hidden) return;
+    if (!navigator.onLine) {
+      if (!recentLoaded) beginLoading(bell.querySelector('[data-notification-recent]')).fail('Connect to load notifications.', refresh);
+      return;
+    }
     polling = true;
     const recentRoot = bell.querySelector('[data-notification-recent]');
     const skeleton = beginLoading(recentRoot, { preserve: recentLoaded });

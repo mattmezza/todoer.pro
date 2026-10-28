@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { preferredTimeFormatter } from './preferred-time.js';
 import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
@@ -244,6 +245,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
       return;
     }
     loading = true;
+    const skeleton = beginLoading(container, { variant: 'discussion', preserve: Boolean(get('[data-discussion-fragment]')) });
     try {
       const markup = await request(
         `/fragments/tasks/${encodeURIComponent(taskId)}/discussion`,
@@ -264,6 +266,8 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
       requestAnimationFrame(growComments);
     } catch (error) {
       if (active) {
+        if (newDraftState?.body || recoverableDrafts().some(([, draft]) => draft?.body)) skeleton.finish();
+        else skeleton.fail(error.message, refresh);
         notice(`${error.message}. Your local drafts have not been removed.`, true);
         if (!get('[data-discussion-fragment]')) {
           for (const prior of all('[data-recovery]')) prior.remove();
@@ -277,6 +281,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
         }
       }
     } finally {
+      skeleton.finish();
       loading = false;
     }
   }

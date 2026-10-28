@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
@@ -32,6 +33,7 @@ export function mountTaskMetadata({
     timer,
     parentTimer,
     parentSequence = 0;
+  let parentResultsLoading, tagResultsLoading, referenceResultsLoading;
   const requests = new Set();
   const root = node('section', { class: 'checklist', 'data-task-metadata': '' });
   const details = node('details');
@@ -431,6 +433,7 @@ export function mountTaskMetadata({
   async function load() {
     if (!active || busy || loading) return;
     loading = true;
+    const skeleton = beginLoading(root, { variant: 'form', preserve: Boolean(loaded || draft) });
     const version = ++sequence;
     try {
       const tasks = await request(`/tasks/${encodeURIComponent(taskId)}/subtree`);
@@ -445,7 +448,7 @@ export function mountTaskMetadata({
       ]);
       if (!active || version !== sequence) return;
       task = current;
-      loaded = true;
+      // Enable the loaded state only after every visible field has resolved.
       baseline = {
         tagIDs: savedTags.map((t) => t.id).sort(),
         sectionId: location.section_id || '',
@@ -474,13 +477,17 @@ export function mountTaskMetadata({
       renderTags();
       renderUnresolved(references);
       renderBacklinks(links);
+      loaded = true;
       disabled(false);
       if (!draft) say('');
       loadPreview(version);
     } catch (e) {
-      if (active)
+      if (active) {
+        skeleton.fail(e.message, load);
         say(`Could not load metadata: ${e.message}. Existing drafts are preserved.`);
+      }
     } finally {
+      skeleton.finish();
       loading = false;
     }
   }
@@ -658,6 +665,7 @@ export function mountTaskMetadata({
     parentChoices.replaceChildren();
     parentSearch.value = '';
     parentSequence++;
+    parentResultsLoading?.finish();
     changed();
   }
   async function showParent() {
@@ -670,7 +678,7 @@ export function mountTaskMetadata({
       return;
     }
     const id = parent.value;
-    parentSelection.textContent = 'Loading selected parent…';
+    const skeleton = beginLoading(parentSelection, { variant: 'text' });
     try {
       const items = await request(
         `/references/autocomplete?query=${encodeURIComponent(id)}&limit=1`,
@@ -682,12 +690,15 @@ export function mountTaskMetadata({
       if (active && parent.value === id)
         parentSelection.textContent =
           'Selected parent unavailable. Choose another parent or top-level.';
-    }
+    } finally { skeleton.finish(); }
   }
   async function findParents() {
     if (!active || !task || busy || !canWrite) return;
     clearTimeout(parentTimer);
     const version = ++parentSequence;
+    parentResultsLoading?.finish();
+    parentChoices.replaceChildren();
+    const skeleton = parentResultsLoading = beginLoading(parentChoices, { variant: 'compact' });
     try {
       const result = await request('/query', 'POST', {
         text: parentSearch.value.trim(),
@@ -713,7 +724,7 @@ export function mountTaskMetadata({
         );
         parentChoices.append(choose);
       }
-      if (!parentChoices.children.length)
+      if (!parentChoices.querySelector('button'))
         parentChoices.append(
           node('p', { class: 'muted' }, 'No matching parent tasks in this list.'),
         );
@@ -728,7 +739,7 @@ export function mountTaskMetadata({
     } catch (e) {
       if (active && version === parentSequence)
         say(`Parent search unavailable: ${e.message}`);
-    }
+    } finally { skeleton.finish(); }
   }
   async function findTags() {
     if (!active || !task || busy || !canWrite) return;
@@ -738,6 +749,9 @@ export function mountTaskMetadata({
       tagSuggestions.replaceChildren();
       return;
     }
+    tagResultsLoading?.finish();
+    tagSuggestions.replaceChildren();
+    const skeleton = tagResultsLoading = beginLoading(tagSuggestions, { variant: 'compact' });
     try {
       const items = await request(
         `/lists/${encodeURIComponent(task.list_id)}/tags?prefix=${encodeURIComponent(value)}&limit=10`,
@@ -759,7 +773,7 @@ export function mountTaskMetadata({
       }
     } catch (e) {
       if (active) say(`Tag suggestions unavailable: ${e.message}`);
-    }
+    } finally { skeleton.finish(); }
   }
   async function findReferences() {
     if (!active) return;
@@ -769,6 +783,9 @@ export function mountTaskMetadata({
       referenceChoices.replaceChildren();
       return;
     }
+    referenceResultsLoading?.finish();
+    referenceChoices.replaceChildren();
+    const skeleton = referenceResultsLoading = beginLoading(referenceChoices, { variant: 'compact' });
     try {
       const items = await request(
         `/references/autocomplete?query=${encodeURIComponent(query)}&limit=20`,
@@ -794,7 +811,7 @@ export function mountTaskMetadata({
         referenceChoices.append(node('p', {}, 'No accessible reference matches.'));
     } catch (e) {
       if (active) say(`Reference lookup unavailable: ${e.message}`);
-    }
+    } finally { skeleton.finish(); }
   }
   const cleanup = () => {
     active = false;

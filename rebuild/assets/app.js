@@ -1,3 +1,4 @@
+import { loadingDialog } from './loading.js';
 import { request as fetch } from './request.js';
 import { stowInfo } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
@@ -527,9 +528,10 @@ async function openTask(id, push = true) {
   if (editorBusy) return;
   const sequence = ++editorOpenSequence;
   editorOpening = true;
+  const pending = dialog.open ? null : loadingDialog('Loading task', 'capture-omnibar');
   try {
     const tasks = await api(`/tasks/${id}/subtree`);
-    if (sequence !== editorOpenSequence) return;
+    if (sequence !== editorOpenSequence || (pending && !pending.dialog.open)) return;
     discussionCleanup?.();
     discussionCleanup = null;
     schedulingCleanup?.();
@@ -627,6 +629,7 @@ async function openTask(id, push = true) {
       onConflict: (error) => notice(error.message || String(error), true),
     });
     $('#move-destination').value = editor.list_id;
+    pending?.finish();
     if (!dialog.open) dialog.showModal();
     if (push)
       history.pushState({ task: editor.id, todoerPanel: true }, '', `?task=${editor.id}`);
@@ -634,6 +637,7 @@ async function openTask(id, push = true) {
   } catch (err) {
     notice(err.message, true);
   } finally {
+    pending?.finish();
     if (sequence === editorOpenSequence) editorOpening = false;
   }
 }

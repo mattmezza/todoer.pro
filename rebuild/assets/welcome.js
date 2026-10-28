@@ -229,7 +229,7 @@ root.querySelector('[data-welcome-later]').addEventListener('click', () => finis
 root.querySelector('[data-welcome-back]').addEventListener('click', () => step(1));
 async function load() {
   reload.hidden = true;
-  const skeleton = beginLoading(root.querySelector('[data-welcome-loading]'), { variant: 'cards', preserve: Boolean(state) });
+  const skeleton = beginLoading(root.querySelector('[data-welcome-loading]'), { variant: 'choices', preserve: Boolean(state) });
   const wasPending = state?.status === 'pending';
   await run(async () => {
     const data = await api('');
