@@ -103,6 +103,7 @@ if (standalone()) installed();
 
 function suggestInstall() {
   if (
+    location.pathname === '/welcome' ||
     !isSecureContext ||
     standalone() ||
     !mobileDevice() ||

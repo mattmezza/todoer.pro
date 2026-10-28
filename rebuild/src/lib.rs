@@ -36,3 +36,5 @@ pub mod public_access;
 pub mod social_image;
 
 pub mod notification_center;
+
+pub mod onboarding;

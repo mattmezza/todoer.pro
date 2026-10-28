@@ -25,6 +25,8 @@ mod assist_http;
 mod browser_auth;
 #[path="account_web.rs"]
 mod account_http;
+#[path="onboarding_web.rs"]
+mod onboarding_http;
 #[path = "cli_auth_web.rs"]
 mod cli_auth_http;
 #[path = "discussion_web.rs"]
@@ -288,6 +290,7 @@ pub fn router(state: AppState) -> Router {
         .merge(public_http::routes())
         .merge(oauth_http::routes())
         .merge(account_http::routes())
+        .merge(onboarding_http::routes())
         .merge(cli_auth_http::routes())
         .merge(organization::routes())
         .merge(agent_http::routes())

@@ -258,6 +258,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (34, include_str!("../migrations/034_search_vocabulary.sql")),
     (35, include_str!("../migrations/035_account_security.sql")),
     (36, include_str!("../migrations/036_notification_center.sql")),
+    (37, include_str!("../migrations/037_onboarding.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {
