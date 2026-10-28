@@ -24,6 +24,7 @@ export function beginLoading(target, { variant = 'rows', preserve = false } = {}
       owners.delete(target);
     },
     fail(message, retry) {
+      if (finished || owners.get(target) !== state) return;
       state.finish();
       if (!initial) return;
       target.dataset.loadFailed = variant;

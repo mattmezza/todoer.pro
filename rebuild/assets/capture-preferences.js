@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request } from './request.js';
 import { toast } from './toast.js';
 const form = document.querySelector('[data-capture-preferences]');
@@ -16,9 +17,10 @@ if (form) {
     });
   };
   async function load() {
+    const skeleton = beginLoading(form, { variant: 'form' });
     busy(true);
     retry.hidden = true;
-    status.textContent = 'Loading preferences…';
+    status.textContent = '';
     try {
       const response = await request('/api/v1/capture/preferences', {
         cache: 'no-store',
@@ -38,7 +40,8 @@ if (form) {
       status.textContent = error.message;
       form.setAttribute('aria-busy', 'false');
       retry.hidden = false;
-    }
+      skeleton.fail(error.message, load);
+    } finally { skeleton.finish(); form.setAttribute('aria-busy', 'false'); }
   }
   retry.addEventListener('click', load);
   form.elements.smart_enabled.addEventListener('change', sync);

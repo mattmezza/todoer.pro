@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request } from './request.js';
 import { welcomeChase } from './welcome-chase.js';
 const root = document.querySelector('[data-welcome]');
@@ -228,6 +229,7 @@ root.querySelector('[data-welcome-later]').addEventListener('click', () => finis
 root.querySelector('[data-welcome-back]').addEventListener('click', () => step(1));
 async function load() {
   reload.hidden = true;
+  const skeleton = beginLoading(root.querySelector('[data-welcome-loading]'), { variant: 'cards', preserve: Boolean(state) });
   const wasPending = state?.status === 'pending';
   await run(async () => {
     const data = await api('');
@@ -235,7 +237,11 @@ async function load() {
       await leave({ redirect: data.destination }, true);
     else apply(data);
   });
-  if (!state) reload.hidden = false;
+  skeleton.finish();
+  if (!state) {
+    reload.hidden = false;
+    root.querySelector('[data-welcome-loading]').hidden = true;
+  }
 }
 reload.addEventListener('click', load);
 load();

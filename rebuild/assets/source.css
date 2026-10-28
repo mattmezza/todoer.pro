@@ -7830,3 +7830,12 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 [data-loading-pending] { color: transparent !important; }
 [data-load-failed] { color: transparent !important; }
 .loading-error { color: var(--text); }
+
+/* Real forms already provide the exact placeholder height. */
+form[data-loading-pending], form[data-load-failed],
+[data-account-security][data-loading-pending], [data-account-security][data-load-failed],
+[data-scheduling][data-loading-pending], [data-scheduling][data-load-failed],
+[data-task-metadata][data-loading-pending], [data-task-metadata][data-load-failed] { min-height: 0; }
+[data-loading-pending="compact"], [data-load-failed="compact"] { min-height: 32px; }
+.search-omnibar #omnibar-results[data-loading-pending],
+.search-omnibar #omnibar-results[data-load-failed] { display: block; }
