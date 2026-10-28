@@ -63,6 +63,7 @@ export async function openCapture() {
     details?.querySelector('summary')?.classList.add('secondary');
     const description = form.querySelector('[name=description]');
     description.rows = 1;
+    description.placeholder = 'Description';
     const resize = () => {
       description.style.height = '0px';
       description.style.height = `${description.scrollHeight + description.offsetHeight - description.clientHeight}px`;
