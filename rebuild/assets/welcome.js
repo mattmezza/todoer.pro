@@ -194,7 +194,6 @@ function apply(data) {
     );
   step(data.status === 'pending' && data.step === 1 && data.spaces.length ? 2 : 1, false);
   root.querySelector('[data-welcome-loading]').hidden = true;
-  root.querySelector('[data-welcome-skip]').disabled = false;
 }
 async function leave(result, celebrate = false) {
   const next = root.dataset.next;
@@ -203,7 +202,6 @@ async function leave(result, celebrate = false) {
   if (celebrate) {
     root.dataset.ready = 'true';
     root.querySelector('.welcome-content').setAttribute('inert', '');
-    root.querySelector('[data-welcome-skip]').disabled = true;
     root.querySelector('[data-welcome-complete]').hidden = false;
     await chase.finish();
   }
@@ -228,15 +226,6 @@ listsForm.addEventListener('submit', (event) => {
 });
 root.querySelector('[data-welcome-later]').addEventListener('click', () => finish(true));
 root.querySelector('[data-welcome-back]').addEventListener('click', () => step(1));
-root.querySelector('[data-welcome-skip]').addEventListener('click', () =>
-  run(async () => {
-    if (state.status !== 'pending')
-      return location.assign(
-        root.dataset.next === '/' ? state.destination : root.dataset.next,
-      );
-    await leave(await api('/skip', { revision: state.revision }));
-  }),
-);
 async function load() {
   reload.hidden = true;
   const wasPending = state?.status === 'pending';
@@ -247,7 +236,6 @@ async function load() {
     else apply(data);
   });
   if (!state) reload.hidden = false;
-  else root.querySelector('[data-welcome-skip]').disabled = false;
 }
 reload.addEventListener('click', load);
 load();
