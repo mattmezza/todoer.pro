@@ -6,10 +6,10 @@ use crate::assist::{
 
 pub(super) fn routes() -> Router<AppState> {
     Router::new()
-        .route("/settings/assist", get(page))
+        .route("/settings/assist", get(|| async { Redirect::to("/settings/ai") }))
         .route(
             "/assist",
-            get(|| async { Redirect::to("/settings/assist") }),
+            get(|| async { Redirect::to("/settings/ai") }),
         )
         .route("/api/v1/assist/status", get(status))
         .route("/api/v1/assist/capture", post(capture))
@@ -22,51 +22,6 @@ pub(super) fn routes() -> Router<AppState> {
             "/api/v1/assist/rules/{id}",
             axum::routing::delete(delete_rule),
         )
-}
-#[derive(askama::Template)]
-#[template(path = "assist.html")]
-struct AssistPage {
-    sidebar: super::Sidebar,
-    csrf: String,
-    enabled: bool,
-    lists: Vec<crate::core::List>,
-    workspaces: Vec<crate::workspace::Workspace>,
-}
-async fn page(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
-    let actor = match s.auth(&h, false) {
-        Ok(a) => a,
-        Err(_) => return Ok(Redirect::to("/signin").into_response()),
-    };
-    let sidebar_actor = actor.clone();
-    let csrf = s.csrf_for(&h);
-    let mut sidebar = s
-        .run(move |db| super::build_sidebar(db, &sidebar_actor, "", csrf))
-        .await?;
-    sidebar.settings_section = "assist".into();
-    let a = actor.clone();
-    let workspaces=s.run(move |db| { Ok(db.workspaces(&a)?.into_iter().filter(|w| db.conn.query_row("SELECT EXISTS(SELECT 1 FROM actor_workspace_access WHERE actor_id=?1 AND workspace_id=?2 AND rank>=2)", rusqlite::params![a,w.id], |r|r.get::<_,bool>(0)).unwrap_or(false)).collect()) }).await?;
-    let lists = s
-        .run(move |db| {
-            Ok(db
-                .lists(&actor)?
-                .into_iter()
-                .filter(|l| crate::core::access_rank(&db.conn, &actor, &l.id, 2).is_ok())
-                .collect())
-        })
-        .await?;
-    use askama::Template;
-    Ok(Html(
-        AssistPage {
-            sidebar,
-            csrf: s.csrf_for(&h),
-            enabled: s.assist.enabled(),
-            lists,
-            workspaces,
-        }
-        .render()
-        .map_err(|_| ApiError::from(Error::Invalid("cannot render assist page".into())))?,
-    )
-    .into_response())
 }
 async fn status(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Value>, ApiError> {
     s.auth(&h, false)?;
@@ -266,18 +221,8 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(page.status(), StatusCode::OK);
-        let html = String::from_utf8(
-            page.into_body()
-                .collect()
-                .await
-                .unwrap()
-                .to_bytes()
-                .to_vec(),
-        )
-        .unwrap();
-        assert!(html.contains("Provider assistance is disabled"));
-        assert!(!html.contains("synthetic-assist-token"));
+        assert_eq!(page.status(), StatusCode::SEE_OTHER);
+        assert_eq!(page.headers()["location"], "/settings/ai");
         let status = app
             .oneshot(
                 Request::builder()

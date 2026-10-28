@@ -4,7 +4,7 @@ Capture is independent of AI. `POST /api/v1/assist/capture` saves one task and a
 
 Routing is deterministic: an explicit list ID wins, then accessible literal-prefix rules, then the named destination preference and accessible Inbox fallback. Conflicting matching rules produce a conflict requiring an explicit destination. Missing or ambiguous defaults also require a choice. Rules reference stable list IDs; revoked destinations are skipped. Rules can be managed only by the user's browser session or an unscoped admin credential. Their list IDs remain filtered by live write access.
 
-`/assist` provides capture, an optional destination suggestion, and editable draft review. An explicit existing list performs no classification request. The separate **Suggest a destination** action can suggest another currently editable list, including after capture in Inbox. A suggestion never moves, splits, completes, or schedules a task. Open the saved task to review a move yourself.
+The standalone Assist screen has been removed. `/assist` and `/settings/assist` redirect to `/settings/ai`, which holds capture preferences and AI instructions. Capture and reviewed AI drafts remain available through the regular task flows and the APIs below.
 
 ## Provider configuration and privacy
 
@@ -52,4 +52,4 @@ Task and preview records preserve the original input for inspection; subsequent 
 
 Tests use an isolated local HTTP fake provider and synthetic text. They verify real request transport, strict routing flags, output validation, visible-only classification, editable review, atomic rollback, stale/expired/hash conflicts, idempotent retries, and durable budget reservations. They do not evaluate a live model's quality, external retention, availability, or actual billing. No production API key or paid provider call is required for these checks.
 
-Reproduce domain and route checks with `cargo test --manifest-path rebuild/Cargo.toml --locked assist --lib`. With an isolated development server on port 8092 and no provider key, run `npx playwright test rebuild/browser/assist.spec.js --project=chromium --project=firefox --workers=1` for capture, preserved text, disabled provider controls, and mobile/desktop overflow checks.
+Reproduce domain and route checks with `cargo test --manifest-path rebuild/Cargo.toml --locked assist --lib`. With an isolated development server on port 8092 and no provider key, run `npx playwright test rebuild/browser/assist.spec.js --project=chromium --project=firefox --workers=1` to verify retired URLs redirect to AI settings without an Assist navigation entry.

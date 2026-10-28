@@ -827,7 +827,7 @@ async fn security_page(State(s): State<AppState>, h: HeaderMap) -> Result<Respon
     if !production {
         body = "<p>Account security is available on the real authentication instance.</p>".into();
     }
-    scheduling_http::render_settings(&s, &h, "Account security", body, "security").await
+    scheduling_http::render_settings(&s, &h, "Security", body, "security").await
 }
 pub(super) fn routes() -> Router<AppState> {
     Router::new()

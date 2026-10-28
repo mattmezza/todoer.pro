@@ -673,7 +673,7 @@ async fn issue_form(
 async fn settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult {
     let actor = browser(&s, &h, false)?;
     let Some(production) = s.production.as_ref() else {
-        return super::scheduling_http::render_settings(&s, &h, "AI", r#"<section class="settings-preference-card"><h2>Connected tools</h2><p class="muted">Connect an AI agent or your own scripts to Todoer.</p><p class="muted">Credential management is available when OAuth is configured for this installation.</p><a class="settings-destination" href="/settings/assist">Open Assist <span aria-hidden="true">→</span></a></section>"#.into(), "agents").await.map_err(|_| bad("Could not load settings"));
+        return super::scheduling_http::render_settings(&s, &h, "AI", r#"<section class="settings-preference-card"><h2>Connected tools</h2><p class="muted">Connect an AI agent or your own scripts to Todoer.</p><p class="muted">Credential management is available when OAuth is configured for this installation.</p></section>"#.into(), "agents").await.map_err(|_| bad("Could not load settings"));
     };
     let rows = production
         .store
