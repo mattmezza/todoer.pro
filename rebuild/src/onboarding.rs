@@ -1,36 +1,70 @@
-//! A small resumable welcome over the normal account destinations and mutations.
+//! A two-question welcome: save a draft, then atomically bootstrap its destinations.
 use crate::core::{Error, Store, actor_user};
-use crate::workspace::{ListChange, WorkspaceChange};
+use crate::workspace::{CreateList, ListChange, WorkspaceInput};
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 #[derive(Serialize)]
 pub struct Welcome {
     pub status: String,
     pub step: i64,
     pub revision: i64,
-    pub space: String,
-    pub list: String,
-    pub color: String,
-    pub name: String,
+    pub spaces: Vec<String>,
     pub destination: String,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Setup {
     pub revision: i64,
+    pub spaces: Vec<String>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ListChoice {
     pub space: String,
+    pub title: String,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Finish {
     pub revision: i64,
     #[serde(default)]
-    pub list: String,
-    #[serde(default)]
-    pub color: String,
+    pub lists: Vec<ListChoice>,
 }
 
+fn validate_spaces(spaces: &[String]) -> Result<(), Error> {
+    if spaces.is_empty()
+        || spaces.len() > 2
+        || spaces
+            .iter()
+            .any(|s| !matches!(s.as_str(), "personal" | "work"))
+        || spaces.iter().collect::<HashSet<_>>().len() != spaces.len()
+    {
+        return Err(Error::Invalid("Choose Personal, Work, or both.".into()));
+    }
+    Ok(())
+}
+fn list_title(title: &str) -> Result<String, Error> {
+    if title.chars().count() > 64 || !title.chars().any(char::is_alphanumeric) {
+        return Err(Error::Invalid(
+            "List names need letters or numbers (up to 64 characters).".into(),
+        ));
+    }
+    Ok(crate::slugs::slugify(title))
+}
+fn color(title: &str, space: &str) -> &'static str {
+    match title {
+        "groceries" => "green",
+        "home-chores" => "amber",
+        "personal-goals" => "pink",
+        "project" => "violet",
+        "follow-ups" => "amber",
+        "ideas" => "green",
+        _ if space == "work" => "violet",
+        _ => "blue",
+    }
+}
 impl Store {
     pub fn welcome_pending(&self, actor: &str) -> Result<bool, Error> {
         let user = actor_user(&self.conn, actor, 3)?;
@@ -46,69 +80,30 @@ impl Store {
     }
     pub fn welcome(&mut self, actor: &str) -> Result<Welcome, Error> {
         let user = actor_user(&self.conn, actor, 3)?;
-        let workspace = self.ensure_user_defaults(actor)?;
-        let list = self.default_list(actor, &workspace)?;
-        let space = self.workspace(actor, &workspace)?;
-        let info = self.list_info(actor, &list)?;
-        let (status, step, revision, destination) = self.conn.query_row(
-            "SELECT status,step,revision,destination FROM user_onboarding WHERE user_id=?1",
-            [&user],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
-        )?;
-        let name = self
-            .conn
-            .query_row("SELECT name FROM users WHERE id=?1", [user], |r| r.get(0))?;
-        let color = self.conn.query_row(
-            "SELECT coalesce(color_hex,color,'blue') FROM lists WHERE id=?1",
-            [list],
-            |r| r.get(0),
-        )?;
+        let (status, step, revision, destination, spaces): (String,i64,i64,String,String) = self.conn.query_row(
+            "SELECT status,step,revision,destination,spaces FROM user_onboarding WHERE user_id=?1", [user],
+            |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?)))?;
+        let spaces = serde_json::from_str(&spaces)
+            .map_err(|_| Error::Invalid("Could not read welcome progress.".into()))?;
         Ok(Welcome {
             status,
             step,
             revision,
             destination,
-            space: space.title,
-            list: info.list.title,
-            color,
-            name,
+            spaces,
         })
     }
     pub fn welcome_setup(&mut self, actor: &str, input: Setup) -> Result<Welcome, Error> {
+        validate_spaces(&input.spaces)?;
         let mut write = crate::agent_ops::StoreWrite::new(self)?;
         let current = write.welcome(actor)?;
         if current.revision != input.revision {
-            return Err(Error::Conflict(
-                "Welcome setup changed in another tab. Reload to continue.".into(),
-            ));
+            return Err(welcome_conflict());
         }
-        let title = welcome_name(&input.space)?;
         let user = actor_user(&write.conn, actor, 3)?;
-        let workspace = write.ensure_user_defaults(actor)?;
-        // Never rename an inherited/shared destination through the welcome.
-        if write.workspace_permission(actor, &workspace)? < 3 {
-            return Err(Error::Forbidden);
-        }
-        let space = write.workspace(actor, &workspace)?;
-        write.update_workspace(
-            actor,
-            &workspace,
-            WorkspaceChange {
-                revision: space.revision,
-                title: Some(title),
-                description: None,
-            },
-        )?;
-        let run = if current.status == "pending" {
-            write.conn.query_row(
-                "SELECT run_id FROM user_onboarding WHERE user_id=?1",
-                [&user],
-                |r| r.get::<_, String>(0),
-            )?
-        } else {
-            uuid::Uuid::new_v4().to_string()
-        };
-        write.conn.execute("UPDATE user_onboarding SET status='pending',step=1,revision=revision+1,run_id=?2 WHERE user_id=?1",params![user,run])?;
+        let spaces = serde_json::to_string(&input.spaces)
+            .map_err(|_| Error::Invalid("Could not save welcome choices.".into()))?;
+        write.conn.execute("UPDATE user_onboarding SET status='pending',step=1,revision=revision+1,spaces=?2 WHERE user_id=?1", params![user, spaces])?;
         let result = write.welcome(actor)?;
         write.commit()?;
         Ok(result)
@@ -121,55 +116,112 @@ impl Store {
     ) -> Result<String, Error> {
         let mut write = crate::agent_ops::StoreWrite::new(self)?;
         let current = write.welcome(actor)?;
-        // A lost response can be retried without repeating mutations.
+        // Completion is persisted in the same transaction as all creations.
         if current.status != "pending" {
             return Ok(current.destination);
         }
         if current.revision != input.revision {
-            return Err(Error::Conflict(
-                "Welcome setup changed in another tab. Reload to continue.".into(),
-            ));
+            return Err(welcome_conflict());
         }
         let user = actor_user(&write.conn, actor, 3)?;
-        let workspace = write.ensure_user_defaults(actor)?;
-        let list = write.default_list(actor, &workspace)?;
-        let reference = crate::defaults::public_id(&write.conn, "list", &list)?;
-        let mut destination = format!("/lists/{reference}");
-        if skip && current.step == 0 {
-            destination = "/inbox".into();
-        }
+        let mut destination = "/inbox".to_string();
         if !skip {
-            if current.step != 1 {
-                return Err(Error::Invalid("Choose your space first.".into()));
+            validate_spaces(&current.spaces)?;
+            if input.lists.len() > 12 {
+                return Err(Error::Invalid("Choose up to 12 lists to start.".into()));
             }
-            let title = welcome_name(&input.list)?;
-            crate::navigation::validate_list_color(&Some(input.color.clone()))?;
-            let info = write.list_info(actor, &list)?;
-            write.update_list(
-                actor,
-                &list,
-                ListChange {
-                    revision: info.list.revision,
-                    title: Some(title),
-                    description: None,
-                    archived: None,
-                    color: Some(input.color),
-                },
-            )?;
+            let mut seen = HashSet::new();
+            let mut choices = Vec::new();
+            // Validate the entire request before creating anything.
+            for choice in input.lists {
+                if !current.spaces.contains(&choice.space) {
+                    return Err(Error::Invalid(
+                        "Choose a list inside one of your selected spaces.".into(),
+                    ));
+                }
+                let title = list_title(&choice.title)?;
+                if !seen.insert((choice.space.clone(), title.clone())) {
+                    return Err(Error::Invalid(
+                        "Each list only needs to be chosen once.".into(),
+                    ));
+                }
+                choices.push((choice.space, title));
+            }
+            let mut first_list = None;
+            for space in &current.spaces {
+                // Only reuse active spaces owned by this account, never inherited access.
+                let existing: Option<String> = write.conn.query_row(
+                    "SELECT w.id FROM workspaces w JOIN workspace_members m ON m.workspace_id=w.id LEFT JOIN workspace_lifecycle x ON x.workspace_id=w.id WHERE m.user_id=?1 AND m.role='owner' AND lower(w.title)=?2 AND x.deleted_at IS NULL AND coalesce(x.archived,0)=0 ORDER BY w.id LIMIT 1",
+                    params![user,space], |r| r.get(0)).optional()?;
+                let workspace = match existing {
+                    Some(id) => id,
+                    None => {
+                        write
+                            .create_workspace(
+                                actor,
+                                WorkspaceInput {
+                                    title: space.clone(),
+                                    description: String::new(),
+                                },
+                            )?
+                            .id
+                    }
+                };
+                if destination == "/inbox" {
+                    destination = format!(
+                        "/space/{}",
+                        crate::defaults::public_id(&write.conn, "workspace", &workspace)?
+                    );
+                }
+                for (_, title) in choices.iter().filter(|(s, _)| s == space) {
+                    let existing: Option<String> = write.conn.query_row(
+                        "SELECT id FROM lists WHERE workspace_id=?1 AND lower(title)=?2 AND archived=0 ORDER BY position,id LIMIT 1",
+                        params![workspace,title], |r|r.get(0)).optional()?;
+                    let id = match existing {
+                        Some(id) => id,
+                        None => {
+                            let list = write.create_list(
+                                actor,
+                                CreateList {
+                                    workspace_id: workspace.clone(),
+                                    title: title.clone(),
+                                    description: String::new(),
+                                    restricted: false,
+                                },
+                            )?;
+                            write.update_list(
+                                actor,
+                                &list.id,
+                                ListChange {
+                                    revision: list.revision,
+                                    title: None,
+                                    description: None,
+                                    archived: None,
+                                    color: Some(color(title, space).into()),
+                                },
+                            )?;
+                            list.id
+                        }
+                    };
+                    if first_list.is_none() {
+                        first_list = Some(id);
+                    }
+                }
+            }
+            if let Some(id) = first_list {
+                destination = format!(
+                    "/lists/{}",
+                    crate::defaults::public_id(&write.conn, "list", &id)?
+                );
+            }
         }
         write.conn.execute("UPDATE user_onboarding SET status=?2,step=2,revision=revision+1,destination=?3 WHERE user_id=?1",params![user,if skip {"skipped"} else {"complete"},destination])?;
         write.commit()?;
         Ok(destination)
     }
 }
-
-fn welcome_name(value: &str) -> Result<String, Error> {
-    if value.chars().count() > 100 || !value.chars().any(char::is_alphanumeric) {
-        return Err(Error::Invalid(
-            "Choose a name with letters or numbers (up to 100 characters).".into(),
-        ));
-    }
-    Ok(crate::slugs::slugify(value))
+fn welcome_conflict() -> Error {
+    Error::Conflict("Welcome setup changed in another tab. Reload to continue.".into())
 }
 
 #[cfg(test)]
@@ -180,79 +232,118 @@ mod tests {
         db.seed_dev().unwrap();
         db
     }
-    fn setup(revision: i64) -> Setup {
-        Setup {
-            revision,
-            space: "My Life".into(),
-        }
+    fn counts(db: &Store) -> (i64, i64, i64) {
+        db.conn.query_row("SELECT (SELECT count(*) FROM workspaces),(SELECT count(*) FROM lists),(SELECT count(*) FROM tasks)",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap()
+    }
+    fn choose(db: &mut Store, spaces: &[&str]) -> Welcome {
+        let revision = db.welcome("dev").unwrap().revision;
+        db.welcome_setup(
+            "dev",
+            Setup {
+                revision,
+                spaces: spaces.iter().map(|s| s.to_string()).collect(),
+            },
+        )
+        .unwrap()
     }
     fn finish(revision: i64) -> Finish {
         Finish {
             revision,
-            list: "Little Things".into(),
-            color: "violet".into(),
+            lists: vec![
+                ListChoice {
+                    space: "personal".into(),
+                    title: "Groceries".into(),
+                },
+                ListChoice {
+                    space: "work".into(),
+                    title: "Weekly Priorities".into(),
+                },
+            ],
         }
     }
     #[test]
-    fn welcome_reuses_defaults_resumes_and_completes_without_tasks() {
+    fn draft_creates_nothing_and_completion_is_atomic_replay_safe() {
         let mut db = account();
-        let initial = db.welcome("dev").unwrap();
-        let workspace = db.ensure_user_defaults("dev").unwrap();
-        let list = db.default_list("dev", &workspace).unwrap();
-        let saved = db.welcome_setup("dev", setup(initial.revision)).unwrap();
-        assert_eq!(saved.space, "my-life");
-        assert_eq!(saved.step, 1);
-        assert_eq!(db.welcome("dev").unwrap().revision, saved.revision);
+        let before = counts(&db);
+        let saved = choose(&mut db, &["personal", "work"]);
+        assert_eq!(counts(&db), before);
+        assert_eq!(db.welcome("dev").unwrap().spaces, vec!["personal", "work"]);
         let destination = db
             .welcome_finish("dev", finish(saved.revision), false)
             .unwrap();
+        assert!(destination.starts_with("/lists/"));
+        let after = counts(&db);
+        assert_eq!(after.2, before.2);
         assert_eq!(
             db.welcome_finish("dev", finish(saved.revision), false)
                 .unwrap(),
             destination
         );
-        assert_eq!(db.default_list("dev", &workspace).unwrap(), list);
-        assert_eq!(db.ensure_user_defaults("dev").unwrap(), workspace);
-        let result = db.welcome("dev").unwrap();
-        assert_eq!(result.list, "little-things");
-        assert_eq!(result.color, "violet");
-        assert!(db.tasks("dev", &list).unwrap().is_empty());
-        assert!(!db.welcome_pending("dev").unwrap());
-    }
-    #[test]
-    fn skip_leaves_names_alone_and_reopening_is_supported() {
-        let mut db = account();
-        let initial = db.welcome("dev").unwrap();
-        db.welcome_finish("dev", finish(initial.revision), true)
+        assert_eq!(counts(&db), after);
+        let saved = choose(&mut db, &["personal", "work"]);
+        db.welcome_finish("dev", finish(saved.revision), false)
             .unwrap();
-        assert_eq!(db.welcome("dev").unwrap().list, initial.list);
-        let revision = db.welcome("dev").unwrap().revision;
-        assert_eq!(db.welcome_setup("dev", setup(revision)).unwrap().step, 1);
+        assert_eq!(counts(&db), after); // reopening reuses the same destinations
     }
     #[test]
-    fn validation_and_stale_tabs_roll_back() {
+    fn validation_stale_tabs_and_skipping_do_not_create_entities() {
         let mut db = account();
-        let initial = db.welcome("dev").unwrap();
+        let before = counts(&db);
+        let saved = choose(&mut db, &["personal"]);
         assert!(
-            db.welcome_finish("dev", finish(initial.revision), false)
+            db.welcome_finish("dev", finish(saved.revision), false)
                 .is_err()
+        );
+        assert_eq!(counts(&db), before);
+        assert!(db.welcome_pending("dev").unwrap());
+        assert!(
+            db.welcome_setup(
+                "dev",
+                Setup {
+                    revision: saved.revision - 1,
+                    spaces: vec!["work".into()]
+                }
+            )
+            .is_err()
         );
         assert!(
             db.welcome_setup(
                 "dev",
                 Setup {
-                    revision: initial.revision,
-                    space: " --- ".into()
+                    revision: saved.revision,
+                    spaces: vec!["other".into()]
                 }
             )
             .is_err()
         );
-        let saved = db.welcome_setup("dev", setup(initial.revision)).unwrap();
-        assert!(db.welcome_setup("dev", setup(initial.revision)).is_err());
-        let mut bad = finish(saved.revision);
-        bad.color = "invalid".into();
-        assert!(db.welcome_finish("dev", bad, false).is_err());
-        assert_eq!(db.welcome("dev").unwrap().list, initial.list);
-        assert_eq!(db.welcome("dev").unwrap().revision, saved.revision);
+        db.welcome_finish(
+            "dev",
+            Finish {
+                revision: saved.revision,
+                lists: vec![],
+            },
+            true,
+        )
+        .unwrap();
+        assert_eq!(counts(&db), before);
+        assert!(!db.welcome_pending("dev").unwrap());
+    }
+    #[test]
+    fn undecided_creates_only_selected_space_and_no_suggested_lists() {
+        let mut db = account();
+        let saved = choose(&mut db, &["work"]);
+        let destination = db
+            .welcome_finish(
+                "dev",
+                Finish {
+                    revision: saved.revision,
+                    lists: vec![],
+                },
+                false,
+            )
+            .unwrap();
+        assert!(destination.starts_with("/space/"));
+        let count:i64=db.conn.query_row("SELECT count(*) FROM lists l JOIN workspaces w ON l.workspace_id=w.id WHERE w.title='work' AND l.title!='Inbox' AND l.title!='inbox'",[],|r|r.get(0)).unwrap();
+        assert_eq!(count, 0);
     }
 }
