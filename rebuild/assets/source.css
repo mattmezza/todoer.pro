@@ -7776,9 +7776,9 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .capture-help [hidden] { display: none !important; }
 
 /* Give both omnibars the same raised surface and prominent input. */
-:is(.capture-omnibar, .search-omnibar) { background: #121b2b; }
+:is(.capture-omnibar, .search-omnibar) { background: linear-gradient(145deg, #1b2739, #121b2b 70%); }
 @media (prefers-color-scheme: light) {
-  :is(.capture-omnibar, .search-omnibar) { background: #edf2f9; }
+  :is(.capture-omnibar, .search-omnibar) { background: linear-gradient(145deg, #f7f9fd, #e8eef7 70%); }
 }
 .capture-omnibar h2, .quick-capture-form > label[for='capture-new-title'] { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .capture-omnibar .smart-capture-input { margin-right: 42px; }
