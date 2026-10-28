@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { setSaveState } from './quiet-info.js';
 import { mountTaskPage } from './task-page.js';
@@ -90,7 +91,7 @@ if (main) {
     header.append(dismiss);
     const content = document.createElement('div');
     content.className = 'planning-detail-content';
-    content.textContent = 'Loading task…';
+    const skeleton = beginLoading(content, { variant: 'cards' });
     panel.append(header, content);
     try {
       const response = await fetch(url, { cache: 'no-store' });
@@ -257,7 +258,9 @@ if (main) {
         })
         .catch(() => {});
     } catch (error) {
-      if (version === generation) content.textContent = error.message;
+      if (version === generation) skeleton.fail(error.message, () => open(url));
+    } finally {
+      skeleton.finish();
     }
   }
   document.addEventListener('click', (event) => {
