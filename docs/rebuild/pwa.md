@@ -67,3 +67,10 @@ on a physical phone requires a reachable HTTPS hostname with a trusted certifica
 setup does not establish phone compatibility. Test installation, login return,
 background push, notification taps and updates on both physical platforms before
 claiming device acceptance. Offline support remains limited to the behavior above.
+
+On the first authenticated mobile/tablet visit, a dismissible installation notice
+appears once per browser (persisted in localStorage). Installed/standalone apps
+and desktop browsers do not receive this suggestion. Where supported, its Install
+button invokes the browser prompt only after a user click; otherwise it gives
+Home Screen instructions. Clearing browser storage resets the suggestion. When
+localStorage is unavailable, the suggestion is skipped to avoid recurring nags.
