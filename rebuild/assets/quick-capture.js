@@ -94,13 +94,45 @@ export async function openCapture(listId) {
     repeat.type = 'checkbox';
     repeat.setAttribute('aria-label', 'Keep adding');
     repeatLabel.append(repeat, document.createTextNode('Keep adding'));
-    let repeatChanged = false;
+    const repeatKey = 'todoer.quickCapture.keepAdding';
+    let savedRepeat = null;
+    try {
+      const stored = localStorage.getItem(repeatKey);
+      if (stored === 'true' || stored === 'false') savedRepeat = stored === 'true';
+    } catch (_) { /* Storage can be unavailable in private browsing. */ }
+    let shiftHeld = false;
+    const updateRepeat = () => { repeat.checked = Boolean(savedRepeat) !== shiftHeld; };
+    updateRepeat();
     repeat.addEventListener('change', () => {
-      repeatChanged = true;
+      savedRepeat = repeat.checked !== shiftHeld;
+      try { localStorage.setItem(repeatKey, String(savedRepeat)); } catch (_) {}
     });
     smart.ready.then(() => {
-      if (!repeatChanged) repeat.checked = smart.get().repeat;
+      if (savedRepeat === null) {
+        savedRepeat = smart.get().repeat;
+        updateRepeat();
+      }
     });
+    document.addEventListener('keydown', (event) => {
+      if (dialog.open && event.key === 'Shift' && !shiftHeld) {
+        shiftHeld = true;
+        updateRepeat();
+      }
+    });
+    document.addEventListener('keyup', (event) => {
+      if (event.key === 'Shift' && shiftHeld) {
+        shiftHeld = false;
+        updateRepeat();
+      }
+    });
+    const releaseShift = () => {
+      if (shiftHeld) {
+        shiftHeld = false;
+        updateRepeat();
+      }
+    };
+    window.addEventListener('blur', releaseShift);
+    dialog.addEventListener('close', releaseShift);
     actions.append(repeatLabel, submit);
     footer.append(smart.help, actions);
     const error = document.createElement('p');
