@@ -133,6 +133,10 @@ test('desktop runner rests, never completes early, and celebrates on completion'
     path: '.local/rebuild/welcome-chase-celebrate.png',
     fullPage: true,
   });
+  await expect(canvas).toHaveAttribute('data-phase', 'settled', { timeout: 2500 });
+  await page.waitForTimeout(1800);
+  await expect(canvas).toHaveAttribute('data-phase', 'settled');
+  await expect(page.locator('[data-welcome-complete]')).toBeVisible();
 });
 test('reduced motion skips the runner and completion delay', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });

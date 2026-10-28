@@ -131,6 +131,7 @@ export function welcomeChase() {
     resolveFinish,
     finishPromise,
     finishTimeout,
+    finishHold,
     particles = [],
     height = 128,
     landingLift = 0;
@@ -339,6 +340,7 @@ export function welcomeChase() {
   }
   function done() {
     clearTimeout(finishTimeout);
+    clearTimeout(finishHold);
     if (resolveFinish) {
       resolveFinish();
       resolveFinish = null;
@@ -385,7 +387,12 @@ export function welcomeChase() {
     }
     ctx.restore();
     ctx.globalAlpha = 1;
-    if (celebration > 1.7) done();
+    if (celebration > 1.7) {
+      // Freeze the finished scene, leaving time to read before opening the app.
+      canvas.dataset.phase = 'settled';
+      finishHold = setTimeout(done, 3000);
+      return;
+    }
     if (canvas.dataset.phase !== 'done') frame = requestAnimationFrame(tick);
   }
   function sync() {
@@ -395,7 +402,7 @@ export function welcomeChase() {
     if (enabled()) {
       if (!canvas.isConnected) document.body.append(canvas);
       resize();
-      if (!document.hidden && canvas.dataset.phase !== 'done')
+      if (!document.hidden && !['done', 'settled'].includes(canvas.dataset.phase))
         frame = requestAnimationFrame(tick);
     } else canvas.remove();
     if ((!enabled() || document.hidden) && finishPromise) done();
@@ -426,7 +433,7 @@ export function welcomeChase() {
       resize();
       canvas.dataset.phase = 'catch';
       finishPromise = new Promise((resolve) => (resolveFinish = resolve));
-      finishTimeout = setTimeout(done, 5500);
+      finishTimeout = setTimeout(done, 9000);
       return finishPromise;
     },
   };
