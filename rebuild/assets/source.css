@@ -7731,12 +7731,18 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .smart-capture label { display: inline-flex; gap: 0.35rem; align-items: center; }
 .smart-capture button { text-decoration: underline; text-underline-offset: 0.15em; }
 .smart-capture input, .smart-capture select { max-width: 16rem; }
-.breakdown-dialog { overflow-y: auto; }
-.breakdown-dialog > button:first-child { float: right; }
-.breakdown-dialog fieldset { border: 1px solid var(--line); border-radius: 8px; margin-block: 0.75rem; padding: 0.75rem; }
-.breakdown-dialog fieldset label { margin: 0.5rem 0; }
+.breakdown-dialog { overflow-y: auto; border: 0; border-radius: 8px; outline: 0; padding: 28px; background: #121b2b; }
+@media (prefers-color-scheme: light) { .breakdown-dialog { background: #edf2f9; } }
+.breakdown-dialog h2 { padding-right: 36px; }
+.breakdown-dialog > p { margin: 0 0 16px; line-height: 1.55; }
+.breakdown-dialog > p:empty, .breakdown-preview:empty { display: none; }
+.breakdown-preview h3 { margin: 24px 0 14px; font-size: 16px; font-weight: 600; }
+.breakdown-dialog fieldset { border: 1px solid var(--line); border-radius: 8px; margin-block: 1rem; padding: 1rem; }
+.breakdown-dialog fieldset label { margin: 0.75rem 0; }
+.breakdown-dialog fieldset input[type='checkbox'] { width: auto; }
 .breakdown-dialog fieldset input:not([type='checkbox']), .breakdown-dialog textarea { width: 100%; }
 .breakdown-dialog fieldset button { margin-inline-end: 0.75rem; }
+.breakdown-actions { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 .quick-capture-form [hidden] { display: none !important; }
 .smart-capture-input { position: relative; }
 .smart-capture-input > input { width: 100%; }

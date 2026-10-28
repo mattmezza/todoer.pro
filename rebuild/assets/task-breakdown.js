@@ -7,10 +7,11 @@ export function mountBreakdown(root) {
   dialog.setAttribute('aria-labelledby', 'breakdown-title');
   const heading = document.createElement('h2');
   heading.id = 'breakdown-title';
-  heading.textContent = 'Break down task';
+  heading.innerHTML = '<span class="modal-heading-icon" aria-hidden="true"><svg class="ui-icon" width="20" height="20"><use href="/assets/icons.svg#sparkles"/></svg></span>Break down task';
   const close = document.createElement('button');
   close.type = 'button';
-  close.textContent = 'Close';
+  close.className = 'workbench-dialog-close';
+  close.innerHTML = '<svg class="ui-icon" width="20" height="20" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg>';
   close.setAttribute('aria-label', 'Close breakdown');
   close.onclick = () => dialog.close();
   let applying = false,
@@ -31,6 +32,7 @@ export function mountBreakdown(root) {
   const status = document.createElement('p');
   status.setAttribute('role', 'status');
   const box = document.createElement('div');
+  box.className = 'breakdown-preview';
   menu.querySelector('div').append(button);
   dialog.append(close, heading, explanation, status, box);
   root.append(dialog);
@@ -147,7 +149,10 @@ export function mountBreakdown(root) {
     cancel.onclick = () => {
       if (!applying) dialog.close();
     };
-    box.append(apply, cancel);
+    const actions = document.createElement('div');
+    actions.className = 'breakdown-actions';
+    actions.append(cancel, apply);
+    box.append(actions);
   };
   button.onclick = async () => {
     menu.open = false;
