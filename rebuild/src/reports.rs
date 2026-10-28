@@ -139,7 +139,8 @@ impl Store {
                 Ok(ReportTask {
                     id: e.task.id.clone(),
                     reference: format!(
-                        "%{}",
+                        "{}{}",
+                        e.task.reference_prefix(),
                         crate::defaults::public_id(&self.conn, "task", &e.task.id)?
                     ),
                     parent_id: e.task.parent_id,

@@ -40,7 +40,7 @@ The response contains `hits`, the authorized matching `total`, and nullable `nex
 
 Pass `next_cursor` back unchanged in the same query to request another page. Cursors bind the canonical query (including projection, limit and sort), actor, current accessible scope, and an opaque index generation. Index changes, filter changes, or permission changes return HTTP 409 with `resync_required`; restart without a cursor. This conservative rule also invalidates pagination after unrelated indexed writes. It prevents silent skips, duplicates, or stale-scope continuations. A cursor is an opaque continuation, not an authorization grant.
 
-Search text is limited to 500 characters; result pages contain 1–100 hits. FTS operators, quotes, punctuation and reference prefixes never become executable query syntax. `%T-...`, full task IDs, and unique-looking task ID prefixes of at least eight characters can match task references; multiple accessible matching prefixes remain separate results. Exact identifiers are preferable for subsequent writes. Text tokens are combined with AND; at most 32 tokens are accepted. The API does not interpret reference names as authority to read otherwise inaccessible entities.
+Search text is limited to 500 characters; result pages contain 1–100 hits. FTS operators, quotes, punctuation and reference prefixes never become executable query syntax. `%T-...` for top-level tasks, `^T-...` for subtasks at any depth, full task IDs, and unique-looking task ID prefixes of at least eight characters can match task references; multiple accessible matching prefixes remain separate results. Exact identifiers are preferable for subsequent writes. Text tokens are combined with AND; at most 32 tokens are accepted. The API does not interpret reference names as authority to read otherwise inaccessible entities.
 
 The index backfills existing entities during migration 016 and maintains one FTS document per source row through SQLite triggers. Live source joins apply authorization and deletion state before counts, pagination and result construction. Scope, scheduling, tag, section and recurrence mutations invalidate cursors. Search does not concatenate every comment into a task document or load private result bodies for post-filtering.
 
@@ -55,7 +55,6 @@ Saved filter storage, a visual filter builder, and a new HTML results layout are
 Observed locally on 2026-10-26: the sequential debug-build fixture returned 100 full-context comment hits out of 10,000 authorized matches across 10,000 tasks plus 10,000 comments in **705 ms**. The fixture, including indexed insertion, completed in roughly six seconds; the full sequential search test selection completed in 7.5 seconds. This is a synthetic development measurement, not a release-build latency guarantee or a production load test.
 
 Quick search exposes a copy-reference action beside each result. The optional
-`reference` projection returns the canonical prefixed identifier (`%task`,
-`#list`, `@space`, `$section`, `+tag`); it is included by default. Comments and
+`reference` projection returns the canonical prefixed identifier (`@space`, `#list`, `$section`, `%task`, `^subtask`, `+tag`); it is included by default. Comments and
 attachments use their parent task's reference. Copying keeps quick search open
 and preserves keyboard navigation.

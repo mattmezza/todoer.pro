@@ -35,6 +35,11 @@ pub struct Task {
     pub revision: i64,
     pub position: i64,
 }
+impl Task {
+    pub fn reference_prefix(&self) -> &'static str {
+        if self.parent_id.is_some() { "^" } else { "%" }
+    }
+}
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Capture {

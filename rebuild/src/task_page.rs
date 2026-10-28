@@ -149,7 +149,7 @@ async fn page(
                 .filter(|x| x.id != task.id)
             {
                 crumbs.push(Crumb {
-                    label: format!("%{}", crate::defaults::public_id(&db.conn, "task", &ancestor.id)?),
+                    label: format!("{}{}", crate::core::task(&db.conn, &ancestor.id)?.reference_prefix(), crate::defaults::public_id(&db.conn, "task", &ancestor.id)?),
                     url: format!("/tasks/{}", crate::defaults::public_id(&db.conn, "task", &ancestor.id)?),
                 });
             }

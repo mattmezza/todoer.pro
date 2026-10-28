@@ -213,7 +213,7 @@ fn fuzzy_expression(c: &Connection, text: &str) -> Result<String, Error> {
         .filter(|s| !s.is_empty())
         .take(32)
         .collect();
-    if tokens.len() > 8 || text.trim().starts_with(['%', '#', '@', '$']) {
+    if tokens.len() > 8 || text.trim().starts_with(['%', '^', '#', '@', '$']) {
         return Ok(fts_expression(text));
     }
     let mut groups = Vec::new();
@@ -342,7 +342,10 @@ UNION ALL SELECT 'tag',g.id,(SELECT MIN(t.list_id) FROM task_tags tt JOIN tasks 
             .text
             .trim()
             .strip_prefix('%')
+            .or_else(|| query.text.trim().strip_prefix('^'))
             .unwrap_or(query.text.trim());
+        if query.text.trim().starts_with('^') { sql += " AND t.parent_id IS NOT NULL"; }
+        else if query.text.trim().starts_with('%') { sql += " AND t.id IS NOT NULL AND t.parent_id IS NULL"; }
         if !query.text.trim().is_empty() {
             if expression.is_empty() {
                 sql += " AND 0";
@@ -546,6 +549,7 @@ UNION ALL SELECT 'tag',g.id,(SELECT MIN(t.list_id) FROM task_tags tt JOIN tasks 
                 } else {
                     crate::defaults::public_id(&self.conn, kind, id)?
                 };
+                let prefix = if kind == "task" { crate::core::task(&self.conn, id)?.reference_prefix() } else { prefix };
                 hit.reference = Some(format!("{prefix}{reference}"));
             }
             if wanted("context") {

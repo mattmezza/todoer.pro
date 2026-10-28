@@ -87,7 +87,7 @@ export function mountTaskMetadata({
     'data-reference-search': '',
   });
   const referenceQuery = field('text', 'reference_query', {
-    placeholder: '%task #list @workspace $section +tag',
+    placeholder: '@space #list $section %task ^subtask +tag',
     maxlength: '100',
     autocomplete: 'off',
   });
@@ -673,7 +673,7 @@ export function mountTaskMetadata({
     parentSelection.textContent = 'Loading selected parent…';
     try {
       const items = await request(
-        `/references/autocomplete?query=${encodeURIComponent('%' + id)}&limit=1`,
+        `/references/autocomplete?query=${encodeURIComponent(id)}&limit=1`,
       );
       if (!active || parent.value !== id) return;
       parentSelection.textContent =
@@ -778,9 +778,7 @@ export function mountTaskMetadata({
       for (const choice of items) {
         const choose = button(`${choice.label} · ${choice.context || choice.kind}`);
         choose.addEventListener('click', () => {
-          const prefix = { workspace: '@', list: '#', section: '$', task: '%', tag: '+' }[
-            choice.kind
-          ];
+          const prefix = choice.prefix;
           if (!prefix) return;
           selectedReference.value = prefix + choice.id;
           selectedReference.hidden = false;
