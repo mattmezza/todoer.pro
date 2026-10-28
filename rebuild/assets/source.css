@@ -7638,10 +7638,10 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 
 /* A quiet, focused welcome: the real setup is also the lesson. */
 .welcome-page { min-height: 100dvh; background: radial-gradient(ellipse at 85% 8%, #253e593d, transparent 65%), var(--bg); }
-.welcome-shell { max-width: 1160px; margin: 0 auto !important; padding: max(32px,env(safe-area-inset-top)) max(32px,env(safe-area-inset-right)) max(28px,env(safe-area-inset-bottom)) max(32px,env(safe-area-inset-left)); }
+.welcome-shell { max-width: 1040px; margin: 0 auto !important; padding: max(32px,env(safe-area-inset-top)) max(32px,env(safe-area-inset-right)) max(28px,env(safe-area-inset-bottom)) max(32px,env(safe-area-inset-left)); }
 .welcome-top { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:64px; }
 .welcome-top > button { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:13px; padding:8px 0; }
-.welcome-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:center; gap:80px; }
+.welcome-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:center; gap:96px; }
 .welcome-progress { display:flex; align-items:center; gap:7px; color:var(--muted); font-size:12px; margin-bottom:22px; }
 .welcome-progress span { margin-right:8px; }
 .welcome-progress i { width:22px; height:3px; background:var(--field); border-radius:4px; }
@@ -7666,9 +7666,6 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .welcome-continue,.welcome-actions .primary { min-height:46px; display:flex; align-items:center; justify-content:center; gap:18px; border-radius:10px; }
 .welcome-actions { display:grid; gap:12px; }
 .welcome-actions > button:not(.primary),.welcome-back { color:var(--muted); font-size:13px; }
-.welcome-content .welcome-plan { display:flex; gap:12px; padding:16px; border-radius:12px; background:var(--field); align-items:flex-start; }
-.welcome-plan input { margin-top:3px; width:16px; height:16px; flex-shrink:0; }
-.welcome-plan small { margin-top:5px; }
 .welcome-back { justify-self:start; }
 .welcome-reassurance { font-size:12px; color:var(--muted); margin-top:24px; }
 .welcome-error { color:#fb7185; font-size:14px; margin-top:18px; }
@@ -7683,16 +7680,8 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .welcome-list { margin-left:14px; padding:20px; border-radius:16px; background:var(--sidebar); box-shadow:0 12px 34px #0002; transition:transform .25s; }
 .welcome-list-title { display:flex; align-items:center; gap:10px; font-size:14px; }
 .welcome-list-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-.welcome-preview-task { display:flex; align-items:center; gap:10px; margin-top:22px; font-size:13px; color:var(--muted); overflow-wrap:anywhere; }
-.welcome-task-circle { width:17px; height:17px; border:1.5px solid var(--accent); border-radius:50%; flex-shrink:0; }
-.welcome-preview-planned { display:flex; gap:7px; align-items:center; font-size:11px; color:var(--accent); margin:16px 0 0 27px; }
-.welcome-preview-planned .ui-icon { width:14px; height:14px; }
-.welcome-preview-teaching { color:var(--muted); font-size:12px; line-height:1.7; margin:0 0 28px; }
-.welcome-possibilities { display:grid; grid-template-columns:1fr 1fr; gap:22px 16px; padding-top:24px; border-top:1px solid #64748b26; }
-.welcome-possibilities > div { display:flex; align-items:flex-start; gap:9px; }
-.welcome-possibilities .ui-icon { width:17px; height:17px; color:var(--accent); flex-shrink:0; margin-top:2px; }
-.welcome-possibilities strong { display:block; font-size:11px; font-weight:500; }
-.welcome-possibilities small { display:block; font-size:10px; line-height:1.5; color:var(--muted); margin-top:4px; }
+.welcome-list-empty { margin:18px 0 0; font-size:13px; color:var(--muted); }
+.welcome-preview-teaching { color:var(--muted); font-size:13px; line-height:1.7; margin:0; }
 .welcome-footer { text-align:center; margin-top:48px; font-size:12px; color:var(--muted); }
 .welcome-shell[data-step="2"] .welcome-list { transform:translateY(-5px); }
 .welcome-shell:not([aria-busy]) .welcome-content form { animation:welcome-arrive .25s ease-out; }
