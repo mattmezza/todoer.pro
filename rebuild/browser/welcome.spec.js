@@ -126,6 +126,7 @@ test('desktop runner rests, never completes early, and celebrates on completion'
   await expect(page.locator('[data-welcome]')).toHaveAttribute('data-ready', 'true');
   await expect(canvas).toHaveAttribute('data-phase', 'celebrate', { timeout: 4000 });
   await expect(canvas).toHaveAttribute('data-complete', 'true');
+  expect(await canvas.evaluate((el) => Math.abs(el.getBoundingClientRect().height - innerHeight))).toBeLessThan(1);
   await expect(page.locator('.welcome-content')).toHaveCSS('opacity', '0');
   await expect(page.locator('[data-welcome-complete]')).toBeVisible();
   await page.screenshot({
