@@ -555,7 +555,7 @@ async fn notification_page(State(s): State<AppState>, h: HeaderMap) -> Result<Re
     <label class="notification-check"><input type="checkbox" name="daily_opt_in" {daily}>Daily email summary</label><label class="notification-check"><input type="checkbox" name="push_daily_opt_in" {push_daily}>Daily push summary</label>
     <label class="notification-check"><input type="checkbox" name="weekly_opt_in" {weekly}>Weekly email summary</label><label class="notification-check"><input type="checkbox" name="push_weekly_opt_in" {push_weekly}>Weekly push summary</label>
     <label>Weekly summary day (Monday = 1)<input type="number" name="weekly_day" min="1" max="7" value="{weekday}" required></label></section>
-    <section class="security-card"><h2>Timing &amp; quiet hours</h2><label>Timezone<input name="timezone" value="{timezone}" required></label><div class="notification-fields"><label>Quiet from<input type="time" name="quiet_start" value="{quiet_start}"></label><label>Until<input type="time" name="quiet_end" value="{quiet_end}"></label></div><p>Quiet hours delay email and push. Notifications still arrive silently in your inbox. Leave both times empty to turn quiet hours off; equal times mute delivery all day.</p></section>
+    <section class="security-card"><h2>Timing &amp; quiet hours</h2><p>Times use your account timezone: <strong>{timezone}</strong>. <a href="/settings/general">Change in General settings…</a></p><div class="notification-fields"><label>Quiet from<input type="time" name="quiet_start" value="{quiet_start}"></label><label>Until<input type="time" name="quiet_end" value="{quiet_end}"></label></div><p>Quiet hours delay email and push. Notifications still arrive silently in your inbox. Leave both times empty to turn quiet hours off; equal times mute delivery all day.</p></section>
     <section class="security-card"><h2>Muted lists</h2><p>Skip new notifications and delivery from these lists.</p><fieldset data-muted-lists><legend class="sr-only">Muted lists</legend><div data-mute-choices>{mutes}</div></fieldset></section><button class="primary">Save notification preferences</button></form>"#,
         csrf=esc(&s.csrf_for(&h)), due=check(prefs.inbox_due), reminders=check(prefs.inbox_reminders), updates=check(prefs.inbox_updates), email=check(prefs.email_opt_in), daily=check(prefs.daily_opt_in), weekly=check(prefs.weekly_opt_in), push_daily=check(prefs.push_daily_opt_in), push_weekly=check(prefs.push_weekly_opt_in), daily_time=esc(&prefs.daily_time), weekly_time=esc(&prefs.weekly_time), weekday=prefs.weekly_day,timezone=esc(&prefs.timezone),quiet_start=esc(prefs.quiet_start.as_deref().unwrap_or("")),quiet_end=esc(prefs.quiet_end.as_deref().unwrap_or("")));
     render_settings(&s, &h, "Notifications", body, "notifications").await
@@ -589,7 +589,7 @@ async fn notification_form(
         inbox_due: form.contains_key("inbox_due"),
         inbox_reminders: form.contains_key("inbox_reminders"),
         inbox_updates: form.contains_key("inbox_updates"),
-        timezone: field("timezone"),
+        timezone: current.timezone,
         week_start: current.week_start,
         fun_animations: current.fun_animations,
         fun_animation: current.fun_animation,
