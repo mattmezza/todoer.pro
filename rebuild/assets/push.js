@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 // Device enablement is explicitly initiated by a user gesture.
 export function mountPushSettings(root) {
@@ -14,7 +15,10 @@ export function mountPushSettings(root) {
   let deviceId;
   let busy = false;
   let active = true;
+  status.textContent = '';
+  const initialLoading = beginLoading(status, { variant: 'compact' });
   const say = (text) => {
+    initialLoading.finish();
     if (active) status.textContent = text;
   };
   async function request(path, method = 'GET', body) {

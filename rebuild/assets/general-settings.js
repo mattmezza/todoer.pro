@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { toast } from './toast.js';
 import { setSaveState } from './quiet-info.js';
@@ -27,6 +28,7 @@ if (form) {
   const fields = [form.elements.timezone, form.elements.week_start];
   fields.forEach((field) => (field.disabled = true));
   button.disabled = true;
+  const skeleton = beginLoading(form, { variant: 'form' });
   preferences()
     .then((value) => {
       form.elements.timezone.value = value.timezone;
@@ -36,8 +38,9 @@ if (form) {
     })
     .catch((error) => {
       status.textContent = '';
+      skeleton.fail(error.message, () => location.reload());
       setSaveState('preferences', 'error', error.message);
-    });
+    }).finally(() => skeleton.finish());
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (button.disabled) return;
@@ -93,6 +96,7 @@ if (playForm) {
     if (!response.ok) throw Error('Could not load preferences.');
     return response.json();
   }
+  const skeleton = beginLoading(playForm, { variant: 'form' });
   load()
     .then((value) => {
       enabled.checked = value.fun_animations !== false;
@@ -101,7 +105,10 @@ if (playForm) {
       style.disabled = !enabled.checked;
       options.hidden = !enabled.checked;
     })
-    .catch((error) => setSaveState('preferences', 'error', error.message));
+    .catch((error) => {
+      skeleton.fail(error.message, () => location.reload());
+      setSaveState('preferences', 'error', error.message);
+    }).finally(() => skeleton.finish());
   playForm.addEventListener('change', async () => {
     const choice = { fun_animations: enabled.checked, fun_animation: style.value };
     options.hidden = !enabled.checked;

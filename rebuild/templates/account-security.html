@@ -1,5 +1,5 @@
 <script type="module" src="/assets/account-security.js"></script>
-<section class="general-settings account-security-layout" data-account-security>
+<section class="general-settings account-security-layout" data-account-security data-loading-pending="cards">
   <div class="security-overview">
     <h2>Your sign-in</h2>
     <p class="muted" data-account-summary>Loading security settings…</p>
@@ -94,7 +94,7 @@
 >
   <h2>Deployment authentication</h2>
   <p class="muted">Administrator settings for everyone on this Todoer instance.</p>
-  <form data-auth-policy class="grid gap-3">
+  <form data-auth-policy data-loading-pending="form" class="grid gap-3">
     <label><input type="checkbox" name="google_enabled" /> Allow Google sign-in</label
     ><label><input type="checkbox" name="signup_enabled" /> Allow account creation</label>
     <p class="muted">

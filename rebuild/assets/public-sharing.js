@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { confirmAction } from './confirm.js';
 import { setSaveState } from './quiet-info.js';
@@ -26,13 +27,14 @@ export async function mountPublicSharing(section, kind, id) {
       throw Error(data.error?.message || 'Could not update public access.');
     return data;
   }
+  const skeleton = beginLoading(root, { variant: 'form' });
   try {
     state = await request('GET');
     if (!root.isConnected) return;
     draw();
-  } catch {
-    root.remove();
-  }
+  } catch (error) {
+    skeleton.fail(error.message, () => { root.remove(); mountPublicSharing(section, kind, id); });
+  } finally { skeleton.finish(); }
   function draw() {
     root.replaceChildren(h);
     const text = document.createElement('p');

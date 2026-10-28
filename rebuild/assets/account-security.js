@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
@@ -275,6 +276,7 @@ if (policyForm) {
   const fields = [policyForm.elements.google_enabled, policyForm.elements.signup_enabled];
   fields.forEach((f) => (f.disabled = true));
   policyForm.querySelector('button').disabled = true;
+  const skeleton = beginLoading(policyForm, { variant: 'form' });
   api('/api/v1/admin/auth-policy', undefined, 'GET')
     .then((data) => {
       policy = data;
@@ -284,7 +286,8 @@ if (policyForm) {
       });
       policyForm.querySelector('button').disabled = false;
     })
-    .catch((e) => toast(e.message, 'error'));
+    .catch((e) => { skeleton.fail(e.message, () => location.reload()); toast(e.message, 'error'); })
+    .finally(() => skeleton.finish());
   policyForm.addEventListener('submit', (event) => {
     event.preventDefault();
     run(async () => {
@@ -301,7 +304,8 @@ if (policyForm) {
     });
   });
 }
-if (root)
+if (root) {
+  const skeleton = beginLoading(root, { variant: 'cards' });
   load()
     .then(() => {
       const section = [...root.querySelectorAll('.security-card')].find(
@@ -312,4 +316,6 @@ if (root)
         section.querySelector('input,button')?.focus({ preventScroll: true });
       }
     })
-    .catch((e) => toast(e.message, 'error'));
+    .catch((e) => { skeleton.fail(e.message, () => location.reload()); toast(e.message, 'error'); })
+    .finally(() => skeleton.finish());
+}
