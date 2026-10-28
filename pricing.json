@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "status": "proposal",
+  "checkout_enabled": false,
+  "base_currency": "EUR",
+  "default_currency": "EUR",
+  "currencies": {
+    "EUR": {
+      "symbol": "\u20ac",
+      "minor_units": 2
+    },
+    "USD": {
+      "symbol": "US$",
+      "minor_units": 2
+    },
+    "GBP": {
+      "symbol": "\u00a3",
+      "minor_units": 2
+    },
+    "CAD": {
+      "symbol": "CA$",
+      "minor_units": 2
+    }
+  },
+  "tax": {
+    "included": false,
+    "status": "Tax treatment must be finalized before sales."
+  },
+  "conversion": {
+    "rate_date": "2026-10-28",
+    "source": "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.es.html",
+    "cad_source": "https://www.lb.lt/en/daily-euro-foreign-exchange-reference-rates-published-by-the-european-central-bank",
+    "units_per_eur": {
+      "EUR": 1,
+      "USD": 1.1133,
+      "GBP": 0.83785,
+      "CAD": 1.5638
+    },
+    "fee_percent": 3,
+    "formula": "EUR anchor \u00d7 currency units per EUR \u00d7 1.03 for non-EUR currencies; EUR anchors unchanged",
+    "fee_scope": "EUR launch anchors include the allowance. Other currencies add 3% before rounding.",
+    "rounding": "Yearly to next whole unit; perpetual to next whole amount ending in 9. EUR launch anchors fixed.",
+    "refresh_policy": "Update reference rates and rerun python www/tools/pricing.py deliberately; never change checkout prices live from FX."
+  },
+  "plans": [
+    {
+      "id": "pro-yearly",
+      "name": "Yearly",
+      "interval": "year",
+      "base_amount_minor": 1200,
+      "regular_amount_minor": 2400,
+      "status": "proposal",
+      "prices": {
+        "EUR": {
+          "amount_minor": 1200,
+          "regular_amount_minor": 2400
+        },
+        "USD": {
+          "amount_minor": 1400,
+          "regular_amount_minor": 2800
+        },
+        "GBP": {
+          "amount_minor": 1100,
+          "regular_amount_minor": 2100
+        },
+        "CAD": {
+          "amount_minor": 2000,
+          "regular_amount_minor": 3900
+        }
+      }
+    },
+    {
+      "id": "perpetual",
+      "name": "Perpetual",
+      "interval": "one_time",
+      "base_amount_minor": 4900,
+      "regular_amount_minor": 7900,
+      "status": "proposal",
+      "entitlement": "Perpetual access scope, upgrades and hosted-service commitments must be finalized before sale.",
+      "prices": {
+        "EUR": {
+          "amount_minor": 4900,
+          "regular_amount_minor": 7900
+        },
+        "USD": {
+          "amount_minor": 5900,
+          "regular_amount_minor": 9900
+        },
+        "GBP": {
+          "amount_minor": 4900,
+          "regular_amount_minor": 6900
+        },
+        "CAD": {
+          "amount_minor": 7900,
+          "regular_amount_minor": 12900
+        }
+      }
+    }
+  ],
+  "ai_credits": {
+    "status": "planned",
+    "sold_separately": true,
+    "packs": []
+  },
+  "promotion": {
+    "label": "Planned launch pricing",
+    "reference_label": "Planned standard price",
+    "reference_is_previous_price": false,
+    "ends_at": null
+  },
+  "self_hosted": {
+    "name": "Self-hosted",
+    "amount_minor": 0,
+    "currencies": [
+      "EUR",
+      "USD",
+      "GBP",
+      "CAD"
+    ],
+    "subscription_required": false,
+    "infrastructure_included": false,
+    "operator_responsibilities": [
+      "hosting",
+      "storage",
+      "security",
+      "updates",
+      "backups",
+      "optional AI provider fees"
+    ],
+    "license": "License included with the relevant release"
+  }
+}
