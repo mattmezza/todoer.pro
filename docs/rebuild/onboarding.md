@@ -28,9 +28,10 @@ at completion. The mobile PWA installation prompt waits until after Welcome.
 ## Desktop chase
 
 `welcome-chase.js` draws one decorative canvas at the bottom edge of desktop
-windows (1024px+, without a coarse touch pointer). A simple monochrome human
+windows (1024px+, without a coarse touch pointer). A faceless, single-color line figure
 runs with two-link leg IK, a short ground-contact phase, opposite bent-arm swings
-and a speed-matched stride. The task is a checkbox card labeled “Sort receipts”.
+and a speed-matched stride. The task is a checkbox card with a short chore such as “Sort receipts”.
+Each offscreen wrap picks the next chore; its label stays stable while visible.
 It jumps away near the runner and waves during rest periods.
 
 The chase makes fast one-way passes across the bottom edge. Both actors completely

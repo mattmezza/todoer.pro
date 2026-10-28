@@ -29,7 +29,13 @@ test('fast one-way passes wrap only once both actors are offscreen; rest and nea
           assert.ok(before.human > width + HUMAN_EXTENT - 12);
           assert.ok(before.task - TASK_EXTENT > width);
           assert.ok(motion.task + TASK_EXTENT < 0);
-        } else assert.ok(motion.human >= before.human, 'runner unexpectedly reversed');
+        } else {
+          assert.ok(motion.human >= before.human, 'runner unexpectedly reversed');
+          assert.ok(
+            motion.task >= before.task - 1e-9,
+            'task should not peek back through its exit',
+          );
+        }
         if (motion.phase === 'rest' && previousPhase !== 'rest') rests++;
         if (motion.jump > 0) jumps++;
         previousPhase = motion.phase;
@@ -80,4 +86,21 @@ test('resizing while offscreen preserves the gap and permits a visible finish', 
     separate(motion);
   }
   assert.notEqual(motion.caughtAt, null);
+});
+
+test('each offscreen wrap brings back a different chore, stable during each pass', () => {
+  const motion = new ChaseMotion(1280);
+  let labels = new Set([motion.label]);
+  let wraps = 0;
+  for (let i = 0; i < 60 * 120; i++) {
+    const previous = motion.label;
+    motion.advance(1 / 60);
+    if (motion.wraps !== wraps) {
+      assert.notEqual(motion.label, previous);
+      assert.ok(motion.task + TASK_EXTENT < 0, 'label changed while card was visible');
+      labels.add(motion.label);
+      wraps = motion.wraps;
+    } else assert.equal(motion.label, previous);
+  }
+  assert.ok(labels.size >= 8);
 });
