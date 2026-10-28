@@ -50,9 +50,14 @@ export class ChaseMotion {
   finish() {
     this.finishing = true;
     this.rest = false;
-    // If the task has already left, keep running through the same screen exit
-    // and re-enter naturally before the final catch. Never teleport visible actors.
-    this.gather = this.task < 210 || this.task > this.width - TASK_EXTENT - 16;
+    this.flightStart = { human: this.human, task: this.task };
+    this.flightAge = 0;
+  }
+  get taskFlight() {
+    return this.finishing ? smooth(clamp(this.flightAge / 1.8, 0, 1)) : 0;
+  }
+  get humanFlight() {
+    return this.finishing ? smooth(clamp((this.flightAge - 0.16) / 1.94, 0, 1)) : 0;
   }
   advance(dt) {
     this.time += dt;
@@ -78,18 +83,19 @@ export class ChaseMotion {
         this.jumpAge < 0.72 ? Math.sin((this.jumpAge / 0.72) * Math.PI) * 45 : 0;
     } else {
       this.jump *= Math.exp(-dt * 12);
-      if (this.gather) {
-        this.velocity = mix(this.velocity, 400, 1 - Math.exp(-dt * 10));
-        this.human += this.velocity * dt;
-        if (this.task >= 210 && this.task <= this.width - TASK_EXTENT - 16)
-          this.gather = false;
-      } else if (this.caughtAt === null) {
-        const speed = Math.min(340, Math.max(0, this.gap - MIN_GAP) * 10);
-        this.velocity = mix(this.velocity, speed, 1 - Math.exp(-dt * 14));
-        const distance = Math.min(this.gap - MIN_GAP, this.velocity * dt);
-        this.human += distance;
-        this.gap -= distance; // the task stays still, safely beyond the hand
-        if (this.gap <= MIN_GAP + 0.5) {
+      if (this.caughtAt === null) {
+        this.flightAge += dt;
+        // Land the whole pair centrally, with the card just ahead of its runner.
+        const destination = this.width / 2 + (MIN_GAP + HUMAN_EXTENT - TASK_EXTENT) / 2;
+        const task = mix(this.flightStart.task, destination, this.taskFlight);
+        const previous = this.human;
+        this.human = Math.min(task - MIN_GAP,
+          mix(this.flightStart.human, destination - MIN_GAP, this.humanFlight));
+        this.gap = Math.max(MIN_GAP, task - this.human);
+        this.velocity = Math.max(80, Math.abs(this.human - previous) / dt);
+        if (this.flightAge >= 2.1) {
+          this.human = destination - MIN_GAP;
+          this.gap = MIN_GAP;
           this.velocity = 0;
           this.caughtAt = this.time;
         }
@@ -97,7 +103,7 @@ export class ChaseMotion {
     }
     // The task exits first; only wrap once the runner has also completely left.
     // Both re-enter from the left in the same order, with exactly the same gap.
-    if (this.human > this.width + HUMAN_EXTENT + 12) {
+    if (!this.finishing && this.human > this.width + HUMAN_EXTENT + 12) {
       this.human = -this.gap - TASK_EXTENT - 24;
       this.wraps++;
     }
@@ -125,7 +131,9 @@ export function welcomeChase() {
     resolveFinish,
     finishPromise,
     finishTimeout,
-    particles = [];
+    particles = [],
+    height = 128,
+    landingLift = 0;
   let disposed = false;
   const enabled = () => !disposed && desktop.matches && !reduced.matches;
   function resize() {
@@ -134,7 +142,13 @@ export function welcomeChase() {
     // Supersample thin moving limbs even on standard-density desktop screens.
     const ratio = Math.max(2, Math.min(devicePixelRatio || 1, 3));
     canvas.width = Math.round(motion.width * ratio);
-    canvas.height = Math.round(128 * ratio);
+    height = motion.finishing ? innerHeight : 128;
+    canvas.style.height = `${height}px`;
+    canvas.height = Math.round(height * ratio);
+    const message = document.querySelector('[data-welcome-complete]');
+    const messageTop = message?.getBoundingClientRect().top || innerHeight * 0.45;
+    // Leave a calm gap between the completed card and the welcome message.
+    landingLift = Math.max(0, innerHeight - messageTop + 24);
     ctx.setTransform(canvas.width / motion.width, 0, 0, ratio, 0, 0);
   }
   function ellipse(x, y, rx, ry, fill) {
@@ -343,11 +357,19 @@ export function welcomeChase() {
       confetti();
     }
     canvas.dataset.phase = motion.phase;
-    ctx.clearRect(0, 0, motion.width, 128);
+    ctx.clearRect(0, 0, motion.width, height);
     const celebration =
       motion.caughtAt === null ? 0 : motion.time - motion.caughtAt + 0.001;
+    ctx.save();
+    ctx.translate(0, height - 128 - landingLift * motion.humanFlight);
     drawHuman(celebration);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(0, height - 128 - landingLift * motion.taskFlight);
     drawTask(celebration);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(0, height - 128 - landingLift);
     for (const particle of particles) {
       particle.age += dt;
       particle.vy += 130 * dt;
@@ -361,8 +383,9 @@ export function welcomeChase() {
       ctx.fillRect(-2, -1, 4, 2);
       ctx.restore();
     }
+    ctx.restore();
     ctx.globalAlpha = 1;
-    if (celebration > 1.5) done();
+    if (celebration > 1.7) done();
     if (canvas.dataset.phase !== 'done') frame = requestAnimationFrame(tick);
   }
   function sync() {
@@ -400,9 +423,10 @@ export function welcomeChase() {
       if (!enabled() || document.hidden) return Promise.resolve();
       if (finishPromise) return finishPromise;
       motion.finish();
+      resize();
       canvas.dataset.phase = 'catch';
       finishPromise = new Promise((resolve) => (resolveFinish = resolve));
-      finishTimeout = setTimeout(done, 4500);
+      finishTimeout = setTimeout(done, 5500);
       return finishPromise;
     },
   };

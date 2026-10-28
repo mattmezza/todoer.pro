@@ -58,12 +58,16 @@ test('completion from any point of a pass returns on-screen and never overlaps',
       for (let i = 0; i < 60 * 3 && motion.caughtAt === null; i++) {
         motion.advance(1 / 60);
         separate(motion);
+        assert.ok(motion.taskFlight >= motion.humanFlight);
       }
       assert.notEqual(
         motion.caughtAt,
         null,
         `finish took too long: width ${width}, start ${start}`,
       );
+      assert.ok(Math.abs((motion.human - HUMAN_EXTENT + motion.task + TASK_EXTENT) / 2 - width / 2) < 0.01);
+      assert.equal(motion.taskFlight, 1);
+      assert.equal(motion.humanFlight, 1);
       assert.ok(motion.human - HUMAN_EXTENT >= 0);
       assert.ok(motion.task + TASK_EXTENT <= width);
       for (let i = 0; i < 120; i++) {
