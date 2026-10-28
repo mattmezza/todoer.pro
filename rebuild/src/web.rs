@@ -891,6 +891,8 @@ struct CaptureAt {
     tasks: Vec<crate::core::NewTask>,
     #[serde(default)]
     section_id: Option<String>,
+    #[serde(default)]
+    metadata: Option<crate::capture_at::CaptureMetadata>,
 }
 async fn capture(
     State(s): State<AppState>,
@@ -910,15 +912,11 @@ async fn capture(
         .to_owned();
     Ok(Json(
         s.run(move |db| {
-            db.capture_at(
-                &actor,
-                &key,
-                Capture {
-                    list_id: c.list_id,
-                    tasks: c.tasks,
-                },
-                c.section_id,
-            )
+            let input = Capture { list_id: c.list_id, tasks: c.tasks };
+            match c.metadata {
+                Some(metadata) => db.capture_with_metadata(&actor, &key, input, c.section_id, metadata),
+                None => db.capture_at(&actor, &key, input, c.section_id),
+            }
         })
         .await?,
     ))
