@@ -287,7 +287,15 @@ test('quick capture reveals an auto-growing description and can keep adding', as
   expect(await description.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(
     true,
   );
-  await dialog.getByLabel('Keep adding').check();
+  const repeat = dialog.getByLabel('Keep adding');
+  const checkboxBox = await repeat.boundingBox();
+  const buttonBox = await dialog
+    .getByRole('button', { name: 'Add task', exact: true })
+    .boundingBox();
+  expect(
+    Math.abs(checkboxBox.y + checkboxBox.height / 2 - buttonBox.y - buttonBox.height / 2),
+  ).toBeLessThan(2);
+  await repeat.check();
   const title = dialog.getByLabel('Task', { exact: true });
   await title.fill(`Repeat capture ${Date.now()}`);
   await dialog.getByRole('button', { name: 'Add task', exact: true }).click();
