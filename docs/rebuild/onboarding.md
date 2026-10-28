@@ -1,32 +1,49 @@
 # Account welcome
 
-New verified accounts receive a short, optional `/welcome` flow after sign-in.
-Existing accounts are backfilled as complete and keep their normal destination.
-Both Google and local/passkey sign-in use the pending account state. There is no
-signup interception before verification or MFA, and skipping remains available.
+New verified accounts receive an optional two-question `/welcome` after sign-in.
+Existing accounts keep their normal landing; General settings can reopen setup.
+Verification and MFA still happen before onboarding.
 
-Step one explains and names a space: an area of life that groups lists.
-Step two explains and names its first list: a home for related tasks, with a live
-color preview. Names are saved as lowercase, hyphen-separated slugs. Personal,
-Work and Together presets suggest different names and colors; Together suggests
-home/chores for partners or housemates, without enabling sharing automatically.
+1. Choose Personal, Work, or both. A short sentence explains spaces as containers
+   for one area of life. Neither choice is selected initially.
+2. Pick useful lists grouped by destination (`@personal / #groceries`, etc.).
+   Suggestions have coordinated colors. A collapsed “Add your own…” supports a
+   custom name in either space. “I’ll decide on lists later” creates the selected
+   spaces without suggested lists. Users add actual tasks inside the app.
 
-The flow reuses account defaults rather than duplicating them. No task creation,
-calendar choices, permission prompts or feature grid interrupt the welcome.
-Users add tasks in the app afterward. An explicit sign-in return destination
-still takes precedence over the personalized list landing.
+Migration 38 adds the space-choice draft to the existing account onboarding row.
+The first step only persists that draft. Completion validates all choices, then
+creates spaces and lists through authorized normal mutation methods in one
+transaction. Lowercase slug names are used for new entities. Matching active
+spaces owned by this account and their lists are reused. Existing content, names,
+sharing and list colors are preserved. The normal system Inbox/default lists
+remain available. Skipping creates no entities. Revisions catch stale tabs, and
+persisted completion makes retries after lost responses safe. A previously open
+old welcome draft with no choices starts at the first question.
 
-Account progress lives in SQLite. Revisions detect stale tabs; authorized normal
-mutation methods run inside one atomic write per step. Completion replay
-protection makes retries safe after a lost response. Errors retain the current
-form, and offer reload/escape options. A user can return through General settings
-and deliberately start another welcome run. Mobile installation is suggested
-only after leaving Welcome. Reduced-motion preferences suppress the short finish
-animation. Actual operating-system installation and push remain separate tests.
+The form is a single column without a preview, feature grid, task creation,
+permissions or upsell. Explicit sign-in return destinations still take precedence
+at completion. The mobile PWA installation prompt waits until after Welcome.
 
-Validation: 243 backend tests passed (8 ignored), including rollback, resume and
-replay checks. Four Chromium/Firefox browser checks cover desktop/mobile layout,
-slug input, color changes, reload, skipping, installation deferral, and an
-intentionally lost completion response followed by retry. Desktop and mobile
-screenshots were visually reviewed. Physical mobile browser behavior is not
-established by viewport emulation.
+## Desktop chase
+
+`welcome-chase.js` draws one decorative canvas at the bottom edge of desktop
+windows (1024px+, without a coarse touch pointer). It uses projected shaded capsules and
+spheres for a miniature human, two-link leg IK and ground-speed stance feet,
+opposite arm swings, breathing/rest periods and a jumping task. The chase uses the empty left gutter along the bottom edge, so it does not
+cross the form. The task escapes
+near misses and jumps over the runner at window edges. It waves while the human
+rests. These are fictional objects, unrelated to account tasks.
+
+Successful completion fades the form downward, lets the runner catch and check
+the task, and celebrates with a short jump/confetti sequence before navigating.
+Failed saves never trigger that ending. A 3.8-second bound prevents animation
+from holding navigation. Reduced motion, mobile and hidden tabs skip the sequence;
+normal animation frames pause when the tab is hidden. The canvas does not receive
+pointer events or appear in the accessibility tree. No runtime dependencies,
+external assets, audio or permissions are needed.
+
+Validation covers draft-only writes, atomic completion, input validation, retries,
+reopening without duplicates, and skip/undecided behavior. Browser scenarios cover
+both selected spaces, grouped list choices, reload, lost responses, desktop rest
+and celebration, reduced motion, mobile layout and installation deferral.
