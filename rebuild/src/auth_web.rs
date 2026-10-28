@@ -283,12 +283,13 @@ pub(super) async fn google_callback(
     let subject = identity.subject.clone();
     let picture = identity.picture_url.clone();
     let display_name = identity.display_name.clone();
-    s.run(move |store| {
+    let welcome = s.run(move |store| {
         store.conn.execute("UPDATE auth_identities SET picture_url=?1 WHERE issuer=?2 AND subject=?3 AND user_id=?4", rusqlite::params![picture,issuer,subject,actor])?;
         if let Some(name) = display_name.as_deref().map(str::trim).filter(|n| !n.is_empty() && n.chars().count() <= 200) {
             store.conn.execute("UPDATE users SET name=?1 WHERE id=?2 AND name='Todoer user'", rusqlite::params![name,actor])?;
         }
-        store.ensure_user_defaults(&actor)
+        store.ensure_user_defaults(&actor)?;
+        store.welcome_pending(&actor)
     })
         .await?;
     let epoch = auth.store.lock().map_err(|_|AuthError::Unauthorized)?.epoch(&user.id)?;
@@ -300,7 +301,8 @@ pub(super) async fn google_callback(
         .lock()
         .map_err(|_| AuthError::Unauthorized)?
         .issue_verified_session(&user.id, epoch)?;
-    let mut response = Redirect::to(&pending.next).into_response();
+    let destination = if welcome { format!("/welcome?next={}",super::encode_query(&pending.next)) } else { pending.next };
+    let mut response = Redirect::to(&destination).into_response();
     let secure = if s.origin.starts_with("https://") {
         "; Secure"
     } else {

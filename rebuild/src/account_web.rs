@@ -203,7 +203,8 @@ pub(super) async fn finish_login(
     next: String,
 ) -> Result<Response, ApiError> {
     let actor = user.clone();
-    s.run(move |db| db.ensure_user_defaults(&actor)).await?;
+    let welcome = s.run(move |db| { db.ensure_user_defaults(&actor)?; db.welcome_pending(&actor) }).await?;
+    let next = if welcome { format!("/welcome?next={}",encode_query(&browser_auth::safe_next(Some(&next)))) } else { browser_auth::safe_next(Some(&next)) };
     let grant = auth_run(s, move |db| db.issue_verified_session(&user, epoch)).await?;
     let mut response =
         Json(json!({"redirect":browser_auth::safe_next(Some(&next))})).into_response();

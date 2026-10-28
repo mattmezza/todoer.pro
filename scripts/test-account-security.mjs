@@ -137,6 +137,8 @@ try {
   const token = await message(/verify-email#token=([a-f0-9]+)/);
   await page.goto(base + '/verify-email#token=' + token);
   await page.getByRole('button', { name: 'Verify email & create account' }).click();
+  await page.waitForURL('**/welcome?next=*');
+  await page.locator('[data-welcome-skip]').click();
   await page.waitForURL('**/inbox');
   assert(
     (await post('/auth/local/verify', { token })).status() !== 200,
