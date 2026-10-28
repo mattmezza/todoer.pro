@@ -1344,7 +1344,7 @@ async fn trash_page(State(s): State<AppState>, h: HeaderMap, Query(q): Query<Tra
         let esc = scheduling_http::esc;
         let mut body = String::from("<div id=\"notice\" role=\"status\" aria-live=\"polite\"></div>");
         if roots.is_empty() {
-            body.push_str("<div class=\"planning-empty\"><h2>All clear.</h2><p>No deleted tasks on this page.</p></div>");
+            body.push_str("<div class=\"planning-empty\"><svg class=\"ui-icon\" width=\"40\" height=\"40\" aria-hidden=\"true\"><use href=\"/assets/icons.svg#trash\"/></svg><h2>All clear.</h2><p>No deleted tasks on this page.</p></div>");
         }
         for root in roots {
             let info = db.list_info(&actor, &root.list_id)?;
@@ -1378,11 +1378,14 @@ async fn trash_page(State(s): State<AppState>, h: HeaderMap, Query(q): Query<Tra
             }
             body.push_str(&format!("</ul><p class=\"trash-summary\">{} task{} · Restores to the original location</p></article>",count,if count==1 {""} else {"s"}));
         }
+        if page > 1 || more {
         body.push_str("<nav class=\"trash-pagination\" aria-label=\"Trash pages\">");
         if page>1 { body.push_str(&format!("<a href=\"/trash?page={}\">← Previous</a>",page-1)); }
         body.push_str(&format!("<span>Page {page}</span>"));
         if more { body.push_str(&format!("<a href=\"/trash?page={}\">Next →</a>",page+1)); }
-        body.push_str("</nav><script type=\"module\" src=\"/assets/review.js\"></script>");
+        body.push_str("</nav>");
+        }
+        body.push_str("<script type=\"module\" src=\"/assets/review.js\"></script>");
         Ok(body)
     }).await?;
     scheduling_http::render_feature(&s, &h, "Trash", body, false).await

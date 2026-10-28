@@ -657,7 +657,7 @@ export function mountScheduling({
       dueDate: schedule.due?.date || '',
       dueLocal: schedule.due?.local || '',
       dueZone: schedule.due?.timezone || defaultZone,
-      priority: String(schedule.priority ?? 2),
+      priority: String(schedule.priority ?? 3),
       reminders: (schedule.reminders || []).map((r) => ({
         channel: r.channel,
         local: r.at.local,

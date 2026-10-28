@@ -351,7 +351,7 @@ async fn calendar(
         .await?;
     let mut body = String::new();
     for row in rows {
-        let priority = row.schedule.schedule.priority.unwrap_or(2);
+        let priority = row.schedule.schedule.priority.unwrap_or(3);
         let priority_label = match priority {
             0 => "P0 · Highest",
             1 => "P1 · High",
