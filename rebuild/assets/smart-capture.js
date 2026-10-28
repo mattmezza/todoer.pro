@@ -153,21 +153,6 @@ export function mountSmartCapture(form) {
       label.append(date);
       controls.append(label);
     }
-    if (parsed.tags.length) {
-      const label = document.createElement('label');
-      label.textContent = 'Tags (comma separated)';
-      const tags = document.createElement('input');
-      tags.value = v.tags.join(', ');
-      tags.oninput = () => {
-        changes.tags = tags.value
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean);
-        renderPreview({ ...parsed, ...changes });
-      };
-      label.append(tags);
-      controls.append(label);
-    }
     suggestions.replaceChildren();
     choices = [];
     completion = null;
