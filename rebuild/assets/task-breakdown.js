@@ -23,7 +23,7 @@ export function mountBreakdown(root) {
   });
   const button = document.createElement('button');
   button.type = 'button';
-  button.textContent = 'Break down…';
+  button.innerHTML = '<svg class="ui-icon" width="20" height="20" aria-hidden="true"><use href="/assets/icons.svg#sparkles"/></svg><span>Break down…</span>';
   const explanation = document.createElement('p');
   explanation.className = 'muted';
   explanation.textContent =
