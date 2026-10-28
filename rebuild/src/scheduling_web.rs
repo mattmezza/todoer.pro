@@ -33,7 +33,7 @@ pub(super) fn routes() -> Router<AppState> {
         )
         .route(
             "/notifications",
-            get(|| async { Redirect::to("/settings/notifications") }).post(notification_form),
+            post(notification_form),
         )
         .route("/recurring/{id}/state", post(series_state_form))
         .route("/settings", get(general_settings))
@@ -543,30 +543,21 @@ async fn notification_page(State(s): State<AppState>, h: HeaderMap) -> Result<Re
     for (id, title, space) in lists {
         mutes.push_str(&format!("<label data-mute-label data-space=\"{}\"><input type=\"checkbox\" name=\"mute_{}\" value=\"yes\" {}><span data-mute-title>{}</span><small>{}</small></label>",esc(&space),esc(&id),if prefs.list_opt_out.contains(&id) { "checked" } else { "" },esc(&title),esc(&space)));
     }
-    let body = format!(
-        "<form method=\"post\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><label>IANA timezone <input name=\"timezone\" value=\"{}\" required></label><p><label><input type=\"checkbox\" name=\"email_opt_in\" {}>Email reminders and digests to my verified sign-in email</label></p><label>Quiet hours start <input type=\"time\" name=\"quiet_start\" value=\"{}\"></label><label>Quiet hours end <input type=\"time\" name=\"quiet_end\" value=\"{}\"></label><p>Equal quiet-hour times mute all hours. Leave both blank to disable quiet hours.</p><p><label><input type=\"checkbox\" name=\"daily_opt_in\" {}>Daily email summary</label><label><input type=\"checkbox\" name=\"push_daily_opt_in\" {}>Daily push summary</label><input type=\"time\" name=\"daily_time\" value=\"{}\"></p><p><label><input type=\"checkbox\" name=\"weekly_opt_in\" {}>Weekly email summary</label><label><input type=\"checkbox\" name=\"push_weekly_opt_in\" {}>Weekly push summary</label><label>Weekday (Monday=1)<input type=\"number\" name=\"weekly_day\" min=\"1\" max=\"7\" value=\"{}\"></label><input type=\"time\" name=\"weekly_time\" value=\"{}\"></p><fieldset data-muted-lists><legend>Muted lists</legend><div data-mute-choices>{}</div></fieldset><button class=\"primary\">Save notification preferences</button></form><p>Email requires configured SMTP. Push requires configured VAPID and an enabled, signed-in device. <a href=\"/settings/devices\">Manage push devices</a>. Email and push opt-ins are independent; both use the times above.</p>",
-        esc(&s.csrf_for(&h)),
-        esc(&prefs.timezone),
-        if prefs.email_opt_in { "checked" } else { "" },
-        esc(prefs.quiet_start.as_deref().unwrap_or("")),
-        esc(prefs.quiet_end.as_deref().unwrap_or("")),
-        if prefs.daily_opt_in { "checked" } else { "" },
-        if prefs.push_daily_opt_in {
-            "checked"
-        } else {
-            ""
-        },
-        esc(&prefs.daily_time),
-        if prefs.weekly_opt_in { "checked" } else { "" },
-        if prefs.push_weekly_opt_in {
-            "checked"
-        } else {
-            ""
-        },
-        prefs.weekly_day,
-        esc(&prefs.weekly_time),
-        mutes
-    );
+    let check = |v:bool| if v { "checked" } else { "" };
+    let body = format!(r#"<form method="post" class="notification-preferences"><input type="hidden" name="csrf" value="{csrf}">
+    <section class="security-card"><h2>In-app notifications</h2><p>Your bell and notification center work even when push is off.</p>
+    <label class="notification-check"><input type="checkbox" name="inbox_due" {due}>Overdue tasks</label>
+    <label class="notification-check"><input type="checkbox" name="inbox_reminders" {reminders}>Scheduled reminders</label>
+    <label class="notification-check"><input type="checkbox" name="inbox_updates" {updates}>Changes by others in shared lists and spaces</label></section>
+    <section class="security-card"><h2>Push notifications</h2><p>Receive reminders, overdue alerts and shared updates on your devices. Permission is requested only when you enable a browser.</p><a class="secondary" href="/settings/devices">Manage push devices…</a></section>
+    <section class="security-card"><h2>Email &amp; summaries</h2><label class="notification-check"><input type="checkbox" name="email_opt_in" {email}>Email reminders and summaries</label>
+    <div class="notification-fields"><label>Daily summary time<input type="time" name="daily_time" value="{daily_time}" required></label><label>Weekly summary time<input type="time" name="weekly_time" value="{weekly_time}" required></label></div>
+    <label class="notification-check"><input type="checkbox" name="daily_opt_in" {daily}>Daily email summary</label><label class="notification-check"><input type="checkbox" name="push_daily_opt_in" {push_daily}>Daily push summary</label>
+    <label class="notification-check"><input type="checkbox" name="weekly_opt_in" {weekly}>Weekly email summary</label><label class="notification-check"><input type="checkbox" name="push_weekly_opt_in" {push_weekly}>Weekly push summary</label>
+    <label>Weekly summary day (Monday = 1)<input type="number" name="weekly_day" min="1" max="7" value="{weekday}" required></label></section>
+    <section class="security-card"><h2>Timing &amp; quiet hours</h2><label>Timezone<input name="timezone" value="{timezone}" required></label><div class="notification-fields"><label>Quiet from<input type="time" name="quiet_start" value="{quiet_start}"></label><label>Until<input type="time" name="quiet_end" value="{quiet_end}"></label></div><p>Quiet hours delay email and push. Notifications still arrive silently in your inbox. Leave both times empty to turn quiet hours off; equal times mute delivery all day.</p></section>
+    <section class="security-card"><h2>Muted lists</h2><p>Skip new notifications and delivery from these lists.</p><fieldset data-muted-lists><legend class="sr-only">Muted lists</legend><div data-mute-choices>{mutes}</div></fieldset></section><button class="primary">Save notification preferences</button></form>"#,
+        csrf=esc(&s.csrf_for(&h)), due=check(prefs.inbox_due), reminders=check(prefs.inbox_reminders), updates=check(prefs.inbox_updates), email=check(prefs.email_opt_in), daily=check(prefs.daily_opt_in), weekly=check(prefs.weekly_opt_in), push_daily=check(prefs.push_daily_opt_in), push_weekly=check(prefs.push_weekly_opt_in), daily_time=esc(&prefs.daily_time), weekly_time=esc(&prefs.weekly_time), weekday=prefs.weekly_day,timezone=esc(&prefs.timezone),quiet_start=esc(prefs.quiet_start.as_deref().unwrap_or("")),quiet_end=esc(prefs.quiet_end.as_deref().unwrap_or("")));
     render_settings(&s, &h, "Notifications", body, "notifications").await
 }
 async fn notification_form(
@@ -595,6 +586,9 @@ async fn notification_form(
         .run(move |db| db.notification_preferences(&current_actor))
         .await?;
     let prefs = Preferences {
+        inbox_due: form.contains_key("inbox_due"),
+        inbox_reminders: form.contains_key("inbox_reminders"),
+        inbox_updates: form.contains_key("inbox_updates"),
         timezone: field("timezone"),
         week_start: current.week_start,
         fun_animations: current.fun_animations,

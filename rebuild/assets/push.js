@@ -62,11 +62,11 @@ export function mountPushSettings(root) {
       deviceId = device.id;
       optIn.checked = true;
       disable.hidden = false;
-      say('Push reminders enabled for this login session.');
+      say('Push notifications enabled for this login session.');
     } catch (e) {
       if (e.name !== 'AbortError')
         say(
-          `Could not enable reminders: ${e.message}. If browser permission was granted, retry this same button to complete registration.`,
+          `Could not enable notifications: ${e.message}. If browser permission was granted, retry this same button to complete registration.`,
         );
     } finally {
       busy = false;

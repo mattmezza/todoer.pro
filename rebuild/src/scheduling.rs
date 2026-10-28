@@ -216,7 +216,9 @@ fn write_schedule(
             // timestamp merely because priority/planned date changed.
             let existing:Option<(String,String)>=c.query_row("SELECT id,status FROM reminder_outbox WHERE task_id=?1 AND recipient=?2 AND channel=?3 AND at=?4 ORDER BY (status='delivered') DESC,rowid LIMIT 1",params![t.id,user,channel,at],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
             if let Some((id, status)) = existing {
-                if status != "delivered" {
+                if status == "delivered" {
+                    c.execute("UPDATE reminder_outbox SET schedule_revision=?1 WHERE id=?2",params![revision,id])?;
+                } else {
                     c.execute("UPDATE reminder_outbox SET schedule_revision=?1,status=CASE WHEN attempts>=5 THEN 'dead' ELSE 'pending' END,available_at=?2,lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE id=?3",params![revision,at,id])?;
                 }
             } else {

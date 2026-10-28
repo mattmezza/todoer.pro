@@ -246,7 +246,7 @@ impl PushTransport {
                 .ascii_serialization(),
         );
         let sig = signature.build().map_err(|_| PushError::Invalid)?;
-        let payload=serde_json::to_vec(&serde_json::json!({"title":if digest_job(job) {"Todoer summary"} else {"Todoer reminder"},"url":if digest_job(job) {"/review".into()} else {format!("/tasks/{}",job.task_id)},"intent_id":format!("{}:{}",job.id,d.device_id)})).map_err(|_|PushError::Invalid)?;
+        let payload=serde_json::to_vec(&serde_json::json!({"title":if inbox_job(job) {"Todoer notification"} else if digest_job(job) {"Todoer summary"} else {"Todoer reminder"},"url":if inbox_job(job) {"/notifications".into()} else if digest_job(job) {"/review".into()} else {format!("/tasks/{}",job.task_id)},"intent_id":format!("{}:{}",job.id,d.device_id)})).map_err(|_|PushError::Invalid)?;
         let mut builder = WebPushMessageBuilder::new(&sub);
         builder.set_payload(ContentEncoding::Aes128Gcm, &payload);
         builder.set_vapid_signature(sig);
@@ -458,6 +458,9 @@ impl Store {
         Ok(())
     }
     fn push_allowed(&self, job: &ReminderJob, now: i64) -> Result<bool, Error> {
+        if inbox_job(job) {
+            return self.inbox_push_live(&job.id, &job.recipient, &job.lease_owner, &job.lease_token, now);
+        }
         if digest_job(job) {
             return self.push_digest_allowed(job, now);
         }
@@ -557,24 +560,35 @@ impl Store {
 }
 // Digest jobs use the existing private transport envelope, with a namespaced
 // outbox ID and no task ID. No reminder row or synthetic task is persisted.
+fn inbox_job(job: &ReminderJob) -> bool { job.id.starts_with("inbox:") }
 fn digest_job(job: &ReminderJob) -> bool {
     job.id.starts_with("push-digest:")
 }
 fn delivery_table(job: &ReminderJob) -> &'static str {
-    if digest_job(job) {
+    if inbox_job(job) { "notification_push_deliveries" } else if digest_job(job) {
         "push_digest_deliveries"
     } else {
         "push_deliveries"
     }
 }
 fn parent_table(job: &ReminderJob) -> &'static str {
-    if digest_job(job) {
+    if inbox_job(job) { "notification_push_outbox" } else if digest_job(job) {
         "push_digest_outbox"
     } else {
         "reminder_outbox"
     }
 }
 impl Store {
+    fn claim_inbox_push(&mut self, owner:&str, now:i64)->Result<Option<ReminderJob>,Error>{
+        let tx=crate::agent_ops::begin_atomic(&mut self.conn)?;
+        tx.execute("UPDATE notification_push_outbox SET status='dead',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE attempts>=5 AND (status='pending' OR status='leased' AND lease_until<=?1)",[now])?;
+        let row:Option<(String,String,String)>=tx.query_row("SELECT o.id,o.user_id,n.task_id FROM notification_push_outbox o JOIN notification_inbox n ON n.id=o.notification_id WHERE o.attempts<5 AND o.available_at<=?1 AND (o.status='pending' OR o.status='leased' AND o.lease_until<=?1) ORDER BY o.available_at,o.id LIMIT 1",[now],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional()?;
+        let Some((id,recipient,task_id))=row else {tx.commit()?;return Ok(None)};
+        let token=Uuid::new_v4().to_string();
+        tx.execute("UPDATE notification_push_outbox SET status='leased',attempts=attempts+1,lease_owner=?2,lease_token=?3,lease_until=?4 WHERE id=?1",params![id,owner,token,now+60])?;
+        tx.commit()?;
+        Ok(Some(ReminderJob{id,recipient,task_id,schedule_revision:0,channel:Channel::Push,at:now,attempts:0,lease_owner:owner.into(),lease_token:token,lease_until:now+60}))
+    }
     fn digest_clock(
         &self,
         job: &ReminderJob,
@@ -659,6 +673,7 @@ async fn worker_tick_inner(
     let jobs = locked(store, |s| {
         s.queue_push_digests(now)?;
         let mut jobs = s.claim_reminders_channel(&owner, now, 1, Channel::Push)?;
+        if let Some(notice) = s.claim_inbox_push(&owner, now)? { jobs.push(notice); }
         if let Some(digest) = s.claim_push_digest(&owner, now)? {
             jobs.push(digest);
         }
@@ -739,8 +754,8 @@ async fn worker_tick_inner(
             report.deferred += 1;
         } else {
             locked(store, |s| {
-                if digest_job(&job) {
-                    s.conn.execute("UPDATE push_digest_outbox SET status='sent',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE id=?1 AND status='leased' AND lease_owner=?2 AND lease_token=?3 AND lease_until>?4",params![job.id,job.lease_owner,job.lease_token,now])?;
+                if inbox_job(&job) || digest_job(&job) {
+                    s.conn.execute(&format!("UPDATE {} SET status='sent',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE id=?1 AND status='leased' AND lease_owner=?2 AND lease_token=?3 AND lease_until>?4",parent_table(&job)),params![job.id,job.lease_owner,job.lease_token,now])?;
                     Ok(())
                 } else {
                     s.acknowledge_reminder(&job.id, &job.lease_owner, &job.lease_token, now)
@@ -836,6 +851,29 @@ mod tests {
             .unwrap()
             .remove(0);
         (s, job, d.id)
+    }
+    #[test]
+    fn inbox_push_reuses_leases_and_rechecks_read_state_and_access() {
+        let (mut s, reminder, _) = fixture();
+        let now=Utc::now().timestamp();
+        let t=task(&s.conn,&reminder.task_id).unwrap();
+        s.set_schedule("dev",&t.id,t.revision,Schedule{due:Some(Moment::Timed{local:chrono::DateTime::from_timestamp(now-1,0).unwrap().format("%Y-%m-%dT%H:%M:%S").to_string(),timezone:"UTC".into()}),..Default::default()}).unwrap();
+        s.queue_inbox_notifications(now).unwrap();s.queue_inbox_notifications(now).unwrap();
+        let job=s.claim_inbox_push("worker",now).unwrap().unwrap();
+        assert!(s.claim_inbox_push("other-worker",now).unwrap().is_none());
+        assert!(s.push_allowed(&job,now).unwrap());
+        s.conn.execute("UPDATE notification_push_outbox SET lease_token='replacement' WHERE id=?1",[&job.id]).unwrap();
+        assert!(!s.push_allowed(&job,now).unwrap());
+        s.conn.execute("UPDATE notification_push_outbox SET lease_token=?2 WHERE id=?1",params![job.id,job.lease_token]).unwrap();
+        let delivery=s.claim_push_delivery(&job,now).unwrap().unwrap();
+        assert!(s.push_delivery_live(&job,&delivery,now).unwrap());
+        let inbox=s.notification_inbox("dev",None,false,25).unwrap();
+        s.read_notifications("dev",inbox.latest_id,None).unwrap();
+        assert!(!s.push_delivery_live(&job,&delivery,now).unwrap());
+        s.conn.execute("UPDATE notification_inbox SET read_at=NULL",[]).unwrap();
+        assert!(s.push_allowed(&job,now).unwrap());
+        s.conn.execute("DELETE FROM memberships WHERE list_id='inbox' AND user_id='dev'",[]).unwrap();
+        assert!(!s.push_allowed(&job,now).unwrap());
     }
     #[test]
     fn push_endpoint_and_keys_reject_ssrf() {

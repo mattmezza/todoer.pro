@@ -185,6 +185,7 @@ pub(crate) fn event(
             before.map(|t| serde_json::to_string(t).expect("serialize task"))
         ],
     )?;
+    crate::notification_center::record_change(c, t, kind, &user, c.last_insert_rowid())?;
     Ok(())
 }
 fn reopen(c: &Connection, id: &str, actor: &str) -> Result<(), Error> {
@@ -256,6 +257,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (33, include_str!("../migrations/033_public_read_only.sql")),
     (34, include_str!("../migrations/034_search_vocabulary.sql")),
     (35, include_str!("../migrations/035_account_security.sql")),
+    (36, include_str!("../migrations/036_notification_center.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {

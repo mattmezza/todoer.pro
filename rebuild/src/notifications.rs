@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Preferences {
+    pub inbox_due: bool,
+    pub inbox_reminders: bool,
+    pub inbox_updates: bool,
     pub timezone: String,
     pub week_start: u32,
     pub fun_animations: bool,
@@ -28,6 +31,9 @@ pub struct Preferences {
 impl Default for Preferences {
     fn default() -> Self {
         Self {
+            inbox_due: true,
+            inbox_reminders: true,
+            inbox_updates: true,
             timezone: "UTC".into(),
             week_start: 1,
             fun_animations: true,
