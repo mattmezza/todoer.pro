@@ -260,6 +260,7 @@ test('suggestions support Ctrl-N, Ctrl-P, arrows and Tab', async ({ page }) => {
             default_list: true,
           },
         ],
+        list_colors: { inbox: '#12ab34' },
         tags: [],
       },
     }),
@@ -291,6 +292,14 @@ test('suggestions support Ctrl-N, Ctrl-P, arrows and Tab', async ({ page }) => {
   await task.press('Enter');
   await expect(task).toHaveValue('buy @Personal');
   await expect(task).toBeVisible();
+  await task.fill('buy @Personal p0');
+  const preview = page.locator('.capture-result');
+  await expect(preview.locator('.capture-destination-list')).toHaveCSS('color', 'rgb(18, 171, 52)');
+  await expect(preview.locator('.capture-priority')).toHaveCSS('color', 'rgb(255, 59, 59)');
+  await task.fill('buy @Personal p1');
+  await expect(preview.locator('.capture-priority')).toHaveCSS('color', 'rgb(217, 154, 50)');
+  await task.fill('buy @Personal p2');
+  await expect(preview.locator('.capture-priority')).toHaveCSS('color', 'rgb(120, 170, 255)');
 });
 
 test('Enter accepts a suggestion before submitting and Shift temporarily reverses keep adding', async ({ page }) => {

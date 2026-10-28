@@ -7752,6 +7752,10 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .capture-suggestions [aria-selected='true'] { background: var(--hover); color: var(--text); }
 .capture-result { display: flex; flex-wrap: wrap; gap: 0.35rem 0.65rem; align-items: baseline; color: var(--muted); }
 .capture-result strong { color: var(--text); }
+.capture-priority[data-priority='0'] { color: #ff3b3b; }
+.capture-priority[data-priority='1'] { color: #d99a32; }
+.capture-priority[data-priority='2'] { color: #78aaff; }
+.capture-priority[data-priority='3'] { color: var(--text); }
 .quick-capture-form textarea { overflow: hidden; resize: none; }
 .capture-result .capture-literal { padding: 2px 7px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); font-size: 0.75rem; line-height: 1.4; text-decoration: none; }
 .capture-result .capture-literal:hover { color: var(--text); background: var(--hover); }
