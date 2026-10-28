@@ -75,11 +75,28 @@ export async function openCapture() {
     });
     form.querySelector('p')?.remove();
     const smart = mountSmartCapture(form);
+    form.querySelector('.smart-capture-input').after(details);
     const footer = document.createElement('div');
     footer.className = 'quick-capture-footer';
     const submit = form.querySelector('[type=submit]');
     submit.before(footer);
-    footer.append(smart.help, submit);
+    const actions = document.createElement('div');
+    actions.className = 'quick-capture-actions';
+    const repeatLabel = document.createElement('label');
+    repeatLabel.className = 'quick-capture-repeat';
+    const repeat = document.createElement('input');
+    repeat.type = 'checkbox';
+    repeat.setAttribute('aria-label', 'Keep adding');
+    repeatLabel.append(repeat, document.createTextNode('Keep adding'));
+    let repeatChanged = false;
+    repeat.addEventListener('change', () => {
+      repeatChanged = true;
+    });
+    smart.ready.then(() => {
+      if (!repeatChanged) repeat.checked = smart.get().repeat;
+    });
+    actions.append(repeatLabel, submit);
+    footer.append(smart.help, actions);
     const error = document.createElement('p');
     error.setAttribute('role', 'alert');
     dialog.append(close, heading, form, error);
@@ -92,7 +109,7 @@ export async function openCapture() {
       error.textContent = '';
       try {
         const data = new FormData(form);
-        const interpreted = smart.get();
+        const interpreted = { ...smart.get(), repeat: repeat.checked };
         const account = document.querySelector('meta[name=account-id]')?.content;
         if (!account) throw Error('Sign in again to capture this task.');
         await enqueueCapture(
@@ -135,7 +152,10 @@ export async function openCapture() {
         });
         if (result.errors.length)
           toast('Task kept on this device. Open Inbox to retry syncing.');
-        else if (location.pathname === '/today' || location.pathname === '/upcoming')
+        else if (
+          !interpreted.repeat &&
+          (location.pathname === '/today' || location.pathname === '/upcoming')
+        )
           location.reload();
       } catch (e) {
         error.textContent = e.message;

@@ -266,3 +266,33 @@ test('priority is previewed without a selector and literal text can be restored'
   await dialog.getByRole('button', { name: 'Interpret shortcuts' }).click();
   await expect(dialog.locator('.capture-result strong')).toHaveText('buy milk');
 });
+
+test('quick capture reveals an auto-growing description and can keep adding', async ({
+  page,
+}) => {
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  await page.goto('/today');
+  await page.keyboard.press('n');
+  const dialog = page.getByRole('dialog', { name: 'What’s on your mind?' });
+  await expect(dialog.locator('.quick-capture-footer .capture-help')).toContainText(
+    '@space',
+  );
+  const addDescription = dialog.getByText('Add a description', { exact: true });
+  await expect(addDescription).toBeVisible();
+  await addDescription.click();
+  await expect(addDescription).toBeHidden();
+  const description = dialog.getByLabel('Description, Markdown supported');
+  await description.fill('Line one\nLine two\nLine three');
+  expect(await description.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(
+    true,
+  );
+  await dialog.getByLabel('Keep adding').check();
+  const title = dialog.getByLabel('Task', { exact: true });
+  await title.fill(`Repeat capture ${Date.now()}`);
+  await dialog.getByRole('button', { name: 'Add task', exact: true }).click();
+  await expect(dialog).toBeVisible();
+  await expect(title).toHaveValue('');
+  await expect(title).toBeFocused();
+  await expect(addDescription).toBeVisible();
+});

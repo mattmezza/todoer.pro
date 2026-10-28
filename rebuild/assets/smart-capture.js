@@ -38,15 +38,10 @@ export function mountSmartCapture(form) {
   info.className = 'capture-result';
   info.setAttribute('aria-live', 'polite');
   const controls = document.createElement('div');
-  const help = document.createElement('details');
+  const help = document.createElement('p');
   help.className = 'capture-help';
-  const summary = document.createElement('summary');
-  summary.textContent = 'Capture shortcuts';
-  const guidance = document.createElement('p');
-  guidance.className = 'muted';
-  guidance.textContent =
-    'Use @space, #list, +tag, p0–p3 or !0–!3, ! / !! / !!!, and dates like today or tomorrow. Quote names with spaces.';
-  help.append(summary, guidance);
+  help.textContent = '@space · #list · +tag · p0–p3 · ! / !! / !!! · today';
+  help.title = 'You can also use !0–!3 and date phrases. Quote names containing spaces.';
   block.append(info, controls, help);
   wrapper.insertAdjacentElement('afterend', block);
   let data = null,
@@ -268,13 +263,14 @@ export function mountSmartCapture(form) {
   });
   title.addEventListener('click', setup);
   form.querySelector('[name=list_id]')?.addEventListener('change', setup);
-  options().then((value) => {
+  const ready = options().then((value) => {
     data = value;
     setup();
   });
   setup();
   const api = {
     help,
+    ready,
     get() {
       const v = { ...parsed, ...changes };
       return {

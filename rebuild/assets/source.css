@@ -7746,10 +7746,18 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .capture-suggestions [aria-selected='true'] { background: var(--hover); color: var(--text); }
 .capture-result { display: flex; flex-wrap: wrap; gap: 0.35rem 0.65rem; align-items: baseline; color: var(--muted); }
 .capture-result strong { color: var(--text); }
-.capture-help summary { cursor: pointer; color: var(--muted); }
 .quick-capture-form textarea { overflow: hidden; resize: none; }
 .capture-result .capture-literal { padding: 2px 7px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); font-size: 0.75rem; line-height: 1.4; text-decoration: none; }
 .capture-result .capture-literal:hover { color: var(--text); background: var(--hover); }
 .quick-capture-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
 .quick-capture-footer .capture-help { color: var(--muted); font-size: 0.875rem; }
-.quick-capture-footer .capture-help p { max-width: 32rem; }
+.quick-capture-form > details { margin: 0; }
+.quick-capture-form > details > summary { display: table; margin: 0 auto; padding: 0.45rem 0.8rem; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); font-size: 0.875rem; font-weight: 500; cursor: pointer; list-style: none; }
+.quick-capture-form > details > summary::-webkit-details-marker { display: none; }
+.quick-capture-form > details > summary:hover { color: var(--text); background: var(--hover); }
+.quick-capture-form > details[open] > summary { display: none; }
+.quick-capture-form > details textarea { width: 100%; }
+.quick-capture-actions { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-left: auto; }
+.quick-capture-repeat { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--muted); font-size: 0.875rem; cursor: pointer; white-space: nowrap; }
+.quick-capture-repeat input { accent-color: var(--accent); }
+.quick-capture-footer .capture-help { margin: 0; line-height: 1.5; }
