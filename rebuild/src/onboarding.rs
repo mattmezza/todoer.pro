@@ -1,6 +1,6 @@
 //! A two-question welcome: save a draft, then atomically bootstrap its destinations.
 use crate::core::{Error, Store, actor_user};
-use crate::workspace::{CreateList, ListChange, WorkspaceInput};
+use crate::workspace::{CreateList, ListChange, SectionInput, WorkspaceInput};
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -52,6 +52,30 @@ fn list_title(title: &str) -> Result<String, Error> {
         ));
     }
     Ok(crate::slugs::slugify(title))
+}
+fn space_description(space: &str) -> &'static str {
+    match space {
+        "work" => {
+            "Projects, priorities, and things to deliver. A place to keep work moving forward."
+        }
+        _ => "Everyday life, plans, and things to remember. A place for what matters outside work.",
+    }
+}
+fn list_description(title: &str, space: &str) -> String {
+    match (space, title) {
+        ("personal", "weekly-tasks") => "The everyday tasks to take care of this week.",
+        ("personal", "groceries") => "Everything to pick up on your next grocery shop.",
+        ("personal", "home-chores") => {
+            "Household tasks to keep home running smoothly, on your own or together."
+        }
+        ("personal", "personal-goals") => "Small steps toward the things that matter to you.",
+        ("work", "weekly-priorities") => "The most important work to move forward this week.",
+        ("work", "project") => "Tasks and next steps that turn a bigger goal into progress.",
+        ("work", "follow-ups") => "People to get back to and loose ends to follow through on.",
+        ("work", "ideas") => "Thoughts and possibilities to capture now and explore later.",
+        _ => return format!("Tasks and next steps for {}.", title.replace('-', " ")),
+    }
+    .into()
 }
 fn color(title: &str, space: &str) -> &'static str {
     match title {
@@ -161,7 +185,7 @@ impl Store {
                                 actor,
                                 WorkspaceInput {
                                     title: space.clone(),
-                                    description: String::new(),
+                                    description: space_description(space).into(),
                                 },
                             )?
                             .id
@@ -185,7 +209,7 @@ impl Store {
                                 CreateList {
                                     workspace_id: workspace.clone(),
                                     title: title.clone(),
-                                    description: String::new(),
+                                    description: list_description(title, space),
                                     restricted: false,
                                 },
                             )?;
@@ -200,6 +224,35 @@ impl Store {
                                     color: Some(color(title, space).into()),
                                 },
                             )?;
+                            if title == "weekly-tasks"
+                                || (space == "work" && title == "weekly-priorities")
+                            {
+                                let start = (write.notification_preferences(actor)?.week_start - 1)
+                                    as usize;
+                                let days = [
+                                    "Monday",
+                                    "Tuesday",
+                                    "Wednesday",
+                                    "Thursday",
+                                    "Friday",
+                                    "Saturday",
+                                    "Sunday",
+                                ];
+                                for offset in 0..7 {
+                                    let day = (start + offset) % 7;
+                                    if space == "work" && day >= 5 {
+                                        continue;
+                                    }
+                                    write.create_section(
+                                        actor,
+                                        &list.id,
+                                        SectionInput {
+                                            title: days[day].into(),
+                                            description: String::new(),
+                                        },
+                                    )?;
+                                }
+                            }
                             list.id
                         }
                     };
@@ -280,10 +333,102 @@ mod tests {
             destination
         );
         assert_eq!(counts(&db), after);
+        let (work, description): (String, String) = db
+            .conn
+            .query_row(
+                "SELECT id,description FROM workspaces WHERE title='work'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert!(!description.is_empty());
+        let (list, description): (String, String) = db.conn.query_row("SELECT id,description FROM lists WHERE workspace_id=?1 AND title='weekly-priorities'",[&work],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+        assert!(!description.is_empty());
+        db.conn
+            .execute(
+                "UPDATE workspaces SET description='My work notes' WHERE id=?1",
+                [&work],
+            )
+            .unwrap();
+        db.conn
+            .execute(
+                "UPDATE lists SET description='My list notes' WHERE id=?1",
+                [&list],
+            )
+            .unwrap();
         let saved = choose(&mut db, &["personal", "work"]);
         db.welcome_finish("dev", finish(saved.revision), false)
             .unwrap();
         assert_eq!(counts(&db), after); // reopening reuses the same destinations
+        assert_eq!(
+            db.workspace("dev", &work).unwrap().description,
+            "My work notes"
+        );
+        assert_eq!(
+            db.list_info("dev", &list).unwrap().list.description,
+            "My list notes"
+        );
+    }
+    #[test]
+    fn weekly_lists_have_personal_weekends_and_work_weekdays_without_duplicates() {
+        let mut db = account();
+        let mut preferences = db.notification_preferences("dev").unwrap();
+        preferences.week_start = 7;
+        db.set_notification_preferences("dev", preferences).unwrap();
+        let complete = |revision| Finish {
+            revision,
+            lists: vec![
+                ListChoice {
+                    space: "personal".into(),
+                    title: "weekly-tasks".into(),
+                },
+                ListChoice {
+                    space: "work".into(),
+                    title: "weekly-priorities".into(),
+                },
+            ],
+        };
+        let saved = choose(&mut db, &["personal", "work"]);
+        db.welcome_finish("dev", complete(saved.revision), false)
+            .unwrap();
+        let list = |db: &Store, title: &str| {
+            db.conn
+                .query_row("SELECT id FROM lists WHERE title=?1", [title], |r| {
+                    r.get::<_, String>(0)
+                })
+                .unwrap()
+        };
+        let personal = list(&db, "weekly-tasks");
+        let work = list(&db, "weekly-priorities");
+        assert_eq!(
+            db.sections("dev", &personal)
+                .unwrap()
+                .iter()
+                .map(|s| s.title.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "Sunday",
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday"
+            ]
+        );
+        assert_eq!(
+            db.sections("dev", &work)
+                .unwrap()
+                .iter()
+                .map(|s| s.title.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        );
+        let saved = choose(&mut db, &["personal", "work"]);
+        db.welcome_finish("dev", complete(saved.revision), false)
+            .unwrap();
+        assert_eq!(db.sections("dev", &personal).unwrap().len(), 7);
+        assert_eq!(db.sections("dev", &work).unwrap().len(), 5);
     }
     #[test]
     fn validation_stale_tabs_and_skipping_do_not_create_entities() {
