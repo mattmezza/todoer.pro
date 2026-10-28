@@ -435,7 +435,12 @@ async fn login(
     );
     Ok(r)
 }
-async fn logout(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
+async fn logout(State(s): State<AppState>, mut h: HeaderMap, form: Result<Form<Login>, axum::extract::rejection::FormRejection>) -> Result<Response, ApiError> {
+    if !h.contains_key("x-csrf-token") {
+        if let Ok(Form(input)) = form {
+            h.insert("x-csrf-token", input.csrf.parse().map_err(|_| crate::auth::AuthError::Forbidden)?);
+        }
+    }
     s.auth(&h, true)?;
     if let Some(auth) = &s.production {
         let cookie = h
@@ -1408,9 +1413,17 @@ async fn response_security(req: axum::extract::Request, next: axum::middleware::
     let started = std::time::Instant::now();
     let request_id = uuid::Uuid::new_v4().to_string();
     let method = req.method().to_string();
+    let destination = req.uri().path_and_query().map(|v| v.as_str().to_owned()).unwrap_or_else(|| "/".into());
+    let browser_page = method == "GET"
+        && req.headers().get(header::ACCEPT).and_then(|v| v.to_str().ok()).is_some_and(|v| v.contains("text/html"))
+        && !req.uri().path().starts_with("/api/")
+        && !req.uri().path().starts_with("/auth/");
     let mut res = crate::audit::REQUEST_ID
         .scope(request_id.clone(), next.run(req))
         .await;
+    if browser_page && res.status() == StatusCode::UNAUTHORIZED {
+        res = Redirect::to(&format!("/signin?next={}", encode_query(&browser_auth::safe_next(Some(&destination))))).into_response();
+    }
     res.headers_mut()
         .insert("x-request-id", request_id.parse().unwrap());
     eprintln!(

@@ -49,6 +49,7 @@ impl From<AuthError> for ApiError {
                 "unauthorized",
                 "Authentication required".into(),
             ),
+            AuthError::ReauthenticationRequired => Self(StatusCode::FORBIDDEN, "reauthentication_required", "Sign in again to change account security".into()),
             AuthError::Forbidden => {
                 Self(StatusCode::FORBIDDEN, "forbidden", "Access denied".into())
             }

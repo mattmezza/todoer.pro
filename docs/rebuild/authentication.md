@@ -183,3 +183,16 @@ TOTP/recovery, a CTAP2 virtual authenticator, WebAuthn login/reset, rejected rep
 CSRF/origin/admin boundaries and policy persistence after restart. This checks
 browser WebAuthn protocol support; physical authenticators still need manual
 acceptance on the user's device.
+
+## Sign-in return paths and security freshness
+
+Unauthenticated HTML page navigation redirects to `/signin?next=…`, preserving
+its local path and query. APIs retain JSON 401 responses. Security mutations
+require authentication within five minutes; an expired proof returns the
+`reauthentication_required` error and opens a sign-in confirmation dialog.
+Signing in returns to the selected security section so the user can retry the
+action. Passwords and other sensitive form values are not persisted for replay.
+New email-based passkey sign-ins use their own validated return path rather than
+inheriting a prior MFA attempt. Failed MFA codes keep the five-minute pending flow
+available for a throttled retry; successful verification consumes it once.
+Displayed recovery codes can be downloaded locally as a plain text file.

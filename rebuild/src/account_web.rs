@@ -373,7 +373,7 @@ async fn mfa_code(
     Json(input): Json<CodeInput>,
 ) -> Result<Response, ApiError> {
     same_origin(&s, &h)?;
-    let flow = s.accounts.flow(&h, true)?;
+    let flow = s.accounts.flow(&h, false).map_err(|_| ApiError(StatusCode::UNAUTHORIZED, "mfa_expired", "Your sign-in attempt expired. Sign in again to get a new verification step.".into()))?;
     if flow.reset.is_some() {
         return Err(AuthError::Forbidden.into());
     }
@@ -384,12 +384,14 @@ async fn mfa_code(
     auth_run(&s, move |db| {
         if db.epoch(&user)? != epoch || !db.check_code(&user, &input.code, &key)? {
             return Err(AuthError::Invalid(
-                "Code did not match. Sign in again to retry.".into(),
+                "Code is invalid or already used. Wait for a new code in your authenticator and try again.".into(),
             ));
         }
         Ok(())
     })
     .await?;
+    // Failed codes retain the bounded, throttled flow; success consumes it once.
+    s.accounts.flow(&h, true)?;
     finish_login(&s, flow.user, flow.epoch, flow.next).await
 }
 #[derive(Deserialize)]
@@ -548,6 +550,7 @@ struct KeyStartInput {
     #[serde(default)]
     email: String,
     reset_token: Option<String>,
+    next: Option<String>,
 }
 async fn register_key(
     State(s): State<AppState>,
@@ -626,6 +629,9 @@ async fn key_authenticate(
 ) -> Result<Response, ApiError> {
     same_origin(&s, &h)?;
     auth_run(&s, |db| db.throttle("passkey-global", 100)).await?;
+    // Only the MFA screen (which omits email) resumes a pending flow.
+    // A new email-based sign-in must not inherit an older attempt's destination.
+    let pending = if input.email.trim().is_empty() { s.accounts.flow(&h, false).ok() } else { None };
     let flow = if let Some(token) = input.reset_token {
         let owner = token.clone();
         let (user, epoch) = auth_run(&s, move |db| {
@@ -642,7 +648,7 @@ async fn key_authenticate(
             verified: false,
             expires: crate::auth::now() + 300,
         }
-    } else if let Ok(flow) = s.accounts.flow(&h, false) {
+    } else if let Some(flow) = pending {
         if flow.reset.is_some() {
             return Err(AuthError::Forbidden.into());
         }
@@ -653,7 +659,7 @@ async fn key_authenticate(
         Flow {
             user,
             epoch,
-            next: "/today".into(),
+            next: browser_auth::safe_next(Some(input.next.as_deref().unwrap_or("/today"))),
             reset: None,
             verified: false,
             expires: crate::auth::now() + 300,

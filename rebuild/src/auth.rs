@@ -11,6 +11,8 @@ pub enum AuthError {
     Invalid(String),
     #[error("unauthorized")]
     Unauthorized,
+    #[error("Sign in again to change account security")]
+    ReauthenticationRequired,
     #[error("forbidden")]
     Forbidden,
     #[error(transparent)]

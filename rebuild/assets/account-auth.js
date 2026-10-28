@@ -24,8 +24,11 @@ async function post(url, data) {
     body: JSON.stringify(data),
   });
   const result = await response.json();
-  if (!response.ok)
-    throw Error(result.error?.message || 'Could not complete this request.');
+  if (!response.ok) {
+    const error = Error(result.error?.message || 'Could not complete this request.');
+    error.code = result.error?.code;
+    throw error;
+  }
   return result;
 }
 async function action(fn) {
@@ -42,6 +45,12 @@ async function action(fn) {
         ? 'Passkey request cancelled or unavailable. Try another sign-in method.'
         : error.message;
     notice.classList.add('error');
+    if (error.code === 'mfa_expired') {
+      const link = document.createElement('a');
+      link.href = '/signin?next=' + encodeURIComponent(params.get('next') || '/today');
+      link.textContent = 'Sign in again';
+      notice.append(document.createElement('br'), link);
+    }
   } finally {
     busy = false;
     document.querySelectorAll('.auth-card button').forEach((b) => (b.disabled = false));
@@ -94,6 +103,7 @@ keyButton?.addEventListener('click', () =>
     if (loginEmail && !loginEmail.validity.valid) return;
     const start = await post('/auth/passkey/start', {
       email,
+      next: params.get('next') || '/today',
       ...(reset ? { reset_token: token } : {}),
     });
     const credential = await passkey(start.options);
