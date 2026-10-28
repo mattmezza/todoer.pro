@@ -128,11 +128,13 @@ export function welcomeChase() {
     particles = [];
   const enabled = () => desktop.matches && !reduced.matches;
   function resize() {
-    motion.width = innerWidth;
-    const ratio = Math.min(devicePixelRatio || 1, 2);
-    canvas.width = Math.round(innerWidth * ratio);
+    // Use the rendered width so a page scrollbar cannot squash thin strokes.
+    motion.width = canvas.getBoundingClientRect().width || innerWidth;
+    // Supersample thin moving limbs even on standard-density desktop screens.
+    const ratio = Math.max(2, Math.min(devicePixelRatio || 1, 3));
+    canvas.width = Math.round(motion.width * ratio);
     canvas.height = Math.round(128 * ratio);
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.setTransform(canvas.width / motion.width, 0, 0, ratio, 0, 0);
   }
   function ellipse(x, y, rx, ry, fill) {
     ctx.beginPath();

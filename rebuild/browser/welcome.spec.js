@@ -99,6 +99,9 @@ test('desktop runner rests, never completes early, and celebrates on completion'
   await enter(page);
   const canvas = page.locator('canvas.welcome-chase');
   await expect(canvas).toBeVisible();
+  expect(
+    await canvas.evaluate((el) => el.height / el.getBoundingClientRect().height),
+  ).toBeGreaterThanOrEqual(2);
   await expect(canvas).toHaveAttribute('data-complete', 'false');
   await expect(canvas).toHaveAttribute('data-phase', 'rest', { timeout: 16000 });
   await page.screenshot({

@@ -16,7 +16,12 @@ The first step only persists that draft. Completion validates all choices, then
 creates spaces and lists through authorized normal mutation methods in one
 transaction. Lowercase slug names are used for new entities. Matching active
 spaces owned by this account and their lists are reused. Existing content, names,
-sharing and list colors are preserved. The normal system Inbox/default lists
+sharing and list colors are preserved. Newly created spaces and lists receive
+short, purpose-specific descriptions; custom lists get a description based on
+their name. Existing descriptions are preserved. New Personal weekly-task lists
+start with seven weekday sections; Work weekly lists use Monday–Friday only.
+Section order follows the account’s week-start preference. Reused lists keep
+their existing sections. The normal system Inbox/default lists
 remain available. Skipping creates no entities. Revisions catch stale tabs, and
 persisted completion makes retries after lost responses safe. A previously open
 old welcome draft with no choices starts at the first question.
@@ -47,7 +52,8 @@ Failed saves never trigger that ending. A 4.5-second bound prevents animation
 from holding navigation. Reduced motion, mobile and hidden tabs skip the sequence;
 normal animation frames pause when the tab is hidden. The canvas does not receive
 pointer events or appear in the accessibility tree. No runtime dependencies,
-external assets, audio or permissions are needed.
+external assets, audio or permissions are needed. The canvas uses at least 2×
+resolution to smooth the thin moving limbs on standard-density screens.
 
 Validation covers draft-only writes, atomic completion, input validation, retries,
 reopening without duplicates, and skip/undecided behavior. Browser scenarios cover
