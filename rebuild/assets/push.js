@@ -42,6 +42,45 @@ export function mountPushSettings(root) {
       ),
       (c) => c.charCodeAt(0),
     );
+  const registry = document.querySelector('[data-device-list]');
+  async function refreshRegistry() {
+    if (!registry) return;
+    const settings = await request('/api/v1/push/devices');
+    if (!active) return;
+    const entries = settings.devices.map((device) => {
+      const row = document.createElement('article');
+      row.className = 'device-entry';
+      row.innerHTML =
+        '<svg class="ui-icon device-entry-icon" aria-hidden="true"><use href="/assets/icons.svg#computer-desktop"/></svg><div class="device-entry-info"><h3></h3><span class="delivery-badge"></span><small></small></div>';
+      row.querySelector('h3').textContent = device.label;
+      const badge = row.querySelector('.delivery-badge');
+      badge.textContent = !device.active
+        ? 'Disabled'
+        : !device.session_live
+          ? 'Signed out'
+          : 'Enabled';
+      badge.classList.toggle('delivery-success', device.active && device.session_live);
+      row.querySelector('small').textContent =
+        `Added ${new Date(device.created_at * 1000).toLocaleDateString()}`;
+      if (device.active) {
+        const form = document.createElement('form');
+        form.method = 'post';
+        form.action = `/settings/devices/${encodeURIComponent(device.id)}/revoke`;
+        const token = document.createElement('input');
+        token.type = 'hidden';
+        token.name = 'csrf';
+        token.value = csrf;
+        const button = document.createElement('button');
+        button.className = 'device-revoke';
+        button.textContent = 'Disable';
+        form.append(token, button);
+        row.append(form);
+      }
+      return row;
+    });
+    registry.replaceChildren(...entries);
+    document.querySelector('[data-device-empty]').hidden = entries.length > 0;
+  }
   async function enableDevice() {
     if (busy) return;
     busy = true;
@@ -62,7 +101,9 @@ export function mountPushSettings(root) {
       deviceId = device.id;
       optIn.checked = true;
       disable.hidden = false;
-      say('Push notifications enabled for this login session.');
+      enable.hidden = true;
+      say('Notifications are enabled in this browser.');
+      refreshRegistry().catch(() => {});
     } catch (e) {
       if (e.name !== 'AbortError')
         say(
@@ -90,7 +131,9 @@ export function mountPushSettings(root) {
       current = null;
       deviceId = null;
       disable.hidden = true;
-      say('This browser is unsubscribed. Other devices can be managed below.');
+      enable.hidden = false;
+      say('Notifications are off in this browser.');
+      refreshRegistry().catch(() => {});
     } catch (e) {
       if (e.name !== 'AbortError') say(e.message);
     } finally {
@@ -176,6 +219,7 @@ export function mountPushSettings(root) {
       }
       root.dataset.publicKey = config.public_key;
       current = await registration.pushManager.getSubscription();
+      let registered;
       if (current) {
         const digest = await crypto.subtle.digest(
           'SHA-256',
@@ -185,14 +229,19 @@ export function mountPushSettings(root) {
           b.toString(16).padStart(2, '0'),
         ).join('');
         const settings = await request('/api/v1/push/devices');
-        deviceId = settings.devices.find((d) => d.endpoint_hash === hash)?.id;
+        registered = settings.devices.find((d) => d.endpoint_hash === hash);
+        deviceId = registered?.id;
+        if (registered) label.value = registered.label;
       }
-      enable.hidden = false;
+      enable.hidden = Boolean(registered?.active && registered?.session_live);
+      root.querySelector('[data-push-name]')?.removeAttribute('hidden');
       disable.hidden = !current;
       say(
-        current
-          ? 'This browser has a push subscription. Enable to bind it to this login session, or disable it.'
-          : 'Enable reminders to request browser notification permission.',
+        registered?.active && registered?.session_live
+          ? 'Notifications are enabled in this browser.'
+          : current
+            ? 'Enable notifications for this sign-in.'
+            : 'Get reminders even when Todoer isn’t open.',
       );
     } catch (e) {
       if (e.name !== 'AbortError') say(`Push status unavailable: ${e.message}`);

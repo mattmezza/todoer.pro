@@ -1,11 +1,5 @@
 use super::*;
 use crate::push::{PushTransport, RegisterDevice};
-fn esc(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-}
 pub(super) fn routes() -> Router<AppState> {
     Router::new()
         .route("/settings/devices", get(page))
@@ -125,46 +119,27 @@ async fn revoke_form(
     s.run(move |db| db.revoke_push_device(&a, &id)).await?;
     Ok(Redirect::to("/settings/devices").into_response())
 }
+#[derive(askama::Template)]
+#[template(path = "devices-content.html")]
+struct DevicesContent {
+    configured: bool,
+    csrf: String,
+    opt_in: bool,
+    devices: Vec<crate::push::Device>,
+}
 async fn page(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
-    let a = s.auth(&h, false)?;
+    let actor = s.auth(&h, false)?;
     let configured = s.production.is_some() && s.push.is_some();
-    let mut body = String::from(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Devices · Todoer</title><link rel=\"stylesheet\" href=\"/assets/app.css\"></head><body><a class=\"skip\" href=\"#main\">Skip to devices</a><header class=\"mobile-header\"><a class=\"brand\" href=\"/\">todoer<span>.pro</span></a><a class=\"nav-link\" href=\"/settings/devices\">Devices</a></header><aside aria-label=\"Navigation\"><a class=\"brand\" href=\"/\">todoer<span>.pro</span></a><nav class=\"review-nav\"><a class=\"nav-link\" href=\"/\">Tasks</a><a class=\"nav-link\" href=\"/settings/notifications\">Notifications</a><a class=\"nav-link active\" href=\"/settings/devices\">Devices</a></nav></aside><main id=\"main\"><h1>Devices and push notifications</h1><p>Push notifications use generic text. Open Todoer to see your reminders and updates. Signing out stops future delivery for devices registered in that session. Already displayed notifications may remain in your notification center.</p>",
-    );
-    if configured {
-        let settings = s.run(move |db| db.push_devices(&a)).await?;
-        body.push_str(&format!("<section class=\"grid gap-3 mt-8\" data-push-settings data-csrf=\"{}\"><p data-push-status role=\"status\">Checking browser support…</p><label>Device name <input data-push-label maxlength=\"100\" value=\"This browser\"></label><button type=\"button\" data-push-enable hidden class=\"primary\">Enable notifications on this browser</button><button type=\"button\" data-push-disable hidden class=\"primary\">Disable this browser</button><label><input type=\"checkbox\" data-push-opt-in {}> Allow push notifications on my devices</label><noscript>Enabling push requires JavaScript and browser permission. You can revoke existing devices below without JavaScript.</noscript></section>",esc(&s.csrf_for(&h)),if settings.opt_in {"checked"}else{""}));
-        body.push_str("<h2>Registered devices</h2>");
-        if settings.devices.is_empty() {
-            body.push_str("<p>No devices registered.</p>");
-        }
-        for d in settings.devices {
-            body.push_str(&format!(
-                "<section class=\"task\"><p>{} · {}</p>",
-                esc(&d.label),
-                if !d.active {
-                    "Disabled"
-                } else if !d.session_live {
-                    "Signed out or expired"
-                } else {
-                    "Active"
-                }
-            ));
-            if d.active {
-                body.push_str(&format!("<form method=\"post\" action=\"/settings/devices/{}/revoke\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><button class=\"primary\">Revoke device</button></form>",esc(&d.id),esc(&s.csrf_for(&h))));
-            }
-            body.push_str("</section>");
-        }
-        body.push_str("<script type=\"module\" src=\"/assets/push.js\"></script>");
-    } else {
-        body.push_str("<p>Push delivery is unavailable here. It requires a production browser login and server VAPID configuration. Development sessions do not register push devices.</p>");
-    }
-    body.push_str("<p>On iPhone or iPad, add Todoer to your Home Screen and open it there before enabling push. Browser or operating-system settings can block notifications. Delivery is best effort.</p><a href=\"/settings/notifications\">Notification quiet hours and muted lists</a></main></body></html>");
-    let mut response =
-        super::scheduling_http::render_settings(&s, &h, "Devices", body, "devices").await?;
-    response
-        .headers_mut()
-        .insert(header::CACHE_CONTROL, "private, no-store".parse().unwrap());
+    let settings = if configured { Some(s.run(move |db| db.push_devices(&actor)).await?) } else { None };
+    use askama::Template;
+    let body = DevicesContent {
+        configured,
+        csrf: s.csrf_for(&h),
+        opt_in: settings.as_ref().is_some_and(|settings| settings.opt_in),
+        devices: settings.map(|settings| settings.devices).unwrap_or_default(),
+    }.render().map_err(|_| Error::Invalid("Could not render devices".into()))?;
+    let mut response = super::scheduling_http::render_settings(&s, &h, "Devices", body, "devices").await?;
+    response.headers_mut().insert(header::CACHE_CONTROL, "private, no-store".parse().unwrap());
     Ok(response)
 }
 pub(super) fn start_push_worker(
@@ -301,6 +276,14 @@ mod tests {
             .request("GET", "/api/v1/push/devices", Value::Null, false, false)
             .await;
         assert_eq!(settings["devices"][0]["session_live"], true);
+        let page = super::super::router(f.state.clone()).oneshot(Request::builder().uri("/settings/devices").header(header::COOKIE, &f.cookie).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(page.status(), StatusCode::OK);
+        let html = String::from_utf8(page.into_body().collect().await.unwrap().to_bytes().to_vec()).unwrap();
+        assert!(html.contains("Synthetic browser"));
+        assert!(html.contains("data-push-settings"));
+        assert!(html.contains(&format!("/settings/devices/{id}/revoke")));
+        assert!(!html.contains("fcm.googleapis.com"));
+
         {
             let auth = f.state.production.as_ref().unwrap().store.lock().unwrap();
             auth.revoke_session(&f.token).unwrap();

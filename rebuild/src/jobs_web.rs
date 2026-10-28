@@ -43,74 +43,77 @@ async fn page(
     }
     let status = q.status.clone().unwrap_or_default();
     let limit = q.limit.unwrap_or(25);
+    let paged = q.cursor.is_some();
     let result = load(&s, &h, q).await?;
-    let mut content = String::from(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Job status · Todoer</title><link rel=\"stylesheet\" href=\"/assets/app.css\"></head><body><header class=\"mobile-header\"><a class=\"brand\" href=\"/\">todoer<span>.pro</span></a><a class=\"nav-link\" href=\"/settings/notifications\">Notifications</a></header><aside aria-label=\"Navigation\"><a class=\"brand\" href=\"/\">todoer<span>.pro</span></a><nav><a class=\"nav-link\" href=\"/\">Tasks</a><a class=\"nav-link\" href=\"/settings/notifications\">Notifications</a><a class=\"nav-link\" href=\"/settings/devices\">Push devices</a></nav></aside><main><h1>Job status</h1><p class=\"muted\">Your reminder, summary and invitation delivery jobs. This page is read-only; it does not send, retry or discard work.</p><form method=\"get\" class=\"grid gap-3 mt-8\"><label>Status<select name=\"status\">",
-    );
+    let mut content = String::from(r#"<form method="get" class="delivery-toolbar"><label>Show<select name="status">"#);
     for (value, label) in [
-        ("", "All statuses"),
-        ("failed", "Recorded failures (including devices)"),
-        ("pending", "Waiting or retrying"),
-        ("leased", "Processing"),
-        ("dead", "Stopped after failure"),
-        ("cancelled", "Cancelled"),
-        ("delivered", "Reminder delivered"),
-        ("sent", "Sent"),
+        ("", "All deliveries"), ("failed", "Needs attention"),
+        ("pending", "Waiting"), ("leased", "Sending"),
+        ("dead", "Stopped"), ("cancelled", "Cancelled"),
+        ("delivered", "Delivered reminders"), ("sent", "Sent"),
     ] {
-        content.push_str(&format!(
-            "<option value=\"{value}\" {}>{label}</option>",
-            if status == value { "selected" } else { "" }
-        ));
+        content.push_str(&format!("<option value=\"{value}\" {}>{label}</option>", if status == value { "selected" } else { "" }));
     }
-    content.push_str("</select></label><button class=\"nav-link min-h-11 justify-self-start\">Filter jobs</button></form><p class=\"muted mt-8\">Ordered by queue then stable job ID, not newest first. Refresh to see current status. A delivered/sent status records provider acceptance, not proof that a person received it. Pending jobs may be waiting for their schedule, quiet hours or a retry. Leases can be reclaimed after expiry.</p>");
+    content.push_str(&format!(r#"</select></label><input type="hidden" name="limit" value="{limit}"><button class="secondary">Apply filter</button><button type="button" data-refresh-deliveries class="delivery-refresh" title="Refresh this view"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#repeat"/></svg>Refresh</button></form>"#));
     if result.items.is_empty() {
-        content.push_str("<p class=\"mt-8\">No jobs match this view.</p>");
+        let message = if status.is_empty() { "Reminders, summaries, and invitations will appear here when there’s something to send." } else { "There are no deliveries matching this filter." };
+        content.push_str(&format!(r#"<section class="settings-preference-card settings-empty delivery-empty"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#check"/></svg><h2>{}</h2><p>{message}</p></section>"#, if status.is_empty() { "Nothing to send yet" } else { "All clear here" }));
+    } else {
+        content.push_str(r#"<div class="delivery-list" aria-label="Delivery status">"#);
     }
-    for row in result.items {
-        let clock_label = if row.status == "pending" {
-            "Next eligible attempt"
-        } else if row.status == "leased" {
-            "Available since"
-        } else {
-            "Recorded availability"
+    for row in &result.items {
+        let title = match row.kind.as_str() { "daily" => "Daily summary".into(), "weekly" => "Weekly summary".into(), "reminder" => "Task reminder".into(), "invitation" => "Sharing invitation".into(), _ => row.kind.replace('_', " ") };
+        let channel = match row.channel.as_str() { "email" => "Email", "push" => "Push notification", "in_app" => "In app", _ => &row.channel };
+        let (label, tone, description) = match row.status.as_str() {
+            "pending" => ("Waiting", "waiting", if row.attempts == 0 { "Waiting for its scheduled time or quiet hours to end." } else { "Waiting for another delivery attempt." }),
+            "leased" => ("Sending", "waiting", "This delivery is being processed."),
+            "dead" => ("Stopped", "warning", "Delivery has stopped. See the details below."),
+            "cancelled" => ("Cancelled", "neutral", "This delivery was cancelled."),
+            "delivered" | "sent" => ("Sent", "success", "Accepted for delivery."),
+            _ => (row.status.as_str(), "neutral", ""),
         };
-        content.push_str(&format!("<article class=\"mt-8 border-t border-[var(--line)] pt-6\"><h2>{} · {}</h2><p>Status: <strong>{}</strong> · Attempts: {}</p><p>{}: {}</p>",esc(&row.kind.replace('_'," ")),esc(&row.channel),esc(&row.status),row.attempts,clock_label,instant(row.available_at)));
-        if let Some(until) = row.lease_until {
-            content.push_str(&format!("<p>Lease expires: {}</p>", instant(until)));
+        content.push_str(&format!(r#"<article class="settings-preference-card delivery-entry"><header><span class="settings-card-icon"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#{}"/></svg></span><div><h2>{}</h2><span class="muted delivery-channel">{}</span></div><span class="delivery-badge delivery-{}">{}</span></header><p class="delivery-description">{}</p>"#, if row.channel == "email" { "inbox" } else { "bell" }, esc(&title), esc(channel), tone, esc(label), esc(description)));
+        if let Some(code) = row.failure_code.as_deref() {
+            let reason = match code {
+                "subscription_expired" => "A browser subscription expired. Enable it again in Devices.",
+                "provider_temporarily_unavailable" => "The delivery service was temporarily unavailable.",
+                "provider_rejected_delivery" => "The delivery service rejected the last attempt.",
+                "retry_exhausted" => "The retry limit was reached.",
+                "device_delivery_failed" => "One or more devices could not be reached.",
+                _ => "The last attempt could not be confirmed.",
+            };
+            content.push_str(&format!(r#"<p class="delivery-reason"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#info"/></svg>{reason}</p>"#));
         }
-        if let Some(code) = row.failure_code {
-            content.push_str(&format!(
-                "<p>Last failure: {}</p>",
-                esc(&code.replace('_', " "))
-            ));
+        if row.status == "pending" {
+            content.push_str(&format!(r#"<p class="delivery-schedule"><span>Next eligible attempt</span>{}</p>"#, instant(row.available_at)));
         }
         if row.channel == "push" {
-            content.push_str(&format!("<p>Device deliveries: {} waiting · {} sent · {} stopped · {} with failure recorded.</p>",row.devices_pending,row.devices_sent,row.devices_dead,row.devices_failed));
+            content.push_str(&format!(r#"<div class="device-delivery-counts"><span>{} waiting</span><span>{} sent</span><span>{} stopped</span></div>"#, row.devices_pending, row.devices_sent, row.devices_dead));
         }
-        content.push_str(&format!(
-            "<p class=\"muted break-all text-sm\">{} / {}</p></article>",
-            esc(&row.source),
-            esc(&row.id)
-        ));
+        content.push_str(&format!(r#"<details class="delivery-details"><summary>Delivery details</summary><dl><div><dt>Attempts</dt><dd>{}</dd></div><div><dt>Available since</dt><dd>{}</dd></div>"#, row.attempts, instant(row.available_at)));
+        if let Some(until) = row.lease_until {
+            content.push_str(&format!("<div><dt>Processing window ends</dt><dd>{}</dd></div>", instant(until)));
+        }
+        content.push_str(&format!(r#"<div><dt>Reference</dt><dd><code>{} / {}</code></dd></div></dl></details></article>"#, esc(&row.source), esc(&row.id)));
     }
-    if let Some(cursor) = result.next_cursor {
-        let mut query = reqwest::Url::parse("https://pagination.invalid/settings/jobs").unwrap();
-        query
-            .query_pairs_mut()
-            .append_pair("cursor", &cursor)
-            .append_pair("status", &status)
-            .append_pair("limit", &limit.to_string());
-        content.push_str(&format!(
-            "<a class=\"nav-link min-h-11 mt-8\" href=\"{}\">Next jobs</a>",
-            esc(&format!("{}?{}", query.path(), query.query().unwrap()))
-        ));
+    if !result.items.is_empty() { content.push_str("</div>"); }
+    if paged || result.next_cursor.is_some() {
+        content.push_str(r#"<nav class="delivery-pagination" aria-label="Delivery pages">"#);
+        if paged {
+            let mut query = reqwest::Url::parse("https://pagination.invalid/settings/jobs").unwrap();
+            query.query_pairs_mut().append_pair("status", &status).append_pair("limit", &limit.to_string());
+            content.push_str(&format!(r#"<a href="{}">Back to first page</a>"#, esc(&format!("{}?{}", query.path(), query.query().unwrap()))));
+        }
+        if let Some(cursor) = result.next_cursor {
+            let mut query = reqwest::Url::parse("https://pagination.invalid/settings/jobs").unwrap();
+            query.query_pairs_mut().append_pair("cursor", &cursor).append_pair("status", &status).append_pair("limit", &limit.to_string());
+            content.push_str(&format!(r#"<a class="secondary" href="{}">More deliveries →</a>"#, esc(&format!("{}?{}", query.path(), query.query().unwrap()))));
+        }
+        content.push_str("</nav>");
     }
-    content.push_str("<a class=\"nav-link min-h-11 mt-8\" href=\"/settings/jobs\">Refresh all jobs</a></main></body></html>");
-    let mut response =
-        super::scheduling_http::render_settings(&s, &h, "Delivery status", content, "jobs").await?;
-    response
-        .headers_mut()
-        .insert(header::CACHE_CONTROL, "no-store, private".parse().unwrap());
+    content.push_str(r#"<div class="settings-footer-help"><a href="/settings/notifications">Manage notifications <span aria-hidden="true">→</span></a><details><summary>About delivery statuses</summary><p>This is a record of reminders, summaries, and invitations. Sent means the delivery service accepted the message; it doesn’t confirm that it was read. “Needs attention” includes deliveries with a previous failed attempt, even if a later attempt succeeded.</p><p>Deliveries are grouped by type, rather than ordered by date. Refresh checks for updates without sending anything.</p></details></div><script type="module" src="/assets/delivery-settings.js"></script>"#);
+    let mut response = super::scheduling_http::render_settings(&s, &h, "Delivery", content, "jobs").await?;
+    response.headers_mut().insert(header::CACHE_CONTROL, "no-store, private".parse().unwrap());
     Ok(response)
 }
 
