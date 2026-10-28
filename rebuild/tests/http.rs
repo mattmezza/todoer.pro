@@ -610,3 +610,40 @@ async fn unsupported_capture_fields_are_rejected_without_silent_data_loss() {
     .await;
     assert!(tasks.as_array().unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn smart_capture_preserves_metadata_on_retry_and_rejects_invalid_write() {
+    let app=app(); let token=bearer();
+    let headers=[("authorization",token.as_str()),("idempotency-key","smart-metadata")];
+    let payload=json!({"list_id":"inbox","tasks":[{"title":"Buy milk"}],"metadata":{"priority":0,"due_date":"2026-11-01","tags":["shopping"]}});
+    let (status,first)=request(&app,"POST","/api/v1/capture",payload.clone(),&headers).await;
+    assert_eq!(status,StatusCode::OK);
+    let (status,retry)=request(&app,"POST","/api/v1/capture",payload,&headers).await;
+    assert_eq!(status,StatusCode::OK);assert_eq!(first,retry);
+    let id=first[0]["id"].as_str().unwrap();
+    let (_,schedule)=request(&app,"GET",&format!("/api/v1/tasks/{id}/schedule"),Value::Null,&[("authorization",token.as_str())]).await;
+    assert_eq!(schedule["schedule"]["priority"],0);
+    assert_eq!(schedule["schedule"]["due"]["date"],"2026-11-01");
+    let (_,tags)=request(&app,"GET",&format!("/api/v1/tasks/{id}/tags"),Value::Null,&[("authorization",token.as_str())]).await;
+    assert_eq!(tags[0]["name"],"shopping");
+    let (status,_)=request(&app,"POST","/api/v1/capture",json!({"list_id":"inbox","tasks":[{"title":"bad"}],"metadata":{"priority":9,"due_date":null,"tags":[]}}),&[("authorization",token.as_str()),("idempotency-key","invalid-smart")]).await;
+    assert_eq!(status,StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn capture_preferences_are_per_user_and_validate_instructions() {
+    let app=app();let token=bearer();let auth=[("authorization",token.as_str())];
+    let (status,defaults)=request(&app,"GET","/api/v1/capture/preferences",Value::Null,&auth).await;
+    assert_eq!(status,StatusCode::OK);assert_eq!(defaults["smart_enabled"],true);
+    let settings=json!({"smart_enabled":false,"date_enabled":false,"repeat_capture":true,"ai_instructions":"Use concise steps"});
+    let (status,_)=request(&app,"PUT","/api/v1/capture/preferences",settings.clone(),&auth).await;
+    assert_eq!(status,StatusCode::OK);
+    let (_,saved)=request(&app,"GET","/api/v1/capture/preferences",Value::Null,&auth).await;
+    assert_eq!(saved,settings);
+    let (status,_)=request(&app,"PUT","/api/v1/capture/preferences",json!({"smart_enabled":true,"date_enabled":true,"repeat_capture":false,"ai_instructions":"x".repeat(1001)}),&auth).await;
+    assert_eq!(status,StatusCode::BAD_REQUEST);
+    let (_,saved_again)=request(&app,"GET","/api/v1/capture/preferences",Value::Null,&auth).await;
+    assert_eq!(saved_again,settings);
+    let (status,_)=request(&app,"GET","/api/v1/capture/preferences",Value::Null,&[]).await;
+    assert_eq!(status,StatusCode::UNAUTHORIZED);
+}

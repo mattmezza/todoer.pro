@@ -7719,3 +7719,34 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .settings-page .settings-install-help p + p { margin-top:12px; }
 .settings-install-help strong { display:block; color:var(--text); font-size:12px; font-weight:500; margin-bottom:3px; }
 @media (max-width:480px) { .settings-extra-card { padding:18px; gap:12px; grid-template-columns:30px minmax(0,1fr); } .settings-extra-icon { width:30px; height:30px; border-radius:8px; } }
+
+/* Readable preview for metadata inferred during capture. */
+.smart-capture {
+  display: grid;
+  gap: 0.45rem;
+  margin-block: 0.5rem;
+  font-size: 0.875rem;
+}
+.smart-capture > div { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.smart-capture label { display: inline-flex; gap: 0.35rem; align-items: center; }
+.smart-capture button { text-decoration: underline; text-underline-offset: 0.15em; }
+.smart-capture input, .smart-capture select { max-width: 16rem; }
+.breakdown-dialog { overflow-y: auto; }
+.breakdown-dialog > button:first-child { float: right; }
+.breakdown-dialog fieldset { border: 1px solid var(--line); border-radius: 8px; margin-block: 0.75rem; padding: 0.75rem; }
+.breakdown-dialog fieldset label { margin: 0.5rem 0; }
+.breakdown-dialog fieldset input:not([type='checkbox']), .breakdown-dialog textarea { width: 100%; }
+.breakdown-dialog fieldset button { margin-inline-end: 0.75rem; }
+.quick-capture-form [hidden] { display: none !important; }
+.smart-capture-input { position: relative; }
+.smart-capture-input > input { width: 100%; }
+.capture-suggestions { position: absolute; z-index: 20; inset: calc(100% + 4px) 0 auto; max-height: 15rem; overflow-y: auto; background: var(--sidebar); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 12px 32px #0008; }
+.capture-suggestions[hidden] { display: none; }
+.capture-suggestions [role='option'] { padding: 0.6rem 0.8rem; cursor: pointer; }
+.capture-suggestions [aria-selected='true'] { background: var(--hover); color: var(--text); }
+.capture-result { display: flex; flex-wrap: wrap; gap: 0.35rem 0.65rem; align-items: baseline; color: var(--muted); }
+.capture-result strong { color: var(--text); }
+.capture-help summary { cursor: pointer; color: var(--muted); }
+.quick-capture-form textarea { overflow: hidden; resize: none; }
+.capture-result .capture-literal { padding: 2px 7px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); font-size: 0.75rem; line-height: 1.4; text-decoration: none; }
+.capture-result .capture-literal:hover { color: var(--text); background: var(--hover); }

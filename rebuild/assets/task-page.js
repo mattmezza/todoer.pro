@@ -5,6 +5,8 @@ import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
 import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
 import './site.js';
+import { mountBreakdown } from './task-breakdown.js';
+mountBreakdown(document.querySelector('[data-task-page]'));
 import { mountDiscussion } from './discussion.js';
 import { mountScheduling } from './scheduling.js';
 import { mountTaskMetadata } from './task-metadata.js';

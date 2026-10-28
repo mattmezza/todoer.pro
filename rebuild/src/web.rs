@@ -65,7 +65,7 @@ use axum::{
     routing::{get, patch, post},
 };
 use rusqlite::OptionalExtension;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::sync::{Arc, Mutex};
@@ -258,6 +258,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/lists", get(lists))
         .route("/api/v1/lists/{id}/tasks", get(tasks))
         .route("/api/v1/capture", post(capture))
+        .route("/api/v1/capture/options", get(capture_options))
+        .route("/api/v1/capture/preferences", get(capture_preferences).put(save_capture_preferences))
         .route("/api/v1/search", get(search))
         .route("/api/v1/tasks/{id}/move-preview", get(move_preview))
         .route("/api/v1/tasks/{id}", patch(update))
@@ -883,6 +885,58 @@ async fn tasks(
 ) -> Result<Json<Vec<Task>>, ApiError> {
     let actor = s.auth(&h, false)?;
     Ok(Json(s.run(move |db| db.tasks(&actor, &id)).await?))
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CapturePreferences {
+    smart_enabled: bool,
+    date_enabled: bool,
+    repeat_capture: bool,
+    ai_instructions: String,
+}
+impl Default for CapturePreferences {
+    fn default() -> Self { Self { smart_enabled: true, date_enabled: true, repeat_capture: false, ai_instructions: String::new() } }
+}
+fn read_capture_preferences(db: &Store, actor: &str) -> Result<CapturePreferences, Error> {
+    let user = crate::core::actor_identity(&db.conn, actor)?.0;
+    use rusqlite::OptionalExtension;
+    Ok(db.conn.query_row("SELECT smart_enabled,date_enabled,repeat_capture,ai_instructions FROM capture_preferences WHERE user_id=?1", [&user], |r| Ok(CapturePreferences {smart_enabled:r.get(0)?,date_enabled:r.get(1)?,repeat_capture:r.get(2)?,ai_instructions:r.get(3)?})).optional()?.unwrap_or_default())
+}
+async fn capture_preferences(State(s): State<AppState>, h: HeaderMap) -> Result<Json<CapturePreferences>, ApiError> {
+    let actor=s.auth(&h,false)?;
+    Ok(Json(s.run(move |db| read_capture_preferences(db,&actor)).await?))
+}
+async fn save_capture_preferences(State(s): State<AppState>, h: HeaderMap, Input(value): Input<CapturePreferences>) -> Result<Json<CapturePreferences>, ApiError> {
+    let actor=s.auth(&h,true)?;
+    if value.ai_instructions.len()>1000 { return Err(ApiError::from(Error::Invalid("AI instructions are limited to 1000 bytes".into()))); }
+    let result=value.clone();
+    s.run(move |db| {
+        let user=crate::core::actor_identity(&db.conn,&actor)?.0;
+        db.conn.execute("INSERT INTO capture_preferences(user_id,smart_enabled,date_enabled,repeat_capture,ai_instructions) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(user_id) DO UPDATE SET smart_enabled=excluded.smart_enabled,date_enabled=excluded.date_enabled,repeat_capture=excluded.repeat_capture,ai_instructions=excluded.ai_instructions",rusqlite::params![user,value.smart_enabled,value.date_enabled,value.repeat_capture,value.ai_instructions])?;
+        Ok(())
+    }).await?;
+    Ok(Json(result))
+}
+async fn capture_options(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Value>, ApiError> {
+    let actor=s.auth(&h,false)?;
+    Ok(Json(s.run(move |db| {
+        let prefs=read_capture_preferences(db,&actor)?;
+        let mut destinations=Vec::new();
+        let mut tags = std::collections::BTreeSet::new();
+        for list in db.lists(&actor)? {
+            if crate::core::access_rank(&db.conn,&actor,&list.id,2).is_err() {continue;}
+            for tag in db.list_tags(&actor, &list.id, "", 100)? { tags.insert(tag.name); }
+            let workspace = db.list_info(&actor, &list.id)?;
+            if workspace.archived { continue; }
+            if let Some(id) = workspace.workspace_id {
+                if let Ok(space) = db.workspace(&actor,&id) {
+                    let default_list:bool=db.conn.query_row("SELECT EXISTS(SELECT 1 FROM workspace_defaults WHERE workspace_id=?1 AND list_id=?2)",rusqlite::params![id,list.id],|r|r.get(0))?;
+                    destinations.push(json!({"space":space.title,"space_id":id,"list":list.title,"list_id":list.id,"default_list":default_list}));
+                }
+            }
+        }
+        Ok(json!({"preferences":{"smart_enabled":prefs.smart_enabled,"date_enabled":prefs.date_enabled,"repeat_capture":prefs.repeat_capture},"destinations":destinations,"tags":tags}))
+    }).await?))
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -1585,6 +1639,7 @@ where
 #[derive(Template)]
 #[template(path = "capture.html")]
 struct CapturePage {
+    account_id: String,
     lists: Vec<List>,
     selected: String,
     csrf: String,
@@ -1602,6 +1657,7 @@ async fn capture_page(
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin?next=%2Fcapture").into_response());
     };
+    let account_id = actor.clone();
     let (lists, default) = s
         .run(move |db| {
             let mut lists = db.lists(&actor)?;
@@ -1620,6 +1676,7 @@ async fn capture_page(
         .unwrap_or_default();
     Ok(Html(
         CapturePage {
+            account_id,
             lists,
             selected,
             csrf: s.csrf_for(&h),

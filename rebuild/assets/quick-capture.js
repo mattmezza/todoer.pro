@@ -1,6 +1,7 @@
 import { request as fetch } from './request.js';
 import { enqueueCapture, replayCaptures } from './offline.js';
 import { toast } from './toast.js';
+import { mountSmartCapture } from './smart-capture.js';
 let dialog;
 let loading = false;
 export async function openCapture() {
@@ -54,13 +55,26 @@ export async function openCapture() {
       outsidePress = false;
     });
     form.className = 'quick-capture-form';
+    const destination = form.querySelector('[name=list_id]');
+    const destinationLabel = form.querySelector('label[for="capture-destination"]');
+    destination.hidden = true;
+    if (destinationLabel) destinationLabel.hidden = true;
     const details = form.querySelector('details');
-    if (details) {
-      details.querySelector('summary')?.remove();
-      details.replaceWith(...details.childNodes);
-    }
+    const description = form.querySelector('[name=description]');
+    description.rows = 1;
+    const resize = () => {
+      description.style.height = '0px';
+      description.style.height = `${description.scrollHeight + description.offsetHeight - description.clientHeight}px`;
+    };
+    description.addEventListener('input', resize);
+    details?.addEventListener('toggle', () => {
+      if (details.open) {
+        resize();
+        description.focus();
+      }
+    });
     form.querySelector('p')?.remove();
-    form.querySelector('[name=description]').rows = 2;
+    const smart = mountSmartCapture(form);
     const error = document.createElement('p');
     error.setAttribute('role', 'alert');
     dialog.append(close, heading, form, error);
@@ -73,17 +87,27 @@ export async function openCapture() {
       error.textContent = '';
       try {
         const data = new FormData(form);
+        const interpreted = smart.get();
         const account = document.querySelector('meta[name=account-id]')?.content;
         if (!account) throw Error('Sign in again to capture this task.');
         await enqueueCapture(
           account,
-          data.get('list_id'),
-          data.get('title').trim(),
+          interpreted.list_id || data.get('list_id'),
+          interpreted.title,
           data.get('description'),
+          null,
+          interpreted.metadata,
         );
+        if (interpreted.repeat && interpreted.list_id) {
+          form.elements.list_id.value = interpreted.list_id;
+        }
         form.elements.title.value = '';
         form.elements.description.value = '';
-        dialog.close();
+        description.style.height = '';
+        if (details) details.open = false;
+        smart.reset();
+        if (!interpreted.repeat) dialog.close();
+        else form.elements.title.focus();
         const result = await replayCaptures(account, async (record) => {
           const r = await fetch('/api/v1/capture', {
             method: 'POST',
@@ -95,8 +119,13 @@ export async function openCapture() {
             body: JSON.stringify(record.payload),
           });
           const body = await r.json();
-          if (!r.ok)
-            throw Error(body.error?.message || 'Capture will retry when connected.');
+          if (!r.ok) {
+            const failure = Error(
+              body.error?.message || 'Capture will retry when connected.',
+            );
+            failure.status = r.status;
+            throw failure;
+          }
           return body;
         });
         if (result.errors.length)
