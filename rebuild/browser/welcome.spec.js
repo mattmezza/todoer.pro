@@ -6,32 +6,34 @@ async function enter(page) {
   await page.goto('/welcome');
   await expect(page.locator('[data-welcome-setup]')).toBeVisible();
 }
-test('welcome resumes, reuses defaults, and safely retries a committed first task', async ({
+test('space then list: slug names, colors, resume and safe completion retry', async ({
   page,
 }) => {
-  const taskTitle = `A first welcome task ${Date.now()}`;
-  const errors = [];
-  page.on('pageerror', (error) => errors.push(error.message));
   await enter(page);
   const original = await (await page.request.get('/api/v1/lists')).json();
-  await page.screenshot({ path: '.local/rebuild/welcome-desktop.png', fullPage: true });
-  const form = page.locator('[data-welcome-setup]');
-  await form.getByLabel('Your space', { exact: false }).fill('My life');
-  await form.getByLabel('Your first list', { exact: false }).fill('Little things');
-  await form.getByLabel('Violet', { exact: true }).check();
-  await expect(page.locator('[data-preview-space]')).toHaveText('My life');
-  await expect(page.locator('[data-preview-list]')).toHaveText('Little things');
-  await form.getByRole('button', { name: 'Make it mine' }).click();
-  await expect(page.locator('[data-welcome-task]')).toBeVisible();
-  await page.reload();
-  const task = page.locator('[data-welcome-task]');
-  await expect(task).toBeVisible();
-  await expect(page.locator('[data-preview-list]')).toHaveText('Little things');
-  await task.getByLabel('One thing on your mind', { exact: false }).fill(taskTitle);
-  await task.getByRole('checkbox').check();
-  await expect(page.locator('[data-preview-planned]')).toBeVisible();
+  await page.getByRole('button', { name: 'Together', exact: true }).click();
+  await expect(page.locator('[data-preview-space]')).toHaveText('home');
+  await expect(page.locator('[data-preview-list-card]')).toBeHidden();
+  await page.getByLabel('Space name', { exact: false }).fill('Our Home');
   await page.screenshot({
-    path: '.local/rebuild/welcome-task-desktop.png',
+    path: '.local/rebuild/welcome-desktop.png',
+    fullPage: true,
+    animations: 'disabled',
+  });
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  const form = page.locator('[data-welcome-list]');
+  await expect(form).toBeVisible();
+  await expect(page.locator('[data-preview-space]')).toHaveText('our-home');
+  await expect(form.locator('[name=list]')).toHaveValue('chores');
+  await expect(form.locator('[name=color]:checked')).toHaveValue('green');
+  await page.reload();
+  await expect(form).toBeVisible();
+  await form.getByLabel('List name', { exact: false }).fill('Home Chores');
+  await expect(form.locator('[name=list]')).toHaveValue('home-chores');
+  await form.getByLabel('Pink', { exact: true }).check();
+  await expect(page.locator('[data-preview-color]')).toHaveClass(/swatch-pink/);
+  await page.screenshot({
+    path: '.local/rebuild/welcome-list-desktop.png',
     fullPage: true,
     animations: 'disabled',
   });
@@ -42,23 +44,16 @@ test('welcome resumes, reuses defaults, and safely retries a committed first tas
     await route.fetch();
     await route.abort('failed');
   });
-  await task.getByRole('button', { name: 'Add task & get started' }).click();
+  await form.getByRole('button', { name: 'Create my list' }).click();
   await expect(page.locator('[data-welcome-error]')).toBeVisible();
-  await expect(task.locator('[name=task]')).toHaveValue(taskTitle);
-  await task.getByRole('button', { name: 'Add task & get started' }).click();
-  await expect(page).toHaveURL(/\/today(?:\?.*)?$/);
+  await form.getByRole('button', { name: 'Create my list' }).click();
+  await expect(page).toHaveURL(/\/lists\//);
   const current = await (await page.request.get('/api/v1/lists')).json();
-  expect(current.map((list) => list.id).sort()).toEqual(
-    original.map((list) => list.id).sort(),
-  );
-  const list = current.find((list) => list.title === 'Little things');
-  expect(list).toBeTruthy();
-  const tasks = await (await page.request.get(`/api/v1/lists/${list.id}/tasks`)).json();
-  expect(tasks.filter((task) => task.title === taskTitle)).toHaveLength(1);
+  expect(current.map((l) => l.id).sort()).toEqual(original.map((l) => l.id).sort());
+  expect(current.some((l) => l.title === 'home-chores')).toBeTruthy();
   expect((await (await page.request.get('/api/v1/onboarding')).json()).status).toBe(
     'complete',
   );
-  expect(errors).toEqual([]);
 });
 
 test('mobile welcome stays compact, suppresses installation, and can be skipped', async ({
@@ -87,13 +82,13 @@ test('mobile welcome stays compact, suppresses installation, and can be skipped'
   ).toBeNull();
   await expect(page.locator('.pwa-install-notice')).toHaveCount(0);
   await page.getByRole('button', { name: 'Work', exact: true }).click();
-  await expect(page.locator('[data-preview-space]')).toHaveText('Work');
+  await expect(page.locator('[data-preview-space]')).toHaveText('work');
   await page.screenshot({ path: '.local/rebuild/welcome-mobile.png', fullPage: true });
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBeTruthy();
-  await page.getByRole('button', { name: 'Make it mine' }).click();
-  await expect(page.locator('[data-welcome-task]')).toBeVisible();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page.locator('[data-welcome-list]')).toBeVisible();
   await page.getByRole('button', { name: 'Skip for now' }).click();
   await expect(page).not.toHaveURL(/\/welcome/);
   expect((await (await page.request.get('/api/v1/onboarding')).json()).status).toBe(

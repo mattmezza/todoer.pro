@@ -1,6 +1,5 @@
 //! A small resumable welcome over the normal account destinations and mutations.
-use crate::core::{Capture, Error, NewTask, Store, actor_user};
-use crate::scheduling::{Moment, Schedule};
+use crate::core::{Error, Store, actor_user};
 use crate::workspace::{ListChange, WorkspaceChange};
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
@@ -21,17 +20,15 @@ pub struct Welcome {
 pub struct Setup {
     pub revision: i64,
     pub space: String,
-    pub list: String,
-    pub color: String,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Finish {
     pub revision: i64,
     #[serde(default)]
-    pub task: String,
+    pub list: String,
     #[serde(default)]
-    pub today: bool,
+    pub color: String,
 }
 
 impl Store {
@@ -85,43 +82,21 @@ impl Store {
                 "Welcome setup changed in another tab. Reload to continue.".into(),
             ));
         }
-        if input.space.trim().is_empty()
-            || input.list.trim().is_empty()
-            || input.space.chars().count() > 100
-            || input.list.chars().count() > 100
-        {
-            return Err(Error::Invalid(
-                "Choose a space and list name between 1 and 100 characters.".into(),
-            ));
-        }
-        crate::navigation::validate_list_color(&Some(input.color.clone()))?;
+        let title = welcome_name(&input.space)?;
         let user = actor_user(&write.conn, actor, 3)?;
         let workspace = write.ensure_user_defaults(actor)?;
-        let list = write.default_list(actor, &workspace)?;
         // Never rename an inherited/shared destination through the welcome.
         if write.workspace_permission(actor, &workspace)? < 3 {
             return Err(Error::Forbidden);
         }
         let space = write.workspace(actor, &workspace)?;
-        let info = write.list_info(actor, &list)?;
         write.update_workspace(
             actor,
             &workspace,
             WorkspaceChange {
                 revision: space.revision,
-                title: Some(input.space),
+                title: Some(title),
                 description: None,
-            },
-        )?;
-        write.update_list(
-            actor,
-            &list,
-            ListChange {
-                revision: info.list.revision,
-                title: Some(input.list),
-                description: None,
-                archived: None,
-                color: Some(input.color),
             },
         )?;
         let run = if current.status == "pending" {
@@ -146,18 +121,13 @@ impl Store {
     ) -> Result<String, Error> {
         let mut write = crate::agent_ops::StoreWrite::new(self)?;
         let current = write.welcome(actor)?;
-        // A lost response can be retried without creating a second first task.
+        // A lost response can be retried without repeating mutations.
         if current.status != "pending" {
             return Ok(current.destination);
         }
         if current.revision != input.revision {
             return Err(Error::Conflict(
                 "Welcome setup changed in another tab. Reload to continue.".into(),
-            ));
-        }
-        if input.task.chars().count() > 500 {
-            return Err(Error::Invalid(
-                "Keep the task name under 500 characters.".into(),
             ));
         }
         let user = actor_user(&write.conn, actor, 3)?;
@@ -168,53 +138,38 @@ impl Store {
         if skip && current.step == 0 {
             destination = "/inbox".into();
         }
-        if !skip && !input.task.trim().is_empty() {
-            let run: String = write.conn.query_row(
-                "SELECT run_id FROM user_onboarding WHERE user_id=?1",
-                [&user],
-                |r| r.get(0),
-            )?;
-            let task = write
-                .capture(
-                    actor,
-                    &format!("welcome:{run}"),
-                    Capture {
-                        list_id: list,
-                        tasks: vec![NewTask {
-                            title: input.task.trim().into(),
-                            description: String::new(),
-                            parent_id: None,
-                        }],
-                    },
-                )?
-                .remove(0);
-            if input.today {
-                let prefs = write.notification_preferences(actor)?;
-                let timezone = prefs
-                    .timezone
-                    .parse::<chrono_tz::Tz>()
-                    .map_err(|_| Error::Invalid("Invalid account timezone".into()))?;
-                let date = chrono::Utc::now()
-                    .with_timezone(&timezone)
-                    .date_naive()
-                    .to_string();
-                write.set_schedule(
-                    actor,
-                    &task.id,
-                    task.revision,
-                    Schedule {
-                        planned: Some(Moment::Date { date }),
-                        priority: Some(3),
-                        ..Default::default()
-                    },
-                )?;
-                destination = "/today".into();
+        if !skip {
+            if current.step != 1 {
+                return Err(Error::Invalid("Choose your space first.".into()));
             }
+            let title = welcome_name(&input.list)?;
+            crate::navigation::validate_list_color(&Some(input.color.clone()))?;
+            let info = write.list_info(actor, &list)?;
+            write.update_list(
+                actor,
+                &list,
+                ListChange {
+                    revision: info.list.revision,
+                    title: Some(title),
+                    description: None,
+                    archived: None,
+                    color: Some(input.color),
+                },
+            )?;
         }
         write.conn.execute("UPDATE user_onboarding SET status=?2,step=2,revision=revision+1,destination=?3 WHERE user_id=?1",params![user,if skip {"skipped"} else {"complete"},destination])?;
         write.commit()?;
         Ok(destination)
     }
+}
+
+fn welcome_name(value: &str) -> Result<String, Error> {
+    if value.chars().count() > 100 || !value.chars().any(char::is_alphanumeric) {
+        return Err(Error::Invalid(
+            "Choose a name with letters or numbers (up to 100 characters).".into(),
+        ));
+    }
+    Ok(crate::slugs::slugify(value))
 }
 
 #[cfg(test)]
@@ -228,93 +183,76 @@ mod tests {
     fn setup(revision: i64) -> Setup {
         Setup {
             revision,
-            space: "My life".into(),
-            list: "Little things".into(),
+            space: "My Life".into(),
+        }
+    }
+    fn finish(revision: i64) -> Finish {
+        Finish {
+            revision,
+            list: "Little Things".into(),
             color: "violet".into(),
         }
     }
     #[test]
-    fn welcome_reuses_defaults_resumes_and_can_be_skipped() {
+    fn welcome_reuses_defaults_resumes_and_completes_without_tasks() {
         let mut db = account();
-        assert!(db.welcome_pending("dev").unwrap());
         let initial = db.welcome("dev").unwrap();
         let workspace = db.ensure_user_defaults("dev").unwrap();
         let list = db.default_list("dev", &workspace).unwrap();
-        let count: i64 = db
-            .conn
-            .query_row("SELECT count(*) FROM workspaces", [], |r| r.get(0))
-            .unwrap();
         let saved = db.welcome_setup("dev", setup(initial.revision)).unwrap();
+        assert_eq!(saved.space, "my-life");
         assert_eq!(saved.step, 1);
-        assert_eq!(saved.space, "My life");
-        assert_eq!(db.ensure_user_defaults("dev").unwrap(), workspace);
-        assert_eq!(db.default_list("dev", &workspace).unwrap(), list);
-        assert_eq!(
-            db.conn
-                .query_row("SELECT count(*) FROM workspaces", [], |r| r
-                    .get::<_, i64>(0))
-                .unwrap(),
-            count
-        );
         assert_eq!(db.welcome("dev").unwrap().revision, saved.revision);
-        db.welcome_finish(
-            "dev",
-            Finish {
-                revision: saved.revision,
-                task: "".into(),
-                today: false,
-            },
-            true,
-        )
-        .unwrap();
+        let destination = db
+            .welcome_finish("dev", finish(saved.revision), false)
+            .unwrap();
+        assert_eq!(
+            db.welcome_finish("dev", finish(saved.revision), false)
+                .unwrap(),
+            destination
+        );
+        assert_eq!(db.default_list("dev", &workspace).unwrap(), list);
+        assert_eq!(db.ensure_user_defaults("dev").unwrap(), workspace);
+        let result = db.welcome("dev").unwrap();
+        assert_eq!(result.list, "little-things");
+        assert_eq!(result.color, "violet");
+        assert!(db.tasks("dev", &list).unwrap().is_empty());
         assert!(!db.welcome_pending("dev").unwrap());
-        assert_eq!(db.welcome("dev").unwrap().status, "skipped");
     }
     #[test]
-    fn first_task_is_atomic_planned_and_replay_safe() {
+    fn skip_leaves_names_alone_and_reopening_is_supported() {
         let mut db = account();
         let initial = db.welcome("dev").unwrap();
-        let saved = db.welcome_setup("dev", setup(initial.revision)).unwrap();
-        let finish = || Finish {
-            revision: saved.revision,
-            task: "Cook carbonara".into(),
-            today: true,
-        };
-        assert_eq!(db.welcome_finish("dev", finish(), false).unwrap(), "/today");
-        assert_eq!(db.welcome_finish("dev", finish(), false).unwrap(), "/today");
-        let workspace = db.ensure_user_defaults("dev").unwrap();
-        let list = db.default_list("dev", &workspace).unwrap();
-        let tasks = db.tasks("dev", &list).unwrap();
-        assert_eq!(tasks.len(), 1);
-        let schedule = db.get_schedule("dev", &tasks[0].id).unwrap();
-        assert_eq!(schedule.schedule.priority, Some(3));
-        assert!(schedule.schedule.planned.is_some());
-        assert!(!db.welcome_pending("dev").unwrap());
+        db.welcome_finish("dev", finish(initial.revision), true)
+            .unwrap();
+        assert_eq!(db.welcome("dev").unwrap().list, initial.list);
         let revision = db.welcome("dev").unwrap().revision;
-        let reopened = db.welcome_setup("dev", setup(revision)).unwrap();
-        db.welcome_finish(
-            "dev",
-            Finish {
-                revision: reopened.revision,
-                task: "".into(),
-                today: false,
-            },
-            false,
-        )
-        .unwrap();
-        assert_eq!(db.tasks("dev", &list).unwrap().len(), 1);
+        assert_eq!(db.welcome_setup("dev", setup(revision)).unwrap().step, 1);
     }
     #[test]
-    fn validation_and_stale_tabs_do_not_partially_change_setup() {
+    fn validation_and_stale_tabs_roll_back() {
         let mut db = account();
         let initial = db.welcome("dev").unwrap();
-        let mut bad = setup(initial.revision);
-        bad.color = "not-a-color".into();
-        assert!(db.welcome_setup("dev", bad).is_err());
-        assert_eq!(db.welcome("dev").unwrap().space, initial.space);
-        db.welcome_setup("dev", setup(initial.revision)).unwrap();
+        assert!(
+            db.welcome_finish("dev", finish(initial.revision), false)
+                .is_err()
+        );
+        assert!(
+            db.welcome_setup(
+                "dev",
+                Setup {
+                    revision: initial.revision,
+                    space: " --- ".into()
+                }
+            )
+            .is_err()
+        );
+        let saved = db.welcome_setup("dev", setup(initial.revision)).unwrap();
         assert!(db.welcome_setup("dev", setup(initial.revision)).is_err());
-        assert_eq!(db.welcome("dev").unwrap().revision, initial.revision + 1);
-        assert!(db.welcome("missing-user").is_err());
+        let mut bad = finish(saved.revision);
+        bad.color = "invalid".into();
+        assert!(db.welcome_finish("dev", bad, false).is_err());
+        assert_eq!(db.welcome("dev").unwrap().list, initial.list);
+        assert_eq!(db.welcome("dev").unwrap().revision, saved.revision);
     }
 }

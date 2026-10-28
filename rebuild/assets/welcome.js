@@ -1,7 +1,7 @@
 import { request } from './request.js';
 const root = document.querySelector('[data-welcome]');
 const setup = root.querySelector('[data-welcome-setup]');
-const taskForm = root.querySelector('[data-welcome-task]');
+const listForm = root.querySelector('[data-welcome-list]');
 const error = root.querySelector('[data-welcome-error]');
 const reload = root.querySelector('[data-welcome-reload]');
 const heading = root.querySelector('h1');
@@ -11,12 +11,10 @@ let state,
 const palette = ['blue', 'violet', 'green', 'amber', 'pink'];
 function preview() {
   root.querySelector('[data-preview-space]').textContent =
-    setup.elements.space.value.trim() || 'Your space';
+    slug(setup.elements.space.value) || 'your-space';
   root.querySelector('[data-preview-list]').textContent =
-    setup.elements.list.value.trim() || 'Your list';
-  root.querySelector('[data-preview-task]').textContent =
-    taskForm.elements.task.value.trim() || 'Your first task';
-  const color = setup.elements.color.value || 'blue';
+    slug(listForm.elements.list.value) || 'your-list';
+  const color = listForm.elements.color.value || 'blue';
   const swatch = root.querySelector('[data-preview-color]');
   swatch.style.backgroundColor =
     color === 'red'
@@ -28,28 +26,26 @@ function preview() {
           : '';
   root.querySelector('[data-preview-color]').className =
     `welcome-list-dot swatch-${palette.includes(color) ? color : 'blue'}`;
-  root.querySelector('[data-preview-planned]').hidden = !taskForm.elements.today.checked;
-  root.querySelector('[data-welcome-finish]').textContent =
-    taskForm.elements.task.value.trim() ? 'Add task & get started →' : 'Get started →';
 }
 function step(number, focus = true) {
   root.dataset.step = number;
   setup.hidden = number !== 1;
-  taskForm.hidden = number !== 2;
+  listForm.hidden = number !== 2;
   root.querySelector('[data-welcome-count]').textContent = `Step ${number} of 2`;
   root
     .querySelectorAll('.welcome-progress i')
     .forEach((dot, index) => dot.classList.toggle('active', index < number));
   heading.textContent =
-    number === 1 ? 'A little space for what matters.' : 'One small thing. A good start.';
+    number === 1 ? 'A space for your life.' : 'A list to bring it together.';
   root.querySelector('[data-welcome-intro]').textContent =
     number === 1
-      ? 'Life, work, and the things you share. Make this corner yours.'
-      : 'Give that thought a place. You don’t have to plan everything today.';
+      ? 'A space groups your lists around one area of life — personal, work, or something shared.'
+      : 'Lists hold related tasks inside your space. Start with one; add your tasks when you’re ready.';
   root.querySelector('[data-preview-teaching]').textContent =
     number === 1
-      ? 'Spaces group your lists. Lists hold your tasks. Enough structure to make things feel lighter.'
-      : 'Give tasks a home, then make time for them. Reminders and AI assistance are there to explore when you’re ready.';
+      ? 'One space for each part of life. Private until you choose to share.'
+      : 'Space → list → tasks. A simple home for whatever needs doing.';
+  root.querySelector('[data-preview-list-card]').hidden = number !== 2;
   if (focus) heading.focus({ preventScroll: true });
   preview();
 }
@@ -92,13 +88,13 @@ async function run(action) {
 }
 function apply(data) {
   state = data;
-  setup.elements.space.value = data.space;
-  setup.elements.list.value = data.list;
+  setup.elements.space.value = slug(data.space);
+  listForm.elements.list.value = slug(data.list);
   if (
     !palette.includes(data.color) &&
     (/^#[a-f0-9]{6}$/i.test(data.color) || ['red', 'gray'].includes(data.color))
   ) {
-    setup.querySelectorAll('[data-custom-color]').forEach((el) => el.remove());
+    listForm.querySelectorAll('[data-custom-color]').forEach((el) => el.remove());
     const label = document.createElement('label');
     label.dataset.customColor = '';
     const input = document.createElement('input');
@@ -111,9 +107,9 @@ function apply(data) {
       data.color === 'red' ? '#f87171' : data.color === 'gray' ? '#94a3b8' : data.color;
     swatch.textContent = 'Current color';
     label.append(input, swatch);
-    setup.querySelector('fieldset').append(label);
+    listForm.querySelector('fieldset').append(label);
   }
-  setup.elements.color.value = data.color || 'blue';
+  listForm.elements.color.value = data.color || 'blue';
   step(data.status === 'pending' && data.step === 1 ? 2 : 1, false);
   root.querySelector('[data-welcome-loading]').hidden = true;
   root.querySelector('[data-welcome-skip]').disabled = false;
@@ -125,7 +121,7 @@ function leave(result, celebrate = false) {
   if (celebrate) {
     root.dataset.ready = 'true';
     heading.textContent = 'Your space is ready.';
-    taskForm.hidden = true;
+    listForm.hidden = true;
     const status = root.querySelector('[data-welcome-loading]');
     status.textContent = 'A little less keeping track. A little more room for you.';
     status.hidden = false;
@@ -136,19 +132,57 @@ function leave(result, celebrate = false) {
   } else location.assign(destination);
 }
 setup.addEventListener('input', preview);
-taskForm.addEventListener('input', preview);
+listForm.addEventListener('input', preview);
+listForm.addEventListener('change', preview);
+function slug(value) {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+    .replace(/-+$/, '');
+}
+for (const input of [setup.elements.space, listForm.elements.list]) {
+  input.addEventListener('input', () => {
+    // Keep a trailing separator while typing so multiword names stay natural.
+    const normalize = (value) =>
+      [
+        ...value
+          .toLowerCase()
+          .replace(/[^\p{L}\p{N}]+/gu, '-')
+          .replace(/^-+/, ''),
+      ]
+        .slice(0, 64)
+        .join('');
+    const caret = normalize(input.value.slice(0, input.selectionStart)).length;
+    input.value = normalize(input.value);
+    input.setSelectionRange(caret, caret);
+    preview();
+  });
+  input.addEventListener('blur', () => {
+    input.value = slug(input.value);
+    preview();
+  });
+}
 root.querySelectorAll('[data-example]').forEach((button) =>
   button.addEventListener('click', () => {
     const examples = {
-      personal: ['Personal', 'Inbox'],
-      work: ['Work', 'Priorities'],
-      together: ['Our space', 'Shared plans'],
+      personal: ['personal', 'inbox', 'blue'],
+      work: ['work', 'priorities', 'violet'],
+      together: ['home', 'chores', 'green'],
     };
-    [setup.elements.space.value, setup.elements.list.value] =
-      examples[button.dataset.example];
+    [
+      setup.elements.space.value,
+      listForm.elements.list.value,
+      listForm.elements.color.value,
+    ] = examples[button.dataset.example];
     root
       .querySelectorAll('[data-example]')
       .forEach((el) => el.setAttribute('aria-pressed', String(el === button)));
+    root.querySelector('[data-example-help]').textContent =
+      button.dataset.example === 'together'
+        ? 'A home for chores with your partner or housemates. Invite them after setup.'
+        : 'Start with one part of your life. You can add more spaces later.';
     preview();
   }),
 );
@@ -160,18 +194,13 @@ setup.addEventListener('submit', (event) => {
     step(2);
   });
 });
-async function finish(later = false) {
-  const task = later ? '' : taskForm.elements.task.value;
-  const today = !later && taskForm.elements.today.checked;
-  await run(async () =>
-    leave(await api('/finish', { revision: state.revision, task, today }), true),
-  );
-}
-taskForm.addEventListener('submit', (event) => {
+listForm.addEventListener('submit', (event) => {
   event.preventDefault();
-  finish();
+  const values = Object.fromEntries(new FormData(listForm));
+  run(async () =>
+    leave(await api('/finish', { ...values, revision: state.revision }), true),
+  );
 });
-root.querySelector('[data-welcome-later]').addEventListener('click', () => finish(true));
 root.querySelector('[data-welcome-back]').addEventListener('click', () => step(1));
 root.querySelector('[data-welcome-skip]').addEventListener('click', () =>
   run(async () => {
