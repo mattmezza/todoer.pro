@@ -52,7 +52,7 @@ unrelated to account tasks.
 
 Successful completion fades the form downward, lets the runner catch and check
 the task, and celebrates with a short jump/confetti sequence before navigating.
-Failed saves never trigger that ending. A 5.5-second bound prevents animation
+Failed saves never trigger that ending. A 9-second bound prevents animation
 from holding navigation. Reduced motion, mobile and hidden tabs skip the sequence;
 normal animation frames pause when the tab is hidden. The canvas does not receive
 pointer events or appear in the accessibility tree. No runtime dependencies,
@@ -74,4 +74,4 @@ It runs continuously on Home and the other existing playful-animation surfaces.
 Changing the selection or disabling play tears down its canvas and listeners.
 The check-off ending remains exclusive to successful Welcome completion.
 
-Completion lifts the task toward the center above the ready message, with the runner following a little behind. The pair lands after 2.1 seconds and celebrates for 1.7 seconds before navigation. The full-height canvas is used only for this finale; normal chasing stays at the bottom edge.
+Completion lifts the task toward the center above the ready message, with the runner following a little behind. The pair lands after 2.1 seconds and celebrates for 1.7 seconds, then holds the finished scene still for 3 seconds to let the user read before navigation. The full-height canvas is used only for this finale; normal chasing stays at the bottom edge.
