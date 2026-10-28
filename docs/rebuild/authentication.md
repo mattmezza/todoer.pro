@@ -196,3 +196,10 @@ New email-based passkey sign-ins use their own validated return path rather than
 inheriting a prior MFA attempt. Failed MFA codes keep the five-minute pending flow
 available for a throttled retry; successful verification consumes it once.
 Displayed recovery codes can be downloaded locally as a plain text file.
+
+Password changes use a dedicated modal with matching new-password fields.
+Accounts with an existing password must also provide their current password;
+Google/passkey-only accounts can set their first password after a fresh sign-in.
+The server checks confirmation, verifies the current password using the bounded
+password-worker pool, and rechecks credentials before committing the change.
+Save failures release the modal controls; closing clears the password fields.

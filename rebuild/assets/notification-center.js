@@ -2,6 +2,67 @@ import { request } from './request.js';
 const bell = document.querySelector('[data-notification-bell]');
 const center = document.querySelector('[data-notification-center]');
 if (bell) {
+  // Measure visible right docks rather than duplicating their responsive widths.
+  let dockFrame;
+  const observedDocks = new Set();
+  const resizeDock = new ResizeObserver(() => queueDock());
+  function positionBell() {
+    dockFrame = null;
+    let edge = innerWidth;
+    const panels = [
+      ...document.querySelectorAll(
+        '.planning-detail-panel, .list-settings-panel.is-docked[open]',
+      ),
+    ];
+    for (const panel of observedDocks) {
+      if (!panels.includes(panel)) {
+        resizeDock.unobserve(panel);
+        observedDocks.delete(panel);
+      }
+    }
+    panels.forEach((panel) => {
+      if (!observedDocks.has(panel)) {
+        resizeDock.observe(panel);
+        observedDocks.add(panel);
+      }
+      const box = panel.getBoundingClientRect();
+      if (box.width && box.height && getComputedStyle(panel).visibility !== 'hidden') {
+        edge = Math.min(
+          edge,
+          innerWidth -
+            box.width -
+            Math.max(0, parseFloat(getComputedStyle(panel).right) || 0),
+        );
+      }
+    });
+    document.body.style.setProperty(
+      '--notification-panel-offset',
+      `${Math.max(0, innerWidth - edge)}px`,
+    );
+    bell.hidden = edge < 90;
+  }
+  function queueDock() {
+    if (!dockFrame) dockFrame = requestAnimationFrame(positionBell);
+  }
+  new MutationObserver((records) => {
+    if (
+      records.some(
+        (record) =>
+          record.type === 'childList' ||
+          record.target === document.body ||
+          record.target.matches?.('.planning-detail-panel, .list-settings-panel'),
+      )
+    )
+      queueDock();
+  }).observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['class', 'open', 'hidden'],
+  });
+  window.addEventListener('resize', queueDock);
+  queueDock();
+
   const toggle = bell.querySelector('[data-notification-toggle]');
   const popover = bell.querySelector('.notification-popover');
   const badge = bell.querySelector('[data-notification-badge]');

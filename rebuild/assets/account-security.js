@@ -115,6 +115,16 @@ function redirect(data) {
 }
 async function load() {
   const data = await api('/api/v1/account/security', undefined, 'GET');
+  const currentLabel = root.querySelector('[data-current-password]');
+  currentLabel.hidden = !data.has_password;
+  currentLabel.querySelector('input').required = data.has_password;
+  root.querySelector('[data-open-password]').disabled = false;
+  root.querySelector('[data-open-password]').textContent = data.has_password
+    ? 'Change password…'
+    : 'Set password…';
+  root.querySelector('#password-heading').textContent = data.has_password
+    ? 'Change password'
+    : 'Set password';
   root.querySelector('[data-account-summary]').textContent =
     `${data.email} · ${data.has_password ? 'Password enabled' : 'Google / passkey account'} · ${data.recovery_codes_remaining} recovery codes remaining`;
   root.querySelector('[data-totp-start]').hidden = data.totp_enabled;
@@ -138,17 +148,71 @@ async function load() {
     list.append(row);
   }
 }
-root?.querySelector('[data-set-password]').addEventListener('submit', (event) => {
+const passwordDialog = root?.querySelector('[data-password-dialog]');
+const passwordForm = root?.querySelector('[data-set-password]');
+root?.querySelector('[data-open-password]').addEventListener('click', () => {
+  passwordDialog.showModal();
+  passwordForm.querySelector('label:not([hidden]) input')?.focus();
+});
+root
+  ?.querySelectorAll('[data-close-password]')
+  .forEach((button) => button.addEventListener('click', () => passwordDialog.close()));
+passwordDialog?.addEventListener('click', (event) => {
+  if (event.target !== passwordDialog) return;
+  const box = passwordDialog.getBoundingClientRect();
+  if (
+    event.clientX < box.left ||
+    event.clientX > box.right ||
+    event.clientY < box.top ||
+    event.clientY > box.bottom
+  )
+    passwordDialog.close();
+});
+passwordDialog?.addEventListener('close', () => {
+  passwordForm.reset();
+  passwordForm.elements.password_confirmation.setCustomValidity('');
+});
+passwordForm?.addEventListener('input', () => {
+  const confirmation = passwordForm.elements.password_confirmation;
+  confirmation.setCustomValidity(
+    confirmation.value && confirmation.value !== passwordForm.elements.password.value
+      ? 'New passwords do not match.'
+      : '',
+  );
+});
+passwordForm?.addEventListener('submit', async (event) => {
   event.preventDefault();
-  run(async () => {
-    if (await confirmAction('Save this password and sign out all sessions?'))
-      redirect(
-        await api(
-          '/api/v1/account/password',
-          Object.fromEntries(new FormData(event.target)),
-        ),
-      );
-  });
+  if (busy) return;
+  busy = true;
+  const button = passwordForm.querySelector('[type=submit]');
+  button.disabled = true;
+  button.textContent = 'Saving…';
+  try {
+    const result = await api(
+      '/api/v1/account/password',
+      Object.fromEntries(new FormData(passwordForm)),
+    );
+    passwordForm.reset();
+    redirect(result);
+  } catch (error) {
+    if (error.code === 'reauthentication_required' || error.code === 'unauthorized') {
+      passwordDialog.close();
+      if (
+        await confirmAction(
+          'For your security, sign in again before changing your password. You’ll return here to complete your action.',
+          { title: 'Sign in again', acceptLabel: 'Sign in now' },
+        )
+      ) {
+        location.assign(
+          '/signin?next=' + encodeURIComponent(location.pathname + '#' + activeSection),
+        );
+      }
+    } else toast(error.message);
+  } finally {
+    busy = false;
+    button.disabled = false;
+    button.textContent = 'Save password';
+  }
 });
 root?.querySelector('[data-totp-start]').addEventListener('click', () =>
   run(async () => {

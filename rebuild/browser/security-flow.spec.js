@@ -90,3 +90,64 @@ test('displayed recovery codes download as a text file', async ({ page }) => {
   const text = await readFile(await download.path(), 'utf8');
   for (const code of codes) expect(text).toContain(code);
 });
+
+test('password modal validates confirmation and releases controls after failure', async ({
+  page,
+}) => {
+  let requests = 0;
+  await page.route('**/api/v1/account/password', (route) => {
+    requests++;
+    return route.fulfill({
+      status: 400,
+      json: { error: { code: 'account', message: 'Current password did not match' } },
+    });
+  });
+  await securityPage(page);
+  await page.locator('[data-open-password]').click();
+  const modal = page.locator('[data-password-dialog]');
+  await expect(modal).toBeVisible();
+  await modal.getByLabel('Current password', { exact: true }).fill('wrong password');
+  await modal
+    .getByLabel('New password', { exact: true })
+    .fill('a sufficiently long new password');
+  await modal
+    .getByLabel('Confirm new password', { exact: true })
+    .fill('another sufficiently long password');
+  await modal.getByRole('button', { name: 'Save password', exact: true }).click();
+  expect(requests).toBe(0);
+  await modal
+    .getByLabel('Confirm new password', { exact: true })
+    .fill('a sufficiently long new password');
+  await modal.getByRole('button', { name: 'Save password', exact: true }).click();
+  await expect(page.locator('.toast')).toContainText('Current password did not match');
+  await expect(
+    modal.getByRole('button', { name: 'Save password', exact: true }),
+  ).toBeEnabled();
+  await modal.getByRole('button', { name: 'Close password settings' }).click();
+  await expect(modal).not.toBeVisible();
+  await expect(page.locator('[data-totp-start]')).toBeEnabled();
+});
+
+test('notification bell follows the edge of a right dock', async ({ page }) => {
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  const bell = page.locator('[data-notification-bell]');
+  const before = await bell.boundingBox();
+  await page.evaluate(() => {
+    const panel = document.createElement('div');
+    panel.className = 'planning-detail-panel';
+    panel.style.cssText =
+      'position:fixed;right:0;top:0;width:320px;height:100vh;animation:none;transform:none';
+    document.body.append(panel);
+  });
+  await expect
+    .poll(async () => (await bell.boundingBox()).x)
+    .toBeLessThan(before.x - 300);
+  const panel = await page.locator('.planning-detail-panel').boundingBox();
+  const shifted = await bell.boundingBox();
+  expect(shifted.x + shifted.width).toBeLessThan(panel.x);
+  await page.locator('.planning-detail-panel').evaluate((el) => el.remove());
+  await expect
+    .poll(async () => Math.abs((await bell.boundingBox()).x - before.x))
+    .toBeLessThan(2);
+});

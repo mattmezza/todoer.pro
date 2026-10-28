@@ -424,7 +424,7 @@ function addPlannedTask(date, initialTime = '') {
     option.value = value;
     priority.append(option);
   }
-  priority.value = '2';
+  priority.value = '3';
   priority.setAttribute('aria-label', 'Priority');
   priorityLabel.append(priority);
   const fields = node('div', null, 'workbench-date-fields');

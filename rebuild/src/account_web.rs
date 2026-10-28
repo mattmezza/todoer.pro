@@ -462,6 +462,9 @@ async fn status(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Value>, 
 #[derive(Deserialize)]
 struct PasswordInput {
     password: String,
+    password_confirmation: String,
+    #[serde(default)]
+    current_password: String,
 }
 async fn set_password(
     State(s): State<AppState>,
@@ -469,7 +472,21 @@ async fn set_password(
     Json(input): Json<PasswordInput>,
 ) -> Result<Json<Value>, ApiError> {
     let user = session_user(&s, &h, true).await?;
-    let encoded = password_hash(input.password).await?;
+    if input.password != input.password_confirmation {
+        return Err(problem("New passwords do not match"));
+    }
+    throttle(&s, &format!("password-change:{user}")).await?;
+    let checked_user = user.clone();
+    let expected: Option<String> = auth_run(&s, move |db| Ok(db.conn.query_row("SELECT password_hash FROM auth_passwords WHERE user_id=?1", [&checked_user], |r| r.get(0)).optional()?)).await?;
+    let previous = expected.clone();
+    let permit = hashers().clone().try_acquire_owned().map_err(|_| problem("Account security is busy; try again shortly"))?;
+    let encoded = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        if previous.as_deref().is_some_and(|hash| !account_security::verify_password(&input.current_password, hash)) {
+            return Err(AuthError::Invalid("Current password did not match".into()));
+        }
+        account_security::hash_password(&input.password)
+    }).await.map_err(|_| problem("Password update unavailable"))?.map_err(ApiError::from)?;
     let session = cookie(&h, "todoer_session")
         .ok_or(AuthError::Unauthorized)?
         .to_owned();
@@ -477,11 +494,13 @@ async fn set_password(
         if db.recent(&session)? != user {
             return Err(AuthError::Forbidden);
         }
+        let current: Option<String> = db.conn.query_row("SELECT password_hash FROM auth_passwords WHERE user_id=?1", [&user], |r| r.get(0)).optional()?;
+        if current != expected { return Err(AuthError::ReauthenticationRequired); }
         db.set_password(&user, &encoded)
     })
     .await?;
     Ok(Json(
-        json!({"redirect":"/signin","message":"Password saved. Sign in again."}),
+        json!({"redirect":"/signin?next=%2Fsettings%2Fsecurity","message":"Password saved. Sign in again."}),
     ))
 }
 async fn totp_start(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Value>, ApiError> {

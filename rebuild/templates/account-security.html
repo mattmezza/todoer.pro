@@ -9,17 +9,18 @@
     <section class="security-card">
       <h3>Password</h3>
       <p class="muted">Use a strong, unique password to sign in with email.</p>
-      <form data-set-password class="grid gap-3">
-        <label
-          >New password<input
-            type="password"
-            name="password"
-            minlength="15"
-            maxlength="128"
-            autocomplete="new-password"
-            required /></label
-        ><button class="primary">Save password…</button>
-      </form>
+      <button type="button" class="secondary" data-open-password disabled>Change password…</button>
+      <dialog class="quick-dialog" data-password-dialog aria-labelledby="password-heading">
+        <button type="button" class="dialog-close" data-close-password aria-label="Close password settings"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg></button>
+        <h2 id="password-heading">Change password</h2>
+        <p>Saving your password signs out all sessions. Sign in again with your new password afterwards.</p>
+        <form data-set-password class="grid gap-3">
+          <label data-current-password>Current password<input type="password" name="current_password" maxlength="128" autocomplete="current-password"></label>
+          <label>New password<input type="password" name="password" minlength="15" maxlength="128" autocomplete="new-password" required></label>
+          <label>Confirm new password<input type="password" name="password_confirmation" minlength="15" maxlength="128" autocomplete="new-password" required></label>
+          <div class="dialog-actions"><button type="button" data-close-password>Cancel</button><button type="submit" class="primary">Save password</button></div>
+        </form>
+      </dialog>
     </section>
     <section class="security-card">
       <h3>Authenticator app</h3>

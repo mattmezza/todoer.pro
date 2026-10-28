@@ -7584,12 +7584,12 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 /* Keep standalone controls clear of phone notches in either orientation. */
 .notification-bell {
   top: calc(20px + env(safe-area-inset-top));
-  right: calc(24px + env(safe-area-inset-right));
+  right: calc(var(--notification-panel-offset, 0px) + 24px + env(safe-area-inset-right));
 }
 @media (max-width: 640px) {
   .notification-bell {
     top: calc(10px + env(safe-area-inset-top));
-    right: calc(14px + env(safe-area-inset-right));
+    right: calc(var(--notification-panel-offset, 0px) + 14px + env(safe-area-inset-right));
   }
   dialog {
     padding-top: calc(22px + env(safe-area-inset-top));
@@ -7627,3 +7627,11 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .pwa-install-notice p { margin: 6px 0 12px; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .pwa-install-notice .primary { min-height: 40px; }
 .pwa-install-dismiss { flex-shrink: 0; padding: 0 4px; color: var(--muted); font-size: 24px; line-height: 1; }
+
+.notification-popover { max-width: calc(100vw - var(--notification-panel-offset, 0px) - 28px); }
+.planning-empty > .ui-icon {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 16px;
+  opacity: .65;
+}

@@ -190,10 +190,52 @@ try {
   await page.locator('[data-account-summary]').filter({ hasText: email }).waitFor();
   assert(
     !(
-      await post('/api/v1/account/password', { password: 'another long enough password' })
+      await post('/api/v1/account/password', {
+        password,
+        password_confirmation: password,
+        current_password: password,
+      })
     ).ok(),
     'missing CSRF accepted',
   );
+  const securityCsrf = (await context.cookies()).find(
+    (c) => c.name === 'todoer_csrf',
+  ).value;
+  const changePassword = (data) =>
+    context.request.post(base + '/api/v1/account/password', {
+      headers: { Origin: base, 'X-CSRF-Token': securityCsrf },
+      data,
+    });
+  assert(
+    (
+      await changePassword({
+        current_password: 'wrong',
+        password,
+        password_confirmation: password,
+      })
+    ).status() === 400,
+    'wrong current password accepted',
+  );
+  assert(
+    (
+      await changePassword({
+        current_password: password,
+        password,
+        password_confirmation: password + ' mismatch',
+      })
+    ).status() === 400,
+    'password confirmation mismatch accepted',
+  );
+  await page.locator('[data-open-password]').click();
+  await page.getByLabel('Current password', { exact: true }).fill(password);
+  await page.getByLabel('New password', { exact: true }).fill(password);
+  await page.getByLabel('Confirm new password', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Save password', exact: true }).click();
+  await page.waitForURL('**/signin?next=*');
+  await page.getByLabel('Email', { exact: true }).fill(email);
+  await page.getByLabel('Password', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.waitForURL('**/settings/security');
   await page.locator('[data-totp-start]').click();
   await page.locator('[data-totp-qr]').waitFor();
   await page.locator('[data-totp-qr]').evaluate((image) => image.decode());

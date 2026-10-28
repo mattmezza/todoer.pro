@@ -458,6 +458,7 @@ impl Store {
                 }
             };
             tx.execute("INSERT INTO tasks(id,reference,list_id,parent_id,title,description,position) VALUES(?1,?2,?3,?4,?5,?6,?7)",params![id,reference,request.list_id,n.parent_id,n.title.trim(),n.description,position])?;
+            tx.execute("INSERT INTO task_schedule(task_id,revision,document) VALUES(?1,0,?2)", params![id, serde_json::to_string(&crate::scheduling::Schedule { priority: Some(3), ..Default::default() }).map_err(|e| Error::Invalid(e.to_string()))?])?;
             if n.parent_id.is_none() {
                 tx.execute("INSERT INTO task_locations(task_id,section_id) SELECT ?1,section_id FROM list_defaults WHERE list_id=?2",params![id,request.list_id])?;
             }
@@ -777,6 +778,14 @@ mod tests {
         )
         .unwrap()
         .remove(0)
+    }
+    #[test]
+    fn new_tasks_and_subtasks_default_to_low_priority() {
+        let mut s = db();
+        let parent = capture(&mut s, "default-priority-parent", None);
+        let child = capture(&mut s, "default-priority-child", Some(parent.id.clone()));
+        assert_eq!(s.get_schedule("dev", &parent.id).unwrap().schedule.priority, Some(3));
+        assert_eq!(s.get_schedule("dev", &child.id).unwrap().schedule.priority, Some(3));
     }
     #[test]
     fn permissions_and_atomic_capture() {
