@@ -75,6 +75,11 @@ export async function openCapture() {
     });
     form.querySelector('p')?.remove();
     const smart = mountSmartCapture(form);
+    const footer = document.createElement('div');
+    footer.className = 'quick-capture-footer';
+    const submit = form.querySelector('[type=submit]');
+    submit.before(footer);
+    footer.append(smart.help, submit);
     const error = document.createElement('p');
     error.setAttribute('role', 'alert');
     dialog.append(close, heading, form, error);

@@ -7750,3 +7750,6 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .quick-capture-form textarea { overflow: hidden; resize: none; }
 .capture-result .capture-literal { padding: 2px 7px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); font-size: 0.75rem; line-height: 1.4; text-decoration: none; }
 .capture-result .capture-literal:hover { color: var(--text); background: var(--hover); }
+.quick-capture-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+.quick-capture-footer .capture-help { color: var(--muted); font-size: 0.875rem; }
+.quick-capture-footer .capture-help p { max-width: 32rem; }

@@ -274,6 +274,7 @@ export function mountSmartCapture(form) {
   });
   setup();
   const api = {
+    help,
     get() {
       const v = { ...parsed, ...changes };
       return {
