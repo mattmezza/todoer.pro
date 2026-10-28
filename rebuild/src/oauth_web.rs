@@ -131,7 +131,8 @@ pub(super) fn routes() -> Router<AppState> {
         .route("/oauth/approve", post(approve))
         .route("/oauth/token", post(token).options(preflight))
         .route("/oauth/revoke", post(revoke).options(preflight))
-        .route("/settings/agents", get(settings))
+        .route("/settings/ai", get(settings))
+        .route("/settings/agents", get(|| async { Redirect::to("/settings/ai") }))
         .route("/settings/credentials", post(issue_form))
         .route("/settings/credentials/{id}/revoke", post(revoke_form))
         .route("/api/v1/credentials", get(credentials).post(issue_json))
@@ -672,7 +673,7 @@ async fn issue_form(
 async fn settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult {
     let actor = browser(&s, &h, false)?;
     let Some(production) = s.production.as_ref() else {
-        return super::scheduling_http::render_settings(&s, &h, "AI & integrations", "<section class=\"settings-card\"><h2>Connected tools</h2><p>Connect AI assistants and your own scripts with a personal API credential.</p><p class=\"muted\">Credential management becomes available when OAuth is configured for this installation.</p><a href=\"/settings/assist\" class=\"primary\">Capture with AI</a></section>".into(), "agents").await.map_err(|_| bad("Could not load settings"));
+        return super::scheduling_http::render_settings(&s, &h, "AI", r#"<section class="settings-preference-card"><h2>Connected tools</h2><p class="muted">Connect an AI agent or your own scripts to Todoer.</p><p class="muted">Credential management is available when OAuth is configured for this installation.</p><a class="settings-destination" href="/settings/assist">Open Assist <span aria-hidden="true">→</span></a></section>"#.into(), "agents").await.map_err(|_| bad("Could not load settings"));
     };
     let rows = production
         .store
@@ -688,7 +689,7 @@ async fn settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult {
     let mut options = String::new();
     for list in lists {
         options.push_str(&format!(
-            "<label><input type=\"checkbox\" name=\"list_{}\" value=\"yes\">{}</label><br>",
+            "<label class=\"settings-check\"><input type=\"checkbox\" name=\"list_{}\" value=\"yes\">{}</label>",
             escaped(&list.id),
             escaped(&list.title)
         ));
@@ -733,11 +734,14 @@ async fn settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult {
         }
         existing.push_str("</li>");
     }
+    if existing.is_empty() {
+        existing.push_str("<li class=\"muted\">No connected tools yet.</li>");
+    }
     let html = format!(
-        "<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Agent access · Todoer</title><link rel=\"stylesheet\" href=\"/assets/app.css\"><main><h1>Agent access</h1><p>Create a credential for your own scripts or revoke a connected OAuth client. Existing secrets cannot be displayed.</p><form method=\"post\" action=\"/settings/credentials\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><label>Audience<select name=\"audience\"><option value=\"mcp\">MCP</option><option value=\"rest\">REST API</option></select></label><fieldset><legend>Permissions</legend><label><input type=\"checkbox\" name=\"read\" value=\"yes\">Read</label><label><input type=\"checkbox\" name=\"write\" value=\"yes\">Write (includes read)</label><label><input type=\"checkbox\" name=\"admin\" value=\"yes\">Admin (requires owner access)</label></fieldset><fieldset><legend>Lists</legend>{}<label><input type=\"checkbox\" name=\"allow_all\" value=\"yes\">All current and future accessible lists</label></fieldset><label>Expires in days (1–90)<input name=\"ttl_days\" type=\"number\" min=\"1\" max=\"90\" value=\"30\" required></label><button>Create credential</button></form><h2>Current and recent credentials</h2><ul>{}</ul></main></html>",
+        r#"<section class="settings-preference-card" aria-labelledby="connected-tools-heading"><h2 id="connected-tools-heading">Connected tools</h2><p class="muted">Give an AI agent or script access to the lists you choose.</p><details class="credential-create"><summary>Create a credential…</summary><form method="post" action="/settings/credentials"><input type="hidden" name="csrf" value="{}"><label>Connection type<select name="audience"><option value="mcp">AI agent (MCP)</option><option value="rest">Script (REST API)</option></select></label><fieldset><legend>Permissions</legend><label class="settings-check"><input type="checkbox" name="read" value="yes" checked>Read</label><label class="settings-check"><input type="checkbox" name="write" value="yes">Write (includes read)</label><label class="settings-check"><input type="checkbox" name="admin" value="yes">Admin (requires ownership)</label></fieldset><fieldset><legend>List access</legend><label class="settings-check"><input type="checkbox" name="allow_all" value="yes" data-credential-all>All current and future accessible lists</label><div data-credential-lists>{}</div></fieldset><label>Expires after (days)<input name="ttl_days" type="number" min="1" max="90" value="30" required></label><button class="primary">Create credential</button></form></details><details class="credential-history"><summary>Manage connected tools</summary><ul>{}</ul></details></section>"#,
         csrf, options, existing
     );
-    super::scheduling_http::render_settings(&s, &h, "AI & integrations", html, "agents")
+    super::scheduling_http::render_settings(&s, &h, "AI", html, "agents")
         .await
         .map_err(|_| bad("Could not load settings"))
 }
