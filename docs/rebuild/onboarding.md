@@ -74,4 +74,6 @@ It runs continuously on Home and the other existing playful-animation surfaces.
 Changing the selection or disabling play tears down its canvas and listeners.
 The check-off ending remains exclusive to successful Welcome completion.
 
-Completion lifts the task toward the center above the ready message, with the runner following a little behind. The pair lands after 2.1 seconds and celebrates for 1.7 seconds, then holds the finished scene still for 3 seconds to let the user read before navigation. The full-height canvas is used only for this finale; normal chasing stays at the bottom edge.
+Completion lifts the task toward the center above the ready message, with the runner following a little behind. The flight lands after 2.1 seconds and celebrates for 1.7 seconds, then holds the finished scene still for 3 seconds to let the user read before navigation. The full-height canvas is used only for this finale; normal chasing stays at the bottom edge.
+
+The final pair has an extra 40px of breathing room above the completion message. If completion starts on the right, both racers finish their exit and turn offscreen, then return from the right with the runner facing left behind the task. Card text stays upright.

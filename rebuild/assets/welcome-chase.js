@@ -31,6 +31,8 @@ export class ChaseMotion {
     this.rest = this.finishing = this.gather = false;
     this.caughtAt = null;
     this.wraps = 0;
+    this.direction = 1;
+    this.flightAge = 0;
   }
   get task() {
     return this.human + this.gap;
@@ -50,6 +52,12 @@ export class ChaseMotion {
   finish() {
     this.finishing = true;
     this.rest = false;
+    // Turn around only after both racers have left the right edge. They then
+    // return task-first, so the runner really pursues from the right, facing left.
+    this.gather = this.task > this.width / 2;
+    this.startFlight();
+  }
+  startFlight() {
     this.flightStart = { human: this.human, task: this.task };
     this.flightAge = 0;
   }
@@ -83,7 +91,16 @@ export class ChaseMotion {
         this.jumpAge < 0.72 ? Math.sin((this.jumpAge / 0.72) * Math.PI) * 45 : 0;
     } else {
       this.jump *= Math.exp(-dt * 12);
-      if (this.caughtAt === null) {
+      if (this.gather) {
+        this.velocity = mix(this.velocity, Math.max(600, this.width / 1.5), 1 - Math.exp(-dt * 10));
+        this.human += this.velocity * dt;
+        if (this.human > this.width + HUMAN_EXTENT + 12) {
+          this.direction = -1;
+          this.human = -this.gap - TASK_EXTENT - 24;
+          this.gather = false;
+          this.startFlight();
+        }
+      } else if (this.caughtAt === null) {
         this.flightAge += dt;
         // Land the whole pair centrally, with the card just ahead of its runner.
         const destination = this.width / 2 + (MIN_GAP + HUMAN_EXTENT - TASK_EXTENT) / 2;
@@ -92,7 +109,7 @@ export class ChaseMotion {
         this.human = Math.min(task - MIN_GAP,
           mix(this.flightStart.human, destination - MIN_GAP, this.humanFlight));
         this.gap = Math.max(MIN_GAP, task - this.human);
-        this.velocity = Math.max(80, Math.abs(this.human - previous) / dt);
+        this.velocity = Math.max(80, Math.abs(this.human - previous) / Math.max(dt, 0.001));
         if (this.flightAge >= 2.1) {
           this.human = destination - MIN_GAP;
           this.gap = MIN_GAP;
@@ -149,7 +166,7 @@ export function welcomeChase() {
     const message = document.querySelector('[data-welcome-complete]');
     const messageTop = message?.getBoundingClientRect().top || innerHeight * 0.45;
     // Leave a calm gap between the completed card and the welcome message.
-    landingLift = Math.max(0, innerHeight - messageTop + 24);
+    landingLift = Math.max(0, innerHeight - messageTop + 64);
     ctx.setTransform(canvas.width / motion.width, 0, 0, ratio, 0, 0);
   }
   function ellipse(x, y, rx, ry, fill) {
@@ -254,7 +271,8 @@ export function welcomeChase() {
     }
   }
   function drawTask(celebration) {
-    const { task, rest, time, jump, jumpAge, caughtAt } = motion;
+    const { rest, time, jump, jumpAge, caughtAt } = motion;
+    const task = motion.direction === -1 ? motion.width - motion.task : motion.task;
     const checked = caughtAt !== null;
     const bounce = rest && !checked ? Math.abs(Math.sin(time * 5)) * 7 : 0;
     const y =
@@ -330,7 +348,7 @@ export function welcomeChase() {
   }
   function confetti() {
     particles = Array.from({ length: 24 }, (_, i) => ({
-      x: motion.task,
+      x: motion.direction === -1 ? motion.width - motion.task : motion.task,
       y: 87,
       vx: Math.cos(i * 2.4) * (35 + (i % 5) * 15),
       vy: -65 - (i % 7) * 15,
@@ -364,6 +382,10 @@ export function welcomeChase() {
       motion.caughtAt === null ? 0 : motion.time - motion.caughtAt + 0.001;
     ctx.save();
     ctx.translate(0, height - 128 - landingLift * motion.humanFlight);
+    if (motion.direction === -1) {
+      ctx.translate(motion.width, 0);
+      ctx.scale(-1, 1);
+    }
     drawHuman(celebration);
     ctx.restore();
     ctx.save();
