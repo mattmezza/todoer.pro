@@ -34,6 +34,21 @@ test('quick capture parses without losing the task when AI is disabled', async (
   await expect(dialog).not.toBeVisible();
 });
 
+test('Inbox capture opens the shared omnibar and refreshes after saving', async ({ page }) => {
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  await page.goto('/inbox');
+  const launcher = page.getByRole('link', { name: 'Capture a task…' });
+  await launcher.focus();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'What’s on your mind?' });
+  const title = `Inbox omnibar ${Date.now()}`;
+  await dialog.getByLabel('Task', { exact: true }).fill(title);
+  await expect(dialog.locator('.capture-result')).toContainText('Inbox');
+  await dialog.getByRole('button', { name: 'Add task', exact: true }).click();
+  await expect(page.getByRole('link', { name: title, exact: true })).toBeVisible();
+});
+
 test('breakdown remains available with a disabled provider and manual capture is preserved', async ({
   page,
 }) => {

@@ -32,7 +32,7 @@ test('search discards old results immediately and shows contextual empty icon', 
   );
   expect(await input.evaluate((el) => getComputedStyle(el).textAlign)).toBe('left');
 });
-test('Inbox prevents duplicate submits, preserves failed drafts, and retries refresh', async ({
+test('Inbox queues failed captures and retries refresh', async ({
   page,
 }) => {
   await signin(page);
@@ -43,16 +43,12 @@ test('Inbox prevents duplicate submits, preserves failed drafts, and retries ref
     await route.abort('failed');
   });
   await page.goto('/inbox');
-  const input = page.getByRole('textbox', { name: 'Task title', exact: true });
-  await input.fill('Preserve this draft');
-  await input.press('Enter');
-  await expect(input).toBeDisabled();
-  await page
-    .locator('.inbox-capture')
-    .evaluate((form) => form.dispatchEvent(new Event('submit', { cancelable: true })));
-  await expect(input).toBeEnabled();
+  await page.getByRole('link', { name: 'Capture a task…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'What’s on your mind?' });
+  await dialog.getByLabel('Task', { exact: true }).fill('Preserve this draft');
+  await dialog.getByRole('button', { name: 'Add task', exact: true }).click();
+  await expect(page.getByText('Task kept on this device. Open Inbox to retry syncing.')).toBeVisible();
   expect(calls).toBe(1);
-  await expect(input).toHaveValue('Preserve this draft');
   await page.route('**/api/v1/inbox', (route) => route.abort('failed'));
   await page.evaluate(() =>
     document.dispatchEvent(new Event('todoer:workbench-refresh')),

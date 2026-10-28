@@ -357,32 +357,11 @@ function taskCard(entry, intake = false) {
 }
 function renderInbox() {
   if (!toolbar.querySelector('.inbox-capture')) {
-    const form = node('form', null, 'inbox-capture');
-    const input = node('input');
-    input.placeholder = 'Capture a task…';
-    input.setAttribute('aria-label', 'Task title');
-    input.maxLength = 500;
-    input.required = true;
-    const submit = node('button', 'Add task', 'primary');
-    submit.type = 'submit';
-    form.append(input, submit);
-    let key = crypto.randomUUID();
-    form.onsubmit = async (e) => {
-      e.preventDefault();
-      const title = input.value.trim();
-      if (!title) return;
-      await write(submit, async () => {
-        await api(
-          'capture',
-          'POST',
-          { list_id: inboxId, tasks: [{ title, description: '' }] },
-          key,
-        );
-        key = crypto.randomUUID();
-        input.value = '';
-      });
-    };
-    toolbar.append(form);
+    const trigger = node('a', 'Capture a task…', 'inbox-capture');
+    trigger.href = '/capture?list=' + encodeURIComponent(inboxId);
+    trigger.dataset.quickCapture = '';
+    trigger.dataset.captureList = inboxId;
+    toolbar.append(trigger);
   }
   content.replaceChildren(...entries.map((e) => taskCard(e, true)));
   if (!entries.length) {

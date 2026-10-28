@@ -4,9 +4,14 @@ import { toast } from './toast.js';
 import { mountSmartCapture } from './smart-capture.js';
 let dialog;
 let loading = false;
-export async function openCapture() {
+export async function openCapture(listId) {
   if (dialog?.open || loading) return;
   if (dialog) {
+    if (listId) {
+      const destination = dialog.querySelector('[name=list_id]');
+      destination.value = listId;
+      destination.dispatchEvent(new Event('change'));
+    }
     dialog.showModal();
     dialog.querySelector('[name=title]')?.focus();
     return;
@@ -14,7 +19,7 @@ export async function openCapture() {
   loading = true;
   try {
     const list =
-      document.body.dataset.list ||
+      listId || document.body.dataset.list ||
       document.querySelector('[data-task-page]')?.dataset.listId;
     const response = await fetch(
       '/capture' + (list ? `?list=${encodeURIComponent(list)}` : ''),
@@ -60,7 +65,6 @@ export async function openCapture() {
     destination.hidden = true;
     if (destinationLabel) destinationLabel.hidden = true;
     const details = form.querySelector('details');
-    details?.querySelector('summary')?.classList.add('secondary');
     const description = form.querySelector('[name=description]');
     description.rows = 1;
     description.placeholder = 'Description';
@@ -154,7 +158,8 @@ export async function openCapture() {
         });
         if (result.errors.length)
           toast('Task kept on this device. Open Inbox to retry syncing.');
-        else if (
+        if (result.sent) document.dispatchEvent(new Event('todoer:workbench-refresh'));
+        if (!result.errors.length &&
           !interpreted.repeat &&
           (location.pathname === '/today' || location.pathname === '/upcoming')
         )
@@ -178,7 +183,7 @@ document.addEventListener('click', (event) => {
   const link = event.target.closest('[data-quick-capture],a[href^="/capture"]');
   if (!link) return;
   event.preventDefault();
-  openCapture();
+  openCapture(link.dataset.captureList);
 });
 document.addEventListener(
   'keydown',
