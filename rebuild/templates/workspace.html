@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<head><meta name="account-id" content="{{ sidebar.account_id }}"><meta name="csrf-token" content="{{ csrf }}"><script type="module" src="/assets/site.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{ workspace.title }} · Todoer</title><link rel="stylesheet" href="/assets/app.css"></head>
+<head><meta name="account-id" content="{{ sidebar.account_id }}"><meta name="csrf-token" content="{{ csrf }}"><script type="module" src="/assets/site.js"></script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>{{ workspace.title }} · Todoer</title><link rel="stylesheet" href="/assets/app.css">{% include "pwa-head.html" %}</head>
 <body class="workspace-management">
 <a class="skip" href="#main">Skip to workspace</a>
 {% include "mobile-nav.html" %}

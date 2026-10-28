@@ -11,7 +11,7 @@ import { toast } from './toast.js';
 import './search-omnibar.js';
 import { confirmAction } from './confirm.js';
 import { listPending, clearAccount } from './offline.js';
-import { clearPwa } from './pwa.js';
+import { setupPwa, clearPwa } from './pwa.js';
 const navigation = document.querySelector('#navigation');
 const toggle = document.querySelector('#nav-toggle');
 const mobile = matchMedia('(max-width: 640px)');
@@ -198,7 +198,9 @@ listDialog?.querySelector('form').addEventListener('submit', async (event) => {
 });
 
 for (const image of document.querySelectorAll('[data-profile-avatar]')) {
-  const fallback = () => { image.hidden = true; };
+  const fallback = () => {
+    image.hidden = true;
+  };
   image.addEventListener('error', fallback);
   if (image.complete && image.naturalWidth === 0) fallback();
 }
@@ -390,7 +392,8 @@ if (accountMenu) {
     accountMenu.querySelector('.nav-heading')?.remove();
   const about = document.createElement('button');
   about.type = 'button';
-  about.innerHTML = '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#info"/></svg>About';
+  about.innerHTML =
+    '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#info"/></svg>About';
   const signOut = accountMenu.querySelector('form[action="/logout"]');
   if (signOut) signOut.before(about);
   else accountMenu.append(about);
@@ -485,3 +488,6 @@ document.addEventListener('click', async (event) => {
     button.disabled = false;
   }
 });
+
+const pwaAccount = document.querySelector('meta[name="account-id"]')?.content;
+if (pwaAccount) setupPwa(pwaAccount);

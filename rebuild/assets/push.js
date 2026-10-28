@@ -120,6 +120,16 @@ export function mountPushSettings(root) {
   optIn.addEventListener('change', changeOptIn);
   (async () => {
     if (
+      /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+      !matchMedia('(display-mode: standalone)').matches &&
+      !navigator.standalone
+    ) {
+      say(
+        'To enable notifications on iPhone or iPad, use Share → Add to Home Screen, then open Todoer from its icon.',
+      );
+      return;
+    }
+    if (
       !isSecureContext ||
       !('serviceWorker' in navigator) ||
       !('PushManager' in window) ||

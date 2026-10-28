@@ -49,3 +49,21 @@ Browser evidence recorded on 2026-10-26 (not rerun by the later documentation au
 390×844, 820×1180 and 1440×1000 sizes. Tests exercise offline reload, an actual Chromium browser restart through an isolated loopback network outage, and one-time capture replay. These are not physical-device tests. WebKit cannot launch on
 this host due to missing ICU66/libxml2/libwebp6/libffi7/enchant libraries; its
 installation, push and offline behavior are not verified.
+
+## Android and iOS installation
+
+All full app pages and sign-in declare the shared manifest and Home Screen
+metadata. Android has 192px/512px icons plus a maskable icon; Apple has an explicit
+180px touch icon. General settings offers installation when the browser exposes
+an install prompt and otherwise shows platform instructions. Authenticated pages
+register the same account-scoped service worker, including direct navigation to
+Today or Settings. Safe-area padding protects the bell and mobile dialogs.
+
+On Android, use Install app / Add to Home Screen. On iOS/iPadOS 16.4 or newer,
+use Share → Add to Home Screen, launch that icon, then enable notifications in
+Settings → Devices. Push permission remains an explicit user gesture. Testing
+on a physical phone requires a reachable HTTPS hostname with a trusted certificate;
+`localhost` on the phone refers to the phone itself. The local self-signed desktop
+setup does not establish phone compatibility. Test installation, login return,
+background push, notification taps and updates on both physical platforms before
+claiming device acceptance. Offline support remains limited to the behavior above.

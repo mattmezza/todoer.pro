@@ -141,6 +141,13 @@ if (bell) {
       const fresh = latest !== null && data.latest_id > latest;
       const changed = lastUnread !== null && data.unread !== lastUnread;
       lastUnread = data.unread;
+      // Progressive enhancement: keep the installed app's icon in sync too.
+      if ('setAppBadge' in navigator) {
+        const update = data.unread
+          ? navigator.setAppBadge(data.unread)
+          : navigator.clearAppBadge();
+        update.catch(() => {});
+      }
       latest = data.latest_id;
       badge.hidden = data.unread === 0;
       badge.textContent = data.unread > 99 ? '99+' : String(data.unread);
