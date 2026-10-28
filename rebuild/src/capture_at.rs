@@ -1,7 +1,112 @@
 //! Atomic creation wrappers over the shared capture, section and list operations.
 use crate::core::{Capture, Error, Store, Task};
 use rusqlite::{OptionalExtension, params};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CaptureMetadata {
+    pub priority: Option<u8>,
+    pub due_date: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
 impl Store {
+    /// Capture and metadata are one durable idempotent operation.
+    pub fn capture_with_metadata(
+        &mut self,
+        actor: &str,
+        key: &str,
+        input: Capture,
+        section: Option<String>,
+        metadata: CaptureMetadata,
+    ) -> Result<Vec<Task>, Error> {
+        if key.trim().is_empty() || key.len() > 200 || input.tasks.len() != 1 {
+            return Err(Error::Invalid(
+                "smart capture requires one task and an idempotency key".into(),
+            ));
+        }
+        let payload = serde_json::to_string(
+            &serde_json::json!({"capture": &input, "section_id": &section, "metadata": &metadata}),
+        )
+        .map_err(|_| Error::Invalid("invalid capture".into()))?;
+        let mut tx = crate::agent_ops::StoreWrite::new(self)?;
+        crate::core::access_rank(&tx.conn, actor, &input.list_id, 2)?;
+        if let Some((old, response)) = tx
+            .conn
+            .query_row(
+                "SELECT payload,response FROM idempotency WHERE actor=?1 AND key=?2",
+                params![actor, key],
+                |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+            )
+            .optional()?
+        {
+            if old != payload {
+                return Err(Error::Conflict("idempotency key payload mismatch".into()));
+            }
+            let tasks: Vec<Task> = serde_json::from_str(&response)
+                .map_err(|_| Error::Invalid("invalid stored response".into()))?;
+            for item in &tasks {
+                let current = crate::core::task(&tx.conn, &item.id)?;
+                crate::core::access_rank(&tx.conn, actor, &current.list_id, 2)?;
+            }
+            tx.commit()?;
+            return Ok(tasks);
+        }
+        if let Some(ref section_id) = section {
+            let valid: bool = tx.conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM sections WHERE id=?1 AND list_id=?2)",
+                params![section_id, input.list_id],
+                |r| r.get(0),
+            )?;
+            if !valid {
+                return Err(Error::Invalid("section is not in destination list".into()));
+            }
+        }
+        let internal = format!("smart-capture:{}", uuid::Uuid::new_v4());
+        let mut item = tx.capture(actor, &internal, input)?.remove(0);
+        if let Some(section_id) = section {
+            if tx.task_section(actor, &item.id)?.as_deref() != Some(&section_id) {
+                item = tx.set_section(actor, &item.id, item.revision, Some(section_id))?;
+            }
+        }
+        if metadata.priority.is_some() || metadata.due_date.is_some() {
+            let mut schedule = tx.get_schedule(actor, &item.id)?.schedule;
+            if let Some(priority) = metadata.priority {
+                schedule.priority = Some(priority);
+            }
+            if let Some(date) = metadata.due_date {
+                schedule.due = Some(crate::scheduling::Moment::Date { date });
+            }
+            tx.set_schedule(actor, &item.id, item.revision, schedule)?;
+            item = crate::core::task(&tx.conn, &item.id)?;
+        }
+        if !metadata.tags.is_empty() {
+            item = tx.set_task_tags(
+                actor,
+                &item.id,
+                item.revision,
+                metadata
+                    .tags
+                    .into_iter()
+                    .map(crate::taxonomy::TagSelector::Name)
+                    .collect(),
+            )?;
+        }
+        tx.conn.execute(
+            "DELETE FROM idempotency WHERE actor=?1 AND key=?2",
+            params![actor, internal],
+        )?;
+        let result = vec![item];
+        tx.conn.execute(
+            "INSERT INTO idempotency(actor,key,payload,response) VALUES(?1,?2,?3,?4)",
+            params![actor, key, payload, serde_json::to_string(&result).unwrap()],
+        )?;
+        tx.commit()?;
+        Ok(result)
+    }
+
     /// List creation and its optional palette choice commit or roll back together.
     pub fn create_list_with_color(
         &mut self,
@@ -119,6 +224,50 @@ impl Store {
 mod tests {
     use super::*;
     use crate::{core::NewTask, workspace::SectionInput};
+    #[test]
+    fn smart_capture_retries_and_rolls_back_metadata_errors() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let metadata = CaptureMetadata {
+            priority: Some(0),
+            due_date: Some("2026-11-01".into()),
+            tags: vec!["home".into()],
+        };
+        let first = db
+            .capture_with_metadata("dev", "smart", capture(), None, metadata.clone())
+            .unwrap();
+        let retry = db
+            .capture_with_metadata("dev", "smart", capture(), None, metadata)
+            .unwrap();
+        assert_eq!(first[0].id, retry[0].id);
+        assert_eq!(
+            db.get_schedule("dev", &first[0].id)
+                .unwrap()
+                .schedule
+                .priority,
+            Some(0)
+        );
+        assert_eq!(db.task_tags("dev", &first[0].id).unwrap()[0].name, "home");
+        let invalid = CaptureMetadata {
+            priority: Some(9),
+            ..Default::default()
+        };
+        assert!(
+            db.capture_with_metadata("dev", "fail", capture(), None, invalid)
+                .is_err()
+        );
+        assert_eq!(db.tasks("dev", "inbox").unwrap().len(), 1);
+        assert!(
+            db.capture_with_metadata(
+                "other",
+                "forbidden",
+                capture(),
+                None,
+                CaptureMetadata::default()
+            )
+            .is_err()
+        );
+    }
     fn capture() -> Capture {
         Capture {
             list_id: "inbox".into(),
