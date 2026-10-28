@@ -113,7 +113,7 @@ export function welcomeChase() {
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
-  if (!ctx) return { finish: () => Promise.resolve() };
+  if (!ctx) return { finish: () => Promise.resolve(), remove() {} };
   canvas.className = 'welcome-chase';
   canvas.setAttribute('aria-hidden', 'true');
   canvas.dataset.phase = 'chase';
@@ -126,7 +126,8 @@ export function welcomeChase() {
     finishPromise,
     finishTimeout,
     particles = [];
-  const enabled = () => desktop.matches && !reduced.matches;
+  let disposed = false;
+  const enabled = () => !disposed && desktop.matches && !reduced.matches;
   function resize() {
     // Use the rendered width so a page scrollbar cannot squash thin strokes.
     motion.width = canvas.getBoundingClientRect().width || innerWidth;
@@ -380,16 +381,21 @@ export function welcomeChase() {
   reduced.addEventListener('change', sync);
   document.addEventListener('visibilitychange', sync);
   window.addEventListener('resize', resize);
-  window.addEventListener(
-    'pagehide',
-    () => {
-      if (frame) cancelAnimationFrame(frame);
-      done();
-    },
-    { once: true },
-  );
+  function remove() {
+    disposed = true;
+    if (frame) cancelAnimationFrame(frame);
+    canvas.remove();
+    desktop.removeEventListener('change', sync);
+    reduced.removeEventListener('change', sync);
+    document.removeEventListener('visibilitychange', sync);
+    window.removeEventListener('resize', resize);
+    window.removeEventListener('pagehide', remove);
+    done();
+  }
+  window.addEventListener('pagehide', remove, { once: true });
   sync();
   return {
+    remove,
     finish() {
       if (!enabled() || document.hidden) return Promise.resolve();
       if (finishPromise) return finishPromise;

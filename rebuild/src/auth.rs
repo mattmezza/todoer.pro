@@ -195,16 +195,6 @@ impl AuthStore {
             params![issuer, subject, identity.id, address],
         )?;
         crate::account_security::bootstrap_admin(&tx, &identity.id, &address)?;
-        if tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE name='user_defaults')",
-            [],
-            |r| r.get::<_, bool>(0),
-        )? {
-            crate::defaults::user(&tx, &identity.id).map_err(|e| match e {
-                crate::core::Error::Database(e) => AuthError::Database(e),
-                other => AuthError::Invalid(other.to_string()),
-            })?;
-        }
         tx.commit()?;
         Ok(identity)
     }

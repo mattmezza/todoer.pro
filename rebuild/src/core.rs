@@ -260,6 +260,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (36, include_str!("../migrations/036_notification_center.sql")),
     (37, include_str!("../migrations/037_onboarding.sql")),
     (38, include_str!("../migrations/038_welcome_choices.sql")),
+    (39, include_str!("../migrations/039_explicit_account_structure.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {
@@ -321,6 +322,9 @@ impl Store {
     pub fn seed_dev(&mut self) -> Result<(), Error> {
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         tx.execute_batch("INSERT OR IGNORE INTO users VALUES('dev','alice'),('other','bob'); INSERT OR IGNORE INTO lists(id,title) VALUES('inbox','Inbox'),('groceries','Groceries'),('private','Private'); INSERT OR IGNORE INTO memberships VALUES('inbox','dev'),('groceries','dev'),('private','other');")?;
+        // Explicit development fixtures, never account-registration bootstrap.
+        crate::planning::ensure_personal_inbox(&tx, "dev")?;
+        crate::planning::ensure_personal_inbox(&tx, "other")?;
         crate::slugs::backfill(&tx)?;
         tx.commit()?;
         Ok(())
@@ -397,6 +401,11 @@ impl Store {
         request: Capture,
     ) -> Result<Vec<Task>, Error> {
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
+        if request.list_id.starts_with("intake:") && !tx.query_row("SELECT EXISTS(SELECT 1 FROM lists WHERE id=?1)", [&request.list_id], |r| r.get::<_, bool>(0))? {
+            let user = actor_user(&tx, actor, 2)?;
+            if request.list_id != format!("intake:{user}") { return Err(Error::Forbidden); }
+            crate::planning::ensure_personal_inbox(&tx, actor)?;
+        }
         access_rank(&tx, actor, &request.list_id, 2)?;
         if key.trim().is_empty() || key.len() > 200 {
             return Err(Error::Invalid(

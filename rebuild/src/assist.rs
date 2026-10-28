@@ -1156,7 +1156,7 @@ mod tests {
                     |r| r.get::<_, i64>(0)
                 )
                 .unwrap(),
-            1
+            0
         );
         db.conn
             .execute_batch("DROP TRIGGER assist_new_list_failure")
