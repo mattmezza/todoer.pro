@@ -49,6 +49,30 @@ test('Inbox capture opens the shared omnibar and refreshes after saving', async 
   await expect(page.getByRole('link', { name: title, exact: true })).toBeVisible();
 });
 
+test('capture and search omnibars share input typography and corner radius', async ({ page }) => {
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  await page.goto('/today');
+  await page.keyboard.press('n');
+  const capture = page.locator('.capture-omnibar');
+  const captureStyles = await capture.locator('[name=title]').evaluate((el) => {
+    const style = getComputedStyle(el);
+    return { fontSize: style.fontSize, fontWeight: style.fontWeight };
+  });
+  const captureRadius = await capture.evaluate((el) => getComputedStyle(el).borderRadius);
+  await capture.getByRole('button', { name: 'Close capture' }).click();
+  await page.evaluate(async () => (await import('/assets/search-omnibar.js')).openSearch());
+  const search = page.locator('.search-omnibar');
+  const searchStyles = await search.locator('#omnibar-query').evaluate((el) => {
+    const style = getComputedStyle(el);
+    return { fontSize: style.fontSize, fontWeight: style.fontWeight };
+  });
+  expect(captureStyles).toEqual(searchStyles);
+  expect(captureStyles.fontSize).toBe('24px');
+  expect(captureRadius).toBe(await search.evaluate((el) => getComputedStyle(el).borderRadius));
+  expect(captureRadius).toBe('8px');
+});
+
 test('breakdown remains available with a disabled provider and manual capture is preserved', async ({
   page,
 }) => {
