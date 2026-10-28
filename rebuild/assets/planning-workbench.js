@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { setSaveState } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
@@ -7,6 +8,16 @@ const zone = main?.dataset.timezone || 'UTC';
 const content = main?.querySelector('[data-workbench-content]');
 const toolbar = main?.querySelector('[data-workbench-toolbar]');
 const status = main?.querySelector('[data-workbench-status]');
+let pointerHeld = false, deferredRefresh = false;
+function resumeRefresh() {
+  if (deferredRefresh && !pointerHeld && !content?.querySelector('input:focus,textarea:focus,select:focus')) {
+    deferredRefresh = false;
+    load();
+  }
+}
+document.addEventListener('pointerdown', event => { pointerHeld = Boolean(content?.contains(event.target)); }, true);
+for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, () => { pointerHeld = false; setTimeout(resumeRefresh, 0); }, true);
+content?.addEventListener('focusout', () => setTimeout(resumeRefresh, 0));
 let inboxId,
   entries = [],
   generation = 0;
@@ -729,28 +740,43 @@ async function load() {
   const version = ++generation;
   const selection =
     main.dataset.workbench === 'inbox' ? 'inbox' : `${view}:${anchor}:${query}`;
-  if (content.dataset.selection !== selection) content.replaceChildren();
+  const sameSelection = content.dataset.selection === selection;
+  const skeleton = beginLoading(content, {
+    variant: main.dataset.workbench === 'inbox' ? 'rows' : 'calendar',
+    preserve: sameSelection && content.dataset.loaded === 'true',
+  });
+  if (!sameSelection) content.dataset.loaded = 'false';
   content.dataset.selection = selection;
-  content.inert = true;
+  if (!sameSelection || content.dataset.loaded !== 'true') content.inert = true;
   content.setAttribute('aria-busy', 'true');
-  status.textContent = 'Loading…';
+  status.textContent = '';
   try {
     const intake = main.dataset.workbench === 'inbox';
     if (!intake) range();
     const data = await api(intake ? 'inbox' : `plan?from=${from}&to=${to}`);
     if (version !== generation) return;
+    if (sameSelection && content.dataset.loaded === 'true') {
+      if (JSON.stringify(entries) === JSON.stringify(data.entries)) return;
+      if (pointerHeld || content.querySelector('input:focus,textarea:focus,select:focus')) {
+        deferredRefresh = true;
+        return;
+      }
+    }
     entries = data.entries;
     inboxId = data.list_id;
     status.textContent = '';
     if (intake) renderInbox();
     else renderPlan();
+    content.dataset.loaded = 'true';
   } catch (e) {
     if (version === generation) {
+      skeleton.fail('Could not load tasks.', load);
       fail(e);
       status.textContent = 'Could not refresh. ';
       status.append(button('Try again', load));
     }
   } finally {
+    skeleton.finish();
     if (version === generation) {
       content.inert = false;
       content.removeAttribute('aria-busy');

@@ -1,6 +1,8 @@
+import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 // Global quick search uses the same live, authorized ranked search contract.
 let dialog, input, results, status, overview, controller, timer;
+let searchLoading;
 let generation = 0,
   active = -1;
 function showStatus(message, icon = 'info') {
@@ -38,6 +40,9 @@ async function search() {
   const text = input.value.trim();
   const current = ++generation;
   controller?.abort();
+  searchLoading?.finish();
+  results.querySelector(':scope > .loading-error')?.remove();
+  delete results.dataset.loadFailed;
   results.replaceChildren();
   select(-1);
   overview.href = `/search?query=${encodeURIComponent(text)}&status=all`;
@@ -45,7 +50,8 @@ async function search() {
     showStatus('Search tasks, spaces, lists, comments, tags and files.');
     return;
   }
-  showStatus('Searching…', 'search');
+  status.replaceChildren();
+  const skeleton = searchLoading = beginLoading(results);
   controller = new AbortController();
   try {
     const response = await fetch(
@@ -127,7 +133,12 @@ async function search() {
     );
     select(0);
   } catch (error) {
-    if (error.name !== 'AbortError' && current === generation) showStatus(error.message);
+    if (error.name !== 'AbortError' && current === generation) {
+      showStatus(error.message);
+      skeleton.fail(error.message, search);
+    }
+  } finally {
+    skeleton.finish();
   }
 }
 export function openSearch() {

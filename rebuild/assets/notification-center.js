@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request } from './request.js';
 const bell = document.querySelector('[data-notification-bell]');
 const center = document.querySelector('[data-notification-center]');
@@ -193,9 +194,12 @@ if (bell) {
       root.append(item);
     }
   }
+  let recentLoaded = false, centerLoaded = false;
   async function refresh() {
     if (polling || document.hidden || !navigator.onLine) return;
     polling = true;
+    const recentRoot = bell.querySelector('[data-notification-recent]');
+    const skeleton = beginLoading(recentRoot, { preserve: recentLoaded });
     try {
       const data = await api('/api/v1/notifications?limit=5');
       through = data.latest_id;
@@ -225,16 +229,19 @@ if (bell) {
           `New notification. ${data.unread} unread.`;
       }
       if (center && (fresh || changed)) await loadCenter();
-      render(bell.querySelector('[data-notification-recent]'), data.items);
+      render(recentRoot, data.items);
+      recentLoaded = true;
       bell.querySelector('[data-notification-read-all]').disabled = !data.unread;
       if (center)
         center.querySelector('[data-notification-read-all]').disabled = !data.unread;
       error(bell, '');
       failed = false;
     } catch (e) {
+      skeleton.fail('Notifications are unavailable.', refresh);
       failed = true;
       error(bell, 'Notifications are unavailable. Reopen to retry.');
     } finally {
+      skeleton.finish();
       polling = false;
       clearTimeout(timer);
       timer = setTimeout(refresh, failed ? 30000 : 15000);
@@ -247,6 +254,7 @@ if (bell) {
       return;
     }
     loading = true;
+    const skeleton = beginLoading(center.querySelector('[data-notification-items]'), { preserve: centerLoaded });
     const more = center.querySelector('[data-notification-more]');
     more.disabled = true;
     try {
@@ -254,12 +262,15 @@ if (bell) {
         `/api/v1/notifications?limit=25&unread=${unreadOnly}${append && cursor ? `&before=${cursor}` : ''}`,
       );
       render(center.querySelector('[data-notification-items]'), data.items, append);
+      centerLoaded = true;
       cursor = data.next_cursor;
       more.hidden = !cursor;
       error(center, '');
     } catch (e) {
+      skeleton.fail(e.message, () => loadCenter());
       error(center, e.message);
     } finally {
+      skeleton.finish();
       loading = false;
       more.disabled = false;
       if (pendingReload) {

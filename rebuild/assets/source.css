@@ -7791,3 +7791,42 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .delivery-details dd { margin:0; overflow-wrap:anywhere; }
 .delivery-pagination { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:24px 0; }
 @media(max-width:640px) { .delivery-details dl > div { grid-template-columns:1fr; gap:2px; } .delivery-toolbar .delivery-refresh { font-size:13px; } }
+
+/* Shared initial-load placeholders. Keep real geometry, never flash default values. */
+[data-loading-pending], [data-load-failed] { position: relative; min-height: 168px; }
+[data-loading-pending="compact"], [data-load-failed="compact"] { min-height: 88px; }
+[data-loading-pending="form"], [data-load-failed="form"] { min-height: 220px; }
+[data-loading-pending="cards"], [data-load-failed="cards"] { min-height: 304px; }
+[data-loading-pending="calendar"], [data-load-failed="calendar"] { min-height: 560px; }
+[data-loading-pending] > *, [data-load-failed] > :not(.loading-error) { visibility: hidden !important; }
+[data-loading-pending]::before, [data-loading-pending]::after {
+  content: ''; position: absolute; inset: 8px 0; pointer-events: none; border-radius: 8px;
+  --skeleton-shape: repeating-linear-gradient(to bottom, #000 0 14px, transparent 14px 26px, #000 26px 36px, transparent 36px 72px);
+  mask-image: var(--skeleton-shape); mask-size: 76% 100%; mask-repeat: no-repeat;
+}
+[data-loading-pending]::before { background: color-mix(in srgb, var(--muted) 15%, transparent); }
+[data-loading-pending]::after {
+  background: linear-gradient(100deg, transparent 25%, color-mix(in srgb, var(--muted) 16%, transparent) 48%, transparent 70%);
+  background-size: 220% 100%; animation: loading-shimmer 1.8s ease-in-out infinite;
+}
+[data-loading-pending="form"]::before, [data-loading-pending="form"]::after {
+  --skeleton-shape: repeating-linear-gradient(to bottom, #000 0 12px, transparent 12px 24px, #000 24px 68px, transparent 68px 92px);
+  mask-size: 100% 100%;
+}
+[data-loading-pending="cards"]::before, [data-loading-pending="cards"]::after {
+  --skeleton-shape: repeating-linear-gradient(to bottom, #000 0 128px, transparent 128px 148px);
+  mask-size: 100% 100%;
+}
+[data-loading-pending="calendar"]::before, [data-loading-pending="calendar"]::after {
+  --skeleton-shape: repeating-linear-gradient(to right, #000 0 calc(14.285% - 6px), transparent calc(14.285% - 6px) 14.285%);
+  mask-size: 100% 100%;
+}
+.loading-error { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 12px; }
+.loading-error p { margin: 0; color: var(--muted); }
+.loading-error button { min-height: 44px; }
+@keyframes loading-shimmer { from { background-position: 160% 0; } to { background-position: -60% 0; } }
+@media (prefers-reduced-motion: reduce) { [data-loading-pending]::after { animation: none; } }
+
+[data-loading-pending] { color: transparent !important; }
+[data-load-failed] { color: transparent !important; }
+.loading-error { color: var(--text); }
