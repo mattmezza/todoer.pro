@@ -9,13 +9,12 @@ import { mountScheduling } from './scheduling.js';
 import { mountTaskMetadata } from './task-metadata.js';
 import { mountTaskOrdering } from './task-order.js';
 import { replayCaptures, listPending, clearAccount, discardCapture } from './offline.js';
-import { setupPwa, clearPwa } from './pwa.js';
+import { clearPwa } from './pwa.js';
 const $ = (s) => document.querySelector(s);
 const csrf = $('meta[name="csrf-token"]').content;
 const list = document.body.dataset.list;
 const account = $('meta[name="account-id"]').content;
 const canWrite = document.body.dataset.canWrite === 'true';
-setupPwa(account);
 function restoreMainCapture() {
   const slot = document.querySelector('[data-main-capture-slot]');
   if (slot && !document.querySelector('#capture-form'))
@@ -303,7 +302,10 @@ $('#task-list').addEventListener('click', async (e) => {
       row.classList.toggle('is-complete', !complete);
       button.setAttribute('aria-pressed', String(!complete));
       button.innerHTML = previous;
-      notice(`${err.message} The previous display has been restored; refresh to confirm the saved state.`, true);
+      notice(
+        `${err.message} The previous display has been restored; refresh to confirm the saved state.`,
+        true,
+      );
       if (err.status === 409) refresh();
     } finally {
       button.disabled = false;
@@ -745,7 +747,9 @@ $('#move-task').onclick = async () => {
     let acknowledge_access_change = false;
     if (preview.audience_broadens) {
       acknowledge_access_change = await confirmAction(
-        preview.destination_public && !preview.source_public ? 'This move makes this task and all its sub-tasks publicly viewable. Continue?' : `This move gives ${preview.added_members} additional member(s) access to this task and all its sub-tasks. Allow this access change?`,
+        preview.destination_public && !preview.source_public
+          ? 'This move makes this task and all its sub-tasks publicly viewable. Continue?'
+          : `This move gives ${preview.added_members} additional member(s) access to this task and all its sub-tasks. Allow this access change?`,
       );
       if (!acknowledge_access_change) return;
     }

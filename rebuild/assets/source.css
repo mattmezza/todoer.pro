@@ -7580,3 +7580,28 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .planning-welcome {
   padding-right: 56px;
 }
+
+/* Keep standalone controls clear of phone notches in either orientation. */
+.notification-bell {
+  top: calc(20px + env(safe-area-inset-top));
+  right: calc(24px + env(safe-area-inset-right));
+}
+@media (max-width: 640px) {
+  .notification-bell {
+    top: calc(10px + env(safe-area-inset-top));
+    right: calc(14px + env(safe-area-inset-right));
+  }
+  dialog {
+    padding-top: calc(22px + env(safe-area-inset-top));
+    padding-left: calc(22px + env(safe-area-inset-left));
+    padding-right: calc(22px + env(safe-area-inset-right));
+  }
+}
+
+.pwa-update {
+  position: fixed;
+  bottom: calc(90px + env(safe-area-inset-bottom));
+  right: calc(20px + env(safe-area-inset-right));
+  z-index: 75;
+  background: var(--sidebar);
+}

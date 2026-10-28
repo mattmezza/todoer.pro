@@ -43,6 +43,10 @@ const STATIC = [
   '/assets/offline.js',
   '/assets/pwa.js',
   '/assets/manifest.webmanifest',
+  '/assets/icon192.png',
+  '/assets/apple-touch-icon.png',
+  '/legacy-assets/icon512_rounded.png',
+  '/legacy-assets/icon512_maskable.png',
   '/assets/htmx.min.js',
   '/legacy-assets/favicon.png',
 ];
@@ -229,9 +233,11 @@ self.addEventListener('push', (event) => {
       await self.registration.showNotification(
         inbox ? 'Todoer notification' : summary ? 'Todoer summary' : 'Todoer reminder',
         {
-          body: inbox ? 'Open Todoer for your notifications.' : summary
-            ? 'Open Todoer for your review.'
-            : 'Open Todoer to review your reminder.',
+          body: inbox
+            ? 'Open Todoer for your notifications.'
+            : summary
+              ? 'Open Todoer for your review.'
+              : 'Open Todoer to review your reminder.',
           icon: '/legacy-assets/favicon.png',
           badge: '/legacy-assets/favicon.png',
           tag:
