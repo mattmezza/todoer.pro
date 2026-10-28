@@ -4537,7 +4537,7 @@ form[data-list-edit] input.list-edit-color {
 }
 
 /* Shared dialog reading size; actions retain the compact app button scale. */
-dialog:not(.list-settings-panel):not(.search-omnibar) :is(p, label, input, select, textarea, li) {
+dialog:not(.list-settings-panel):not(.search-omnibar) :is(p, label, input:not(#capture-new-title), select, textarea, li) {
   font-size: 16px !important;
   line-height: 1.5;
 }
@@ -7142,7 +7142,7 @@ h1,h2,h3 { font-family:var(--font-sans)!important; }
 .workbench-description { width:100%; min-height:76px; resize:none; overflow:hidden; }
 
 /* Capture and search share one quiet dialog surface. */
-:is(.capture-omnibar, .search-omnibar) { width:min(800px,calc(100vw - 32px)); max-height:80dvh; background:var(--sidebar); color:var(--text); border:0; outline:none; border-radius:14px; box-shadow:0 28px 100px rgb(0 0 0 / .45); }
+:is(.capture-omnibar, .search-omnibar) { width:min(800px,calc(100vw - 32px)); max-height:80dvh; background:var(--sidebar); color:var(--text); border:0; outline:none; border-radius:8px; box-shadow:0 28px 100px rgb(0 0 0 / .45); }
 :is(.capture-omnibar, .search-omnibar)::backdrop { background:#0008; backdrop-filter:blur(3px); }
 .capture-omnibar { padding:28px; }
 .capture-omnibar h2 { margin:8px 42px 24px 0; font-size:22px; font-weight:650; }
