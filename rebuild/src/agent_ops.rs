@@ -595,6 +595,11 @@ fn preference_key(key: &str) -> Result<(), Error> {
     Ok(())
 }
 fn destination(c: &Connection, actor: &str, id: &str) -> Result<Destination, Error> {
+    if id.starts_with("intake:") && !c.query_row("SELECT EXISTS(SELECT 1 FROM lists WHERE id=?1)",[id],|r|r.get::<_,bool>(0))? {
+        let user=crate::core::actor_user(c,actor,1)?;
+        if id==format!("intake:{user}") { return Ok(Destination { id:id.into(),title:"Inbox".into() }); }
+        return Err(Error::Forbidden);
+    }
     let reference_id: Option<String> = c
         .query_row(
             "SELECT list_id FROM list_references WHERE reference=?1",

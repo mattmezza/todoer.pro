@@ -68,6 +68,11 @@ test('two-question welcome defers creation, resumes, and safely retries completi
   await lists.getByRole('button', { name: 'Start organizing' }).click();
   await expect(page).toHaveURL(/\/lists\//);
   const after = await inventory(page);
+  const workspaces = await (await page.request.get('/api/v1/workspaces')).json();
+  for (const title of ['personal', 'work']) {
+    const space = workspaces.find((item) => item.title.toLowerCase() === title);
+    expect(space?.description.length).toBeGreaterThan(0);
+  }
   expect((await (await page.request.get('/api/v1/onboarding')).json()).status).toBe(
     'complete',
   );

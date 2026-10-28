@@ -1,6 +1,6 @@
 //! A two-question welcome: save a draft, then atomically bootstrap its destinations.
 use crate::core::{Error, Store, actor_user};
-use crate::workspace::{CreateList, ListChange, SectionInput, WorkspaceInput};
+use crate::workspace::{CreateList, ListChange, SectionInput, WorkspaceChange, WorkspaceInput};
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -191,6 +191,20 @@ impl Store {
                             .id
                     }
                 };
+                // Existing accounts may already own a space with this name.
+                // Give blank selected destinations a purpose without replacing user text.
+                let info = write.workspace(actor, &workspace)?;
+                if info.description.trim().is_empty() {
+                    write.update_workspace(
+                        actor,
+                        &workspace,
+                        WorkspaceChange {
+                            revision: info.revision,
+                            title: None,
+                            description: Some(space_description(space).into()),
+                        },
+                    )?;
+                }
                 if destination == "/inbox" {
                     destination = format!(
                         "/space/{}",
@@ -256,6 +270,20 @@ impl Store {
                             list.id
                         }
                     };
+                    let info = write.list_info(actor, &id)?;
+                    if info.list.description.trim().is_empty() {
+                        write.update_list(
+                            actor,
+                            &id,
+                            ListChange {
+                                revision: info.list.revision,
+                                title: None,
+                                description: Some(list_description(title, space)),
+                                archived: None,
+                                color: None,
+                            },
+                        )?;
+                    }
                     if first_list.is_none() {
                         first_list = Some(id);
                     }
@@ -368,6 +396,22 @@ mod tests {
             db.list_info("dev", &list).unwrap().list.description,
             "My list notes"
         );
+    }
+    #[test]
+    fn empty_account_views_skip_and_first_capture_do_not_bootstrap_spaces() {
+        let mut db=Store::memory().unwrap();
+        db.conn.execute("INSERT INTO users(id,name) VALUES('new','New account')",[]).unwrap();
+        let initial=db.welcome("new").unwrap();
+        assert_eq!(counts(&db),(0,0,0));
+        let inbox=db.personal_inbox("new").unwrap();
+        assert!(db.intake_tasks("new").unwrap().is_empty());
+        db.welcome_finish("new",Finish { revision:initial.revision,lists:vec![] },true).unwrap();
+        assert_eq!(counts(&db),(0,0,0));
+        assert!(db.capture("new","invalid",crate::core::Capture{list_id:inbox.clone(),tasks:vec![]}).is_err());
+        assert_eq!(counts(&db),(0,0,0));
+        let task=crate::core::NewTask{title:"First task".into(),description:String::new(),parent_id:None};
+        db.capture("new","first",crate::core::Capture{list_id:inbox,tasks:vec![task]}).unwrap();
+        assert_eq!(counts(&db),(0,1,1));
     }
     #[test]
     fn weekly_lists_have_personal_weekends_and_work_weekdays_without_duplicates() {
@@ -490,5 +534,7 @@ mod tests {
         assert!(destination.starts_with("/space/"));
         let count:i64=db.conn.query_row("SELECT count(*) FROM lists l JOIN workspaces w ON l.workspace_id=w.id WHERE w.title='work' AND l.title!='Inbox' AND l.title!='inbox'",[],|r|r.get(0)).unwrap();
         assert_eq!(count, 0);
+        let lists:i64=db.conn.query_row("SELECT count(*) FROM lists l JOIN workspaces w ON w.id=l.workspace_id WHERE w.title='work'",[],|r|r.get(0)).unwrap();
+        assert_eq!(lists,0);
     }
 }
