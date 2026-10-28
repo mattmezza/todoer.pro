@@ -7662,13 +7662,17 @@ main.auth-shell { max-width:440px; margin-inline:auto; }
 .capture-result .capture-literal:hover { color: var(--text); background: var(--hover); }
 .quick-capture-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
 .quick-capture-footer .capture-help { color: var(--muted); font-size: 0.875rem; }
-.quick-capture-form > details { margin: 0; }
-.quick-capture-form > details > summary { display: table; margin: 0; padding: 0; color: var(--muted); cursor: pointer; list-style: none; }
-.quick-capture-form > details > summary::-webkit-details-marker { display: none; }
-.quick-capture-form > details > summary:hover { color: var(--text); }
-.quick-capture-form > details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
-.quick-capture-form > details[open] > summary { display: none; }
-.quick-capture-form > details textarea { width: 100%; }
+.quick-capture-form textarea.quick-capture-description {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  line-height: 1.5;
+}
+.quick-capture-description::placeholder { color: var(--muted); opacity: 1; }
 .quick-capture-actions { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin-left: auto; }
 .quick-capture-repeat { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--muted); font-size: 0.875rem; cursor: pointer; white-space: nowrap; }
 .quick-capture-repeat input { accent-color: var(--accent); }

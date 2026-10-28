@@ -13,6 +13,7 @@ export async function openCapture(listId) {
       destination.dispatchEvent(new Event('change'));
     }
     dialog.showModal();
+    dialog.querySelector('[name=description]')?.dispatchEvent(new Event('input'));
     dialog.querySelector('[name=title]')?.focus();
     return;
   }
@@ -67,21 +68,18 @@ export async function openCapture(listId) {
     const details = form.querySelector('details');
     const description = form.querySelector('[name=description]');
     description.rows = 1;
-    description.placeholder = 'Description';
+    description.placeholder = 'Add description';
+    description.classList.add('quick-capture-description');
+    const descriptionLabel = details.querySelector('label');
+    details.replaceWith(descriptionLabel, description);
     const resize = () => {
       description.style.height = '0px';
       description.style.height = `${description.scrollHeight + description.offsetHeight - description.clientHeight}px`;
     };
     description.addEventListener('input', resize);
-    details?.addEventListener('toggle', () => {
-      if (details.open) {
-        resize();
-        description.focus();
-      }
-    });
     form.querySelector('p')?.remove();
     const smart = mountSmartCapture(form);
-    form.querySelector('.smart-capture-input').after(details);
+    form.querySelector('.smart-capture-input').after(descriptionLabel, description);
     const footer = document.createElement('div');
     footer.className = 'quick-capture-footer';
     const submit = form.querySelector('[type=submit]');
@@ -164,7 +162,7 @@ export async function openCapture(listId) {
         form.elements.title.value = '';
         form.elements.description.value = '';
         description.style.height = '';
-        if (details) details.open = false;
+        resize();
         smart.reset();
         if (!interpreted.repeat) dialog.close();
         else form.elements.title.focus();
@@ -204,6 +202,7 @@ export async function openCapture(listId) {
       }
     });
     dialog.showModal();
+    resize();
     form.elements.title.focus();
   } catch (error) {
     toast(error.message);
