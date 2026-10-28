@@ -1,0 +1,2 @@
+const {chromium}=require('@playwright/test');
+(async()=>{const b=await chromium.launch();const page=await b.newPage();for(const width of [390,1440]){await page.setViewportSize({width,height:900});await page.goto('http://localhost:8098/');if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('Horizontal overflow');await page.screenshot({path:`/tmp/todoer-www-${width}.png`,fullPage:true});}await b.close();})();
