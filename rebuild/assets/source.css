@@ -6856,7 +6856,7 @@ form[data-list-edit], .space-inline-editor {
   display: block;
   background: transparent;
 }
-form[data-list-edit][hidden], .task-page [data-brief-form][hidden] { display: none; }
+form[data-list-edit][hidden], form[data-space-edit-form][hidden], .task-page [data-brief-form][hidden] { display: none; }
 form[data-list-edit] > label, .task-page [data-brief-form] > label { display: none; }
 form[data-list-edit] .list-edit-heading { display: block; position: relative; }
 form[data-list-edit] .list-edit-color { position: absolute; left: 0; top: 10px; }

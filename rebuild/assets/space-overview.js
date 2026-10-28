@@ -14,88 +14,82 @@ document.addEventListener('click', async (event) => {
 });
 
 const root = document.querySelector('[data-space-id]');
-function editSpace(display) {
-  if (root.querySelector('[data-space-edit-form]')) return;
-  const anchor = editorAnchor(display);
-  const field = display.dataset.spaceEdit;
-  const form = document.createElement('form');
-  form.dataset.spaceEditForm = '';
-  form.className = 'space-inline-editor';
-  const input = document.createElement('textarea');
-  input.value =
-    field === 'description' && display.textContent === 'Add a description'
-      ? ''
-      : display.textContent;
-  input.name = field;
-  input.required = field === 'title';
-  input.maxLength = field === 'title' ? 500 : 100000;
-  input.rows = 1;
-  const cancel = document.createElement('button');
-  cancel.type = 'button';
-  cancel.textContent = 'Cancel';
-  const save = document.createElement('button');
-  save.type = 'submit';
-  save.textContent = 'Save';
-  save.className = 'primary';
-  const status = document.createElement('p');
-  status.role = 'status';
-  const actions = document.createElement('div');
-  actions.append(cancel, save);
-  form.append(input, actions, status);
-  display.hidden = true;
-  display.after(form);
-  const close = () => {
-    form.remove();
-    display.hidden = false;
-  };
-  cancel.onclick = close;
-  form.onkeydown = (e) => {
-    if (e.key === 'Escape') close();
-  };
-  form.onsubmit = async (e) => {
-    e.preventDefault();
-    save.disabled = true;
-    try {
-      const response = await fetch(
-        '/api/v1/workspaces/' + encodeURIComponent(root.dataset.spaceId),
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content,
-          },
-          body: JSON.stringify({
-            revision: Number(root.dataset.spaceRevision),
-            [field]: input.value,
-          }),
-        },
-      );
-      if (!response.ok) throw Error('Could not save. Refresh the page and try again.');
-      const value = await response.json();
-      root.dataset.spaceRevision = value.revision;
-      display.textContent = value[field] || 'Add a description';
-      close();
-    } catch (error) {
-      status.textContent = error.message;
-      save.disabled = false;
-    }
-  };
-  alignEditorField(input, anchor);
+const form = root?.querySelector('[data-space-edit-form]');
+const heading = root?.querySelector('[data-space-display]');
+const description = root?.querySelector('.space-overview-description');
+function editSpace(target) {
+  if (!form || !form.hidden) return;
+  const titleAnchor = editorAnchor(heading.querySelector('h1'));
+  const descriptionAnchor = editorAnchor(description);
+  heading.querySelector('.entity-menu').open = false;
+  form.hidden = false;
+  heading.hidden = true;
+  description.hidden = true;
+  const title = form.querySelector('[name="title"]');
+  const brief = form.querySelector('[name="description"]');
+  alignEditorField(title, titleAnchor);
+  alignEditorField(brief, descriptionAnchor);
+  const input = target.closest('.space-overview-description') ? brief : title;
   input.focus();
-  input.select();
+  if (input === title) title.select();
 }
-root?.addEventListener('click', (e) => {
-  const display = e.target.closest('[data-space-edit]');
-  if (display) editSpace(display);
+root?.addEventListener('click', (event) => {
+  if (event.target.closest('[data-space-edit],[data-space-edit-open]'))
+    editSpace(event.target);
+  if (event.target.closest('[data-space-edit-cancel]')) {
+    form.hidden = true;
+    heading.hidden = false;
+    description.hidden = false;
+  }
 });
-root?.addEventListener('keydown', (e) => {
-  if (['Enter', ' '].includes(e.key) && e.target.matches('[data-space-edit]')) {
-    e.preventDefault();
-    editSpace(e.target);
+root?.addEventListener('keydown', (event) => {
+  if (['Enter', ' '].includes(event.key) && event.target.matches('[data-space-edit]')) {
+    event.preventDefault();
+    editSpace(event.target);
+  }
+});
+form?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const save = form.querySelector('[type="submit"]');
+  if (save.disabled) return;
+  save.disabled = true;
+  try {
+    const data = new FormData(form);
+    const response = await fetch(
+      `/api/v1/workspaces/${encodeURIComponent(root.dataset.spaceId)}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content,
+        },
+        body: JSON.stringify({
+          revision: Number(root.dataset.spaceRevision),
+          title: data.get('title'),
+          description: data.get('description'),
+        }),
+      },
+    );
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      throw Error(
+        data?.error?.message || 'Could not save. Refresh the page and try again',
+      );
+    }
+    location.reload();
+  } catch (error) {
+    form.querySelector('[role="alert"]').textContent =
+      `${error.message}. Your draft is unchanged.`;
+  } finally {
+    save.disabled = false;
   }
 });
 
 for (const card of document.querySelectorAll('.space-list-card')) {
   const dot = card.querySelector('.list-dot');
-  if (dot) card.style.setProperty('--list-color', dot.dataset.entityColor || getComputedStyle(dot).backgroundColor);
+  if (dot)
+    card.style.setProperty(
+      '--list-color',
+      dot.dataset.entityColor || getComputedStyle(dot).backgroundColor,
+    );
 }
