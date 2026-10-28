@@ -38,10 +38,42 @@ export function mountSmartCapture(form) {
   info.className = 'capture-result';
   info.setAttribute('aria-live', 'polite');
   const controls = document.createElement('div');
-  const help = document.createElement('p');
+  const help = document.createElement('div');
   help.className = 'capture-help';
-  help.textContent = '@space · #list · +tag · p0–p3 · ! / !! / !!! · today';
-  help.title = 'You can also use !0–!3 and date phrases. Quote names containing spaces.';
+  const helpButton = document.createElement('button');
+  helpButton.type = 'button';
+  helpButton.textContent = 'Shortcuts';
+  const helpText = document.createElement('span');
+  helpText.textContent = '@space · #list · +tag · p0–p3 · ! / !! / !!! · today';
+  helpText.title =
+    'You can also use !0–!3 and date phrases. Quote names containing spaces.';
+  helpText.hidden = true;
+  let hovering = false,
+    expired = false,
+    helpTimer;
+  const hideHelp = () => {
+    helpText.hidden = true;
+    helpButton.hidden = false;
+    expired = false;
+  };
+  help.addEventListener('pointerenter', () => {
+    hovering = true;
+  });
+  help.addEventListener('pointerleave', () => {
+    hovering = false;
+    if (expired) hideHelp();
+  });
+  helpButton.addEventListener('click', () => {
+    helpButton.hidden = true;
+    helpText.hidden = false;
+    expired = false;
+    clearTimeout(helpTimer);
+    helpTimer = setTimeout(() => {
+      expired = true;
+      if (!hovering) hideHelp();
+    }, 30000);
+  });
+  help.append(helpButton, helpText);
   block.append(info, controls, help);
   wrapper.insertAdjacentElement('afterend', block);
   let data = null,

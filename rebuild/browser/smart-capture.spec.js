@@ -275,9 +275,7 @@ test('quick capture reveals an auto-growing description and can keep adding', as
   await page.goto('/today');
   await page.keyboard.press('n');
   const dialog = page.getByRole('dialog', { name: 'What’s on your mind?' });
-  await expect(dialog.locator('.quick-capture-footer .capture-help')).toContainText(
-    '@space',
-  );
+  await expect(dialog.getByRole('button', { name: 'Shortcuts' })).toBeVisible();
   const addDescription = dialog.getByText('Add a description', { exact: true });
   await expect(addDescription).toBeVisible();
   await addDescription.click();
@@ -303,4 +301,30 @@ test('quick capture reveals an auto-growing description and can keep adding', as
   await expect(title).toHaveValue('');
   await expect(title).toBeFocused();
   await expect(addDescription).toBeVisible();
+});
+
+test('shortcut help expires after 30 seconds but stays visible while hovered', async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  await page.goto('/today');
+  await page.keyboard.press('n');
+  const dialog = page.getByRole('dialog', { name: 'What’s on your mind?' });
+  const button = dialog.getByRole('button', { name: 'Shortcuts' });
+  await button.click();
+  const hints = dialog.getByText('@space · #list · +tag · p0–p3 · ! / !! / !!! · today');
+  await expect(hints).toBeVisible();
+  await expect(button).toBeHidden();
+  await page.mouse.move(0, 0);
+  await page.clock.fastForward(30001);
+  await expect(button).toBeVisible();
+  await expect(hints).toBeHidden();
+  await button.click();
+  await hints.hover();
+  await page.clock.fastForward(30001);
+  await expect(hints).toBeVisible();
+  await page.mouse.move(0, 0);
+  await expect(button).toBeVisible();
 });
