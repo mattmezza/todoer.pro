@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request } from './request.js';
 export function mountBreakdown(root) {
   if (!root || root.dataset.canWrite !== 'true') return;
@@ -157,7 +158,8 @@ export function mountBreakdown(root) {
   button.onclick = async () => {
     menu.open = false;
     box.replaceChildren();
-    status.textContent = 'Generating suggestions…';
+    status.textContent = '';
+    const skeleton = beginLoading(box, { variant: 'form' });
     dialog.showModal();
     const requestGeneration = ++generation;
     try {
@@ -183,6 +185,6 @@ export function mountBreakdown(root) {
     } catch (error) {
       if (dialog.open && requestGeneration === generation)
         status.textContent = error.message;
-    }
+    } finally { skeleton.finish(); }
   };
 }

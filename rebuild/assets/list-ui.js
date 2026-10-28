@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { editorAnchor, alignEditorField } from './seamless-editor.js';
 import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
@@ -320,6 +321,7 @@ export function mountListUi({ api, notice, listId }) {
     form.append(status, ackLabel, error, actions);
     dialog.append(form);
     dialog.showModal();
+    const skeleton = beginLoading(form, { variant: 'form' });
     let reviewed = null,
       preview = null,
       key = crypto.randomUUID();
@@ -332,12 +334,14 @@ export function mountListUi({ api, notice, listId }) {
       if (!select.options.length) {
         submit.disabled = true;
         status.textContent = 'No accessible destination is available.';
+        skeleton.finish();
         return;
       }
       if (kind === 'task') select.value = listId;
     } catch (failure) {
       error.textContent = failure.message;
       submit.disabled = true;
+      skeleton.fail(failure.message, () => { dialog.close(); trigger.click(); });
       return;
     }
     async function changed() {
@@ -348,13 +352,17 @@ export function mountListUi({ api, notice, listId }) {
       submit.textContent = 'Review move';
       status.textContent = '';
       if (kind === 'task') {
+        const sectionLoading = beginLoading(form, { variant: 'form' });
         sections.replaceChildren(new Option('No section', ''));
         try {
           for (const section of await api(`/lists/${select.value}/sections`))
             sections.append(new Option(section.title, section.id));
+          submit.disabled = false;
         } catch (failure) {
+          submit.disabled = true;
+          sectionLoading.fail(failure.message, changed);
           error.textContent = failure.message;
-        }
+        } finally { sectionLoading.finish(); }
       }
     }
     select.onchange = changed;
@@ -364,6 +372,7 @@ export function mountListUi({ api, notice, listId }) {
       submit.textContent = 'Review move';
     };
     await changed();
+    skeleton.finish();
     select.focus();
     form.onsubmit = async (event) => {
       event.preventDefault();

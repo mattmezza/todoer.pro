@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { editorAnchor, alignEditorField } from './seamless-editor.js';
 import { preferredTimeFormatter } from './preferred-time.js';
@@ -238,8 +239,16 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     get('[data-edit-title]').hidden = false;
     notice('');
   }
+  let pointerHeld = false;
+  const interacting = () => pointerHeld || Boolean(root.querySelector('.task-child-menu[open]'));
+  root.addEventListener('pointerdown', () => { pointerHeld = true; }, { capture: true, signal: lifecycle.signal });
+  for (const type of ['pointerup', 'pointercancel']) window.addEventListener(type, () => {
+    pointerHeld = false;
+    setTimeout(releaseSoon, 0);
+  }, { capture: true, signal: lifecycle.signal });
+  root.addEventListener('toggle', releaseSoon, { capture: true, signal: lifecycle.signal });
   function releaseSoon() {
-    if (pending && !busy && alive) {
+    if (pending && !busy && !interacting() && alive) {
       clearTimeout(refreshTimer);
       refreshTimer = setTimeout(refresh, 0);
     }
@@ -531,7 +540,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
       'POST',
       projection(cursor),
     );
-    if (!alive || busy) {
+    if (!alive || busy || interacting()) {
       pending = true;
       return;
     }
@@ -546,7 +555,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
   }
   async function refresh() {
     if (!alive) return;
-    if (busy || loading) {
+    if (busy || loading || interacting()) {
       pending = true;
       return;
     }
@@ -557,7 +566,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     try {
       const current = await fetchTask();
       if (!alive) return;
-      if (busy) {
+      if (busy || interacting()) {
         pending = true;
         return;
       }
@@ -584,7 +593,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         { html: true },
       );
       if (!alive) return;
-      if (busy) {
+      if (busy || interacting()) {
         pending = true;
         return;
       }
@@ -912,6 +921,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     ack.checked = false;
     get('[data-move-ack-label]').hidden = true;
     if (!moveList.value) return;
+    const skeleton = beginLoading(moveForm, { variant: 'form' });
     try {
       const [sections, audience] = await Promise.all([
         api(`/lists/${encodeURIComponent(moveList.value)}/sections`),
@@ -934,8 +944,9 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         get('[data-move-audience]').textContent +=
           ' This child inherits its parent section. Choose another list, or use metadata to reparent it first.';
     } catch (error) {
+      if (sequence === moveSequence) skeleton.fail(error.message, inspectDestination);
       get('[data-move-error]').textContent = error.message;
-    }
+    } finally { skeleton.finish(); }
   }
   get('[data-open-move]').onclick = async () => {
     if (busy || !canWrite) return;
@@ -943,14 +954,16 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     moveTask = { ...task };
     get('[data-move-error]').textContent = '';
     moveDialog.showModal();
+    const skeleton = beginLoading(moveForm, { variant: 'form' });
     try {
       const location = await api(`/tasks/${encodeURIComponent(id)}/section`);
       root.dataset.sectionId = location.section_id || '';
       moveList.value = moveTask.list_id;
       await inspectDestination();
     } catch (error) {
+      skeleton.fail(error.message, () => { moveDialog.close(); get('[data-open-move]').click(); });
       get('[data-move-error]').textContent = error.message;
-    }
+    } finally { skeleton.finish(); }
   };
   moveList.addEventListener('change', inspectDestination);
   moveSection.addEventListener('change', invalidateMove);

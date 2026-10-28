@@ -17,7 +17,7 @@ function showStatus(message, icon = 'info') {
   status.replaceChildren(graphic, text);
 }
 function select(index) {
-  const options = [...results.children];
+  const options = [...results.querySelectorAll('.omnibar-result')];
   active = options.length ? (index + options.length) % options.length : -1;
   for (let i = 0; i < options.length; i++)
     options[i].setAttribute('aria-selected', String(i === active));
@@ -47,10 +47,12 @@ async function search() {
   select(-1);
   overview.href = `/search?query=${encodeURIComponent(text)}&status=all`;
   if (!text) {
+    status.hidden = false;
     showStatus('Search tasks, spaces, lists, comments, tags and files.');
     return;
   }
   status.replaceChildren();
+  status.hidden = true;
   const skeleton = searchLoading = beginLoading(results);
   controller = new AbortController();
   try {
@@ -135,10 +137,12 @@ async function search() {
   } catch (error) {
     if (error.name !== 'AbortError' && current === generation) {
       showStatus(error.message);
-      skeleton.fail(error.message, search);
+      skeleton.finish();
+      results.replaceChildren();
     }
   } finally {
     skeleton.finish();
+    if (current === generation) status.hidden = false;
   }
 }
 export function openSearch() {
@@ -206,14 +210,17 @@ export function openSearch() {
       clearTimeout(timer);
       controller?.abort();
       generation++;
+      searchLoading?.finish();
+      delete results.dataset.loadFailed;
       results.replaceChildren();
       select(-1);
-      showStatus(
-        input.value.trim()
-          ? 'Searching…'
-          : 'Search tasks, spaces, lists, comments, tags and files.',
-        input.value.trim() ? 'search' : 'info',
-      );
+      if (input.value.trim()) {
+        status.hidden = true;
+        searchLoading = beginLoading(results);
+      } else {
+        status.hidden = false;
+        showStatus('Search tasks, spaces, lists, comments, tags and files.');
+      }
       timer = setTimeout(search, 220);
     };
     input.onkeydown = (event) => {
@@ -223,7 +230,7 @@ export function openSearch() {
       } else if (event.key === 'Enter') {
         event.preventDefault();
         location.assign(
-          active >= 0 ? results.children[active].querySelector('a').href : overview.href,
+          active >= 0 ? results.querySelectorAll('.omnibar-result')[active].querySelector('a').href : overview.href,
         );
       }
     };
@@ -231,7 +238,11 @@ export function openSearch() {
       clearTimeout(timer);
       controller?.abort();
       generation++;
+      searchLoading?.finish();
+      delete results.dataset.loadFailed;
       results.replaceChildren();
+      status.hidden = false;
+      showStatus('Search tasks, spaces, lists, comments, tags and files.');
       input.value = '';
     });
   }

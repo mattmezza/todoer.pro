@@ -1,3 +1,4 @@
+import { loadingDialog } from './loading.js';
 import { request as fetch } from './request.js';
 import { enqueueCapture, replayCaptures } from './offline.js';
 import { toast } from './toast.js';
@@ -18,6 +19,7 @@ export async function openCapture(listId) {
     return;
   }
   loading = true;
+  const pending = loadingDialog('Loading quick capture', 'capture-omnibar');
   try {
     const list =
       listId || document.body.dataset.list ||
@@ -25,6 +27,7 @@ export async function openCapture(listId) {
     const response = await fetch(
       '/capture' + (list ? `?list=${encodeURIComponent(list)}` : ''),
     );
+    if (!pending.dialog.open) return;
     if (!response.ok) throw Error('Could not open capture. Try again when connected.');
     const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
     const form = doc.querySelector('form[action="/capture"]');
@@ -205,12 +208,14 @@ export async function openCapture(listId) {
         button.disabled = false;
       }
     });
+    pending.finish();
     dialog.showModal();
     resize();
     form.elements.title.focus();
   } catch (error) {
     toast(error.message);
   } finally {
+    pending.finish();
     loading = false;
   }
 }

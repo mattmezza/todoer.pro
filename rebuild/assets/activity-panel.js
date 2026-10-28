@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { preferredTimeFormatter } from './preferred-time.js';
 const activityLabels = {
@@ -47,7 +48,8 @@ export function mountActivity(container, kind, id) {
   more.hidden = true;
   container.append(heading, message, entries, more);
   async function load(before) {
-    message.textContent = 'Loading activity…';
+    const skeleton = beginLoading(entries, { variant: 'activity', preserve: Boolean(entries.querySelector('.activity-item')) });
+    message.textContent = '';
     more.disabled = true;
     try {
       const response = await fetch(
@@ -130,12 +132,16 @@ export function mountActivity(container, kind, id) {
         }
         entries.append(row);
       }
-      message.textContent = entries.children.length ? '' : 'No recorded changes yet.';
+      message.textContent = entries.querySelector('.activity-item') ? '' : 'No recorded changes yet.';
       more.hidden = !page.next_before;
       more.onclick = () => load(page.next_before);
     } catch (error) {
-      if (error.name !== 'AbortError' && active) message.textContent = error.message;
+      if (error.name !== 'AbortError' && active) {
+        message.textContent = error.message;
+        skeleton.fail(error.message, () => load(before));
+      }
     } finally {
+      skeleton.finish();
       more.disabled = false;
     }
   }

@@ -91,7 +91,7 @@ if (main) {
     header.append(dismiss);
     const content = document.createElement('div');
     content.className = 'planning-detail-content';
-    const skeleton = beginLoading(content, { variant: 'cards' });
+    const skeleton = beginLoading(content, { variant: 'task' });
     panel.append(header, content);
     try {
       const response = await fetch(url, { cache: 'no-store' });

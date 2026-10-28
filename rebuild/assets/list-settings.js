@@ -1,3 +1,4 @@
+import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { mountPublicSharing } from './public-sharing.js';
 import { mountStructure } from './task-structure.js';
@@ -163,9 +164,10 @@ async function openSettings(listId, selected, kind, taskRoot) {
   content.className = 'settings-content';
   const status = document.createElement('p');
   status.setAttribute('role', 'status');
-  let doc;
+  let doc, settingsLoading;
   let stopActivity = () => {};
   function choose(tab) {
+    settingsLoading?.finish();
     if (
       task &&
       (tab === 'references' || (tab === 'structure' && !taskRoot.dataset.parentId))
@@ -266,13 +268,19 @@ async function openSettings(listId, selected, kind, taskRoot) {
       choose(selected);
       return;
     }
-    const response = await fetch(
-      workspace ? `/workspaces/${listId}/settings` : `/lists/${listId}/sharing`,
-      { cache: 'no-store' },
-    );
-    if (!response.ok) throw Error('Could not load current settings');
-    doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-    choose(selected);
+    const skeleton = settingsLoading = beginLoading(content, { variant: 'form', preserve: Boolean(doc) });
+    try {
+      const response = await fetch(
+        workspace ? `/workspaces/${listId}/settings` : `/lists/${listId}/sharing`,
+        { cache: 'no-store' },
+      );
+      if (!response.ok) throw Error('Could not load current settings');
+      doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+      choose(selected);
+    } catch (error) {
+      skeleton.fail(error.message, () => load().catch(failure => { status.textContent = failure.message; }));
+      throw error;
+    } finally { skeleton.finish(); }
   }
   dialog.append(header, tabs, status, content);
   (taskRoot || document.body).append(dialog);
@@ -625,16 +633,18 @@ async function decorateMembers(section, id) {
   const input = form.querySelector('input[type=search]');
   const results = form.querySelector('.member-matches');
   const button = form.querySelector('button[type=submit]');
-  let timer,
+  let timer, memberLoading,
     generation = 0;
   input.oninput = () => {
     clearTimeout(timer);
+    memberLoading?.finish();
     const version = ++generation;
     form.elements.user_id.value = '';
     button.disabled = true;
     results.replaceChildren();
     const query = input.value.trim();
     if (query.length < 3) return;
+    const skeleton = memberLoading = beginLoading(results, { variant: 'compact' });
     timer = setTimeout(async () => {
       try {
         const response = await fetch(endpoint + '?q=' + encodeURIComponent(query));
@@ -658,7 +668,7 @@ async function decorateMembers(section, id) {
             'Enter the full email of an existing account, or invite them below.';
       } catch (error) {
         if (version === generation) results.textContent = error.message;
-      }
+      } finally { skeleton.finish(); }
     }, 180);
   };
   input.onkeydown = (event) => {
