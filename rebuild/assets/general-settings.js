@@ -84,6 +84,7 @@ if (playForm) {
     style = playForm.elements.fun_animation;
   const status = playForm.querySelector('[data-play-status]');
   const controls = [enabled, style];
+  const options = playForm.querySelector('[data-play-options]');
   controls.forEach((control) => (control.disabled = true));
   async function load() {
     const response = await fetch('/api/v1/notification-preferences', {
@@ -98,10 +99,12 @@ if (playForm) {
       style.value = value.fun_animation || 'tasks';
       controls.forEach((control) => (control.disabled = false));
       style.disabled = !enabled.checked;
+      options.hidden = !enabled.checked;
     })
     .catch((error) => setSaveState('preferences', 'error', error.message));
   playForm.addEventListener('change', async () => {
     const choice = { fun_animations: enabled.checked, fun_animation: style.value };
+    options.hidden = !enabled.checked;
     controls.forEach((control) => (control.disabled = true));
     status.textContent = '';
     setSaveState('preferences', 'saving');
@@ -131,49 +134,7 @@ if (playForm) {
     } finally {
       enabled.disabled = false;
       style.disabled = !enabled.checked;
-    }
-  });
-}
-
-const captureForm = document.querySelector('[data-capture-preferences]');
-if (captureForm) {
-  const status = captureForm.querySelector('[data-capture-preferences-status]');
-  const button = captureForm.querySelector('button');
-  button.disabled = true;
-  fetch('/api/v1/capture/preferences')
-    .then(async (r) => {
-      if (!r.ok) throw Error('Could not load capture settings.');
-      const value = await r.json();
-      for (const key of ['smart_enabled', 'date_enabled', 'repeat_capture'])
-        captureForm.elements[key].checked = value[key];
-      captureForm.elements.ai_instructions.value = value.ai_instructions;
-      button.disabled = false;
-    })
-    .catch((e) => {
-      status.textContent = e.message;
-    });
-  captureForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    button.disabled = true;
-    const data = { ai_instructions: captureForm.elements.ai_instructions.value };
-    for (const key of ['smart_enabled', 'date_enabled', 'repeat_capture'])
-      data[key] = captureForm.elements[key].checked;
-    try {
-      const response = await fetch('/api/v1/capture/preferences', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content,
-        },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok)
-        throw Error((await response.json()).error?.message || 'Could not save settings.');
-      status.textContent = 'Settings saved.';
-    } catch (error) {
-      status.textContent = error.message;
-    } finally {
-      button.disabled = false;
+      options.hidden = !enabled.checked;
     }
   });
 }

@@ -37,6 +37,7 @@ pub(super) fn routes() -> Router<AppState> {
         )
         .route("/recurring/{id}/state", post(series_state_form))
         .route("/settings", get(general_settings))
+        .route("/settings/account", get(account_settings))
         .route("/settings/general", get(general_settings))
         .route("/today", get(today))
         .route("/upcoming", get(upcoming))
@@ -821,6 +822,10 @@ mod tests {
             StatusCode::FORBIDDEN
         );
     }
+}
+
+async fn account_settings(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
+    render_settings(&s, &h, "Account", String::new(), "account").await
 }
 
 #[derive(Template)]
