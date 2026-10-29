@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """Run real Google authentication against a separate local database."""
+import argparse
 import base64
 import json
 import os
 from pathlib import Path
 import secrets
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--with-local-storage', action='store_true',
+                    help='Use the bundled loopback MinIO attachment service')
+args = parser.parse_args()
 
 root = Path(__file__).resolve().parent.parent
 os.chdir(root)
@@ -31,6 +37,13 @@ if not push_key_path.exists():
 # Use only deliberate configuration, rather than inherited development adapters/workers.
 env = {key: value for key, value in os.environ.items() if not key.startswith('TODOER_')}
 env.update({key:value for key,value in os.environ.items() if key.startswith(('TODOER_SMTP_', 'TODOER_PUSH_')) or key in ('TODOER_AUTH_ADMIN_EMAILS','TODOER_GOOGLE_LOGIN_ENABLED','TODOER_SIGNUP_ENABLED')})
+if args.with_local_storage:
+    # Fixed local fixture settings, never inherited production storage credentials.
+    for line in (root / 'deploy/local/attachments.env').read_text().splitlines():
+        if line.startswith('export TODOER_ATTACHMENTS_'):
+            key, value = line.removeprefix('export ').split('=', 1)
+            env[key] = value
+    env['TODOER_ATTACHMENTS_PREFIX'] = 'local-google-auth'
 env.update({
     'TODOER_PUSH_VAPID_PRIVATE_KEY': env.get('TODOER_PUSH_VAPID_PRIVATE_KEY', push_key_path.read_text().strip()),
     'TODOER_PUSH_VAPID_SUBJECT': env.get('TODOER_PUSH_VAPID_SUBJECT', 'mailto:' + email.split(',')[0].strip()),

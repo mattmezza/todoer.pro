@@ -68,11 +68,19 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 30 \
 chmod 600 .local/rebuild/auth-tls/localhost.key
 ```
 
+Build the current app and start MinIO (plus local Mailpit):
+
+```sh
+make assets
+cargo build --locked --bin todoer-server
+docker compose -f deploy/local/compose.yml up -d
+```
+
 Start the app in one terminal and nginx in another:
 
 ```sh
 TODOER_REGISTRATION_ALLOWLIST=your-google-test-email@example.com \
-  python3 scripts/local-google-auth.py
+  python3 scripts/local-google-auth.py --with-local-storage
 ```
 
 ```sh
@@ -85,8 +93,11 @@ exception or explicit trust. Use a trusted local certificate before testing
 WebAuthn; do not copy local TLS keys or Google credentials into source control.
 The launcher reads credentials directly into the child process environment and
 uses an untracked, persistent server key. Other TODOER settings, including
-storage, development authentication and notification workers, are deliberately
-not inherited. Stop the authentication app with Ctrl+C and the proxy with
+development authentication and notification workers, are deliberately
+not inherited. `--with-local-storage` explicitly selects the bundled loopback
+MinIO with a separate `local-google-auth` attachment prefix; it does not inherit
+production storage credentials. MinIO is at http://127.0.0.1:9001 with the local-only
+credentials listed above. Stop the authentication app with Ctrl+C and the proxy with
 `docker compose -f deploy/local/auth-compose.yml down`.
 
 Manual acceptance: sign in with your allowlisted Google test user, verify the new
