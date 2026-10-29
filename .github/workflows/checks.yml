@@ -32,12 +32,13 @@ jobs:
       - run: make docs-build www-build
       - run: python3 scripts/rebuild-release-prepare.py self-test
       - run: npx playwright install --with-deps chromium firefox
+      - run: node docs/check.cjs
       - name: Browser and CLI integration against synthetic data
         shell: bash
         env:
           TODOER_DEV_AUTH: '1'
-          TODOER_DEV_TOKEN: synthetic-ci-token-not-for-production
-          TODOER_TOKEN: synthetic-ci-token-not-for-production
+          TODOER_DEV_TOKEN: local-integration-token-not-for-production
+          TODOER_TOKEN: local-integration-token-not-for-production
           TODOER_RUST_PORT: '8092'
           TODOER_URL: http://127.0.0.1:8092
         run: |
