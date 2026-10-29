@@ -8,9 +8,13 @@ setup: ## Install locked frontend dependencies and fetch Rust crates
 assets: ## Compile app styles and self-host htmx
 	npm run assets
 	cp node_modules/htmx.org/dist/htmx.min.js app/assets/htmx.min.js
-dev: assets ## Run local app (set TODOER_DEV_AUTH=1 and TODOER_DEV_TOKEN)
+dev: dev-env assets ## Run local app (set TODOER_DEV_AUTH=1 and TODOER_DEV_TOKEN)
 	mkdir -p .local/rebuild
 	cargo run --locked --bin todoer-server
+.PHONY: dev-env
+dev-env:
+	@test "$$TODOER_DEV_AUTH" = "1" || (echo 'Development requires explicit opt-in: export TODOER_DEV_AUTH=1' >&2; exit 2)
+	@test "$${#TODOER_DEV_TOKEN}" -ge 24 || (echo 'Export a synthetic TODOER_DEV_TOKEN with at least 24 characters (see README.md).' >&2; exit 2)
 format: ## Format active Rust and frontend source
 	cargo fmt --all
 	npm run format

@@ -7,6 +7,10 @@ use todoer::{
     web::{AppState, router},
 };
 
+fn required_env(name: &str) -> Result<String, Box<dyn std::error::Error>> {
+    env::var(name).map_err(|error| format!("{name} is required: {error}").into())
+}
+
 fn initial_flag(name: &str, default: bool) -> Result<bool, Box<dyn std::error::Error>> {
     match env::var(name) {
         Ok(v) => match v.as_str() {
@@ -31,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = if development {
         env::var("TODOER_RUST_DB").unwrap_or_else(|_| ".local/rebuild/rust.db".into())
     } else {
-        env::var("TODOER_RUST_DB")?
+        required_env("TODOER_RUST_DB")?
     };
     if path == "deploy/data/todoer_local.db" || path == "deploy/data/todoer_prod.db" {
         return Err("Refusing legacy database path".into());
@@ -48,9 +52,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| "8092".into())
         .parse()?;
     let (state, bind) = if development {
-        let token = env::var("TODOER_DEV_TOKEN")?;
+        let token = required_env("TODOER_DEV_TOKEN")?;
         if token.len() < 24 {
-            return Err("TODOER_DEV_TOKEN must contain at least24 characters".into());
+            return Err("TODOER_DEV_TOKEN must contain at least 24 characters".into());
         }
         store.seed_dev()?;
         (
@@ -62,7 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
         )
     } else {
-        let origin = env::var("TODOER_PUBLIC_URL")?
+        let origin = required_env("TODOER_PUBLIC_URL")?
             .trim_end_matches('/')
             .to_string();
         let url = reqwest::Url::parse(&origin)?;
@@ -92,8 +96,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         {
             Some(
                 todoer::oidc::GoogleOidc::discover(todoer::oidc::GoogleConfig {
-                    client_id: env::var("TODOER_GOOGLE_CLIENT_ID")?,
-                    client_secret: env::var("TODOER_GOOGLE_CLIENT_SECRET")?,
+                    client_id: required_env("TODOER_GOOGLE_CLIENT_ID")?,
+                    client_secret: required_env("TODOER_GOOGLE_CLIENT_SECRET")?,
                     redirect_uri: format!("{origin}/auth/google/callback"),
                 })
                 .await?,
@@ -115,24 +119,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let storage = todoer::object_storage::S3Config::from_env()?
         .map(todoer::object_storage::ObjectStorage::new)
         .transpose()?;
-    let signer_key = env::var("TODOER_SERVER_KEY").or_else(|error| {
-        if development {
-            Ok(format!(
-                "{}{}",
-                uuid::Uuid::new_v4().simple(),
-                uuid::Uuid::new_v4().simple()
-            ))
-        } else {
-            Err(error)
-        }
-    })?;
+    let signer_key = env::var("TODOER_SERVER_KEY")
+        .or_else(|error| {
+            if development {
+                Ok(format!(
+                    "{}{}",
+                    uuid::Uuid::new_v4().simple(),
+                    uuid::Uuid::new_v4().simple()
+                ))
+            } else {
+                Err(error)
+            }
+        })
+        .map_err(|error| format!("TODOER_SERVER_KEY is required: {error}"))?;
     let state = state.with_account_key(&signer_key).with_invitations(
         todoer::invitations::InvitationSigner::new(
             &signer_key,
             if development {
                 format!("http://127.0.0.1:{port}")
             } else {
-                env::var("TODOER_PUBLIC_URL")?
+                required_env("TODOER_PUBLIC_URL")?
                     .trim_end_matches('/')
                     .to_owned()
             },
