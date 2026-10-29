@@ -4,13 +4,15 @@ Todoer supports optional built-in AI through OpenRouter. Core task management an
 
 ## Choose whether to use AI
 
-Open **Settings → AI**. The personal **Allow built-in AI** switch starts off. Turning it off blocks new built-in inference, including BYOK, and pauses new automatic top-ups. Requests already sent to a provider can finish. Your external MCP, CLI and REST connections remain independently manageable under connected tools.
+Open **Settings → AI**. The personal **Allow built-in AI** switch starts off. Turning it off blocks new built-in inference, including BYOK, and pauses new automatic top-ups. Requests already sent to a provider can finish. Your external MCP, CLI and REST connections remain independently manageable under **Settings → Connected tools** (`/settings/ai/tools`).
 
 Managed AI credits require administrator approval. Use **Request access** and follow the decision in account AI updates. Approval does not turn your personal AI switch on. BYOK availability starts on, but an administrator can disable it for an account.
 
+AI preferences (`/settings/ai`) control how features behave and whether built-in AI is allowed. AI setup (`/settings/ai/setup`) holds model selection, payment source, access requests and your OpenRouter key. Billing and transaction history have their own screens. Saving setup preserves your AI feature switch; saving preferences preserves your selected model and payment source.
+
 ## Bring your own OpenRouter key
 
-1. Choose an enabled supported model in AI settings.
+1. Open **Settings → AI setup** (`/settings/ai/setup`) and choose an enabled supported model.
 2. Enter your OpenRouter inference API key and select **Validate and save key**. Validation checks the fixed OpenRouter key endpoint without requesting inference.
 3. Successful setup selects BYOK funding and pauses auto-top-up, while preserving your AI switch.
 4. Enable built-in AI when you are ready to send selected content to OpenRouter.

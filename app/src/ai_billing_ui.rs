@@ -8,6 +8,7 @@ pub(super) fn ai_settings_body() -> &'static str {
 pub(super) fn routes() -> Router<AppState> {
     Router::new()
         .route("/settings/billing", get(billing))
+        .route("/settings/ai/setup", get(setup))
         .route("/settings/ai/usage", get(usage))
         .route("/admin", get(admin))
         .route("/admin/{screen}", get(admin_screen))
@@ -22,6 +23,18 @@ fn session(s: &AppState, h: &HeaderMap) -> Result<String, ApiError> {
         return Err(crate::auth::AuthError::Forbidden.into());
     }
     Ok(user)
+}
+
+async fn setup(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
+    session(&s, &h)?;
+    scheduling_http::render_settings(
+        &s,
+        &h,
+        "AI setup",
+        include_str!("../templates/ai-setup.html").into(),
+        "ai-setup",
+    )
+    .await
 }
 
 async fn billing(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
@@ -136,6 +149,34 @@ mod tests {
             .split(';')
             .next()
             .unwrap();
+        for (path, required, absent) in [
+            ("/settings/ai", "data-capture-preferences", "data-ai-key"),
+            (
+                "/settings/ai/setup",
+                "data-ai-key",
+                "data-capture-preferences",
+            ),
+            ("/settings/ai/tools", "Connected tools", "data-ai-policy"),
+        ] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri(path)
+                        .header("cookie", cookie)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            let body = String::from_utf8(bytes.to_vec()).unwrap();
+            assert!(body.contains(required), "{path} is missing {required}");
+            assert!(!body.contains(absent), "{path} includes {absent}");
+        }
         for (path, authorization) in [
             "/admin",
             "/admin/finance",

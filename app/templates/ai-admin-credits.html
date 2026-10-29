@@ -1,4 +1,7 @@
-<link href="/assets/ai-billing.css" rel="stylesheet" />
+<link href="/assets/ai-billing.css" rel="stylesheet" /><link
+  href="/assets/ai-account-picker.css"
+  rel="stylesheet"
+/>
 <script src="/assets/ai-billing.js" type="module"></script>
 <section
   aria-busy="true"
@@ -13,13 +16,7 @@
     </button>
   </div>
   <p aria-live="polite" data-ai-notice="" role="status">Loading…</p>
-  <div class="ai-preset-row">
-    <button class="secondary" data-admin-users-first="" type="button">
-      First accounts</button
-    ><button class="secondary" data-admin-users-next="" hidden="" type="button">
-      Next accounts
-    </button>
-  </div>
+
   <section class="settings-preference-card">
     <h2>Grant free credits</h2>
     <p>
@@ -27,11 +24,22 @@
       the user; their inference costs still count against profit.
     </p>
     <form data-admin-grant="">
+      <div class="ai-account-picker" data-admin-account-picker="">
+        <label
+          >Find an account<input
+            aria-autocomplete="list"
+            aria-expanded="false"
+            autocomplete="off"
+            data-account-query=""
+            maxlength="200"
+            placeholder="Name, email or account ID (starts with)"
+            role="combobox"
+            type="search" /></label
+        ><input data-admin-account-select="" name="user_id" type="hidden" />
+        <div data-account-results="" hidden="" role="listbox"></div>
+        <p class="muted" data-account-selection="">No account selected.</p>
+      </div>
       <label
-        >Account<select data-admin-account-select="" name="user_id" required="">
-          <option value="">Choose an account</option>
-        </select></label
-      ><label
         >Free credit amount (€)<input
           max="1000"
           min="0.000001"

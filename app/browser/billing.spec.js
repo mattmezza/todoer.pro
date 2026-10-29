@@ -32,7 +32,7 @@ const model = {
 test('BYOK setup clears the key and preserves the personal AI switch', async ({
   page,
 }) => {
-  await shell(page, '/settings/ai', 'ai-billing-settings.html');
+  await shell(page, '/settings/ai/setup', 'ai-setup.html');
   let policy = {
     user_id: 'synthetic-billing-user',
     user_ai_enabled: false,
@@ -64,16 +64,16 @@ test('BYOK setup clears the key and preserves the personal AI switch', async ({
     }
     return json(route, policy);
   });
-  await page.goto('/settings/ai');
+  await page.goto('/settings/ai/setup');
   await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
   await page.getByLabel('OpenRouter API key').fill('synthetic-key-never-real');
   await page.locator('[data-ai-key] select').selectOption(model.id);
   await page.getByRole('button', { name: 'Validate and save key' }).click();
   await expect(page.getByLabel('OpenRouter API key')).toHaveValue('');
-  await expect(page.getByLabel('Allow built-in AI')).not.toBeChecked();
+  await expect(page.getByLabel('Allow built-in AI')).toHaveCount(0);
   await expect(page.getByLabel('Pay for AI with')).toHaveValue('byok');
   await expect(page.locator('[data-ai-notice]')).toContainText(
-    'your AI switch was preserved',
+    'Your AI feature switch was preserved',
   );
   expect(writes).toHaveLength(1);
   expect(writes[0].body.key).toBe('synthetic-key-never-real');
@@ -130,11 +130,14 @@ test('an uncertain top-up retains its payment idempotency key across reload', as
   );
   expect(keys).toHaveLength(2);
   expect(keys[0]).toBe(keys[1]);
-  await expect(page.locator('[data-wallet]')).toContainText('€10.00');
-  await expect(page.locator('[data-wallet]')).toContainText('Paid credits');
-  await expect(page.locator('[data-wallet]')).toContainText('€7.00');
-  await expect(page.locator('[data-wallet]')).toContainText('Free credits');
-  await expect(page.locator('[data-wallet]')).toContainText('€3.00');
+  await expect(page.locator('[data-wallet]')).toContainText('€9.00');
+  await expect(page.locator('[data-wallet]')).toContainText('Available to spend');
+  await expect(page.locator('[data-wallet-pending]')).toContainText('€1.00');
+  await page.getByText('Balance details', { exact: true }).click();
+  await expect(page.locator('[data-wallet-details]')).toContainText('Purchased credits');
+  await expect(page.locator('[data-wallet-details]')).toContainText('€7.00');
+  await expect(page.locator('[data-wallet-details]')).toContainText('Free credits');
+  await expect(page.locator('[data-wallet-details]')).toContainText('€3.00');
 });
 
 test('foreign-currency payment previews deductions and submits the reviewed net credit', async ({
@@ -258,6 +261,7 @@ test('admin forms submit revision-bound access and prospective pricing changes',
   const writes = [];
   const financeQueries = [];
   const loadedPaths = [];
+  const accountQueries = [];
   const stripeRecoveryWrites = [];
   await page.route('**/api/admin/billing/reconcile', (route) => {
     stripeRecoveryWrites.push(route.request().postDataJSON());
@@ -274,6 +278,8 @@ test('admin forms submit revision-bound access and prospective pricing changes',
   });
   const user = {
     user_id: 'synthetic-user',
+    name: 'Synthetic user',
+    email: 'user@example.invalid',
     billing_blocked: true,
     debt_micro: 1000000,
     user_ai_enabled: false,
@@ -291,7 +297,10 @@ test('admin forms submit revision-bound access and prospective pricing changes',
       writes.push({ path, body: route.request().postDataJSON() });
       return json(route, {});
     }
-    if (path.endsWith('/users')) return json(route, { users: [user] });
+    if (path.endsWith('/users')) {
+      accountQueries.push(new URL(route.request().url()).searchParams);
+      return json(route, { users: [user] });
+    }
     if (path.endsWith('/access-requests'))
       return json(route, { requests: [{ user_id: user.user_id, state: 'pending' }] });
     if (path.endsWith('/models'))
@@ -343,7 +352,17 @@ test('admin forms submit revision-bound access and prospective pricing changes',
   });
   await page.goto('/admin/access');
   await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
+  await expect(page.locator('.ai-admin-user')).toHaveCount(0);
+  expect(accountQueries).toHaveLength(0);
+  const accountSearch = page.getByRole('combobox', { name: 'Find an account' });
+  await accountSearch.fill('user@example');
+  await expect(page.getByRole('option', { name: /Synthetic user/ })).toBeVisible();
+  expect(accountQueries[0].get('q')).toBe('user@example');
+  expect(accountQueries[0].get('limit')).toBe('20');
+  await accountSearch.press('ArrowDown');
+  await accountSearch.press('Enter');
   const access = page.locator('.ai-admin-user');
+  await expect(access).toHaveCount(1);
   await access.getByLabel('Managed AI allowed').check();
   await access.getByLabel('Request decision').selectOption('approved');
   await access.getByLabel('Reason').fill('Synthetic approval');
@@ -357,9 +376,10 @@ test('admin forms submit revision-bound access and prospective pricing changes',
   });
   await page.goto('/admin/models');
   await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
+  await page.getByRole('button', { name: `Edit ${model.name}` }).click();
   const pricing = page.locator('.ai-admin-model');
   await pricing.getByLabel('Gross margin %').fill('20');
-  await pricing.getByRole('button', { name: 'Save future model pricing' }).click();
+  await pricing.getByRole('button', { name: 'Save model' }).click();
   await expect(page.locator('[data-ai-notice]')).toContainText(
     'Existing quotes keep their accepted rates',
   );
@@ -394,6 +414,7 @@ test('admin forms submit revision-bound access and prospective pricing changes',
   );
   await page.goto('/admin/access');
   await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
+  await page.getByRole('button', { name: 'Review request' }).click();
   await page.getByRole('button', { name: 'View account spend' }).click();
   await expect(page.locator('[data-ai-notice]')).toContainText('Account spend loaded');
   expect(financeQueries.at(-1).get('user_id')).toBe(user.user_id);
@@ -417,6 +438,9 @@ test('admin forms submit revision-bound access and prospective pricing changes',
   ]);
   await page.goto('/admin/operations');
   await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
+  await page
+    .getByText('Advanced: recover a missing Stripe payment', { exact: true })
+    .click();
   const recovery = page.locator('[data-admin-stripe-reconcile]');
   await recovery.getByLabel('Local purchase ID').fill('synthetic-purchase');
   await recovery
@@ -536,14 +560,14 @@ test('admin free grants require a reason and retain the exact reference after an
   await page.goto('/admin/credits');
   await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
   const form = page.locator('[data-admin-grant]');
-  await expect(
-    form.getByRole('option', {
-      name: 'Synthetic recipient · recipient@example.invalid · synthetic-grantee',
-    }),
-  ).toHaveCount(1);
+  const search = form.getByRole('combobox', { name: 'Find an account' });
+  await search.fill('recipient@example');
   await form
-    .getByRole('combobox', { name: 'Account', exact: true })
-    .selectOption('synthetic-grantee');
+    .getByRole('option', {
+      name: 'Synthetic recipient · recipient@example.invalid · synthetic-grantee',
+    })
+    .click();
+  await expect(form.locator('input[name=user_id]')).toHaveValue('synthetic-grantee');
   await form.getByLabel('Free credit amount (€)').fill('1.000001');
   const reference = await form.getByLabel('Grant tracking reference').inputValue();
   expect(reference).toMatch(/^grant-/);

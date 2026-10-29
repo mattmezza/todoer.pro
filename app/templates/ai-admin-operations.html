@@ -1,24 +1,22 @@
-<link rel="stylesheet" href="/assets/ai-billing.css" />
-<script type="module" src="/assets/ai-billing.js"></script>
+<link href="/assets/ai-billing.css" rel="stylesheet" /><link
+  href="/assets/ai-account-picker.css"
+  rel="stylesheet"
+/>
+<script src="/assets/ai-billing.js" type="module"></script>
 <section
-  data-ai-billing="admin"
-  data-admin-screen="operations"
-  class="ai-billing-panel"
   aria-busy="true"
+  class="ai-billing-panel"
+  data-admin-screen="operations"
+  data-ai-billing="admin"
 >
   <div class="ai-page-toolbar">
     <p>Recover payments and resolve account or inference issues.</p>
-    <button type="button" class="secondary ai-refresh" data-ai-reload>
+    <button class="secondary ai-refresh" data-ai-reload="" type="button">
       Refresh this view
     </button>
   </div>
-  <p data-ai-notice role="status" aria-live="polite">Loading…</p>
-  <div class="ai-preset-row">
-    <button type="button" class="secondary" data-admin-users-first>First accounts</button
-    ><button type="button" class="secondary" data-admin-users-next hidden>
-      Next accounts
-    </button>
-  </div>
+  <p aria-live="polite" data-ai-notice="" role="status">Loading…</p>
+
   <section class="settings-preference-card">
     <h2>Operations</h2>
     <p>
@@ -26,17 +24,28 @@
       as promotional grants, not payment revenue. Never paste prompts, credentials or
       personal task content into a reason.
     </p>
-    <form data-admin-adjustment>
+    <form data-admin-adjustment="">
       <h3>Adjust a wallet balance</h3>
       <p>
         Add promotional credits or remove unreserved paid credits. Enter a negative amount
         to remove credits. Every change requires a reason.
       </p>
+      <div class="ai-account-picker" data-admin-account-picker="">
+        <label
+          >Find an account<input
+            aria-autocomplete="list"
+            aria-expanded="false"
+            autocomplete="off"
+            data-account-query=""
+            maxlength="200"
+            placeholder="Name, email or account ID (starts with)"
+            role="combobox"
+            type="search" /></label
+        ><input data-admin-account-select="" name="user_id" type="hidden" />
+        <div data-account-results="" hidden="" role="listbox"></div>
+        <p class="muted" data-account-selection="">No account selected.</p>
+      </div>
       <label
-        >Account<select name="user_id" data-admin-account-select required>
-          <option value="">Choose an account</option>
-        </select></label
-      ><label
         >Credit adjustment (€)<input
           name="amount"
           required=""
@@ -44,34 +53,43 @@
           type="number" /></label
       ><label
         >Unique reference<input
-          name="reference"
-          readonly
-          required
           maxlength="128"
+          name="reference"
+          readonly=""
+          required=""
         /><small
           >Created automatically to prevent duplicate credits when retrying.</small
         ></label
       ><label>Reason<input maxlength="500" name="reason" required="" /></label
       ><button class="secondary" type="submit">Record adjustment</button>
     </form>
-    <form data-admin-stripe-reconcile="">
-      <h3>Recover a confirmed Stripe payment</h3>
-      <p>
-        This reconciles an existing payment after a lost response. It fetches and verifies
-        the Stripe payment; it never creates a charge.
-      </p>
-      <label
-        >Local purchase ID<input maxlength="128" name="purchase_id" required="" /></label
-      ><label
-        >Existing Stripe PaymentIntent ID<input
-          maxlength="128"
-          name="payment_intent_id"
-          pattern="pi_[A-Za-z0-9_]+"
-          required="" /></label
-      ><label
-        >Reconciliation reason<input maxlength="500" name="reason" required="" /></label
-      ><button class="secondary" type="submit">Reconcile existing Stripe payment</button>
-    </form>
+    <details class="ai-advanced">
+      <summary>Advanced: recover a missing Stripe payment</summary>
+      <form data-admin-stripe-reconcile="">
+        <h3>Recover a confirmed Stripe payment</h3>
+        <p>
+          Stripe webhooks normally confirm payments automatically. Use this only after
+          checking a missing or delayed webhook and the saved purchase. It verifies an
+          existing payment and never creates a charge.
+        </p>
+        <label
+          >Local purchase ID<input
+            maxlength="128"
+            name="purchase_id"
+            required="" /></label
+        ><label
+          >Existing Stripe PaymentIntent ID<input
+            maxlength="128"
+            name="payment_intent_id"
+            pattern="pi_[A-Za-z0-9_]+"
+            required="" /></label
+        ><label
+          >Reconciliation reason<input maxlength="500" name="reason" required="" /></label
+        ><button class="secondary" type="submit">
+          Reconcile existing Stripe payment
+        </button>
+      </form>
+    </details>
     <div class="ai-operation-action">
       <div>
         <h3>Resolve pending AI transactions</h3>
@@ -80,7 +98,7 @@
           does not send new AI requests.
         </p>
       </div>
-      <button class="secondary" data-admin-reconcile type="button">
+      <button class="secondary" data-admin-reconcile="" type="button">
         Check pending transactions
       </button>
     </div>
@@ -90,7 +108,7 @@
         Use only after configuring the current and previous encryption keys on the server.
         Re-encrypts stored keys in bounded batches.
       </p>
-      <button class="secondary" data-admin-rotate type="button">
+      <button class="secondary" data-admin-rotate="" type="button">
         Re-encrypt stored keys
       </button>
     </details>

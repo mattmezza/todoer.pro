@@ -1,0 +1,54 @@
+.ai-account-picker {
+  position: relative;
+  display: grid;
+  gap: 0.5rem;
+}
+.ai-account-picker [data-account-results] {
+  display: grid;
+  gap: 0.2rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  padding: 0.5rem;
+  border: 1px solid var(--line, #334155);
+  border-radius: 0.75rem;
+  background: var(--panel, #11151b);
+}
+.ai-account-picker [data-account-results][hidden] {
+  display: none;
+}
+.ai-account-picker [role='option'] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  text-align: left;
+  padding: 0.7rem;
+  border: 0;
+  border-radius: 0.4rem;
+  overflow-wrap: anywhere;
+}
+.ai-account-picker [role='option'][aria-selected='true'],
+.ai-account-picker [role='option']:hover {
+  background: var(--line, #334155);
+}
+.ai-account-picker [data-account-selection] {
+  margin: 0;
+}
+.ai-account-picker [data-account-clear] {
+  margin-left: 0.5rem;
+}
+.ai-access-request {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-block: 0.75rem;
+  border-bottom: 1px solid var(--line, #334155);
+}
+.ai-admin-user:empty {
+  display: none;
+}
+[data-admin-requests] {
+  max-height: 18rem;
+  overflow-y: auto;
+}

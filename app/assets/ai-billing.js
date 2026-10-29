@@ -1,4 +1,6 @@
 import { request } from './request.js';
+import { toast } from './toast.js';
+import { beginLoading } from './loading.js';
 
 const root = document.querySelector('[data-ai-billing]');
 const csrf = document.querySelector('meta[name=csrf-token]')?.content || '';
@@ -17,11 +19,14 @@ try {
   /* Storage can be disabled. */
 }
 let busy = false;
+let actionTrigger;
+let initialized = false;
 let providerConfig;
 let noticeThrough = 0;
-let adminUsersAfter = '';
+let selectedAdminAccount = null;
+let adminAccessRequests = [];
+let accountPickerSequence = 0;
 let adminRequestsAfter = '';
-let adminUsersNext = '';
 let adminRequestsNext = '';
 let adminAuditAfter = '';
 let adminAuditNext = '';
@@ -96,11 +101,29 @@ async function api(path, body, method = 'GET') {
 async function run(callback) {
   if (busy) return;
   busy = true;
-  root.setAttribute('aria-busy', 'true');
+  const trigger = actionTrigger;
+  actionTrigger = undefined;
+  const priorContent = trigger ? [...trigger.childNodes] : [];
+  const priorDisabled = trigger?.getAttribute('aria-disabled');
+  const loading = beginLoading(root, { variant: 'cards', preserve: initialized });
+  if (trigger) {
+    trigger.textContent = trigger.matches('[data-ai-reload]')
+      ? 'Refreshing…'
+      : trigger.type === 'submit'
+        ? 'Saving…'
+        : 'Working…';
+    trigger.setAttribute('aria-disabled', 'true');
+    trigger.setAttribute('aria-busy', 'true');
+    trigger.classList.add('is-saving');
+  }
   try {
     await callback();
+    initialized = true;
+    if (trigger) toast(root.querySelector('[data-ai-notice]')?.textContent || 'Updated.');
   } catch (error) {
+    if (!initialized) loading.fail(error.message, () => run(callback));
     notice(error.message, true);
+    toast(error.message);
     if (['reauthentication_required', 'unauthorized'].includes(error.code)) {
       root.querySelector('[data-ai-notice]').append(
         document.createTextNode(' '),
@@ -110,6 +133,14 @@ async function run(callback) {
       );
     }
   } finally {
+    loading.finish();
+    if (trigger?.isConnected) {
+      trigger.replaceChildren(...priorContent);
+      if (priorDisabled === null) trigger.removeAttribute('aria-disabled');
+      else trigger.setAttribute('aria-disabled', priorDisabled);
+      trigger.removeAttribute('aria-busy');
+      trigger.classList.remove('is-saving');
+    }
     busy = false;
     root.setAttribute('aria-busy', 'false');
   }
@@ -125,68 +156,85 @@ function modelOptions() {
 }
 function renderPolicy() {
   const form = root.querySelector('[data-ai-policy]');
-  field(form, 'user_ai_enabled').checked = policy.user_ai_enabled;
-  field(form, 'funding').value = policy.funding;
-  field(form, 'funding').querySelector('[value="credits"]').disabled =
-    !policy.managed_ai_allowed;
-  field(form, 'funding').querySelector('[value="byok"]').disabled =
-    !policy.byok_allowed || !policy.key_configured;
-  root.querySelector('[data-ai-entitlement]').textContent = policy.managed_ai_allowed
-    ? 'AI credits access is approved. Add credits and choose Todoer credits to use it.'
-    : `AI credits access is not enabled. Request status: ${policy.access_request || 'not requested'}.`;
-  root.querySelector('[data-ai-request-access]').disabled =
-    policy.managed_ai_allowed || policy.access_request === 'pending';
-  root.querySelector('[data-ai-key-status]').textContent = !policy.byok_allowed
-    ? 'BYOK is disabled by an administrator.'
-    : `Key status: ${policy.key_status || 'absent'}.`;
-  root.querySelector('[data-ai-key]').querySelector('button').disabled =
-    !policy.byok_allowed;
-  root.querySelector('[data-ai-remove-key]').disabled = !policy.key_configured;
+  const enabled = field(form, 'user_ai_enabled');
+  if (enabled) enabled.checked = policy.user_ai_enabled;
+  const funding = field(form, 'funding');
+  if (funding) {
+    funding.value = policy.funding;
+    funding.querySelector('[value="credits"]').disabled = !policy.managed_ai_allowed;
+    funding.querySelector('[value="byok"]').disabled =
+      !policy.byok_allowed || !policy.key_configured;
+  }
+  const entitlement = root.querySelector('[data-ai-entitlement]');
+  if (entitlement)
+    entitlement.textContent = policy.managed_ai_allowed
+      ? 'Credit-funded AI is ready. Add credits in Billing, then choose Todoer credits above.'
+      : `Credit-funded AI needs approval. Request status: ${policy.access_request || 'not requested'}.`;
+  const requestAccess = root.querySelector('[data-ai-request-access]');
+  if (requestAccess)
+    requestAccess.disabled =
+      policy.managed_ai_allowed || policy.access_request === 'pending';
+  const keyStatus = root.querySelector('[data-ai-key-status]');
+  if (keyStatus)
+    keyStatus.textContent = !policy.byok_allowed
+      ? 'Using your own key is disabled by an administrator.'
+      : policy.key_configured
+        ? 'Your OpenRouter key is connected.'
+        : 'No OpenRouter key connected.';
+  const keyForm = root.querySelector('[data-ai-key]');
+  if (keyForm) keyForm.querySelector('button').disabled = !policy.byok_allowed;
+  const removeKey = root.querySelector('[data-ai-remove-key]');
+  if (removeKey) removeKey.disabled = !policy.key_configured;
   modelOptions();
   modelPrice();
 }
 function modelPrice() {
-  const selected = root.querySelector('[data-ai-policy] [name=model_id]').value;
-  const model = models.find((item) => item.id === selected);
-  root.querySelector('[data-ai-model-price]').textContent = model
-    ? `OpenRouter · ${model.name || model.id}. Managed rates per million tokens: input ${money(model.input_micro_per_million)}, output ${money(model.output_micro_per_million)}. BYOK is billed by OpenRouter at its applicable rates.`
-    : 'No supported model selected.';
+  const select = root.querySelector('[data-ai-policy] [name=model_id]');
+  const price = root.querySelector('[data-ai-model-price]');
+  if (!select || !price) return;
+  const model = models.find((item) => item.id === select.value);
+  price.textContent = model
+    ? `OpenRouter · ${model.name || model.id}. Credit rates per million tokens: input ${money(model.input_micro_per_million)}, output ${money(model.output_micro_per_million)}. Your own key is billed by OpenRouter.`
+    : 'Choose a supported model to see its rates.';
 }
 async function loadAI() {
+  const setup = root.dataset.aiSection === 'setup';
   let notices;
   [policy, { models }, notices] = await Promise.all([
     api('/api/account/ai/settings'),
-    api('/api/account/ai/models'),
-    api('/api/account/ai/notices'),
+    setup ? api('/api/account/ai/models') : { models: [] },
+    setup ? api('/api/account/ai/notices') : { notices: [] },
   ]);
   const updates = root.querySelector('[data-ai-notices]');
-  updates.replaceChildren();
-  for (const item of notices.notices || []) {
-    updates.append(
-      element(
-        'p',
-        `${item.unread ? 'New · ' : ''}${item.kind}: ${item.state} · ${timestamp(item.created_at)}`,
-      ),
-    );
-    noticeThrough = Math.max(noticeThrough, Number(item.id) || 0);
+  if (updates) {
+    updates.replaceChildren();
+    for (const item of notices.notices || []) {
+      updates.append(
+        element(
+          'p',
+          `${item.unread ? 'New · ' : ''}${item.kind}: ${item.state} · ${timestamp(item.created_at)}`,
+        ),
+      );
+      noticeThrough = Math.max(noticeThrough, Number(item.id) || 0);
+    }
+    if (!notices.notices?.length) updates.append(element('p', 'No account AI updates.'));
   }
-  if (!notices.notices?.length) updates.append(element('p', 'No account AI updates.'));
-  root.querySelector('[data-ai-notices-read]').disabled = !notices.notices?.some(
-    (item) => item.unread,
-  );
+  const readUpdates = root.querySelector('[data-ai-notices-read]');
+  if (readUpdates) readUpdates.disabled = !notices.notices?.some((item) => item.unread);
   renderPolicy();
-  notice('AI settings loaded. Changes apply to new requests.');
+  notice(setup ? 'AI setup loaded.' : 'AI preferences loaded.');
 }
 function bindAI() {
-  root.querySelector('[data-ai-notices-read]').addEventListener('click', () =>
+  root.querySelector('[data-ai-notices-read]')?.addEventListener('click', () =>
     run(async () => {
       await api('/api/account/ai/notices', { through: noticeThrough }, 'POST');
       await loadAI();
+      notice('Updates marked as read.');
     }),
   );
   root
     .querySelector('[data-ai-policy] [name=model_id]')
-    .addEventListener('change', modelPrice);
+    ?.addEventListener('change', modelPrice);
   root.querySelector('[data-ai-policy]').addEventListener('submit', (event) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -194,25 +242,30 @@ function bindAI() {
       await api(
         '/api/account/ai/settings',
         {
-          user_ai_enabled: field(form, 'user_ai_enabled').checked,
-          funding: field(form, 'funding').value,
-          model_id: field(form, 'model_id').value || null,
+          user_ai_enabled:
+            field(form, 'user_ai_enabled')?.checked ?? policy.user_ai_enabled,
+          funding: field(form, 'funding')?.value ?? policy.funding,
+          model_id: field(form, 'model_id')
+            ? field(form, 'model_id').value || null
+            : policy.model_id,
           revision: policy.revision,
         },
         'PUT',
       );
       await loadAI();
-      notice('AI settings saved.');
+      notice(
+        root.dataset.aiSection === 'setup' ? 'AI setup saved.' : 'AI preferences saved.',
+      );
     });
   });
-  root.querySelector('[data-ai-request-access]').addEventListener('click', () =>
+  root.querySelector('[data-ai-request-access]')?.addEventListener('click', () =>
     run(async () => {
       await api('/api/account/ai/access-request', {}, 'POST');
       await loadAI();
       notice('Access request sent. An administrator will review it.');
     }),
   );
-  root.querySelector('[data-ai-key]').addEventListener('submit', (event) => {
+  root.querySelector('[data-ai-key]')?.addEventListener('submit', (event) => {
     event.preventDefault();
     const form = event.currentTarget;
     if (busy || !policy) return;
@@ -225,16 +278,14 @@ function bindAI() {
         'PUT',
       );
       await loadAI();
-      notice(
-        'OpenRouter key saved. BYOK funding selected; your AI switch was preserved.',
-      );
+      notice('OpenRouter key connected. Your AI feature switch was preserved.');
     });
   });
-  root.querySelector('[data-ai-remove-key]').addEventListener('click', () =>
+  root.querySelector('[data-ai-remove-key]')?.addEventListener('click', () =>
     run(async () => {
       await api('/api/account/ai/key', undefined, 'DELETE');
       await loadAI();
-      notice('Key removed. No fallback to Todoer credits was enabled.');
+      notice('Key removed. Choose a payment source before using AI again.');
     }),
   );
 }
@@ -306,11 +357,20 @@ function showTopupEquivalent() {
 function renderBilling() {
   const wallet = root.querySelector('[data-wallet]');
   wallet.replaceChildren();
-  metric(wallet, 'Posted balance', money(billing.wallet.posted_micro));
-  metric(wallet, 'Reserved', money(billing.wallet.held_micro));
-  metric(wallet, 'Available', money(billing.wallet.available_micro));
-  metric(wallet, 'Paid credits', money(billing.wallet.paid_micro));
-  metric(wallet, 'Free credits', money(billing.wallet.free_micro));
+  metric(wallet, 'Available to spend', money(billing.wallet.available_micro));
+  const details = root.querySelector('[data-wallet-details]');
+  if (details) {
+    details.replaceChildren();
+    metric(details, 'Purchased credits', money(billing.wallet.paid_micro));
+    metric(details, 'Free credits', money(billing.wallet.free_micro));
+    if (billing.wallet.held_micro > 0)
+      metric(details, 'AI requests in progress', money(billing.wallet.held_micro));
+  }
+  const pending = root.querySelector('[data-wallet-pending]');
+  if (pending) {
+    pending.hidden = !(billing.wallet.held_micro > 0);
+    pending.textContent = `${money(billing.wallet.held_micro)} is temporarily set aside for AI requests in progress. Unused credits return automatically when they finish.`;
+  }
   const topup = root.querySelector('[data-credit-topup]');
   const currency = field(topup, 'currency');
   const selected = currency.value;
@@ -576,17 +636,34 @@ function renderUsers(users, requests) {
   const queue = root.querySelector('[data-admin-requests]');
   if (queue) {
     queue.replaceChildren();
-    for (const item of requests)
-      queue.append(
-        element('p', `${item.user_id} · ${item.state} · ${timestamp(item.requested_at)}`),
+    for (const item of requests.filter((item) => item.state === 'pending')) {
+      const row = element('div', undefined, { class: 'ai-access-request' });
+      row.append(
+        element(
+          'span',
+          `${item.name || item.email || item.user_id} · Requested ${timestamp(item.requested_at)}`,
+        ),
       );
-    if (!requests.length) queue.append(element('p', 'No access requests.'));
+      const review = element('button', 'Review request', {
+        type: 'button',
+        class: 'secondary',
+      });
+      review.addEventListener('click', () => run(() => chooseAdminAccount(item.user_id)));
+      row.append(review);
+      queue.append(row);
+    }
+    if (!queue.children.length) queue.append(element('p', 'No pending access requests.'));
   }
   const container = root.querySelector('[data-admin-users]');
   populateAdminAccounts(users);
   if (!container) return;
   container.replaceChildren();
-  for (const user of users) {
+  const selected = users.find((user) => user.user_id === selectedAdminAccount?.user_id);
+  if (!selected) {
+    container.append(element('p', 'Search for an account above to manage access.'));
+    return;
+  }
+  for (const user of [selected]) {
     const form = element('form', undefined, { class: 'ai-admin-user' });
     form.append(
       element('h3', adminAccountLabel(user)),
@@ -721,14 +798,92 @@ function renderUsers(users, requests) {
         );
       });
     });
-    container.append(billingForm);
+    const restrictionDetails = element('details', undefined, { class: 'ai-advanced' });
+    restrictionDetails.open = Boolean(user.billing_blocked || user.debt_micro > 0);
+    restrictionDetails.append(
+      element('summary', 'Billing restrictions and debt'),
+      billingForm,
+    );
+    container.append(restrictionDetails);
   }
 }
+let selectedAdminModel = '';
 function renderAdminModels(items) {
   const container = root.querySelector('[data-admin-models]');
   if (!container) return;
   container.replaceChildren();
+  const create = root.querySelector('[data-admin-model-create]');
+  const addOpen = root.querySelector('[data-admin-model-add-open]');
+  if (addOpen)
+    addOpen.onclick = () => {
+      create.hidden = false;
+      field(create, 'id').focus();
+    };
+  const addCancel = root.querySelector('[data-admin-model-add-cancel]');
+  if (addCancel)
+    addCancel.onclick = () => {
+      create.hidden = true;
+    };
+  if (create)
+    create.onsubmit = (event) => {
+      event.preventDefault();
+      run(async () => {
+        selectedAdminModel = field(create, 'id').value.trim();
+        await api(
+          '/api/admin/ai/models',
+          { id: selectedAdminModel, name: field(create, 'name').value.trim() },
+          'POST',
+        );
+        create.reset();
+        create.hidden = true;
+        await loadAdmin();
+        notice('Model added. Review its settings before enabling it.');
+      });
+    };
+  const table = element('table', undefined, { class: 'ai-model-list' });
+  const thead = element('thead');
+  const labels = element('tr');
+  for (const title of ['Model', 'Status', 'Features', ''])
+    labels.append(element('th', title));
+  thead.append(labels);
+  table.append(thead);
+  const rows = element('tbody');
   for (const model of items) {
+    const row = element('tr');
+    const name = element('td');
+    name.append(element('strong', model.name || model.id), element('small', model.id));
+    row.append(
+      name,
+      element('td', model.enabled ? 'Enabled' : 'Disabled'),
+      element(
+        'td',
+        [model.classify ? 'Classification' : '', model.draft ? 'Drafting' : '']
+          .filter(Boolean)
+          .join(' · ') || 'Not configured',
+      ),
+    );
+    const actions = element('td');
+    const edit = element('button', selectedAdminModel === model.id ? 'Editing' : 'Edit', {
+      type: 'button',
+      class: 'secondary',
+      'aria-label': `Edit ${model.name || model.id}`,
+    });
+    edit.addEventListener('click', () => {
+      selectedAdminModel = model.id;
+      renderAdminModels(items);
+      root
+        .querySelector('.ai-admin-model')
+        ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+    actions.append(edit);
+    row.append(actions);
+    rows.append(row);
+  }
+  table.append(rows);
+  const scroll = element('div', undefined, { class: 'ai-table-scroll' });
+  scroll.append(table);
+  container.append(scroll);
+  for (const model of items.filter((item) => item.id === selectedAdminModel)) {
     const form = element('form', undefined, { class: 'ai-admin-model' });
     form.append(
       element('h3', model.name || model.id),
@@ -767,7 +922,7 @@ function renderAdminModels(items) {
         Number(model.daily_limit_micro || 0) / 1000000,
         'number',
       ),
-      element('button', 'Save future model pricing', {
+      element('button', 'Save model', {
         type: 'submit',
         class: 'secondary',
       }),
@@ -803,6 +958,39 @@ function renderAdminModels(items) {
         );
       });
     });
+    const remove = element('button', 'Remove model', {
+      type: 'button',
+      class: 'secondary danger-text',
+    });
+    remove.addEventListener('click', () => {
+      if (
+        !confirm(
+          `Remove ${model.name || model.id}? Users will no longer be able to select it. Usage and payment history will be kept.`,
+        )
+      )
+        return;
+      run(async () => {
+        await api(
+          '/api/admin/ai/models',
+          { id: model.id, version: model.version },
+          'DELETE',
+        );
+        selectedAdminModel = '';
+        await loadAdmin();
+        notice('Model removed. Usage history was kept.');
+      });
+    });
+    const close = element('button', 'Close editor', {
+      type: 'button',
+      class: 'secondary',
+    });
+    close.addEventListener('click', () => {
+      selectedAdminModel = '';
+      renderAdminModels(items);
+    });
+    const actions = element('div', undefined, { class: 'ai-preset-row' });
+    actions.append(close, remove);
+    form.append(actions);
     container.append(form);
   }
   if (!items.length) container.append(element('p', 'No models configured.'));
@@ -898,15 +1086,137 @@ function adminAccountLabel(user) {
   return [name, user.email, user.user_id].filter(Boolean).join(' · ');
 }
 function populateAdminAccounts(users) {
-  for (const select of root.querySelectorAll('[data-admin-account-select]')) {
-    const previous = select.value;
-    select.replaceChildren(element('option', 'Choose an account…', { value: '' }));
-    for (const user of users)
-      select.append(element('option', adminAccountLabel(user), { value: user.user_id }));
-    if (previous && !users.some((user) => user.user_id === previous))
-      select.append(element('option', previous, { value: previous }));
-    select.value = previous;
+  if (selectedAdminAccount) {
+    const refreshed = users.find((user) => user.user_id === selectedAdminAccount.user_id);
+    if (refreshed) selectedAdminAccount = refreshed;
   }
+  for (const picker of root.querySelectorAll('[data-admin-account-picker]')) {
+    const selected = picker.querySelector('[data-account-selection]');
+    picker.querySelector('[data-admin-account-select]').value =
+      selectedAdminAccount?.user_id || '';
+    selected.textContent = selectedAdminAccount
+      ? `Selected: ${adminAccountLabel(selectedAdminAccount)}`
+      : 'No account selected.';
+  }
+}
+function bindAdminAccountPickers() {
+  for (const picker of root.querySelectorAll('[data-admin-account-picker]')) {
+    const query = picker.querySelector('[data-account-query]');
+    const result = picker.querySelector('[data-account-results]');
+    const resultsId = `admin-account-results-${++accountPickerSequence}`;
+    result.id = resultsId;
+    query.setAttribute('aria-controls', resultsId);
+    let timer,
+      sequence = 0,
+      active = -1;
+    const close = () => {
+      result.hidden = true;
+      query.setAttribute('aria-expanded', 'false');
+      query.removeAttribute('aria-activedescendant');
+      active = -1;
+    };
+    const choose = async (account) => {
+      selectedAdminAccount = account;
+      query.value = '';
+      close();
+      populateAdminAccounts([account]);
+      picker.dispatchEvent(new Event('input', { bubbles: true }));
+      renderUsers([account], adminAccessRequests);
+    };
+    const search = async () => {
+      const version = ++sequence;
+      const text = query.value.trim();
+      if (!text) {
+        close();
+        return;
+      }
+      result.hidden = false;
+      result.replaceChildren(element('p', 'Searching accounts…'));
+      query.setAttribute('aria-expanded', 'true');
+      try {
+        const data = await api(
+          `/api/admin/ai/users?q=${encodeURIComponent(text)}&limit=20`,
+        );
+        if (version !== sequence || query.value.trim() !== text) return;
+        result.replaceChildren();
+        active = -1;
+        for (const account of list(data, 'users')) {
+          const button = element('button', adminAccountLabel(account), {
+            type: 'button',
+            role: 'option',
+            id: `${resultsId}-${result.children.length}`,
+            'aria-selected': 'false',
+            tabindex: '-1',
+          });
+          button.addEventListener('click', () => {
+            choose(account);
+            query.focus();
+          });
+          result.append(button);
+        }
+        if (!result.children.length)
+          result.append(
+            element('p', 'No matching accounts. Try a name, email or exact account ID.'),
+          );
+        else if (result.children.length === 20)
+          result.append(
+            element(
+              'p',
+              'Showing the first 20 matches. Type more to narrow your search.',
+            ),
+          );
+      } catch (error) {
+        if (version === sequence) result.replaceChildren(element('p', error.message));
+      }
+    };
+    query.addEventListener('input', () => {
+      clearTimeout(timer);
+      ++sequence;
+      timer = setTimeout(search, 250);
+    });
+    query.addEventListener('keydown', (event) => {
+      const options = [...result.querySelectorAll('[role=option]')];
+      if (event.key === 'Escape') {
+        ++sequence;
+        close();
+        return;
+      }
+      if (event.key === 'Enter') event.preventDefault();
+      if (
+        !['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key) ||
+        !options.length ||
+        result.hidden
+      )
+        return;
+      event.preventDefault();
+      if (event.key === 'Enter') {
+        if (active >= 0) options[active].click();
+        return;
+      }
+      active =
+        (active + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+      options.forEach((option, index) =>
+        option.setAttribute('aria-selected', String(index === active)),
+      );
+      query.setAttribute('aria-activedescendant', options[active].id);
+      options[active].scrollIntoView({ block: 'nearest' });
+    });
+    picker.addEventListener('focusout', (event) => {
+      if (!picker.contains(event.relatedTarget)) {
+        ++sequence;
+        close();
+      }
+    });
+  }
+}
+async function chooseAdminAccount(userId) {
+  const data = await api(
+    `/api/admin/ai/users?user_id=${encodeURIComponent(userId)}&limit=1`,
+  );
+  const user = list(data, 'users')[0];
+  if (!user) throw Error('This account is no longer available.');
+  selectedAdminAccount = user;
+  renderUsers([user], adminAccessRequests);
 }
 function adminMicro(raw) {
   if (!/^-?\d+(?:\.\d{1,6})?$/.test(raw) || raw.length > 20)
@@ -921,12 +1231,12 @@ async function loadAdmin() {
   const has = (selector) => Boolean(root.querySelector(selector));
   const fetchIf = (selector, url, fallback) =>
     has(selector) ? api(url) : Promise.resolve(fallback);
-  const needsUsers = has(
-    '[data-admin-users], [data-admin-account-select], [data-admin-requests]',
-  );
+  const needsUsers = Boolean(selectedAdminAccount);
   const [users, requests, configured, finance, provider, audit] = await Promise.all([
     needsUsers
-      ? api(`/api/admin/ai/users?limit=50&after=${encodeURIComponent(adminUsersAfter)}`)
+      ? api(
+          `/api/admin/ai/users?user_id=${encodeURIComponent(selectedAdminAccount.user_id)}&limit=1`,
+        )
       : { users: [] },
     fetchIf(
       '[data-admin-requests]',
@@ -942,19 +1252,15 @@ async function loadAdmin() {
       { entries: [] },
     ),
   ]);
-  adminUsersNext = users.next_cursor || '';
   adminRequestsNext = requests.next_cursor || '';
   adminAuditNext = audit.next_cursor || '';
   for (const [selector, cursor] of [
     ['[data-admin-audit-next]', adminAuditNext],
-    ['[data-admin-users-next]', adminUsersNext],
     ['[data-admin-requests-next]', adminRequestsNext],
   ]) {
     const button = root.querySelector(selector);
     if (button) button.hidden = !cursor;
   }
-  const firstAccounts = root.querySelector('[data-admin-users-first]');
-  if (firstAccounts) firstAccounts.hidden = !adminUsersAfter;
   const auditContainer = root.querySelector('[data-admin-audit]');
   if (auditContainer) {
     auditContainer.replaceChildren();
@@ -976,7 +1282,8 @@ async function loadAdmin() {
     field(form, 'usd_eur_ppm').value = provider.usd_eur_ppm / 1000000;
     field(form, 'daily_limit_micro').value = provider.daily_limit_micro / 1000000;
   }
-  renderUsers(list(users, 'users'), list(requests, 'requests'));
+  adminAccessRequests = list(requests, 'requests');
+  renderUsers(list(users, 'users'), adminAccessRequests);
   renderAdminModels(list(configured, 'models'));
   if (finance) renderFinance(finance);
   notice(
@@ -984,6 +1291,7 @@ async function loadAdmin() {
   );
 }
 function bindAdmin() {
+  bindAdminAccountPickers();
   root
     .querySelector('[data-admin-stripe-reconcile]')
     ?.addEventListener('submit', (event) => {
@@ -1040,7 +1348,7 @@ function bindAdmin() {
       const account = field(grantForm, 'user_id');
       summary.textContent =
         account.value && field(grantForm, 'amount').value
-          ? `${money(Number(field(grantForm, 'amount').value) * 1000000)} in free AI credits will be added to ${account.selectedOptions?.[0]?.textContent || account.value}. No payment is collected.`
+          ? `${money(Number(field(grantForm, 'amount').value) * 1000000)} in free AI credits will be added to ${selectedAdminAccount ? adminAccountLabel(selectedAdminAccount) : account.value}. No payment is collected.`
           : 'Choose an account and enter an amount before issuing credits.';
     });
   }
@@ -1048,6 +1356,8 @@ function bindAdmin() {
     event.preventDefault();
     const form = event.currentTarget;
     run(async () => {
+      if (!field(form, 'user_id').value)
+        throw Error('Search for and select an account first.');
       const raw = field(form, 'amount').value;
       if (!/^\d+(?:\.\d{1,6})?$/.test(raw) || raw.length > 20)
         throw Error('Use an amount with at most six decimal places.');
@@ -1084,14 +1394,6 @@ function bindAdmin() {
   });
   root.querySelector('[data-admin-audit-next]')?.addEventListener('click', () => {
     adminAuditAfter = adminAuditNext;
-    run(loadAdmin);
-  });
-  root.querySelector('[data-admin-users-next]')?.addEventListener('click', () => {
-    adminUsersAfter = adminUsersNext;
-    run(loadAdmin);
-  });
-  root.querySelector('[data-admin-users-first]')?.addEventListener('click', () => {
-    adminUsersAfter = '';
     run(loadAdmin);
   });
   root.querySelector('[data-admin-requests-next]')?.addEventListener('click', () => {
@@ -1133,6 +1435,8 @@ function bindAdmin() {
     event.preventDefault();
     const form = event.currentTarget;
     run(async () => {
+      if (!field(form, 'user_id').value)
+        throw Error('Search for and select an account first.');
       await api(
         '/api/admin/ai/adjustments',
         {
@@ -1166,6 +1470,28 @@ function bindAdmin() {
 }
 
 if (root) {
+  // Capture the initiating control before its handler starts a request.
+  for (const type of ['click', 'submit'])
+    root.addEventListener(
+      type,
+      (event) => {
+        if (busy) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          return;
+        }
+        actionTrigger =
+          type === 'submit'
+            ? event.submitter ||
+              event.target.querySelector('button[type=submit], button:not([type])')
+            : event.target.closest('button');
+        const current = actionTrigger;
+        setTimeout(() => {
+          if (actionTrigger === current) actionTrigger = undefined;
+        });
+      },
+      true,
+    );
   const loaders = {
     ai: loadAI,
     billing: loadBilling,

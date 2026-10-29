@@ -132,9 +132,10 @@ pub(super) fn routes() -> Router<AppState> {
         .route("/oauth/token", post(token).options(preflight))
         .route("/oauth/revoke", post(revoke).options(preflight))
         .route("/settings/ai", get(settings))
+        .route("/settings/ai/tools", get(tools_settings))
         .route(
             "/settings/agents",
-            get(|| async { Redirect::to("/settings/ai") }),
+            get(|| async { Redirect::to("/settings/ai/tools") }),
         )
         .route("/settings/credentials", post(issue_form))
         .route("/settings/credentials/{id}/revoke", post(revoke_form))
@@ -271,7 +272,7 @@ async fn authorize(
             "<label><input type=\"checkbox\" name=\"{name}\" value=\"yes\">{label}</label><br>"
         ));
     }
-    Ok(Html(format!("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Review access · Todoer</title><link rel=\"stylesheet\" href=\"/assets/app.css\"><main><h1>Allow {} to access Todoer?</h1><p>Client ID: <code>{}</code></p><p>Resource: <code>{}</code></p><p>Redirect: <code>{}</code></p><p>This client can keep access until you revoke it. Choose permissions and lists explicitly. Write includes reading. Access always follows your current membership.</p><form method=\"post\" action=\"/oauth/approve\"><input type=\"hidden\" name=\"request_id\" value=\"{}\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><fieldset><legend>Permissions</legend>{}</fieldset><fieldset><legend>Lists</legend>{}<label><input type=\"checkbox\" name=\"allow_all\" value=\"yes\">All current and future accessible lists</label></fieldset><button name=\"action\" value=\"allow\">Allow selected access</button> <button name=\"action\" value=\"deny\">Deny</button></form><p>Revoke client access in Settings (/settings).</p></main></html>",escaped(&pending.client_name),escaped(&pending.request.client_id),escaped(&pending.request.resource),escaped(&pending.request.redirect_uri),escaped(&pending.id),escaped(&s.csrf_for(&h)),permissions,options)).into_response())
+    Ok(Html(format!("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Review access · Todoer</title><link rel=\"stylesheet\" href=\"/assets/app.css\"><main><h1>Allow {} to access Todoer?</h1><p>Client ID: <code>{}</code></p><p>Resource: <code>{}</code></p><p>Redirect: <code>{}</code></p><p>This client can keep access until you revoke it. Choose permissions and lists explicitly. Write includes reading. Access always follows your current membership.</p><form method=\"post\" action=\"/oauth/approve\"><input type=\"hidden\" name=\"request_id\" value=\"{}\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><fieldset><legend>Permissions</legend>{}</fieldset><fieldset><legend>Lists</legend>{}<label><input type=\"checkbox\" name=\"allow_all\" value=\"yes\">All current and future accessible lists</label></fieldset><button name=\"action\" value=\"allow\">Allow selected access</button> <button name=\"action\" value=\"deny\">Deny</button></form><p>Revoke client access in Settings → Connected tools (/settings/ai/tools).</p></main></html>",escaped(&pending.client_name),escaped(&pending.request.client_id),escaped(&pending.request.resource),escaped(&pending.request.redirect_uri),escaped(&pending.id),escaped(&s.csrf_for(&h)),permissions,options)).into_response())
 }
 async fn approve(
     State(s): State<AppState>,
@@ -628,7 +629,7 @@ async fn revoke_form(
         .map_err(|_| unavailable())?
         .revoke_agent(&actor, &id)
         .map_err(storage)?;
-    Ok(Redirect::to("/settings").into_response())
+    Ok(Redirect::to("/settings/ai/tools").into_response())
 }
 async fn issue_form(
     State(s): State<AppState>,
@@ -671,12 +672,24 @@ async fn issue_form(
         },
     )
     .await?;
-    Ok(Html(format!("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Save your credential</title><link rel=\"stylesheet\" href=\"/assets/app.css\"><main><h1>Copy your credential now</h1><p>This is its only display. Store it securely. Anyone holding it can use the approved access until it expires or is revoked.</p><label>Credential<textarea readonly rows=\"3\" cols=\"72\">{}</textarea></label><p>ID: <code>{}</code></p><a href=\"/settings\">Return to settings</a></main></html>",escaped(&grant.token),escaped(&grant.id))).into_response())
+    Ok(Html(format!("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Save your credential</title><link rel=\"stylesheet\" href=\"/assets/app.css\"><main><h1>Copy your credential now</h1><p>This is its only display. Store it securely. Anyone holding it can use the approved access until it expires or is revoked.</p><label>Credential<textarea readonly rows=\"3\" cols=\"72\">{}</textarea></label><p>ID: <code>{}</code></p><a href=\"/settings/ai/tools\">Return to connected tools</a></main></html>",escaped(&grant.token),escaped(&grant.id))).into_response())
 }
 async fn settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult {
+    browser(&s, &h, false)?;
+    super::scheduling_http::render_settings(
+        &s,
+        &h,
+        "AI",
+        ai_billing_ui::ai_settings_body().into(),
+        "agents",
+    )
+    .await
+    .map_err(|_| bad("Could not load settings"))
+}
+async fn tools_settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult {
     let actor = browser(&s, &h, false)?;
     let Some(production) = s.production.as_ref() else {
-        return super::scheduling_http::render_settings(&s, &h, "AI", ai_billing_ui::ai_settings_body().to_owned() + r#"<section class="settings-preference-card"><h2>Connected tools</h2><p class="muted">Connect an AI agent or your own scripts to Todoer.</p><p class="muted">Credential management is available when OAuth is configured for this installation.</p></section>"#, "agents").await.map_err(|_| bad("Could not load settings"));
+        return super::scheduling_http::render_settings(&s, &h, "Connected tools", r#"<section class="settings-preference-card"><h2>Connected tools</h2><p class="muted">Connect an AI agent or your own scripts to Todoer.</p><p class="muted">Credential management is available when OAuth is configured for this installation.</p></section>"#.into(), "tools").await.map_err(|_| bad("Could not load settings"));
     };
     let rows = production
         .store
@@ -744,15 +757,9 @@ async fn settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult {
         r#"<section class="settings-preference-card" aria-labelledby="connected-tools-heading"><h2 id="connected-tools-heading">Connected tools</h2><p class="muted">Give an AI agent or script access to the lists you choose.</p><details class="credential-create"><summary>Create a credential…</summary><form method="post" action="/settings/credentials"><input type="hidden" name="csrf" value="{}"><label>Connection type<select name="audience"><option value="mcp">AI agent (MCP)</option><option value="rest">Script (REST API)</option></select></label><fieldset><legend>Permissions</legend><label class="settings-check"><input type="checkbox" name="read" value="yes" checked>Read</label><label class="settings-check"><input type="checkbox" name="write" value="yes">Write (includes read)</label><label class="settings-check"><input type="checkbox" name="admin" value="yes">Admin (requires ownership)</label></fieldset><fieldset><legend>List access</legend><label class="settings-check"><input type="checkbox" name="allow_all" value="yes" data-credential-all>All current and future accessible lists</label><div data-credential-lists>{}</div></fieldset><label>Expires after (days)<input name="ttl_days" type="number" min="1" max="90" value="30" required></label><button class="primary">Create credential</button></form></details><details class="credential-history"><summary>Manage connected tools</summary><ul>{}</ul></details></section>"#,
         csrf, options, existing
     );
-    super::scheduling_http::render_settings(
-        &s,
-        &h,
-        "AI",
-        ai_billing_ui::ai_settings_body().to_owned() + &html,
-        "agents",
-    )
-    .await
-    .map_err(|_| bad("Could not load settings"))
+    super::scheduling_http::render_settings(&s, &h, "Connected tools", html, "tools")
+        .await
+        .map_err(|_| bad("Could not load settings"))
 }
 #[cfg(test)]
 mod tests {

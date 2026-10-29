@@ -1,4 +1,106 @@
-<link rel="stylesheet" href="/assets/ai-billing.css">
+<link rel="stylesheet" href="/assets/ai-billing.css" />
 <script type="module" src="/assets/ai-billing.js"></script>
-<section data-ai-billing="admin" data-admin-screen="models" class="ai-billing-panel" aria-busy="true"><div class="ai-page-toolbar"><p>Control supported models, provider availability and future pricing.</p><button type="button" class="secondary ai-refresh" data-ai-reload>Refresh this view</button></div><p data-ai-notice role="status" aria-live="polite">Loading…</p><section class="settings-preference-card"><h2>OpenRouter controls</h2><p>Disabling the provider stops new built-in inference. Managed credits need a configured USD-to-EUR conversion rate. Changes apply to future quotes.</p><form data-admin-provider=""><label class="settings-check"><input name="enabled" type="checkbox"/><span>Enable OpenRouter inference</span></label><label>Default gross margin (%)<input max="95" min="0" name="margin_bps" required="" step="0.01" type="number"/></label><label>EUR value of US$1<input max="10" min="0" name="usd_eur_ppm" required="" step="0.000001" type="number"/></label><label>Daily provider spend cap (€)<input min="0" name="daily_limit_micro" required="" step="0.000001" type="number"/></label><button class="secondary" type="submit">Save provider controls</button></form></section>
-<section class="settings-preference-card"><h2>Models and pricing</h2><p>Only supported models can be selected. Rate changes apply to future quotes. Gross margin differs from markup: a 20% gross margin divides the source cost by 0.80.</p><div data-admin-models=""></div></section></section>
+<section
+  data-ai-billing="admin"
+  data-admin-screen="models"
+  class="ai-billing-panel"
+  aria-busy="true"
+>
+  <div class="ai-page-toolbar">
+    <p>Choose the models available to users and control their pricing.</p>
+    <button type="button" class="secondary ai-refresh" data-ai-reload>
+      Refresh models
+    </button>
+  </div>
+  <p data-ai-notice role="status" aria-live="polite">Loading models…</p>
+  <section class="settings-preference-card">
+    <div class="ai-page-toolbar">
+      <h2>Model catalog</h2>
+      <button type="button" class="primary" data-admin-model-add-open>Add model</button>
+    </div>
+    <p>
+      Only enabled models are available to users. Select a model to edit its capabilities,
+      pricing and spend limit.
+    </p>
+    <form data-admin-model-create hidden>
+      <h3>Add an OpenRouter model</h3>
+      <label
+        >OpenRouter model ID<input
+          name="id"
+          required
+          maxlength="150"
+          placeholder="provider/model-name"
+          autocomplete="off"
+        /><small
+          >Copy the exact model ID from OpenRouter. This does not verify model quality or
+          compatibility.</small
+        ></label
+      ><label
+        >Display name<input
+          name="name"
+          required
+          maxlength="120"
+          placeholder="Name shown to users"
+      /></label>
+      <p class="muted">
+        New models start disabled. Verify structured-output support, review the costs and
+        enable only the features you have tested.
+      </p>
+      <div class="ai-preset-row">
+        <button type="submit" class="primary">Add model</button
+        ><button type="button" class="secondary" data-admin-model-add-cancel>
+          Cancel
+        </button>
+      </div>
+    </form>
+    <div data-admin-models></div>
+  </section>
+  <details class="settings-preference-card ai-advanced">
+    <summary>Provider settings · OpenRouter</summary>
+    <p>
+      Pause all inference, set your default margin, or update currency conversion and
+      provider spending limits.
+    </p>
+    <form data-admin-provider>
+      <label class="settings-check"
+        ><input name="enabled" type="checkbox" /><span
+          >Allow OpenRouter inference</span
+        ></label
+      >
+      <div class="ai-form-grid">
+        <label
+          >Default gross margin (%)<input
+            name="margin_bps"
+            type="number"
+            min="0"
+            max="95"
+            step="0.01"
+            required
+          /><small
+            >For example, 20% means a €0.80 provider cost is billed as €1.00.</small
+          ></label
+        ><label
+          >EUR value of US$1<input
+            name="usd_eur_ppm"
+            type="number"
+            min="0"
+            max="10"
+            step="0.000001"
+            required
+          /><small>Used to convert OpenRouter's reported USD expense.</small></label
+        ><label
+          >Daily provider spend cap (€)<input
+            name="daily_limit_micro"
+            type="number"
+            min="0.000001"
+            step="0.000001"
+            required
+          /><small
+            >Stops new requests once the provider's daily limit is reached.</small
+          ></label
+        >
+      </div>
+      <button type="submit" class="primary">Save provider settings</button>
+    </form>
+  </details>
+</section>

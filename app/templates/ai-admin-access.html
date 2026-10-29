@@ -1,4 +1,46 @@
-<link rel="stylesheet" href="/assets/ai-billing.css">
-<script type="module" src="/assets/ai-billing.js"></script>
-<section data-ai-billing="admin" data-admin-screen="access" class="ai-billing-panel" aria-busy="true"><div class="ai-page-toolbar"><p>Review requests and manage account access to AI.</p><button type="button" class="secondary ai-refresh" data-ai-reload>Refresh this view</button></div><p data-ai-notice role="status" aria-live="polite">Loading…</p><section class="settings-preference-card"><h2>Access requests</h2><div data-admin-requests=""></div><button class="secondary" data-admin-requests-next="" hidden="" type="button">Next requests</button></section>
-<section class="settings-preference-card"><h2>User AI access</h2><p>Managed AI starts off. BYOK starts available. Grants do not override the user's personal AI switch.</p><div data-admin-users=""></div><div class="ai-preset-row"><button class="secondary" data-admin-users-first="" type="button">First users</button><button class="secondary" data-admin-users-next="" hidden="" type="button">Next users</button></div></section></section>
+<link href="/assets/ai-billing.css" rel="stylesheet" /><link
+  href="/assets/ai-account-picker.css"
+  rel="stylesheet"
+/>
+<script src="/assets/ai-billing.js" type="module"></script>
+<section
+  aria-busy="true"
+  class="ai-billing-panel"
+  data-admin-screen="access"
+  data-ai-billing="admin"
+>
+  <div class="ai-page-toolbar">
+    <p>Review requests and manage account access to AI.</p>
+    <button class="secondary ai-refresh" data-ai-reload="" type="button">
+      Refresh this view
+    </button>
+  </div>
+  <p aria-live="polite" data-ai-notice="" role="status">Loading…</p>
+  <section class="settings-preference-card">
+    <h2>Access requests</h2>
+    <div data-admin-requests=""></div>
+    <button class="secondary" data-admin-requests-next="" hidden="" type="button">
+      Next requests
+    </button>
+  </section>
+  <section class="settings-preference-card">
+    <h2>Manage account access</h2>
+    <p>Find an account to review its AI access, limits and billing restrictions.</p>
+    <div class="ai-account-picker" data-admin-account-picker="">
+      <label
+        >Find an account<input
+          aria-autocomplete="list"
+          aria-expanded="false"
+          autocomplete="off"
+          data-account-query=""
+          maxlength="200"
+          placeholder="Name, email or account ID (starts with)"
+          role="combobox"
+          type="search" /></label
+      ><input data-admin-account-select="" name="user_id" type="hidden" />
+      <div data-account-results="" hidden="" role="listbox"></div>
+      <p class="muted" data-account-selection="">No account selected.</p>
+    </div>
+    <div data-admin-users=""></div>
+  </section>
+</section>
