@@ -219,9 +219,10 @@ async fn automatic(
         }
         browser(&s, &h, true, true)?;
     }
+    let configured = StripeService::from_env()?;
     Ok(Json(
         change(&s, &h, user, true, move |db, account| {
-            db.billing_set_auto(account, input)
+            db.billing_set_auto(account, input, configured.as_ref())
         })
         .await?,
     ))

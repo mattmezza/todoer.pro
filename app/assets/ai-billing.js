@@ -238,18 +238,70 @@ function bindAI() {
     }),
   );
 }
-function currencyRate(code) {
+function currencyConfig(code) {
   return (
-    billing.currencies.find((item) => item.code === code)?.eur_rate_micros || 1000000
+    billing.currencies.find((item) => item.code === code) || {
+      code: 'EUR',
+      eur_rate_micros: 1000000,
+    }
   );
+}
+function paymentQuote(minor, code) {
+  const config = currencyConfig(code);
+  const gross = (BigInt(minor) * 10000000000n) / BigInt(config.eur_rate_micros);
+  const payment =
+    (gross * BigInt(config.payment_fee_bps || 0) + 9999n) / 10000n +
+    BigInt(config.payment_fee_fixed_micro || 0);
+  const forex = code === 'EUR' ? 0n : (gross + 99n) / 100n;
+  return {
+    gross: Number(gross),
+    payment: Number(payment),
+    forex: Number(forex),
+    credit: Number(gross - payment - forex),
+  };
+}
+function showAutoConversion() {
+  const form = root.querySelector('[data-auto-topup]');
+  const preview = root.querySelector('[data-auto-conversion]');
+  if (!preview) return;
+  try {
+    const quote = paymentQuote(cents(field(form, 'amount')), 'EUR');
+    preview.textContent = `Each payment adds ${money(Math.max(0, quote.credit))} in credits after ${money(quote.payment)} processing allowance. A change in fee policy pauses auto-top-up until you approve it again.`;
+  } catch {
+    preview.textContent = 'Enter a payment amount to preview your credits.';
+  }
+}
+function topupQuote() {
+  const form = root.querySelector('[data-credit-topup]');
+  const code = field(form, 'currency').value;
+  return paymentQuote(cents(field(form, 'amount')), code);
 }
 function showTopupEquivalent() {
   const form = root.querySelector('[data-credit-topup]');
   const code = field(form, 'currency').value;
-  const rate = currencyRate(code);
-  field(form, 'amount').min = (Math.ceil((500 * rate) / 1000000) / 100).toFixed(2);
+  const rate = currencyConfig(code).eur_rate_micros;
+  const minimum = Math.ceil((500 * rate) / 1000000);
+  field(form, 'amount').min = (minimum / 100).toFixed(2);
+  field(form, 'amount').max = (Math.floor((100000 * rate) / 1000000) / 100).toFixed(2);
   root.querySelector('[data-topup-equivalent]').textContent =
-    `Minimum ${money(Math.ceil((500 * rate) / 1000000), code, 100)} (€5 equivalent). Your wallet is denominated in EUR. Checkout confirms the payment.`;
+    `Minimum payment ${money(minimum, code, 100)} (EUR 5 before deductions). Only currencies configured by this instance are available.`;
+  root.querySelectorAll('[data-topup-preset]').forEach((button) => {
+    button.textContent = money(Number(button.dataset.topupPreset) * 100, code, 100);
+    button.disabled =
+      Number(button.dataset.topupPreset) * 100 < minimum || !billing.enabled;
+  });
+  const detail = root.querySelector('[data-topup-conversion]');
+  if (!detail) return;
+  detail.replaceChildren();
+  try {
+    const quote = topupQuote();
+    metric(detail, 'Converted payment', money(quote.gross));
+    metric(detail, 'Payment processing allowance', `−${money(quote.payment)}`);
+    metric(detail, 'Currency conversion allowance (1%)', `−${money(quote.forex)}`);
+    metric(detail, 'Credits you receive', money(Math.max(0, quote.credit)));
+  } catch {
+    detail.append(element('p', 'Enter a payment amount to preview your credits.'));
+  }
 }
 function renderBilling() {
   const wallet = root.querySelector('[data-wallet]');
@@ -264,7 +316,11 @@ function renderBilling() {
   const selected = currency.value;
   currency.replaceChildren(
     ...billing.currencies.map((item) =>
-      element('option', item.code, { value: item.code }),
+      element(
+        'option',
+        `${item.code} · ${{ EUR: 'Euro', USD: 'US dollar', GBP: 'Pound sterling', CAD: 'Canadian dollar' }[item.code] || item.code}`,
+        { value: item.code },
+      ),
     ),
   );
   currency.value = billing.currencies.some((item) => item.code === selected)
@@ -280,8 +336,25 @@ function renderBilling() {
   field(form, 'monthly_cap').value = (auto.monthly_cap_minor / 100).toFixed(2);
   field(form, 'cooldown_hours').value = auto.cooldown_seconds / 3600;
   field(form, 'consent').checked = false;
+  showAutoConversion();
+  const pauseReason =
+    {
+      fee_policy_changed:
+        'Processing fees changed. Review the credits below and enable again to accept them.',
+      payment_dispute: 'A payment dispute needs review.',
+      payment_failed: 'Your last payment failed.',
+      payment_unknown: 'Your last payment is still being verified.',
+      ai_unavailable: 'Managed AI is currently unavailable for your account.',
+      global_ai_disabled: 'Built-in AI is paused for this instance.',
+      billing_review: 'Your billing account needs administrator review.',
+      authentication_required: 'Your payment needs authentication.',
+      auth_required: 'Your payment needs authentication.',
+      byok_enabled: 'Your own OpenRouter key is active.',
+      ai_disabled: 'Your personal AI switch is off.',
+    }[auto.paused_reason] ||
+    (auto.paused_reason ? 'Paused. Review your settings before enabling again.' : '');
   root.querySelector('[data-auto-state]').textContent =
-    `${auto.enabled ? 'Enabled' : 'Disabled'}${auto.paused_reason ? ` · Paused: ${auto.paused_reason}` : ''}. ${auto.payment_method_configured ? 'Payment method is saved.' : 'Save a payment method during a top-up before enabling this.'}`;
+    `${auto.enabled ? 'Enabled' : 'Disabled'}${pauseReason ? ` · ${pauseReason}` : ''}. ${auto.payment_method_configured ? 'Payment method is saved.' : 'Save a payment method during a top-up before enabling this.'}`;
   if (['authentication_required', 'auth_required'].includes(auto.paused_reason))
     root.querySelector('[data-auto-state]').textContent +=
       ' Complete a manual top-up with payment-method saving checked, then explicitly re-enable auto-top-up. The previous unconfirmed payment will not be retried automatically.';
@@ -312,17 +385,22 @@ async function loadBilling() {
 }
 function bindBilling() {
   const topup = root.querySelector('[data-credit-topup]');
-  field(topup, 'currency').addEventListener('change', showTopupEquivalent);
+  field(topup, 'currency').addEventListener('change', () => {
+    const minimum =
+      Math.ceil(
+        (500 * currencyConfig(field(topup, 'currency').value).eur_rate_micros) / 1000000,
+      ) / 100;
+    field(topup, 'amount').value = Math.max(
+      Number(field(topup, 'amount').value),
+      minimum,
+    ).toFixed(2);
+    showTopupEquivalent();
+  });
+  field(topup, 'amount').addEventListener('input', showTopupEquivalent);
   root.querySelectorAll('[data-topup-preset]').forEach((button) =>
     button.addEventListener('click', () => {
-      field(topup, 'amount').value = (
-        Math.ceil(
-          (Number(button.dataset.topupPreset) *
-            100 *
-            currencyRate(field(topup, 'currency').value)) /
-            1000000,
-        ) / 100
-      ).toFixed(2);
+      field(topup, 'amount').value = Number(button.dataset.topupPreset).toFixed(2);
+      showTopupEquivalent();
     }),
   );
 
@@ -331,10 +409,17 @@ function bindBilling() {
     run(async () => {
       const payload = {
         amount_minor: cents(field(topup, 'amount')),
+        quoted_credit_micro: topupQuote().credit,
         currency: field(topup, 'currency').value,
         save_for_auto_topup: field(topup, 'save_for_auto_topup').checked,
       };
-      const fingerprint = JSON.stringify(payload);
+      // A quote/configuration refresh must not turn an uncertain payment retry
+      // into a new charge. Its frozen purchase is authoritative on retries.
+      const fingerprint = JSON.stringify({
+        amount_minor: payload.amount_minor,
+        currency: payload.currency,
+        save_for_auto_topup: payload.save_for_auto_topup,
+      });
       if (!purchaseAttempt || purchaseAttempt.fingerprint !== fingerprint)
         purchaseAttempt = { fingerprint, key: crypto.randomUUID() };
       try {
@@ -362,6 +447,10 @@ function bindBilling() {
       }
     });
   });
+  field(root.querySelector('[data-auto-topup]'), 'amount').addEventListener(
+    'input',
+    showAutoConversion,
+  );
   root.querySelector('[data-auto-topup]').addEventListener('submit', (event) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -371,6 +460,7 @@ function bindBilling() {
         {
           enabled: field(form, 'enabled').checked,
           amount_minor: cents(field(form, 'amount')),
+          quoted_credit_micro: paymentQuote(cents(field(form, 'amount')), 'EUR').credit,
           threshold_minor: cents(field(form, 'threshold')),
           monthly_cap_minor: cents(field(form, 'monthly_cap')),
           cooldown_seconds: Number(field(form, 'cooldown_hours').value) * 3600,
@@ -475,24 +565,31 @@ function inputLabel(label, name, value, type = 'text') {
     type,
     ...(type === 'checkbox' ? { checked: Boolean(value) } : { value: value ?? '' }),
   });
-  if (type === 'number') input.step = '1';
+  if (type === 'number') {
+    input.step = name === 'margin_bps' ? '0.01' : '0.000001';
+    input.min = '0';
+  }
   node.append(input);
   return node;
 }
 function renderUsers(users, requests) {
   const queue = root.querySelector('[data-admin-requests]');
-  queue.replaceChildren();
-  for (const item of requests)
-    queue.append(
-      element('p', `${item.user_id} · ${item.state} · ${timestamp(item.requested_at)}`),
-    );
-  if (!requests.length) queue.append(element('p', 'No access requests.'));
+  if (queue) {
+    queue.replaceChildren();
+    for (const item of requests)
+      queue.append(
+        element('p', `${item.user_id} · ${item.state} · ${timestamp(item.requested_at)}`),
+      );
+    if (!requests.length) queue.append(element('p', 'No access requests.'));
+  }
   const container = root.querySelector('[data-admin-users]');
+  populateAdminAccounts(users);
+  if (!container) return;
   container.replaceChildren();
   for (const user of users) {
     const form = element('form', undefined, { class: 'ai-admin-user' });
     form.append(
-      element('h3', user.user_id),
+      element('h3', adminAccountLabel(user)),
       element(
         'p',
         `AI switch: ${user.user_ai_enabled ? 'on' : 'off'} · Funding: ${user.funding} · Request: ${user.access_request || 'none'}`,
@@ -505,9 +602,9 @@ function renderUsers(users, requests) {
       ),
       inputLabel('BYOK allowed', 'byok_allowed', user.byok_allowed, 'checkbox'),
       inputLabel(
-        'Daily spend limit (micro-EUR)',
+        'Daily spend limit (€)',
         'daily_limit_micro',
-        user.daily_limit_micro,
+        Number(user.daily_limit_micro || 0) / 1000000,
         'number',
       ),
     );
@@ -562,7 +659,7 @@ function renderUsers(users, requests) {
           `/api/admin/ai/users/${encodeURIComponent(user.user_id)}`,
           {
             managed_ai_allowed: field(form, 'managed_ai_allowed').checked,
-            daily_limit_micro: Number(field(form, 'daily_limit_micro').value),
+            daily_limit_micro: adminMicro(field(form, 'daily_limit_micro').value),
             byok_allowed: field(form, 'byok_allowed').checked,
             decision: field(form, 'decision').value || null,
             reason: field(form, 'reason').value,
@@ -629,6 +726,7 @@ function renderUsers(users, requests) {
 }
 function renderAdminModels(items) {
   const container = root.querySelector('[data-admin-models]');
+  if (!container) return;
   container.replaceChildren();
   for (const model of items) {
     const form = element('form', undefined, { class: 'ai-admin-model' });
@@ -640,33 +738,33 @@ function renderAdminModels(items) {
       inputLabel('Classification supported', 'classify', model.classify, 'checkbox'),
       inputLabel('Drafting supported', 'draft', model.draft, 'checkbox'),
       inputLabel(
-        'Source input rate (micro-EUR / million tokens)',
+        'Provider input cost (€ / million tokens)',
         'input_micro_per_million',
-        model.input_micro_per_million,
+        Number(model.input_micro_per_million || 0) / 1000000,
         'number',
       ),
       inputLabel(
-        'Source output rate (micro-EUR / million tokens)',
+        'Provider output cost (€ / million tokens)',
         'output_micro_per_million',
-        model.output_micro_per_million,
+        Number(model.output_micro_per_million || 0) / 1000000,
         'number',
       ),
       inputLabel(
-        'Source cached-input rate (micro-EUR / million tokens)',
+        'Provider cached-input cost (€ / million tokens)',
         'cached_micro_per_million',
-        model.cached_micro_per_million,
+        Number(model.cached_micro_per_million || 0) / 1000000,
         'number',
       ),
       inputLabel(
-        'Gross margin basis points (-1 inherits provider)',
+        'Gross margin % (blank uses provider default)',
         'margin_bps',
-        model.margin_bps,
+        model.margin_bps === -1 ? '' : Number(model.margin_bps) / 100,
         'number',
       ),
       inputLabel(
-        'Daily spend limit (micro-EUR)',
+        'Daily spend limit (€)',
         'daily_limit_micro',
-        model.daily_limit_micro,
+        Number(model.daily_limit_micro || 0) / 1000000,
         'number',
       ),
       element('button', 'Save future model pricing', {
@@ -692,7 +790,12 @@ function renderAdminModels(items) {
           'margin_bps',
           'daily_limit_micro',
         ])
-          value[name] = Number(field(form, name).value);
+          value[name] =
+            name === 'margin_bps'
+              ? field(form, name).value === ''
+                ? -1
+                : Math.round(Number(field(form, name).value) * 100)
+              : adminMicro(field(form, name).value);
         await api('/api/admin/ai/models', value, 'PUT');
         await loadAdmin();
         notice(
@@ -733,9 +836,11 @@ function netFinanceMetrics(container, data) {
 }
 function renderFinance(data) {
   const container = root.querySelector('[data-admin-finance]');
+  if (!container) return;
   container.replaceChildren();
   for (const [label, key] of [
     ['Top-ups collected', 'topups_micro'],
+    ['Conversion and processing revenue', 'conversion_revenue_micro'],
     ['Paid-credit usage revenue', 'usage_revenue_micro'],
     ['Free credits issued', 'free_credits_issued_micro'],
     ['Free credits used', 'free_credits_used_micro'],
@@ -756,8 +861,9 @@ function renderFinance(data) {
   metric(
     container,
     'Contribution margin before fees (provisional)',
-    data.usage_revenue_micro > 0 && data.contribution_micro != null
-      ? `${((100 * data.contribution_micro) / data.usage_revenue_micro).toFixed(2)}%`
+    data.usage_revenue_micro + (data.conversion_revenue_micro || 0) > 0 &&
+      data.contribution_micro != null
+      ? `${((100 * data.contribution_micro) / (data.usage_revenue_micro + (data.conversion_revenue_micro || 0))).toFixed(2)}%`
       : 'Not available',
   );
   if (data.provider_fx_unknown)
@@ -787,48 +893,100 @@ function renderFinance(data) {
   }
   if (!data.models?.length) emptyRow(rows, 7, 'No model usage yet.');
 }
+function adminAccountLabel(user) {
+  const name = user.name || user.display_name;
+  return [name, user.email, user.user_id].filter(Boolean).join(' · ');
+}
+function populateAdminAccounts(users) {
+  for (const select of root.querySelectorAll('[data-admin-account-select]')) {
+    const previous = select.value;
+    select.replaceChildren(element('option', 'Choose an account…', { value: '' }));
+    for (const user of users)
+      select.append(element('option', adminAccountLabel(user), { value: user.user_id }));
+    if (previous && !users.some((user) => user.user_id === previous))
+      select.append(element('option', previous, { value: previous }));
+    select.value = previous;
+  }
+}
+function adminMicro(raw) {
+  if (!/^-?\d+(?:\.\d{1,6})?$/.test(raw) || raw.length > 20)
+    throw Error('Enter an amount with at most six decimal places.');
+  const negative = raw.startsWith('-');
+  const [whole, fraction = ''] = raw.replace(/^-/, '').split('.');
+  const value = BigInt(whole) * 1000000n + BigInt(fraction.padEnd(6, '0'));
+  if (value > BigInt(Number.MAX_SAFE_INTEGER)) throw Error('Amount is too large.');
+  return Number(negative ? -value : value);
+}
 async function loadAdmin() {
+  const has = (selector) => Boolean(root.querySelector(selector));
+  const fetchIf = (selector, url, fallback) =>
+    has(selector) ? api(url) : Promise.resolve(fallback);
+  const needsUsers = has(
+    '[data-admin-users], [data-admin-account-select], [data-admin-requests]',
+  );
   const [users, requests, configured, finance, provider, audit] = await Promise.all([
-    api(`/api/admin/ai/users?limit=50&after=${encodeURIComponent(adminUsersAfter)}`),
-    api(
+    needsUsers
+      ? api(`/api/admin/ai/users?limit=50&after=${encodeURIComponent(adminUsersAfter)}`)
+      : { users: [] },
+    fetchIf(
+      '[data-admin-requests]',
       `/api/admin/ai/access-requests?limit=50&after=${encodeURIComponent(adminRequestsAfter)}`,
+      { requests: [] },
     ),
-    api('/api/admin/ai/models'),
-    api(financeURL()),
-    api('/api/admin/ai/provider'),
-    api(
+    fetchIf('[data-admin-models]', '/api/admin/ai/models', { models: [] }),
+    fetchIf('[data-admin-finance]', financeURL(), null),
+    fetchIf('[data-admin-provider]', '/api/admin/ai/provider', null),
+    fetchIf(
+      '[data-admin-audit]',
       `/api/admin/ai/audit?limit=25${adminAuditAfter ? `&after=${encodeURIComponent(adminAuditAfter)}` : ''}`,
+      { entries: [] },
     ),
   ]);
   adminUsersNext = users.next_cursor || '';
   adminRequestsNext = requests.next_cursor || '';
   adminAuditNext = audit.next_cursor || '';
-  root.querySelector('[data-admin-audit-next]').hidden = !adminAuditNext;
-  root.querySelector('[data-admin-users-next]').hidden = !adminUsersNext;
-  root.querySelector('[data-admin-requests-next]').hidden = !adminRequestsNext;
+  for (const [selector, cursor] of [
+    ['[data-admin-audit-next]', adminAuditNext],
+    ['[data-admin-users-next]', adminUsersNext],
+    ['[data-admin-requests-next]', adminRequestsNext],
+  ]) {
+    const button = root.querySelector(selector);
+    if (button) button.hidden = !cursor;
+  }
+  const firstAccounts = root.querySelector('[data-admin-users-first]');
+  if (firstAccounts) firstAccounts.hidden = !adminUsersAfter;
   const auditContainer = root.querySelector('[data-admin-audit]');
-  auditContainer.replaceChildren();
-  for (const event of audit.entries || audit.events || audit.audit || [])
-    auditContainer.append(
-      element(
-        'p',
-        `${timestamp(event.created_at)} · ${event.action || event.kind} · ${event.target || event.target_user_id || event.user_id || ''}`,
-      ),
-    );
+  if (auditContainer) {
+    auditContainer.replaceChildren();
+    for (const event of audit.entries || audit.events || audit.audit || [])
+      auditContainer.append(
+        element(
+          'p',
+          `${timestamp(event.created_at)} · ${event.action || event.kind} · ${event.target || event.target_user_id || event.user_id || ''}`,
+        ),
+      );
+    if (!auditContainer.children.length)
+      auditContainer.append(element('p', 'No audit events yet.'));
+  }
   providerConfig = provider;
   const form = root.querySelector('[data-admin-provider]');
-  field(form, 'enabled').checked = provider.enabled;
-  for (const name of ['margin_bps', 'usd_eur_ppm', 'daily_limit_micro'])
-    field(form, name).value = provider[name];
+  if (form && provider) {
+    field(form, 'enabled').checked = provider.enabled;
+    field(form, 'margin_bps').value = provider.margin_bps / 100;
+    field(form, 'usd_eur_ppm').value = provider.usd_eur_ppm / 1000000;
+    field(form, 'daily_limit_micro').value = provider.daily_limit_micro / 1000000;
+  }
   renderUsers(list(users, 'users'), list(requests, 'requests'));
   renderAdminModels(list(configured, 'models'));
-  renderFinance(finance);
-  notice('Admin controls loaded. Changes are recorded in the audit history.');
+  if (finance) renderFinance(finance);
+  notice(
+    `Up to date · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+  );
 }
 function bindAdmin() {
   root
     .querySelector('[data-admin-stripe-reconcile]')
-    .addEventListener('submit', (event) => {
+    ?.addEventListener('submit', (event) => {
       event.preventDefault();
       const form = event.currentTarget;
       run(async () => {
@@ -847,7 +1005,7 @@ function bindAdmin() {
     });
   root
     .querySelector('[data-admin-finance-period]')
-    .addEventListener('submit', (event) => {
+    ?.addEventListener('submit', (event) => {
       event.preventDefault();
       const form = event.currentTarget;
       run(async () => {
@@ -866,7 +1024,27 @@ function bindAdmin() {
         await loadAdmin();
       });
     });
-  root.querySelector('[data-admin-grant]').addEventListener('submit', (event) => {
+  const adjustmentForm = root.querySelector('[data-admin-adjustment]');
+  if (adjustmentForm)
+    field(adjustmentForm, 'reference').value ||= `adjustment-${crypto.randomUUID()}`;
+  const grantForm = root.querySelector('[data-admin-grant]');
+  if (grantForm) {
+    let saved = '';
+    try {
+      saved = sessionStorage.getItem('todoer:admin-grant-reference') || '';
+    } catch {}
+    field(grantForm, 'reference').value ||= saved || `grant-${crypto.randomUUID()}`;
+    grantForm.addEventListener('input', () => {
+      const summary = root.querySelector('[data-admin-grant-summary]');
+      if (!summary) return;
+      const account = field(grantForm, 'user_id');
+      summary.textContent =
+        account.value && field(grantForm, 'amount').value
+          ? `${money(Number(field(grantForm, 'amount').value) * 1000000)} in free AI credits will be added to ${account.selectedOptions?.[0]?.textContent || account.value}. No payment is collected.`
+          : 'Choose an account and enter an amount before issuing credits.';
+    });
+  }
+  root.querySelector('[data-admin-grant]')?.addEventListener('submit', (event) => {
     event.preventDefault();
     const form = event.currentTarget;
     run(async () => {
@@ -880,6 +1058,12 @@ function bindAdmin() {
         throw Error(
           'Enter a free credit amount above zero and no greater than EUR 1000.',
         );
+      try {
+        sessionStorage.setItem(
+          'todoer:admin-grant-reference',
+          field(form, 'reference').value,
+        );
+      } catch {}
       await api(
         '/api/admin/ai/grants',
         {
@@ -890,28 +1074,38 @@ function bindAdmin() {
         },
         'POST',
       );
+      field(form, 'reference').value = `grant-${crypto.randomUUID()}`;
+      try {
+        sessionStorage.removeItem('todoer:admin-grant-reference');
+      } catch {}
       await loadAdmin();
       notice('Free credit grant recorded. No payment or revenue was recorded.');
     });
   });
-  root.querySelector('[data-admin-audit-next]').addEventListener('click', () => {
+  root.querySelector('[data-admin-audit-next]')?.addEventListener('click', () => {
     adminAuditAfter = adminAuditNext;
     run(loadAdmin);
   });
-  root.querySelector('[data-admin-users-next]').addEventListener('click', () => {
+  root.querySelector('[data-admin-users-next]')?.addEventListener('click', () => {
     adminUsersAfter = adminUsersNext;
     run(loadAdmin);
   });
-  root.querySelector('[data-admin-users-first]').addEventListener('click', () => {
+  root.querySelector('[data-admin-users-first]')?.addEventListener('click', () => {
     adminUsersAfter = '';
     run(loadAdmin);
   });
-  root.querySelector('[data-admin-requests-next]').addEventListener('click', () => {
+  root.querySelector('[data-admin-requests-next]')?.addEventListener('click', () => {
     adminRequestsAfter = adminRequestsNext;
     run(loadAdmin);
   });
-  root.querySelector('[data-admin-rotate]').addEventListener('click', () =>
+  root.querySelector('[data-admin-rotate]')?.addEventListener('click', () =>
     run(async () => {
+      if (
+        !confirm(
+          'Re-encrypt a batch of saved BYOK keys using the configured current encryption key? Keep the previous key available until rotation is complete.',
+        )
+      )
+        return;
       const result = await api('/api/admin/ai/keys/rotate', {}, 'POST');
       await loadAdmin();
       notice(
@@ -919,7 +1113,7 @@ function bindAdmin() {
       );
     }),
   );
-  root.querySelector('[data-admin-provider]').addEventListener('submit', (event) => {
+  root.querySelector('[data-admin-provider]')?.addEventListener('submit', (event) => {
     event.preventDefault();
     const form = event.currentTarget;
     run(async () => {
@@ -927,14 +1121,15 @@ function bindAdmin() {
         enabled: field(form, 'enabled').checked,
         version: providerConfig.version,
       };
-      for (const name of ['margin_bps', 'usd_eur_ppm', 'daily_limit_micro'])
-        value[name] = Number(field(form, name).value);
+      value.margin_bps = Math.round(Number(field(form, 'margin_bps').value) * 100);
+      value.usd_eur_ppm = adminMicro(field(form, 'usd_eur_ppm').value);
+      value.daily_limit_micro = adminMicro(field(form, 'daily_limit_micro').value);
       await api('/api/admin/ai/provider', value, 'PUT');
       await loadAdmin();
       notice('Provider controls saved.');
     });
   });
-  root.querySelector('[data-admin-adjustment]').addEventListener('submit', (event) => {
+  root.querySelector('[data-admin-adjustment]')?.addEventListener('submit', (event) => {
     event.preventDefault();
     const form = event.currentTarget;
     run(async () => {
@@ -942,18 +1137,25 @@ function bindAdmin() {
         '/api/admin/ai/adjustments',
         {
           user_id: field(form, 'user_id').value,
-          amount_micro: Math.round(Number(field(form, 'amount').value) * 1000000),
+          amount_micro: adminMicro(field(form, 'amount').value),
           reference: field(form, 'reference').value,
           reason: field(form, 'reason').value,
         },
         'POST',
       );
       await loadAdmin();
+      field(form, 'reference').value = `adjustment-${crypto.randomUUID()}`;
       notice('Credit adjustment recorded.');
     });
   });
-  root.querySelector('[data-admin-reconcile]').addEventListener('click', () =>
+  root.querySelector('[data-admin-reconcile]')?.addEventListener('click', () =>
     run(async () => {
+      if (
+        !confirm(
+          'Release expired AI reservations that are eligible for reconciliation? This does not retry inference or charge users.',
+        )
+      )
+        return;
       const result = await api('/api/admin/ai/reconcile', {}, 'POST');
       await loadAdmin();
       notice(

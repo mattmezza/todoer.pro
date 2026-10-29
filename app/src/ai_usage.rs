@@ -626,8 +626,15 @@ impl Store {
                 .query_row(sql, params![user, from, to], |r| r.get(0))?)
         };
         let topups = scalar(
-            "SELECT COALESCE(sum(credit_micro),0) FROM billing_purchases WHERE paid_at BETWEEN ?2 AND ?3 AND (?1 IS NULL OR user_id=?1)",
+            "SELECT COALESCE(sum(gross_micro),0) FROM billing_purchases WHERE paid_at BETWEEN ?2 AND ?3 AND (?1 IS NULL OR user_id=?1)",
         )?;
+        let conversion_deductions = scalar(
+            "SELECT COALESCE(sum(gross_micro-credit_micro),0) FROM billing_purchases WHERE paid_at BETWEEN ?2 AND ?3 AND (?1 IS NULL OR user_id=?1)",
+        )?;
+        let conversion_reversals = scalar(
+            "SELECT COALESCE(sum(conversion_reversal_micro),0) FROM billing_adjustments WHERE purchase_id IN(SELECT id FROM billing_purchases WHERE (?1 IS NULL OR user_id=?1)) AND created_at BETWEEN ?2 AND ?3",
+        )?;
+        let conversion_revenue = conversion_deductions - conversion_reversals;
         let earned = scalar(
             "SELECT COALESCE(sum(customer_micro-free_micro),0) FROM ai_operations WHERE funding='credits' AND (?1 IS NULL OR user_id=?1) AND settled_at BETWEEN ?2 AND ?3",
         )?;
@@ -639,7 +646,7 @@ impl Store {
         )? > 0;
         let outstanding=self.conn.query_row("SELECT COALESCE(sum(amount_micro),0) FROM ai_wallet_entries WHERE (?1 IS NULL OR user_id=?1)",[user],|r|r.get::<_,i64>(0))?;
         let refunds = scalar(
-            "SELECT COALESCE(sum(amount_micro+debt_micro),0) FROM billing_adjustments WHERE purchase_id IN(SELECT id FROM billing_purchases WHERE (?1 IS NULL OR user_id=?1)) AND created_at BETWEEN ?2 AND ?3",
+            "SELECT COALESCE(sum(gross_refund_micro),0) FROM billing_adjustments WHERE purchase_id IN(SELECT id FROM billing_purchases WHERE (?1 IS NULL OR user_id=?1)) AND created_at BETWEEN ?2 AND ?3",
         )?;
         let fee_known:bool=self.conn.query_row("SELECT NOT EXISTS(SELECT 1 FROM billing_purchases WHERE paid_at BETWEEN ?2 AND ?3 AND payment_fee_micro_eur IS NULL AND (?1 IS NULL OR user_id=?1))",params![user,from,to],|r|r.get(0))?;
         let fees = scalar(
@@ -664,12 +671,12 @@ impl Store {
             "SELECT COALESCE(sum(debt_micro),0) FROM billing_adjustments WHERE purchase_id IN(SELECT id FROM billing_purchases WHERE (?1 IS NULL OR user_id=?1)) AND created_at BETWEEN ?2 AND ?3",
         )?;
         let profit = if !unknown && fee_known {
-            Some(earned - expense - fees - bad_debt)
+            Some(earned + conversion_revenue - expense - fees - bad_debt)
         } else {
             None
         };
         Ok(
-            json!({"currency":"EUR","topups_micro":topups,"refunds_micro":refunds,"bad_debt_micro":bad_debt,"net_cash_collected_micro":topups-refunds,"usage_revenue_micro":earned,"provider_cost_micro":expense,"outstanding_micro":outstanding,"paid_outstanding_micro":outstanding-free_remaining,"payment_fees_micro":if fee_known{Some(fees)}else{None},"profit_micro":profit,"margin_bps":profit.filter(|_|earned>0).map(|p|i128::from(p)*10000/i128::from(earned)),"contribution_micro":earned-expense,"provider_fx_unknown":unknown,"provisional":unknown||!fee_known,"models":models,"byok_calls":byok_calls,"free_credits_issued_micro":free_issued,"free_credits_used_micro":free_used,"free_credits_remaining_micro":free_remaining,"free_inference_cost_micro":free_cost,"from":from,"to":to}),
+            json!({"currency":"EUR","topups_micro":topups,"conversion_deductions_micro":conversion_deductions,"conversion_revenue_micro":conversion_revenue,"refunds_micro":refunds,"bad_debt_micro":bad_debt,"net_cash_collected_micro":topups-refunds,"usage_revenue_micro":earned,"provider_cost_micro":expense,"outstanding_micro":outstanding,"paid_outstanding_micro":outstanding-free_remaining,"payment_fees_micro":if fee_known{Some(fees)}else{None},"profit_micro":profit,"margin_bps":profit.filter(|_|earned+conversion_revenue>0).map(|p|i128::from(p)*10000/i128::from(earned+conversion_revenue)),"contribution_micro":earned+conversion_revenue-expense,"provider_fx_unknown":unknown,"provisional":unknown||!fee_known,"models":models,"byok_calls":byok_calls,"free_credits_issued_micro":free_issued,"free_credits_used_micro":free_used,"free_credits_remaining_micro":free_remaining,"free_inference_cost_micro":free_cost,"from":from,"to":to}),
         )
     }
 }

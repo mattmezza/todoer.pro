@@ -120,11 +120,11 @@ test('an uncertain top-up retains its payment idempotency key across reload', as
   await page.goto('/settings/billing');
   await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
   await expect(page.getByLabel('Balance threshold (€)')).toHaveValue('2.00');
-  await page.getByRole('button', { name: 'Continue to Stripe' }).click();
+  await page.getByRole('button', { name: 'Continue to secure checkout' }).click();
   await expect(page.locator('[data-ai-notice]')).toContainText('could not be confirmed');
   await page.reload();
   await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
-  await page.getByRole('button', { name: 'Continue to Stripe' }).click();
+  await page.getByRole('button', { name: 'Continue to secure checkout' }).click();
   await expect(page.locator('[data-ai-notice]')).toContainText(
     'only after payment confirmation',
   );
@@ -135,6 +135,76 @@ test('an uncertain top-up retains its payment idempotency key across reload', as
   await expect(page.locator('[data-wallet]')).toContainText('€7.00');
   await expect(page.locator('[data-wallet]')).toContainText('Free credits');
   await expect(page.locator('[data-wallet]')).toContainText('€3.00');
+});
+
+test('foreign-currency payment previews deductions and submits the reviewed net credit', async ({
+  page,
+}) => {
+  await shell(page, '/settings/billing', 'billing-settings.html');
+  let submitted;
+  const state = {
+    enabled: true,
+    wallet: {
+      posted_micro: 0,
+      held_micro: 0,
+      available_micro: 0,
+      paid_micro: 0,
+      free_micro: 0,
+    },
+    purchases: [],
+    auto_topup: {
+      enabled: false,
+      amount_minor: 1000,
+      threshold_minor: 200,
+      monthly_cap_minor: 5000,
+      cooldown_seconds: 3600,
+      paused_reason: '',
+      payment_method_configured: false,
+    },
+    currencies: [
+      {
+        code: 'EUR',
+        eur_rate_micros: 1000000,
+        payment_fee_bps: 200,
+        payment_fee_fixed_micro: 200000,
+      },
+      {
+        code: 'USD',
+        eur_rate_micros: 1250000,
+        payment_fee_bps: 200,
+        payment_fee_fixed_micro: 200000,
+        forex_fee_bps: 100,
+      },
+    ],
+  };
+  await page.route('**/api/account/billing**', async (route) => {
+    if (route.request().method() === 'POST') {
+      submitted = route.request().postDataJSON();
+      return json(
+        route,
+        {
+          error:
+            'Conversion changed. Refresh billing and review the credit amount before paying.',
+        },
+        409,
+      );
+    }
+    return json(route, state);
+  });
+  await page.goto('/settings/billing');
+  await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
+  await page.getByLabel('Pay in').selectOption('USD');
+  await expect(page.locator('[data-topup-preset="5"]')).toBeDisabled();
+  await page.locator('[data-topup-preset="10"]').click();
+  await expect(page.getByLabel('Payment amount', { exact: true })).toHaveValue('10.00');
+  await expect(page.locator('[data-topup-conversion]')).toContainText('€7.56');
+  await expect(page.locator('[data-topup-conversion]')).toContainText('€0.36');
+  await expect(page.locator('[data-topup-conversion]')).toContainText('€0.08');
+  await page.getByRole('button', { name: 'Continue to secure checkout' }).click();
+  await expect(page.locator('[data-ai-notice]')).toContainText('Conversion changed');
+  expect(submitted.amount_minor).toBe(1000);
+  expect(submitted.currency).toBe('USD');
+  expect(submitted.quoted_credit_micro).toBe(7560000);
 });
 
 for (const width of [360, 1440]) {
@@ -182,9 +252,12 @@ for (const width of [360, 1440]) {
 test('admin forms submit revision-bound access and prospective pricing changes', async ({
   page,
 }) => {
-  await shell(page, '/admin', 'ai-admin.html');
+  for (const screen of ['access', 'models', 'finance', 'operations'])
+    await shell(page, `/admin/${screen}`, `ai-admin-${screen}.html`);
+  page.on('dialog', (dialog) => dialog.accept());
   const writes = [];
   const financeQueries = [];
+  const loadedPaths = [];
   const stripeRecoveryWrites = [];
   await page.route('**/api/admin/billing/reconcile', (route) => {
     stripeRecoveryWrites.push(route.request().postDataJSON());
@@ -213,6 +286,7 @@ test('admin forms submit revision-bound access and prospective pricing changes',
   };
   await page.route('**/api/admin/ai/**', (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (route.request().method() === 'GET') loadedPaths.push(path);
     if (route.request().method() !== 'GET') {
       writes.push({ path, body: route.request().postDataJSON() });
       return json(route, {});
@@ -267,7 +341,7 @@ test('admin forms submit revision-bound access and prospective pricing changes',
       ],
     });
   });
-  await page.goto('/admin');
+  await page.goto('/admin/access');
   await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
   const access = page.locator('.ai-admin-user');
   await access.getByLabel('Managed AI allowed').check();
@@ -281,13 +355,19 @@ test('admin forms submit revision-bound access and prospective pricing changes',
     revision: 4,
     daily_limit_micro: 250000,
   });
+  await page.goto('/admin/models');
+  await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
   const pricing = page.locator('.ai-admin-model');
-  await pricing.getByLabel('Gross margin basis points').fill('2000');
+  await pricing.getByLabel('Gross margin %').fill('20');
   await pricing.getByRole('button', { name: 'Save future model pricing' }).click();
   await expect(page.locator('[data-ai-notice]')).toContainText(
     'Existing quotes keep their accepted rates',
   );
   expect(writes[1].body).toMatchObject({ id: model.id, margin_bps: 2000, version: 1 });
+  loadedPaths.length = 0;
+  await page.goto('/admin/finance');
+  await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
+  expect(loadedPaths).toEqual(['/api/admin/ai/finance']);
   const profit = page.locator('[data-admin-finance] div').filter({
     has: page.getByText('Profit after provider/payment costs and adjustments', {
       exact: true,
@@ -312,10 +392,12 @@ test('admin forms submit revision-bound access and prospective pricing changes',
   expect(financeQueries.at(-1).get('to')).toBe(
     await page.evaluate(() => String(new Date('2026-10-31T23:59').getTime() / 1000)),
   );
+  await page.goto('/admin/access');
+  await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
   await page.getByRole('button', { name: 'View account spend' }).click();
   await expect(page.locator('[data-ai-notice]')).toContainText('Account spend loaded');
   expect(financeQueries.at(-1).get('user_id')).toBe(user.user_id);
-  expect(financeQueries.at(-1).has('from')).toBe(true);
+  expect(financeQueries.at(-1).has('from')).toBe(false);
   const restriction = page.locator('.ai-admin-billing');
   await restriction.getByLabel('Block billing', { exact: true }).uncheck();
   await restriction.getByLabel('Forgive outstanding debt').check();
@@ -333,6 +415,8 @@ test('admin forms submit revision-bound access and prospective pricing changes',
   expect(billingWrites).toEqual([
     { blocked: false, forgive_debt: true, reason: 'Synthetic reviewed write-off' },
   ]);
+  await page.goto('/admin/operations');
+  await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
   const recovery = page.locator('[data-admin-stripe-reconcile]');
   await recovery.getByLabel('Local purchase ID').fill('synthetic-purchase');
   await recovery
@@ -391,7 +475,8 @@ test('managed usage distinguishes total credit use, free coverage and paid consu
 test('admin free grants require a reason and retain the exact reference after an uncertain response', async ({
   page,
 }) => {
-  await shell(page, '/admin', 'ai-admin.html');
+  await shell(page, '/admin/credits', 'ai-admin-credits.html');
+  await shell(page, '/admin/finance', 'ai-admin-finance.html');
   const writes = [];
   const grants = new Map();
   await page.route('**/api/admin/ai/**', (route) => {
@@ -404,7 +489,16 @@ test('admin free grants require a reason and retain the exact reference after an
       if (writes.length === 1) return route.abort('failed');
       return json(route, { saved: true });
     }
-    if (path.endsWith('/users')) return json(route, { users: [] });
+    if (path.endsWith('/users'))
+      return json(route, {
+        users: [
+          {
+            user_id: 'synthetic-grantee',
+            name: 'Synthetic recipient',
+            email: 'recipient@example.invalid',
+          },
+        ],
+      });
     if (path.endsWith('/access-requests')) return json(route, { requests: [] });
     if (path.endsWith('/models')) return json(route, { models: [] });
     if (path.endsWith('/provider'))
@@ -439,15 +533,29 @@ test('admin free grants require a reason and retain the exact reference after an
       ],
     });
   });
-  await page.goto('/admin');
+  await page.goto('/admin/credits');
   await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
   const form = page.locator('[data-admin-grant]');
-  await form.getByLabel('Account ID').fill('synthetic-grantee');
+  await expect(
+    form.getByRole('option', {
+      name: 'Synthetic recipient · recipient@example.invalid · synthetic-grantee',
+    }),
+  ).toHaveCount(1);
+  await form
+    .getByRole('combobox', { name: 'Account', exact: true })
+    .selectOption('synthetic-grantee');
   await form.getByLabel('Free credit amount (€)').fill('1.000001');
-  await form.getByLabel('Unique grant reference').fill('synthetic-grant-unique');
+  const reference = await form.getByLabel('Grant tracking reference').inputValue();
+  expect(reference).toMatch(/^grant-/);
+  await expect(form.getByLabel('Grant tracking reference')).toHaveAttribute(
+    'readonly',
+    '',
+  );
   await form.getByRole('button', { name: 'Grant free credits', exact: true }).click();
   expect(writes).toHaveLength(0);
-  await form.getByLabel('Grant reason').fill('Synthetic support grant');
+  await form
+    .getByLabel('Why are you granting these credits?')
+    .fill('Synthetic support grant');
   await form.getByRole('button', { name: 'Grant free credits', exact: true }).click();
   await expect(page.locator('[data-ai-notice]')).toContainText('could not be confirmed');
   await form.getByRole('button', { name: 'Grant free credits', exact: true }).click();
@@ -458,9 +566,11 @@ test('admin free grants require a reason and retain the exact reference after an
   expect(writes[0]).toEqual(writes[1]);
   expect(writes[0]).toMatchObject({
     amount_micro: 1000001,
-    reference: 'synthetic-grant-unique',
+    reference,
     reason: 'Synthetic support grant',
   });
+  await page.goto('/admin/finance');
+  await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
   const issued = page
     .locator('[data-admin-finance] div')
     .filter({ has: page.getByText('Free credits issued', { exact: true }) });

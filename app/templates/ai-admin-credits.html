@@ -1,0 +1,68 @@
+<link href="/assets/ai-billing.css" rel="stylesheet" />
+<script src="/assets/ai-billing.js" type="module"></script>
+<section
+  aria-busy="true"
+  class="ai-billing-panel"
+  data-admin-screen="credits"
+  data-ai-billing="admin"
+>
+  <div class="ai-page-toolbar">
+    <p>Give an account free AI credits. Grants are tracked separately from payments.</p>
+    <button class="secondary ai-refresh" data-ai-reload="" type="button">
+      Refresh this view
+    </button>
+  </div>
+  <p aria-live="polite" data-ai-notice="" role="status">Loading…</p>
+  <div class="ai-preset-row">
+    <button class="secondary" data-admin-users-first="" type="button">
+      First accounts</button
+    ><button class="secondary" data-admin-users-next="" hidden="" type="button">
+      Next accounts
+    </button>
+  </div>
+  <section class="settings-preference-card">
+    <h2>Grant free credits</h2>
+    <p>
+      Select the recipient and amount to add to their AI wallet. These credits are free to
+      the user; their inference costs still count against profit.
+    </p>
+    <form data-admin-grant="">
+      <label
+        >Account<select data-admin-account-select="" name="user_id" required="">
+          <option value="">Choose an account</option>
+        </select></label
+      ><label
+        >Free credit amount (€)<input
+          max="1000"
+          min="0.000001"
+          name="amount"
+          required=""
+          step="0.000001"
+          type="number"
+      /></label>
+      <details class="ai-advanced">
+        <summary>Grant tracking details</summary>
+        <label
+          >Grant tracking reference<input
+            maxlength="128"
+            name="reference"
+            readonly=""
+            required=""
+          /><small
+            >Created automatically to prevent duplicate credits when retrying.</small
+          ></label
+        >
+      </details>
+      <label
+        >Why are you granting these credits?<input
+          maxlength="500"
+          name="reason"
+          placeholder="e.g. Welcome credit, support compensation"
+          required="" /></label
+      ><button class="secondary" type="submit">Grant free credits</button>
+      <p class="muted" data-admin-grant-summary="">
+        Choose an account and enter an amount before issuing credits.
+      </p>
+    </form>
+  </section>
+</section>

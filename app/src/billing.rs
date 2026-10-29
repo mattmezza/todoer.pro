@@ -28,6 +28,28 @@ pub struct StripeService {
     endpoint: String,
     rates: BTreeMap<String, i64>,
     accepts_purchases: bool,
+    fee_bps: i64,
+    fee_fixed_micro: i64,
+}
+fn configured_fee(name: &str, default: i64, maximum: i64) -> Result<i64, Error> {
+    let value = std::env::var(name)
+        .unwrap_or_else(|_| default.to_string())
+        .parse::<i64>()
+        .map_err(|_| invalid("Invalid billing fee configuration"))?;
+    if !(0..=maximum).contains(&value) {
+        return Err(invalid("Invalid billing fee configuration"));
+    }
+    Ok(value)
+}
+#[derive(Debug, Serialize)]
+pub struct CreditQuote {
+    pub currency: String,
+    pub amount_minor: i64,
+    pub gross_micro: i64,
+    pub payment_fee_micro: i64,
+    pub forex_fee_micro: i64,
+    pub credit_micro: i64,
+    pub rate_micros: i64,
 }
 impl StripeService {
     pub fn from_env() -> Result<Option<Self>, Error> {
@@ -73,36 +95,53 @@ impl StripeService {
             endpoint: "https://api.stripe.com/v1".into(),
             rates,
             accepts_purchases: enabled,
+            fee_bps: configured_fee("TODOER_BILLING_PAYMENT_FEE_BPS", 0, 5000)?,
+            fee_fixed_micro: configured_fee(
+                "TODOER_BILLING_PAYMENT_FEE_FIXED_MICRO_EUR",
+                0,
+                1_000_000,
+            )?,
         }))
     }
     pub fn currencies(&self) -> Value {
         json!(
             self.rates
                 .iter()
-                .map(|(code, rate)| json!({"code":code.to_uppercase(),"eur_rate_micros":rate}))
+                .map(|(code, rate)| json!({"code":code.to_uppercase(),"eur_rate_micros":rate,"payment_fee_bps":self.fee_bps,"payment_fee_fixed_micro":self.fee_fixed_micro,"forex_fee_bps":if code=="eur"{0}else{100}}))
                 .collect::<Vec<_>>()
         )
     }
-    pub fn quote(&self, amount_minor: i64, currency: &str) -> Result<(String, i64, i64), Error> {
+    pub fn quote(&self, amount_minor: i64, currency: &str) -> Result<CreditQuote, Error> {
         let code = currency.to_lowercase();
         let rate = *self
             .rates
             .get(&code)
             .ok_or_else(|| invalid("Currency is not enabled"))?;
-        let micro = i128::from(amount_minor)
-            .checked_mul(10_000_000_000)
-            .ok_or_else(|| invalid("Invalid top-up amount"))?
-            / i128::from(rate);
-        if !(5_000_000..=i128::from(MAX_TOPUP_MICRO)).contains(&micro) {
+        let gross = i128::from(amount_minor) * 10_000_000_000 / i128::from(rate);
+        if !(5_000_000..=i128::from(MAX_TOPUP_MICRO)).contains(&gross) {
             return Err(invalid(
-                "Top-ups must be between EUR 5 and EUR 1000 equivalent",
+                "Payment must be between EUR 5 and EUR 1000 before conversion deductions",
             ));
         }
-        Ok((
-            code,
-            i64::try_from(micro).map_err(|_| invalid("Invalid top-up amount"))?,
-            rate,
-        ))
+        let gross = gross as i64;
+        // This is the operator's published fee allowance, not a claim about Stripe's
+        // eventual card-specific fee. The wallet credit is fixed before Checkout.
+        let payment_fee = ((i128::from(gross) * i128::from(self.fee_bps) + 9999) / 10000) as i64
+            + self.fee_fixed_micro;
+        let forex_fee = if code == "eur" { 0 } else { (gross + 99) / 100 };
+        let credit = gross - payment_fee - forex_fee;
+        if credit <= 0 {
+            return Err(invalid("Payment is too small after conversion deductions"));
+        }
+        Ok(CreditQuote {
+            currency: code,
+            amount_minor,
+            gross_micro: gross,
+            payment_fee_micro: payment_fee,
+            forex_fee_micro: forex_fee,
+            credit_micro: credit,
+            rate_micros: rate,
+        })
     }
     async fn request(
         &self,
@@ -202,7 +241,11 @@ impl StripeService {
             ),
             (
                 "line_items[0][price_data][product_data][name]".into(),
-                "Todoer AI credits".into(),
+                format!(
+                    "Todoer AI credits · EUR {}.{:06}",
+                    p.credit_micro / 1_000_000,
+                    p.credit_micro % 1_000_000
+                ),
             ),
             ("line_items[0][quantity]".into(), "1".into()),
             ("payment_method_types[0]".into(), "card".into()),
@@ -357,6 +400,9 @@ pub struct Purchase {
     pub amount_minor: i64,
     pub currency: String,
     pub credit_micro: i64,
+    pub gross_micro: i64,
+    pub payment_fee_allowance_micro: i64,
+    pub forex_fee_micro: i64,
     pub status: String,
     pub created_at: i64,
     #[serde(skip)]
@@ -387,9 +433,12 @@ fn purchase_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Purchase> {
         checkout_url: r.get(11)?,
         receipt_url: r.get(12)?,
         paid_at: r.get(13)?,
+        gross_micro: r.get(14)?,
+        payment_fee_allowance_micro: r.get(15)?,
+        forex_fee_micro: r.get(16)?,
     })
 }
-const PURCHASE_COLUMNS: &str = "id,user_id,amount_minor,currency,credit_micro,status,created_at,save_method,mode,stripe_session_id,stripe_payment_id,checkout_url,receipt_url,paid_at";
+const PURCHASE_COLUMNS: &str = "id,user_id,amount_minor,currency,credit_micro,status,created_at,save_method,mode,stripe_session_id,stripe_payment_id,checkout_url,receipt_url,paid_at,gross_micro,payment_fee_allowance_micro,forex_fee_micro";
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TopupInput {
@@ -398,6 +447,8 @@ pub struct TopupInput {
     pub idempotency_key: String,
     #[serde(default)]
     pub save_for_auto_topup: bool,
+    #[serde(default)]
+    pub quoted_credit_micro: Option<i64>,
 }
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -409,6 +460,8 @@ pub struct AutoTopupInput {
     pub cooldown_seconds: i64,
     #[serde(default)]
     pub consent: bool,
+    #[serde(default)]
+    pub quoted_credit_micro: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -610,13 +663,22 @@ impl Store {
             }
             return Ok(p);
         }
-        let (_, credit, rate) = service.quote(input.amount_minor, &input.currency)?;
+        let quote = service.quote(input.amount_minor, &input.currency)?;
+        if input
+            .quoted_credit_micro
+            .is_some_and(|accepted| accepted != quote.credit_micro)
+        {
+            return Err(Error::Conflict(
+                "Conversion changed. Refresh billing and review the credit amount before paying."
+                    .into(),
+            ));
+        }
         let pending:i64=tx.query_row("SELECT count(*) FROM billing_purchases WHERE user_id=?1 AND status IN ('created','pending') AND created_at>unixepoch()-3600",[&user],|r|r.get(0))?;
         if pending >= 5 {
             return Err(invalid("Too many pending top-ups; review billing status"));
         }
         let id = Uuid::new_v4().to_string();
-        tx.execute("INSERT INTO billing_purchases(id,user_id,idempotency_key,amount_minor,currency,credit_micro,fx_rate_micros,mode,save_method) VALUES(?1,?2,?3,?4,?5,?6,?7,'manual',?8)",params![id,user,input.idempotency_key,input.amount_minor,currency,credit,rate,input.save_for_auto_topup])?;
+        tx.execute("INSERT INTO billing_purchases(id,user_id,idempotency_key,amount_minor,currency,credit_micro,fx_rate_micros,mode,save_method,gross_micro,payment_fee_allowance_micro,forex_fee_micro) VALUES(?1,?2,?3,?4,?5,?6,?7,'manual',?8,?9,?10,?11)",params![id,user,input.idempotency_key,input.amount_minor,currency,quote.credit_micro,quote.rate_micros,input.save_for_auto_topup,quote.gross_micro,quote.payment_fee_micro,quote.forex_fee_micro])?;
         tx.commit()?;
         self.billing_purchase(&id)
     }
@@ -642,7 +704,12 @@ impl Store {
     pub fn billing_auto(&self, user: &str) -> Result<Value, Error> {
         Ok(self.conn.query_row("SELECT enabled,amount_micro/10000,threshold_micro/10000,monthly_cap_micro/10000,cooldown_seconds,paused_reason,payment_method_id IS NOT NULL FROM billing_auto_topup WHERE user_id=?1",[user],|r|Ok(json!({"enabled":r.get::<_,bool>(0)?,"amount_minor":r.get::<_,i64>(1)?,"threshold_minor":r.get::<_,i64>(2)?,"monthly_cap_minor":r.get::<_,i64>(3)?,"cooldown_seconds":r.get::<_,i64>(4)?,"paused_reason":r.get::<_,String>(5)?,"payment_method_configured":r.get::<_,bool>(6)?}))).optional()?.unwrap_or(json!({"enabled":false,"amount_minor":1000,"threshold_minor":200,"monthly_cap_minor":5000,"cooldown_seconds":3600,"paused_reason":"","payment_method_configured":false})))
     }
-    pub fn billing_set_auto(&mut self, actor: &str, input: AutoTopupInput) -> Result<Value, Error> {
+    pub fn billing_set_auto(
+        &mut self,
+        actor: &str,
+        input: AutoTopupInput,
+        service: Option<&StripeService>,
+    ) -> Result<Value, Error> {
         let (user, credential) = actor_identity(&self.conn, actor)?;
         if credential.is_some() {
             return Err(Error::Forbidden);
@@ -654,6 +721,19 @@ impl Store {
         {
             return Err(invalid("Invalid auto-top-up limits"));
         }
+        let (fee_bps, fee_fixed) = if input.enabled {
+            let service = service.ok_or_else(|| invalid("Billing is not enabled"))?;
+            let quote = service.quote(input.amount_minor, "eur")?;
+            if input
+                .quoted_credit_micro
+                .is_some_and(|accepted| accepted != quote.credit_micro)
+            {
+                return Err(Error::Conflict("Conversion changed. Refresh billing and review the credits before enabling auto-top-up.".into()));
+            }
+            (service.fee_bps, service.fee_fixed_micro)
+        } else {
+            (0, 0)
+        };
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -671,6 +751,12 @@ impl Store {
             }
         }
         tx.execute("INSERT INTO billing_auto_topup(user_id,enabled,amount_micro,threshold_micro,monthly_cap_micro,cooldown_seconds,consent_version,consent_at) VALUES(?1,?2,?3,?4,?5,?6,?7,unixepoch()) ON CONFLICT(user_id) DO UPDATE SET enabled=excluded.enabled,amount_micro=excluded.amount_micro,threshold_micro=excluded.threshold_micro,monthly_cap_micro=excluded.monthly_cap_micro,cooldown_seconds=excluded.cooldown_seconds,consent_version=CASE WHEN excluded.enabled=1 THEN excluded.consent_version ELSE consent_version END,consent_at=CASE WHEN excluded.enabled=1 THEN excluded.consent_at ELSE consent_at END,paused_reason=CASE WHEN excluded.enabled=1 THEN '' ELSE 'user_paused' END",params![user,input.enabled,input.amount_minor*10000,input.threshold_minor*10000,input.monthly_cap_minor*10000,input.cooldown_seconds,CONSENT_VERSION])?;
+        if input.enabled {
+            tx.execute(
+                "UPDATE billing_auto_topup SET fee_bps=?2,fee_fixed_micro=?3 WHERE user_id=?1",
+                params![user, fee_bps, fee_fixed],
+            )?;
+        }
         tx.commit()?;
         self.billing_auto(&user)
     }
@@ -976,11 +1062,16 @@ impl Store {
         self.conn.execute("UPDATE billing_purchases SET receipt_url=coalesce(?2,receipt_url),payment_fee_minor=coalesce(payment_fee_minor,?3),payment_fee_currency=coalesce(payment_fee_currency,?4),fee_fx_rate_micros=coalesce(fee_fx_rate_micros,?5),payment_fee_micro_eur=coalesce(payment_fee_micro_eur,?6),updated_at=unixepoch() WHERE id=?1",params![purchase,receipt,fee,currency,rate,fee_micro])?;
         Ok(())
     }
-    pub fn billing_claim_auto(&mut self) -> Result<Option<(Purchase, String, String)>, Error> {
+    pub fn billing_claim_auto(
+        &mut self,
+        service: &StripeService,
+    ) -> Result<Option<(Purchase, String, String)>, Error> {
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         tx.execute("UPDATE billing_auto_topup SET enabled=0,paused_reason='ai_unavailable' WHERE enabled=1 AND (NOT EXISTS(SELECT 1 FROM ai_account_policy p WHERE p.user_id=billing_auto_topup.user_id AND p.user_ai_enabled=1 AND p.managed_ai_allowed=1 AND p.funding='credits' AND EXISTS(SELECT 1 FROM ai_models m JOIN ai_provider_policy pp ON pp.id=m.provider WHERE m.id=p.model_id AND m.enabled=1 AND pp.enabled=1)) OR EXISTS(SELECT 1 FROM billing_accounts b WHERE b.user_id=billing_auto_topup.user_id AND b.blocked=1))",[])?;
+        // A new fee policy requires fresh, explicit standing payment consent.
+        tx.execute("UPDATE billing_auto_topup SET enabled=0,paused_reason='fee_policy_changed' WHERE enabled=1 AND (fee_bps<>?1 OR fee_fixed_micro<>?2)",params![service.fee_bps,service.fee_fixed_micro])?;
         // Retry only recent, already-claimed cycles with the exact same Stripe key.
         let retry:Option<(String,String,String)>=tx.query_row("SELECT p.id,b.stripe_customer_id,a.payment_method_id FROM billing_purchases p JOIN billing_accounts b USING(user_id) JOIN billing_auto_topup a USING(user_id) WHERE p.mode='auto' AND p.status='created' AND p.created_at>unixepoch()-600 AND a.enabled=1 AND p.updated_at<unixepoch()-30 ORDER BY p.created_at LIMIT 1",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional()?;
         if let Some((id, customer, method)) = retry {
@@ -993,13 +1084,14 @@ impl Store {
         }
         tx.execute("UPDATE billing_auto_topup SET enabled=0,paused_reason='payment_unknown' WHERE user_id IN (SELECT user_id FROM billing_purchases WHERE mode='auto' AND status='created' AND created_at<=unixepoch()-600)",[])?;
         tx.execute("UPDATE billing_purchases SET status='unknown' WHERE mode='auto' AND status='created' AND created_at<=unixepoch()-600",[])?;
-        let candidate:Option<(String,i64,String,String)>=tx.query_row("SELECT a.user_id,a.amount_micro,b.stripe_customer_id,a.payment_method_id FROM billing_auto_topup a JOIN billing_accounts b USING(user_id) WHERE a.enabled=1 AND a.payment_method_id IS NOT NULL AND b.stripe_customer_id IS NOT NULL AND b.blocked=0 AND a.consent_at IS NOT NULL AND a.consent_version=?1 AND (a.last_attempt_at IS NULL OR a.last_attempt_at<=unixepoch()-a.cooldown_seconds) AND coalesce((SELECT sum(amount_micro) FROM ai_wallet_entries WHERE user_id=a.user_id),0)<a.threshold_micro AND NOT EXISTS(SELECT 1 FROM billing_purchases WHERE user_id=a.user_id AND mode='auto' AND status IN ('created','pending','unknown','requires_action')) AND coalesce((SELECT sum(credit_micro) FROM billing_purchases WHERE user_id=a.user_id AND mode='auto' AND status NOT IN ('failed','refunded') AND created_at>=CAST(strftime('%s','now','start of month') AS INTEGER)),0)+a.amount_micro<=a.monthly_cap_micro ORDER BY a.user_id LIMIT 1",[CONSENT_VERSION],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
+        let candidate:Option<(String,i64,String,String)>=tx.query_row("SELECT a.user_id,a.amount_micro,b.stripe_customer_id,a.payment_method_id FROM billing_auto_topup a JOIN billing_accounts b USING(user_id) WHERE a.enabled=1 AND a.payment_method_id IS NOT NULL AND b.stripe_customer_id IS NOT NULL AND b.blocked=0 AND a.consent_at IS NOT NULL AND a.consent_version=?1 AND (a.last_attempt_at IS NULL OR a.last_attempt_at<=unixepoch()-a.cooldown_seconds) AND coalesce((SELECT sum(amount_micro) FROM ai_wallet_entries WHERE user_id=a.user_id),0)<a.threshold_micro AND NOT EXISTS(SELECT 1 FROM billing_purchases WHERE user_id=a.user_id AND mode='auto' AND status IN ('created','pending','unknown','requires_action')) AND coalesce((SELECT sum(amount_minor*10000) FROM billing_purchases WHERE user_id=a.user_id AND mode='auto' AND status NOT IN ('failed','refunded') AND created_at>=CAST(strftime('%s','now','start of month') AS INTEGER)),0)+a.amount_micro<=a.monthly_cap_micro ORDER BY a.user_id LIMIT 1",[CONSENT_VERSION],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
         let Some((user, amount, customer, method)) = candidate else {
             tx.commit()?;
             return Ok(None);
         };
         let id = Uuid::new_v4().to_string();
-        tx.execute("INSERT INTO billing_purchases(id,user_id,idempotency_key,amount_minor,currency,credit_micro,fx_rate_micros,mode) VALUES(?1,?2,?3,?4,'eur',?5,1000000,'auto')",params![id,user,format!("auto:{id}"),amount/10000,amount])?;
+        let quote = service.quote(amount / 10000, "eur")?;
+        tx.execute("INSERT INTO billing_purchases(id,user_id,idempotency_key,amount_minor,currency,credit_micro,fx_rate_micros,mode,gross_micro,payment_fee_allowance_micro,forex_fee_micro) VALUES(?1,?2,?3,?4,'eur',?5,1000000,'auto',?6,?7,0)",params![id,user,format!("auto:{id}"),amount/10000,quote.credit_micro,quote.gross_micro,quote.payment_fee_micro])?;
         tx.execute(
             "UPDATE billing_auto_topup SET last_attempt_at=unixepoch() WHERE user_id=?1",
             [&user],
@@ -1044,22 +1136,30 @@ fn reverse_credit(
         return Ok(());
     }
     let original_granted:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM ai_wallet_entries WHERE user_id=?1 AND kind='topup' AND operation_id='stripe:'||?2)",params![p.user_id,p.payment.as_deref().unwrap_or("")],|r|r.get(0))?;
-    if original_granted {
-        let before = (i128::from(p.credit_micro) * i128::from(p.amount_minor - previous)
-            / i128::from(p.amount_minor)) as i64;
-        let after = (i128::from(p.credit_micro) * i128::from(p.amount_minor - cumulative)
-            / i128::from(p.amount_minor)) as i64;
-        let debit = before - after;
+    let before = (i128::from(p.credit_micro) * i128::from(p.amount_minor - previous)
+        / i128::from(p.amount_minor)) as i64;
+    let after = (i128::from(p.credit_micro) * i128::from(p.amount_minor - cumulative)
+        / i128::from(p.amount_minor)) as i64;
+    let debit = before - after;
+    let (taken, debt) = if original_granted {
         let available:i64=tx.query_row("SELECT max(0,coalesce((SELECT sum(amount_micro) FROM ai_wallet_entries WHERE user_id=?1 AND kind NOT IN ('free_grant','ai_usage_free','free_revoke')),0)-coalesce((SELECT sum(amount_micro-free_micro) FROM ai_credit_holds WHERE user_id=?1 AND state='held'),0))",[&p.user_id],|r|r.get(0))?;
         let taken = debit.min(available);
         let debt = debit - taken;
         tx.execute("INSERT INTO ai_wallet_entries(id,user_id,operation_id,kind,amount_micro,created_at) VALUES(?1,?2,?3,'refund',?4,unixepoch())",params![Uuid::new_v4().to_string(),p.user_id,format!("stripe-adjust:{event}"),-taken])?;
-        tx.execute("INSERT INTO billing_adjustments(id,purchase_id,amount_micro,debt_micro) VALUES(?1,?2,?3,?4)",params![event,p.id,taken,debt])?;
         tx.execute("UPDATE billing_accounts SET debt_micro=debt_micro+?2,blocked=CASE WHEN ?2>0 THEN 1 ELSE blocked END WHERE user_id=?1",params![p.user_id,debt])?;
         if debt > 0 {
             tx.execute("UPDATE billing_auto_topup SET enabled=0,paused_reason='billing_review' WHERE user_id=?1",[&p.user_id])?;
         }
-    }
+        (taken, debt)
+    } else {
+        (0, 0)
+    };
+    let gross_before = (i128::from(p.gross_micro) * i128::from(p.amount_minor - previous)
+        / i128::from(p.amount_minor)) as i64;
+    let gross_after = (i128::from(p.gross_micro) * i128::from(p.amount_minor - cumulative)
+        / i128::from(p.amount_minor)) as i64;
+    let gross_refund = gross_before - gross_after;
+    tx.execute("INSERT INTO billing_adjustments(id,purchase_id,amount_micro,debt_micro,gross_refund_micro,conversion_reversal_micro) VALUES(?1,?2,?3,?4,?5,?6)",params![event,p.id,taken,debt,gross_refund,gross_refund-debit])?;
     tx.execute("UPDATE billing_purchases SET refunded_minor=?2,refunded_at=unixepoch(),status=CASE WHEN ?2=amount_minor THEN 'refunded' ELSE status END,updated_at=unixepoch() WHERE id=?1",params![p.id,cumulative])?;
     Ok(())
 }
@@ -1124,7 +1224,7 @@ pub async fn tick(store: Arc<Mutex<Store>>, service: &StripeService) -> Result<(
         store
             .lock()
             .map_err(|_| invalid("Billing database unavailable"))?
-            .billing_claim_auto()?
+            .billing_claim_auto(service)?
     };
     if let Some((purchase, customer, method)) = cycle {
         // Policy is checked once more immediately before dispatch. A disabled cycle is never resent.
@@ -1162,6 +1262,8 @@ mod tests {
             endpoint: "http://127.0.0.1:1/v1".into(),
             rates: BTreeMap::from([("eur".into(), 1_000_000), ("usd".into(), 1_250_000)]),
             accepts_purchases: true,
+            fee_bps: 0,
+            fee_fixed_micro: 0,
         }
     }
     fn db() -> Store {
@@ -1179,6 +1281,7 @@ mod tests {
                 currency: "EUR".into(),
                 idempotency_key: key.into(),
                 save_for_auto_topup: true,
+                quoted_credit_micro: None,
             },
             &service(),
         )
@@ -1191,11 +1294,68 @@ mod tests {
         json!({"id":event,"type":"charge.refunded","data":{"object":{"id":"ch_synthetic","payment_intent":"pi_synthetic","amount":p.amount_minor,"amount_refunded":amount,"currency":p.currency,"customer":"cus_synthetic","metadata":{"purchase_id":p.id}}}})
     }
     #[test]
+    fn conversion_deductions_freeze_net_credits_and_refund_proportionally() {
+        let mut service = service();
+        service.fee_bps = 200;
+        service.fee_fixed_micro = 200_000;
+        let quote = service.quote(1000, "USD").unwrap();
+        assert_eq!(
+            (
+                quote.gross_micro,
+                quote.payment_fee_micro,
+                quote.forex_fee_micro,
+                quote.credit_micro
+            ),
+            (8_000_000, 360_000, 80_000, 7_560_000)
+        );
+        assert_eq!(service.quote(1000, "EUR").unwrap().credit_micro, 9_600_000);
+        let mut db = db();
+        let input = |key: &str, accepted| TopupInput {
+            amount_minor: 1000,
+            currency: "USD".into(),
+            idempotency_key: key.into(),
+            save_for_auto_topup: false,
+            quoted_credit_micro: Some(accepted),
+        };
+        assert!(
+            db.billing_begin("dev", input("stale", 8_000_000), &service)
+                .is_err()
+        );
+        let p = db
+            .billing_begin("dev", input("net", 7_560_000), &service)
+            .unwrap();
+        assert_eq!((p.gross_micro, p.credit_micro), (8_000_000, 7_560_000));
+        db.billing_customer("dev").unwrap();
+        db.billing_save_customer("dev", "cus_synthetic").unwrap();
+        db.billing_event(&success(&p, "evt_net_paid")).unwrap();
+        assert_eq!(db.ai_wallet("dev").unwrap().posted_micro, 7_560_000);
+        db.billing_event(&refunded(&p, "evt_net_refund", 500))
+            .unwrap();
+        assert_eq!(db.ai_wallet("dev").unwrap().posted_micro, 3_780_000);
+        let amounts:(i64,i64)=db.conn.query_row("SELECT gross_refund_micro,conversion_reversal_micro FROM billing_adjustments WHERE id='evt_net_refund'",[],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+        assert_eq!(amounts, (4_000_000, 220_000));
+        service.fee_bps = 300;
+        let retry = db
+            .billing_begin("dev", input("net", 7_560_000), &service)
+            .unwrap();
+        assert_eq!(retry.credit_micro, 7_560_000);
+        let finance = db.ai_finance(None, 0, i64::MAX).unwrap();
+        assert_eq!(finance["topups_micro"], 8_000_000);
+        assert_eq!(finance["refunds_micro"], 4_000_000);
+        assert_eq!(finance["conversion_revenue_micro"], 220_000);
+    }
+    #[test]
     fn exact_currency_quotes_and_minimum_are_frozen_on_purchase() {
         let service = service();
+        let quote = service.quote(625, "USD").unwrap();
         assert_eq!(
-            service.quote(625, "USD").unwrap(),
-            ("usd".into(), 5_000_000, 1_250_000)
+            (
+                quote.currency.as_str(),
+                quote.gross_micro,
+                quote.credit_micro,
+                quote.forex_fee_micro
+            ),
+            ("usd", 5_000_000, 4_950_000, 50_000)
         );
         assert!(service.quote(624, "USD").is_err());
         assert!(service.quote(i64::MAX, "EUR").is_err());
@@ -1211,7 +1371,8 @@ mod tests {
                     amount_minor: 1100,
                     currency: "EUR".into(),
                     idempotency_key: "request".into(),
-                    save_for_auto_topup: true
+                    save_for_auto_topup: true,
+                    quoted_credit_micro: None
                 },
                 &service
             )
@@ -1469,6 +1630,24 @@ mod tests {
         assert_eq!(s.ai_wallet("dev").unwrap().posted_micro, 7_000_000);
     }
     #[test]
+    fn automatic_payments_pause_when_consented_fee_policy_changes() {
+        let mut db = db();
+        db.conn.execute("INSERT INTO ai_account_policy(user_id,user_ai_enabled,managed_ai_allowed,funding,model_id) VALUES('dev',1,1,'credits','openai/gpt-4.1-mini')",[]).unwrap();
+        db.conn
+            .execute(
+                "UPDATE ai_models SET enabled=1 WHERE id='openai/gpt-4.1-mini'",
+                [],
+            )
+            .unwrap();
+        db.conn.execute("INSERT INTO billing_auto_topup(user_id,enabled,consent_at,consent_version,fee_bps,fee_fixed_micro) VALUES('dev',1,unixepoch(),?1,0,0)",[CONSENT_VERSION]).unwrap();
+        let mut changed = service();
+        changed.fee_bps = 200;
+        assert!(db.billing_claim_auto(&changed).unwrap().is_none());
+        let state = db.billing_auto("dev").unwrap();
+        assert_eq!(state["enabled"], false);
+        assert_eq!(state["paused_reason"], "fee_policy_changed");
+    }
+    #[test]
     fn automatic_cycle_is_unique_capped_and_stops_when_ai_is_off() {
         let mut s = db();
         let p = purchase(&mut s, "auto");
@@ -1487,14 +1666,16 @@ mod tests {
             monthly_cap_minor: 1000,
             cooldown_seconds: 60,
             consent: true,
+            quoted_credit_micro: None,
         };
-        s.billing_set_auto("dev", settings).unwrap();
-        assert!(s.billing_claim_auto().unwrap().is_none());
+        s.billing_set_auto("dev", settings, Some(&service()))
+            .unwrap();
+        assert!(s.billing_claim_auto(&service()).unwrap().is_none());
         s.ai_credit("dev", "used-auto", -9_000_000, "ai_usage")
             .unwrap();
-        let first = s.billing_claim_auto().unwrap().unwrap();
+        let first = s.billing_claim_auto(&service()).unwrap().unwrap();
         assert_eq!(first.0.amount_minor, 1000);
-        assert!(s.billing_claim_auto().unwrap().is_none());
+        assert!(s.billing_claim_auto(&service()).unwrap().is_none());
         s.conn
             .execute(
                 "UPDATE billing_purchases SET status='paid' WHERE id=?1",
@@ -1507,14 +1688,14 @@ mod tests {
                 [],
             )
             .unwrap();
-        assert!(s.billing_claim_auto().unwrap().is_none());
+        assert!(s.billing_claim_auto(&service()).unwrap().is_none());
         s.conn
             .execute(
                 "UPDATE ai_account_policy SET user_ai_enabled=0 WHERE user_id='dev'",
                 [],
             )
             .unwrap();
-        assert!(s.billing_claim_auto().unwrap().is_none());
+        assert!(s.billing_claim_auto(&service()).unwrap().is_none());
         assert_eq!(s.billing_auto("dev").unwrap()["enabled"], false);
     }
     #[test]

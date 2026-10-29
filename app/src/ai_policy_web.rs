@@ -205,10 +205,22 @@ async fn users(
     Query(page): Query<Page>,
 ) -> Result<Json<Value>, ApiError> {
     let actor = session(&s, &h, false, false).await?;
-    let users = s
-        .run(move |db| db.ai_admin_users(&actor, page.after.as_deref(), page.limit.unwrap_or(50)))
+    let (users, next) = s
+        .run(move |db| {
+            let policies = db.ai_admin_users(&actor, page.after.as_deref(), page.limit.unwrap_or(50))?;
+            let next = if policies.len() == page.limit.unwrap_or(50).clamp(1, 100) { policies.last().map(|p| p.user_id.clone()) } else { None };
+            let users = policies.into_iter().map(|policy| {
+                let (name, email): (String, Option<String>) = db.conn.query_row(
+                    "SELECT name,(SELECT email FROM auth_identities WHERE user_id=users.id ORDER BY issuer,subject LIMIT 1) FROM users WHERE id=?1",
+                    [&policy.user_id], |row| Ok((row.get(0)?, row.get(1)?)))?;
+                let mut value = serde_json::to_value(policy).map_err(|_| Error::Forbidden)?;
+                value["name"] = json!(name);
+                value["email"] = json!(email);
+                Ok(value)
+            }).collect::<Result<Vec<Value>, Error>>()?;
+            Ok((users, next))
+        })
         .await?;
-    let next = users.last().map(|p| p.user_id.clone());
     Ok(Json(json!({"users":users,"next_cursor":next})))
 }
 async fn requests(
@@ -222,7 +234,11 @@ async fn requests(
             db.ai_admin_requests(&actor, page.after.as_deref(), page.limit.unwrap_or(50))
         })
         .await?;
-    let next = requests.last().map(|p| p.user_id.clone());
+    let next = if requests.len() == page.limit.unwrap_or(50).clamp(1, 100) {
+        requests.last().map(|p| p.user_id.clone())
+    } else {
+        None
+    };
     Ok(Json(json!({"requests":requests,"next_cursor":next})))
 }
 async fn update_user(
@@ -294,7 +310,11 @@ async fn audit(
     let entries = s
         .run(move |db| db.ai_admin_audit(&actor, page.after, page.limit.unwrap_or(50)))
         .await?;
-    let next = entries.last().and_then(|entry| entry["id"].as_i64());
+    let next = if entries.len() == page.limit.unwrap_or(50).clamp(1, 100) {
+        entries.last().and_then(|entry| entry["id"].as_i64())
+    } else {
+        None
+    };
     Ok(Json(json!({"entries":entries,"next_cursor":next})))
 }
 
