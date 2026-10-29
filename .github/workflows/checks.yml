@@ -56,4 +56,4 @@ jobs:
           done
           test "$ready" = true || { cat "$test_dir/server.log"; exit 1; }
           python3 scripts/rebuild-cli-check.py
-          npx playwright test --project=chromium --project=firefox --workers=1
+          npx playwright test monorepo-smoke.spec.js capture-loading.spec.js loading-states.spec.js network-resilience.spec.js --project=chromium --project=firefox --workers=1

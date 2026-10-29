@@ -87,7 +87,9 @@ app release marked as latest in GitHub.
   separately, or authenticate VPS pulls with a read:packages token.
 
 PR checks run on hosted runners with read-only permissions and synthetic data,
-including fork PRs. No workflow runs on ordinary main pushes except docs changes;
+including fork PRs. The PR browser gate covers current smoke, capture/loading and
+network recovery scenarios; the broader `make e2e` suite includes older scenarios
+that still need selector updates. No workflow runs on ordinary main pushes except docs changes;
 no workflow automatically deploys the VPS. Release jobs require a published
 GitHub release and verify that its source belongs to main.
 

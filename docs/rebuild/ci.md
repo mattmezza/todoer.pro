@@ -2,7 +2,9 @@
 
 PR checks use GitHub-hosted runners, read-only repository permissions and synthetic
 data. They run formatting, Clippy, Rust tests, service-worker checks, builds,
-docs/site builds, CLI checks and Chromium/Firefox tests. Fork PRs receive no
+docs/site builds, CLI checks and current Chromium/Firefox smoke, capture/loading and network-recovery
+scenarios. The broader `make e2e` suite is retained for maintenance: some older
+scenarios still target retired selectors and are not the PR gate. Fork PRs receive no
 production secrets or private-runner access.
 
 Ordinary main pushes run nothing unless `docs/**` changed; then only documentation
