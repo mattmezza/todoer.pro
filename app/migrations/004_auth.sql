@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS auth_email_allowlist(email TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS auth_identities(issuer TEXT NOT NULL,subject TEXT NOT NULL,user_id TEXT NOT NULL REFERENCES users(id),email TEXT NOT NULL,PRIMARY KEY(issuer,subject));
+CREATE TABLE IF NOT EXISTS auth_sessions(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),token_hash TEXT NOT NULL UNIQUE,csrf_hash TEXT NOT NULL,expires_at INTEGER NOT NULL,revoked INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS auth_agents(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),token_hash TEXT NOT NULL UNIQUE,audience TEXT NOT NULL,permissions TEXT NOT NULL,list_ids TEXT,workspace TEXT,expires_at INTEGER NOT NULL,revoked INTEGER NOT NULL DEFAULT 0);

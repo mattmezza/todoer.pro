@@ -1,0 +1,130 @@
+/* List and space sharing share the same layout in floating and pinned panels. */
+.list-settings-panel[data-settings-kind='list'],
+.list-settings-panel[data-settings-kind='workspace'] {
+  padding: 20px 24px;
+}
+.list-settings-panel:is([data-settings-kind='list'], [data-settings-kind='workspace'])
+  > header {
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.list-settings-panel[data-settings-kind] > p[role='status']:empty {
+  display: none;
+}
+.list-settings-panel .sharing-panel {
+  padding: 0;
+  margin: 0;
+}
+.list-settings-panel .sharing-panel :is(h2, h3) {
+  margin: 20px 0 10px;
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+.list-settings-panel .sharing-panel > h2:first-child {
+  margin-top: 0;
+}
+.list-settings-panel .sharing-panel > p {
+  margin: 10px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.list-settings-panel .sharing-panel form {
+  gap: 8px;
+  margin: 14px 0;
+}
+.list-settings-panel .sharing-panel :is(label, select, input, button, a.primary),
+.sharing-modal :is(label, select, input, button) {
+  font-size: 14px;
+}
+.list-settings-panel .sharing-panel :is(button, a.primary),
+.sharing-modal button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  line-height: 1.4;
+  width: fit-content;
+}
+.list-settings-panel .sharing-panel a.primary {
+  margin-left: 0;
+}
+.list-settings-panel .sharing-panel .sharing-add {
+  margin: 16px 0 0;
+  border: 1px solid var(--line);
+}
+.list-settings-panel .sharing-panel :is(.sharing-consent, .public-sharing-toggle),
+.sharing-modal label:has(input[type='checkbox']) {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start !important;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 0;
+  margin: 8px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: left;
+}
+.list-settings-panel .sharing-panel input[type='checkbox'],
+.sharing-modal input[type='checkbox'] {
+  appearance: auto;
+  flex: 0 0 16px;
+  width: 16px;
+  min-width: 16px;
+  max-width: 16px;
+  height: 16px;
+  min-height: 0;
+  padding: 0;
+  margin: 2px 0 0;
+}
+.list-settings-panel .sharing-panel .sharing-consent > span {
+  flex: 1;
+  min-width: 0;
+}
+.list-settings-panel .sharing-panel .task {
+  padding: 12px 0;
+  gap: 12px;
+}
+.list-settings-panel .sharing-panel .task form,
+.list-settings-panel .sharing-panel .member-row form {
+  margin: 0;
+}
+.list-settings-panel .sharing-panel .member-row {
+  padding-block: 12px;
+  gap: 10px;
+}
+.list-settings-panel .sharing-panel .member-row select {
+  min-height: 36px;
+  padding: 7px 10px;
+}
+.list-settings-panel .sharing-panel .member-add {
+  padding: 14px 0;
+}
+.list-settings-panel .sharing-panel .public-sharing-control {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+  margin-top: 20px;
+}
+.list-settings-panel .sharing-panel .public-sharing-control > h3 {
+  margin-top: 0;
+}
+.list-settings-panel .sharing-panel .public-sharing-control > button {
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+.sharing-modal .sharing-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+@media (max-width: 520px) {
+  .list-settings-panel[data-settings-kind='list'],
+  .list-settings-panel[data-settings-kind='workspace'] {
+    padding: 16px;
+  }
+}

@@ -1,0 +1,10 @@
+<section class="settings-preference-card account-profile" aria-labelledby="profile-heading">
+<span class="avatar profile-avatar"><span>{{ sidebar.user_initial }}</span>{% if !sidebar.avatar_url.is_empty() %}<img src="{{ sidebar.avatar_url }}" alt="" referrerpolicy="no-referrer" data-profile-avatar>{% endif %}</span>
+<div><h2 id="profile-heading">{{ sidebar.user_name }}</h2><p class="muted">{{ sidebar.current_workspace_label }}</p></div>
+</section>
+<section class="settings-preference-card" aria-labelledby="account-access-heading">
+<h2 id="account-access-heading">Sign-in &amp; access</h2>
+<p class="muted">Manage how you sign in and which devices can reach you.</p>
+<a class="settings-destination" href="/settings/security"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#shield"/></svg><span>Security<small>Passwords, passkeys, and two-factor authentication</small></span><span aria-hidden="true">→</span></a>
+<a class="settings-destination" href="/settings/devices"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#computer-desktop"/></svg><span>Devices<small>Manage notification access on your devices</small></span><span aria-hidden="true">→</span></a>
+</section>

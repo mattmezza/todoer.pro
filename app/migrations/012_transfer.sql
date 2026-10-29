@@ -1,0 +1,4 @@
+CREATE TABLE transfer_sources(id TEXT PRIMARY KEY,schema_hash TEXT NOT NULL,created_at INTEGER NOT NULL DEFAULT(unixepoch()));
+CREATE TABLE transfer_legacy_records(source_id TEXT NOT NULL REFERENCES transfer_sources(id),table_name TEXT NOT NULL,source_key TEXT NOT NULL,owner_id TEXT NOT NULL REFERENCES users(id),payload TEXT NOT NULL,source_hash TEXT NOT NULL,destination_table TEXT,destination_id TEXT,destination_hash TEXT,PRIMARY KEY(source_id,table_name,source_key));
+CREATE TABLE legacy_aliases(source_id TEXT NOT NULL REFERENCES transfer_sources(id),kind TEXT NOT NULL,alias TEXT NOT NULL,entity_id TEXT NOT NULL,PRIMARY KEY(source_id,kind,alias));
+CREATE TABLE legacy_attachment_refs(id TEXT PRIMARY KEY,task_id TEXT NOT NULL REFERENCES tasks(id),filename TEXT NOT NULL,mime TEXT NOT NULL,size INTEGER NOT NULL,object_key TEXT NOT NULL,created_at TEXT,source_id TEXT NOT NULL REFERENCES transfer_sources(id));

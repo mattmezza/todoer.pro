@@ -1,0 +1,18 @@
+# Todoer
+
+> Open-source task management. Task management for a clearer head, with optional authorized AI-agent workflows. Launch pricing is proposed; checkout is not open.
+
+- [Everything in its place.<br>You, back in motion.](https://todoer.pro/product.html): A focused home for your tasks, project context and next actions.
+- [Don’t leave your next step<br>buried in a chat.](https://todoer.pro/agents.html): Connect the thinking you do with AI to the work you want to finish.
+- [A little more room<br>to be you.](https://todoer.pro/about.html): Todoer exists to make the space between an idea and doing it feel smaller.
+- [Let’s talk.](https://todoer.pro/contact.html): A question, an idea, or something we can help with?
+- [Your work is personal.<br>Here’s how we handle it.](https://todoer.pro/privacy.html): Privacy information for Todoer.
+- [Clear terms. Shared expectations.](https://todoer.pro/terms.html): Terms information for Todoer.
+- [Small files.<br>Clear explanations.](https://todoer.pro/cookies.html): How the Todoer website and application use device storage.
+- [The people behind the product.](https://todoer.pro/imprint.html): Todoer operator and legal contact details.
+- [How to do a weekly review that gives you a realistic week](https://todoer.pro/guides/weekly-review.html): A practical weekly review checklist, with examples, an AI-assisted option and a reset for overloaded weeks.
+- [How to break a project into actionable tasks](https://todoer.pro/guides/nested-tasks.html): Turn a vague goal into a useful task tree, with a worked example and a review-first AI prompt.
+- [How to build a task capture inbox you will actually empty](https://todoer.pro/guides/capture-inbox.html): A durable capture workflow for notes, messages and AI conversations, with clear processing decisions.
+- [Practical ways to<br>make room for the work.](https://todoer.pro/guides.html): Evergreen guides to capturing commitments, planning projects and using AI with a clear next step.
+- [A lighter to-do list.<br>A lighter price, too.](https://todoer.pro/pricing.html): Start with a small commitment. Give the things you want to do a place to happen.
+- [How to manage tasks with AI without losing control of your list](https://todoer.pro/guides/ai-task-management.html): A practical guide to AI task capture, project breakdown and review, including MCP, ChatGPT and Claude considerations.

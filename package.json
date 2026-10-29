@@ -1,10 +1,26 @@
 {
+  "private": true,
+  "scripts": {
+    "assets": "tailwindcss -i app/assets/source.css -o app/assets/app.css --minify",
+    "test:browser": "playwright test",
+    "format": "prettier --write \"app/assets/*.js\" app/assets/source.css \"app/browser/*.js\" playwright.config.js package.json",
+    "format:check": "prettier --check \"app/assets/*.js\" app/assets/source.css \"app/browser/*.js\" playwright.config.js package.json"
+  },
   "devDependencies": {
-    "@tailwindcss/forms": "^0.5.11",
-    "@tailwindcss/typography": "^0.5.19",
-    "tailwindcss": "^4.2.4"
+    "@playwright/test": "1.56.1",
+    "@tailwindcss/cli": "4.3.1",
+    "@tailwindcss/forms": "0.5.11",
+    "@tailwindcss/typography": "0.5.19",
+    "prettier": "3.9.10",
+    "tailwindcss": "4.3.1"
   },
   "dependencies": {
-    "@tailwindcss/cli": "^4.2.4"
-  }
+    "htmx.org": "2.0.8"
+  },
+  "overrides": {
+    "@tailwindcss/typography": {
+      "postcss-selector-parser": "7.1.7"
+    }
+  },
+  "license": "MIT"
 }

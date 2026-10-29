@@ -1,0 +1,23 @@
+<section class="settings-preference-card" aria-labelledby="browser-heading"{% if configured %} data-push-settings data-csrf="{{ csrf }}"{% endif %}>
+<div class="settings-card-heading"><span class="settings-card-icon"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#computer-desktop"/></svg></span><div><h2 id="browser-heading">This browser</h2><p class="muted">Get a nudge when it’s time to come back.</p></div></div>
+{% if configured %}
+<p class="device-browser-status" data-push-status data-loading-pending="compact" role="status" aria-live="polite">Checking notification support…</p>
+<div class="device-browser-actions"><button type="button" data-push-enable hidden class="primary">Enable notifications</button><button type="button" data-push-disable hidden class="secondary">Disable this browser</button></div>
+<details class="device-name-option" data-push-name hidden><summary>Device name <span class="muted">· optional</span></summary><label>Name<input data-push-label maxlength="100" value="This browser" autocomplete="off"></label></details>
+<label class="settings-check device-account-toggle"><input type="checkbox" data-push-opt-in{% if opt_in %} checked{% endif %}><span>Allow push notifications on my devices<small>Turn off to pause push delivery everywhere.</small></span></label>
+<noscript>JavaScript is needed to enable notifications. You can still disable registered devices below.</noscript>
+{% else %}
+<p class="muted">Push notifications aren’t available on this installation yet. Your updates are still in the notification center.</p>
+{% endif %}
+</section>
+<section class="settings-preference-card device-registry" aria-labelledby="registered-devices-heading">
+<div class="settings-card-heading"><span class="settings-card-icon"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#bell"/></svg></span><div><h2 id="registered-devices-heading">Registered devices</h2><p class="muted">Choose where Todoer can reach you.</p></div></div>
+<div data-device-list>
+{% for device in devices %}
+<article class="device-entry"><svg class="ui-icon device-entry-icon" aria-hidden="true"><use href="/assets/icons.svg#computer-desktop"/></svg><div class="device-entry-info"><h3>{{ device.label }}</h3><span class="delivery-badge{% if device.active && device.session_live %} delivery-success{% endif %}">{% if !device.active %}Disabled{% else if !device.session_live %}Signed out{% else %}Enabled{% endif %}</span><small>Added <time data-unix-time="{{ device.created_at }}"></time></small></div>{% if device.active %}<form method="post" action="/settings/devices/{{ device.id }}/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="device-revoke">Disable</button></form>{% endif %}</article>
+{% endfor %}
+</div>
+<div class="settings-empty" data-device-empty{% if !devices.is_empty() %} hidden{% endif %}><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#computer-desktop"/></svg><strong>No devices yet</strong><p>Enable notifications in a browser to add it here.</p></div>
+</section>
+<div class="settings-footer-help"><a href="/settings/notifications">Choose notifications &amp; quiet hours <span aria-hidden="true">→</span></a><details><summary>How device notifications work</summary><p>Notifications use generic text. Open Todoer to see the details. Signing out stops new deliveries for devices linked to that sign-in.</p><p>On iPhone or iPad, add Todoer to your Home Screen and open it there first. Browser and system permissions can also affect delivery.</p>{% if !configured %}<p>Development sessions do not register push devices. Server push delivery requires VAPID configuration.</p>{% endif %}</details></div>
+{% if configured %}<script type="module" src="/assets/push.js"></script>{% endif %}

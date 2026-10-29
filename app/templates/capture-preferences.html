@@ -1,0 +1,15 @@
+<form data-loading-pending="form" data-capture-preferences class="ai-preferences" aria-busy="true">
+<section class="settings-preference-card" aria-labelledby="capture-preferences-heading">
+<h2 id="capture-preferences-heading">Task capture</h2>
+<p class="muted">Turn a quick thought into a task with less typing.</p>
+<label class="settings-check"><input type="checkbox" name="smart_enabled"><span>Recognize shortcuts<small>Pick lists, tags, and priorities as you type.</small></span></label>
+<div data-date-options class="settings-dependent" hidden><label class="settings-check"><input type="checkbox" name="date_enabled"><span>Recognize date phrases<small>Turn phrases like “tomorrow” into dates.</small></span></label></div>
+<label class="settings-check"><input type="checkbox" name="repeat_capture"><span>Keep quick capture open after saving<small>Useful when you’re adding several tasks.</small></span></label>
+</section>
+<section class="settings-preference-card" aria-labelledby="ai-guidance-heading">
+<h2 id="ai-guidance-heading">AI guidance</h2>
+<p class="muted">Give your AI a little context about how you like to work.</p>
+<details data-ai-instructions><summary>Personal instructions <span class="muted">· optional</span></summary><label>Instructions<textarea name="ai_instructions" maxlength="1000" rows="4" placeholder="For example: keep tasks short and actionable."></textarea></label><p class="muted">Used only when you request AI assistance. Avoid sensitive details.</p></details>
+</section>
+<div class="settings-save-row"><button type="submit" class="primary" disabled>Save preferences</button><p data-capture-preferences-status role="status" aria-live="polite"></p><button type="button" data-capture-retry hidden>Retry loading</button></div>
+</form>
