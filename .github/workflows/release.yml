@@ -109,10 +109,14 @@ jobs:
         with:
           toolchain: '1.99.0'
           targets: ${{ matrix.target }}
+      - name: Use Strawberry Perl for vendored OpenSSL
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "C:/Strawberry/perl/bin" >> "$GITHUB_PATH"
       - run: npm ci
       - run: make assets
         shell: bash
-      - run: cargo build --locked --release --bin todoer --target ${{ matrix.target }}
+      - run: cargo build --locked --release --features portable-cli --bin todoer --target ${{ matrix.target }}
         env:
           TODOER_BUILD_VERSION: ${{ needs.validate.outputs.tag }}
       - name: Attach executable and checksum

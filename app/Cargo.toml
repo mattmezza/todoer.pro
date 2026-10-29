@@ -6,7 +6,12 @@ license = "MIT"
 repository = "https://github.com/mattmezza/todoer.pro"
 default-run = "todoer-server"
 
+[features]
+# Release CLI builds bundle OpenSSL so Windows/macOS need no system SDK paths.
+portable-cli = ["dep:openssl"]
+
 [dependencies]
+openssl = { version = "=0.10.81", optional = true, features = ["vendored"] }
 genpdf = "=0.2.0"
 rusttype = "=0.8.3"
 png = "=0.17.16"

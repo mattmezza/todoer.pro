@@ -60,7 +60,17 @@ fn online_backup_restores_synthetic_ids_and_refuses_overwrites() {
     );
     assert!(copy("restore", &backup, &restored).status.success());
     let recovered = Store::open(restored.to_str().unwrap()).unwrap();
-    assert_eq!(recovered.lists("dev").unwrap().len(), 2);
+    let list_ids = |db: &Store| {
+        let mut ids: Vec<_> = db
+            .lists("dev")
+            .unwrap()
+            .into_iter()
+            .map(|list| list.id)
+            .collect();
+        ids.sort();
+        ids
+    };
+    assert_eq!(list_ids(&recovered), list_ids(&store));
     let tasks = recovered.tasks("dev", "inbox").unwrap();
     assert_eq!(tasks.len(), 1);
     assert_eq!(tasks[0].id, created[0].id);
