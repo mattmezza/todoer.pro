@@ -42,18 +42,14 @@ a billing dashboard and account-level BYOK are not available yet. Self-hosted
 operators can configure an instance-wide provider key today.
 
 Pricing may change as the service grows. See the [public offer](https://todoer.pro/pricing.html)
-and [implementation plan](docs/ai-billing-plan.md).
+for availability and terms.
 
 ## Start with your AI agent
 
-Give your agent this prompt:
+Agents can use the [connection skill](skills/todoer.pro/SKILL.md) and
+[documentation index](https://docs.todoer.pro/llms.txt) to connect to the cloud
+instance at `https://app.todoer.pro` or your self-hosted HTTPS origin.
 
-> Connect to my Todoer Pro instance at https://app.todoer.pro. Read
-> https://docs.todoer.pro/llms.txt and the linked agent workflow first. Help me
-> authenticate with the narrowest access needed, using MCP or the Todoer CLI.
-> Show my open tasks and suggest a next step. Ask before making changes.
-
-Use your self-hosted HTTPS URL instead of `https://app.todoer.pro` when appropriate.
 For a compatible remote MCP client, connect to **`https://app.todoer.pro/mcp`** and
 complete browser authorization. Client support varies; the CLI is another option:
 

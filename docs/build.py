@@ -45,7 +45,6 @@ GROUPS = [
     ('CLI, API and AI', [
         ('rebuild/cli-login', 'CLI sign-in'),
         ('rebuild/agent-workflow', 'CLI and agent workflow'),
-        ('rebuild/agent-prompts', 'Prompts for your agent'),
         ('rebuild/authentication', 'Identity and permissions'),
         ('rebuild/rest', 'REST API'),
         ('rebuild/subtree-query', 'Task tree queries'),

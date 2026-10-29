@@ -6,6 +6,9 @@
 - `deploy/`: production Docker image, Compose, nginx examples and runbooks.
 - `legacy/`: unhosted Python/FastAPI reference; its AGENTS.md applies there.
 - Root Cargo workspace and npm tooling support the active application.
+Private plans, commercial strategy and prompt examples belong under ignored
+`.local/private/`, never in Git or generated sites. Public usage guides and
+agent connection skills remain versioned.
 
 Run `make setup`, `make check`, and `make test`. Browser tests use synthetic data;
 never point development checks at a real database. `make dev` requires explicit

@@ -1,6 +1,6 @@
 # REST client workflow
 
-For cloud, set `TODOER_URL=https://app.todoer.pro`; for self-hosting use your server’s HTTPS origin. Prefer `todoer login --permission read` (or `write` for authorized changes) and approve the selected lists in your browser. A saved login is used automatically. Remote MCP clients connect to the same origin’s `/mcp` endpoint with their own OAuth authorization; REST credentials and MCP credentials are distinct. See [CLI sign-in](cli-login.md), [agent prompts](agent-prompts.md), and the [Todoer skill](../../skills/todoer.pro/SKILL.md).
+For cloud, set `TODOER_URL=https://app.todoer.pro`; for self-hosting use your server’s HTTPS origin. Prefer `todoer login --permission read` (or `write` for authorized changes) and approve the selected lists in your browser. A saved login is used automatically. Remote MCP clients connect to the same origin’s `/mcp` endpoint with their own OAuth authorization; REST credentials and MCP credentials are distinct. See [CLI sign-in](cli-login.md), and the [Todoer skill](../../skills/todoer.pro/SKILL.md).
 
 The Rust rebuild provides the `todoer` CLI as a REST client. Run it from the repository with `cargo run --manifest-path app/Cargo.toml --bin todoer -- ...` or install/build the binary and use the examples below.
 

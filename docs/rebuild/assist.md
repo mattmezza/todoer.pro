@@ -14,8 +14,7 @@ Self-hosted operators can select classification and drafting models with
 `TODOER_ASSIST_CLASSIFY_MODEL` and `TODOER_ASSIST_DRAFT_MODEL`. See the release's
 source configuration for defaults. Hosted model selection can change and is not
 part of the public pricing offer. Account-level BYOK and prepaid credit purchases
-are planned; the operator-wide key described here is available today. See the
-[AI billing implementation plan](../ai-billing-plan.md).
+are planned; the operator-wide key described here is available today. Current availability is described on the [pricing page](https://todoer.pro/pricing.html).
 
 Classification sends the saved capture text and at most 20 currently write-authorized destination IDs and short list titles (80 characters each). It does not send other tasks, comments, workspace descriptions, or account briefs. Drafting sends only the submitted brief. Avoid sending information you do not want processed by an external provider.
 

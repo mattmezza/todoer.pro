@@ -391,3 +391,13 @@ dist
 /.agents/product-marketing.md
 /.pi/
 /pricing.private.json
+
+# Private planning and prompt Markdown stays local, including former source paths.
+/docs/ai-billing-plan.md
+/docs/rebuild/IMPLEMENTATION.md
+/docs/rebuild/design-feedback.md
+/docs/rebuild/legacy-inventory.md
+/docs/rebuild/agent-prompts.md
+**/*-plan.md
+**/*-plans.md
+**/*-prompts.md
