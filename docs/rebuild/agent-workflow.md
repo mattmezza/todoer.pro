@@ -1,8 +1,10 @@
 # REST client workflow
 
+For cloud, set `TODOER_URL=https://app.todoer.pro`; for self-hosting use your server’s HTTPS origin. Prefer `todoer login --permission read` (or `write` for authorized changes) and approve the selected lists in your browser. A saved login is used automatically. Remote MCP clients connect to the same origin’s `/mcp` endpoint with their own OAuth authorization; REST credentials and MCP credentials are distinct. See [CLI sign-in](cli-login.md), [agent prompts](agent-prompts.md), and the [Todoer skill](../../skills/todoer.pro/SKILL.md).
+
 The Rust rebuild provides the `todoer` CLI as a REST client. Run it from the repository with `cargo run --manifest-path app/Cargo.toml --bin todoer -- ...` or install/build the binary and use the examples below.
 
-Set `TODOER_TOKEN` to your configured Todoer bearer credential. `TODOER_URL` defaults to `http://127.0.0.1:8092`; `--url` overrides it. Keep tokens out of shell history and source control. The CLI does not print the token.
+Alternatively, set `TODOER_TOKEN` to your configured REST bearer credential. `TODOER_URL` defaults to `http://127.0.0.1:8092`; `--url` overrides it. Keep tokens out of shell history and source control. The CLI does not print the token.
 
 The development token adapter is restricted to explicit development mode. With configured production authentication, create a REST credential in browser Settings; the CLI uses that credential and does not manage browser sessions. MCP at `/mcp` supports the implemented OAuth flow, tested with the official Python SDK against an isolated provider fixture. This is not a claim of compatibility with every remote connector. The CLI examples use REST directly.
 

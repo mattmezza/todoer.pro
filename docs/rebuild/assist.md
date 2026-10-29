@@ -10,12 +10,12 @@ The standalone Assist screen has been removed. `/assist` and `/settings/assist` 
 
 Assistance is disabled when `TODOER_OPENROUTER_API_KEY` is absent. Capture continues to work. The key is server-only and is never included in HTML, JavaScript, responses, or logs. Production requests use the fixed HTTPS OpenRouter chat completion endpoint; clients cannot supply an endpoint or model.
 
-Optional server variables:
-
-| Variable | Default |
-|---|---|
-| `TODOER_ASSIST_CLASSIFY_MODEL` | `google/gemini-2.5-flash-lite` |
-| `TODOER_ASSIST_DRAFT_MODEL` | `openai/gpt-4.1-mini` |
+Self-hosted operators can select classification and drafting models with
+`TODOER_ASSIST_CLASSIFY_MODEL` and `TODOER_ASSIST_DRAFT_MODEL`. See the release's
+source configuration for defaults. Hosted model selection can change and is not
+part of the public pricing offer. Account-level BYOK and prepaid credit purchases
+are planned; the operator-wide key described here is available today. See the
+[AI billing implementation plan](../ai-billing-plan.md).
 
 Classification sends the saved capture text and at most 20 currently write-authorized destination IDs and short list titles (80 characters each). It does not send other tasks, comments, workspace descriptions, or account briefs. Drafting sends only the submitted brief. Avoid sending information you do not want processed by an external provider.
 

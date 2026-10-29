@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="420" viewBox="0 0 1280 420" role="img" aria-labelledby="title desc">
+<title id="title">Todoer Pro — Todos without the bullshit.</title><desc id="desc">Open-source tasks for you and your AI agents. Web · MCP · CLI · REST.</desc>
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#030712"/><stop offset="1" stop-color="#172554"/></linearGradient><linearGradient id="accent"><stop stop-color="#93c5fd"/><stop offset="1" stop-color="#c4b5fd"/></linearGradient></defs>
+<rect width="1280" height="420" rx="24" fill="url(#bg)"/>
+<svg x="64" y="52" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="#030712"/><path d="M23 13h10v12h13v8H33v13c0 4 2 6 6 6h7v8h-9c-10 0-14-5-14-14V33h-8v-8h8Z" fill="#e2e8f0" transform="translate(0 -3)"/><circle cx="49" cy="13" r="5" fill="#818cf8"/></svg>
+
+<g font-family="Arial,Helvetica,sans-serif"><text x="146" y="96" fill="#e2e8f0" font-size="32" font-weight="700">todoer.pro</text>
+<text x="64" y="200" fill="#f8fafc" font-size="62" font-weight="700">Todos without the bullshit.</text>
+<text x="68" y="256" fill="#cbd5e1" font-size="26">Your tasks. Your tools. Your next step.</text>
+<text x="68" y="346" fill="url(#accent)" font-size="22" letter-spacing="3">OPEN SOURCE   /   WEB   /   MCP   /   CLI   /   REST</text></g></svg>

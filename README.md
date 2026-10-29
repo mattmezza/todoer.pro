@@ -1,19 +1,93 @@
-# Todoer Pro
+<p align="center"><img src="assets/readme-banner.svg" alt="Todoer Pro — Todos without the bullshit. Open-source tasks for you and your AI agents." width="100%"></p>
 
-Task management for a clearer head, with a Rust web app, REST API, MCP server
-and CLI. Original project code and documentation are licensed under [MIT](LICENSE).
+<p align="center">
+<a href="https://app.todoer.pro"><strong>Try Todoer →</strong></a> ·
+<a href="https://docs.todoer.pro">Read the docs</a> ·
+<a href="deploy/README.md">Self-host</a> ·
+<a href="skills/todoer.pro/SKILL.md">Connect your agent</a>
+</p>
+<p align="center">
+<a href="LICENSE"><img alt="MIT licensed" src="https://img.shields.io/badge/license-MIT-818cf8"></a>
+<a href="https://github.com/mattmezza/todoer.pro/releases"><img alt="GitHub release" src="https://img.shields.io/github/v/release/mattmezza/todoer.pro"></a>
+<a href="https://github.com/mattmezza/todoer.pro/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/mattmezza/todoer.pro?style=social"></a>
+</p>
 
-| Directory | Purpose | Production host |
-| --- | --- | --- |
-| [`app/`](app/) | Rust/Axum app, Askama templates, CLI, migrations | app.todoer.pro |
-| [`www/`](www/) | Static public website | todoer.pro · Cloudflare Pages |
-| [`docs/`](docs/) | Public documentation website and Markdown sources | docs.todoer.pro · GitHub Pages |
-| [`deploy/`](deploy/) | Docker, Compose, nginx examples and migration runbook | VPS |
-| [`legacy/`](legacy/) | Python app and supporting files retained as reference | Not hosted |
-| [`extension/`](extension/) | Browser extension | Separate client |
-| [`skills/`](skills/) | Agent integration resources | Source only |
+# A clearer head. A smaller next step.
 
-## Develop
+Todoer Pro is an open-source task manager for people who want to capture a thought,
+turn a project into doable steps, and get on with their day. Use the web app yourself,
+or let your AI agent work with your tasks through **MCP, CLI, or REST**.
+
+Built in Rust with Axum, Askama and SQLite. Self-host it, inspect it, make it yours.
+If that sounds like your kind of software, **[give it a star](https://github.com/mattmezza/todoer.pro)**
+and share it with someone whose todos live in six different places.
+
+| Make room for the work | How Todoer helps |
+| --- | --- |
+| Get it out of your head | Quick capture, Inbox, lists and sections |
+| Make the next step obvious | Nested tasks, descriptions, comments and attachments |
+| Plan a realistic day | Dates, recurring tasks, reminders and weekly review |
+| Bring your agent along | Scoped access, searchable tasks, revision-checked writes and previews |
+| Keep control | MIT source, self-hosting, exports and documented APIs |
+
+## Free to start. Free to use with your agent.
+
+Core task management and MCP, CLI and REST access are free. Your external agent's
+own service or provider charges are separate.
+
+**Planned:** prepaid credits for Todoer's built-in AI assistance, such as task
+breakdown and classification. Account-level **bring your own key (BYOK)** is also
+planned: no Todoer AI usage fee, with provider charges paid by you. Credit purchases,
+a billing dashboard and account-level BYOK are not available yet. Self-hosted
+operators can configure an instance-wide provider key today.
+
+Pricing may change as the service grows. See the [public offer](https://todoer.pro/pricing.html)
+and [implementation plan](docs/ai-billing-plan.md).
+
+## Start with your AI agent
+
+Give your agent this prompt:
+
+> Connect to my Todoer Pro instance at https://app.todoer.pro. Read
+> https://docs.todoer.pro/llms.txt and the linked agent workflow first. Help me
+> authenticate with the narrowest access needed, using MCP or the Todoer CLI.
+> Show my open tasks and suggest a next step. Ask before making changes.
+
+Use your self-hosted HTTPS URL instead of `https://app.todoer.pro` when appropriate.
+For a compatible remote MCP client, connect to **`https://app.todoer.pro/mcp`** and
+complete browser authorization. Client support varies; the CLI is another option:
+
+```sh
+todoer --url https://app.todoer.pro login --permission read
+todoer --url https://app.todoer.pro --json list
+```
+
+Download the CLI for your platform from [Releases](https://github.com/mattmezza/todoer.pro/releases)
+and verify its SHA-256 sidecar. See [CLI sign-in](https://docs.todoer.pro/rebuild/cli-login.html)
+and the [agent skill](skills/todoer.pro/SKILL.md) for setup, permissions and safe writes.
+Agents can read the [docs index](https://docs.todoer.pro/llms.txt),
+[complete docs](https://docs.todoer.pro/llms-full.txt), or individual Markdown pages.
+
+<details>
+<summary><strong>What lives in this repository?</strong></summary>
+
+| Directory | Purpose |
+| --- | --- |
+| [`app/`](app/) | Current Rust app, REST API, MCP, CLI and migrations |
+| [`www/`](www/) | Public website · Cloudflare Pages |
+| [`docs/`](docs/) | Public docs · GitHub Pages |
+| [`deploy/`](deploy/) | Docker, Compose, nginx and operations runbooks |
+| [`skills/todoer.pro/`](skills/todoer.pro/) | Instructions for agents using cloud or self-hosted Todoer |
+| [`extension/`](extension/) | Browser extension |
+| [`legacy/`](legacy/) | Unhosted Python reference implementation |
+
+Root Cargo files define the workspace and its shared lockfile; `app/Cargo.toml`
+defines the application package. This keeps root development and release commands
+consistent without duplicating dependency locks.
+
+</details>
+
+## Run it locally
 
 Requires Rust 1.99+, Node.js 24, npm, a C compiler and platform build tooling
 (Linux: pkg-config and OpenSSL development libraries). Python 3.11+ builds docs
@@ -45,7 +119,10 @@ python3 -m venv .local/docs-venv
 Run CLI commands with `cargo run --bin todoer -- --help`. CLI authentication,
 REST and MCP setup are documented at [docs.todoer.pro](https://docs.todoer.pro).
 
-## Explicit releases
+<details>
+<summary><strong>Releases and hosting setup</strong></summary>
+
+## Releases
 
 Releases require a clean local `main` equal to current `origin/main`, `gh` login,
 and a new stable semantic version. These commands create a GitHub release;
@@ -68,6 +145,7 @@ app release marked as latest in GitHub.
 ## Hosting setup
 
 - **App:** shallow clone `main` on the VPS and follow [deploy/README.md](deploy/README.md).
+  Run `./deploy/deploy.sh v1.0.1` (or `make deploy version=v1.0.1`) for an explicit release.
   Existing host nginx terminates HTTPS. Docker binds loopback only. Compose needs
   no `--wait` support. Initial database import is a separate, reviewed operation:
   [migration runbook](deploy/MIGRATION.md). No existing todos are migrated by CI.
@@ -92,6 +170,8 @@ network recovery scenarios; the broader `make e2e` suite includes older scenario
 that still need selector updates. No workflow runs on ordinary main pushes except docs changes;
 no workflow automatically deploys the VPS. Release jobs require a published
 GitHub release and verify that its source belongs to main.
+
+</details>
 
 ## Data and licensing
 

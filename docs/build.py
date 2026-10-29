@@ -45,6 +45,7 @@ GROUPS = [
     ('CLI, API and AI', [
         ('rebuild/cli-login', 'CLI sign-in'),
         ('rebuild/agent-workflow', 'CLI and agent workflow'),
+        ('rebuild/agent-prompts', 'Prompts for your agent'),
         ('rebuild/authentication', 'Identity and permissions'),
         ('rebuild/rest', 'REST API'),
         ('rebuild/subtree-query', 'Task tree queries'),
@@ -125,6 +126,26 @@ def render(key, source):
     return md.renderer.render(tokens, md.options, {}), headings, '\n'.join(text)
 
 
+def machine_source(key, source):
+    """Publish only allowlisted guides, with links usable outside their page context."""
+    md = MarkdownIt('commonmark', {'html': False}).enable('table')
+    replacements = {}
+    for token in md.parse(source):
+        for child in token.children or []:
+            if child.type not in ('link_open', 'image'):
+                continue
+            value = child.attrGet('href' if child.type == 'link_open' else 'src')
+            rewritten = rewrite_link(value, key)
+            if rewritten.startswith('/'):
+                parts = urlsplit(rewritten)
+                path = parts.path.removesuffix('.html') + '.md' if parts.path.endswith('.html') else parts.path
+                rewritten = ORIGIN + path + ('?' + parts.query if parts.query else '') + ('#' + parts.fragment if parts.fragment else '')
+            replacements[value] = rewritten
+    for value, rewritten in replacements.items():
+        source = source.replace('](' + value + ')', '](' + rewritten + ')')
+    return f'<!-- Canonical page: {ORIGIN}{url(key)} -->\n\n' + source.rstrip() + '\n'
+
+
 def navigation(current):
     sections = []
     for group, entries in GROUPS:
@@ -140,17 +161,18 @@ def shell(key, title, group, content, headings=()):
     toc = ''.join(f'<a href="#{esc(anchor)}" class="level-{tag}">{esc(label)}</a>' for tag, label, anchor in headings)
     toc_html = f'<aside class="page-toc" aria-label="On this page"><p class="eyebrow">On this page</p><nav>{toc}</nav></aside>' if toc else ''
     source = f'<a href="{SOURCE}docs/{key}.md">View source <span aria-hidden="true">↗︎</span></a>' if key != 'index' else '<a href="https://github.com/mattmezza/todoer.pro">View repository ↗︎</a>'
+    markdown = f'<a href="/{key}.md">Read as Markdown</a>' if key != 'index' else '<a href="/llms.txt">Agent documentation index</a>'
     return f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(title)} · Todoer Docs</title><meta name="description" content="{esc('Todoer documentation: ' + title + '. Guides for tasks, the CLI, integrations and self-hosting.')}">
-<link rel="canonical" href="{ORIGIN}{url(key)}"><meta name="theme-color" content="#030712"><link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" type="text/markdown" href="{ORIGIN}/{key + ".md" if key != "index" else "llms.txt"}"><link rel="canonical" href="{ORIGIN}{url(key)}"><meta name="theme-color" content="#030712"><link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/assets/docs.css"><script src="/assets/docs.js" defer></script></head>
 <body><a class="skip" href="#main">Skip to content</a>
 <header class="site-header"><a class="brand" href="/" aria-label="Todoer documentation home"><img src="/assets/favicon.svg" width="29" height="29" alt="">todoer<span>pro</span><i></i><b>docs</b></a>
 <div class="header-actions"><button class="search-launch" type="button" data-search-open hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span>Search documentation</span><kbd>⌘ K</kbd></button><a class="website-link" href="https://todoer.pro">Website ↗︎</a><a class="app-link" href="https://app.todoer.pro">Open Todoer <span aria-hidden="true">↗︎</span></a></div></header>
 <details class="mobile-navigation"><summary>Browse documentation <span aria-hidden="true">⌄</span></summary><nav aria-label="Mobile documentation">{navigation(key)}</nav></details>
 <div class="docs-layout{' home-layout' if key == 'index' else ''}"><aside class="sidebar"><nav aria-label="Documentation">{navigation(key)}</nav><div class="sidebar-footer"><span class="status-dot"></span>Open source. MIT licensed.<a href="https://github.com/mattmezza/todoer.pro">GitHub ↗︎</a></div></aside>
-<main id="main" tabindex="-1"><div class="page-heading"><p class="eyebrow">{esc(group)}</p><h1>{esc(title)}</h1></div>{content}<footer class="article-footer">{source}<span>Made for a clearer next step.</span></footer></main>{toc_html}</div>
+<main id="main" tabindex="-1"><div class="page-heading"><p class="eyebrow">{esc(group)}</p><h1>{esc(title)}</h1></div>{content}<footer class="article-footer">{source}{markdown}<span>Made for a clearer next step.</span></footer></main>{toc_html}</div>
 <dialog class="search-dialog" aria-labelledby="search-title"><div class="search-top"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><label class="sr-only" id="search-title" for="docs-search">Search documentation</label><input id="docs-search" type="search" placeholder="Search the docs…" autocomplete="off" aria-controls="search-results"><button type="button" data-search-close aria-label="Close search">Esc</button></div><div class="search-results" id="search-results" aria-live="polite"><p class="search-hint">Search tasks, CLI commands, deployment and more.</p></div><div class="search-footer">Local search. Your query stays in your browser.</div></dialog>
 </body></html>'''
 
@@ -205,6 +227,29 @@ def check_links():
                 raise ValueError(f'Broken heading link in {path.relative_to(OUT)}: {target}')
 
 
+    # Markdown is a public interface too: verify links between its published guides.
+    md = MarkdownIt('commonmark', {'html': False}).enable('table')
+    for path in OUT.rglob('*.md'):
+        for token in md.parse(path.read_text()):
+            for child in token.children or []:
+                if child.type != 'link_open':
+                    continue
+                target = child.attrGet('href')
+                value = urlsplit(target)
+                if value.netloc and value.netloc != urlsplit(ORIGIN).netloc:
+                    continue
+                if value.scheme and value.scheme not in ('http', 'https'):
+                    continue
+                destination = (OUT / value.path.lstrip('/') if value.path.startswith('/') else path.parent / value.path).resolve() if value.path else path
+                if destination.is_dir():
+                    destination /= 'index.html'
+                if not destination.is_file():
+                    raise ValueError(f'Broken Markdown link in {path.relative_to(OUT)}: {target}')
+                html_destination = destination.with_suffix('.html') if destination.suffix == '.md' else destination
+                if value.fragment and html_destination in parsed and unquote(value.fragment) not in parsed[html_destination].ids:
+                    raise ValueError(f'Broken Markdown heading in {path.relative_to(OUT)}: {target}')
+
+
 def main():
     if OUT.exists():
         shutil.rmtree(OUT)
@@ -213,6 +258,7 @@ def main():
         if asset.is_file():
             shutil.copyfile(asset, OUT / 'assets' / asset.name)
     index = []
+    machine_pages = []
     for key, (title, group) in PAGES.items():
         source = (ROOT / (key + '.md')).read_text()
         content, headings, text = render(key, source)
@@ -229,6 +275,9 @@ def main():
         path = OUT / (key + '.html')
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(shell(key, title, group, body, headings))
+        markdown = machine_source(key, source)
+        (OUT / (key + '.md')).write_text(markdown)
+        machine_pages.append(markdown)
         index.append({'title': title, 'group': group, 'url': url(key), 'text': text})
     (OUT / 'index.html').write_text(shell('index', 'A clearer way forward.', 'THE TODOER HANDBOOK', home()))
     (OUT / 'search-index.json').write_text(json.dumps(index, ensure_ascii=False, separators=(',', ':')))
@@ -236,7 +285,22 @@ def main():
     (OUT / '.nojekyll').touch()
     (OUT / 'robots.txt').write_text(f'User-agent: *\nAllow: /\nSitemap: {ORIGIN}/sitemap.xml\n')
     (OUT / 'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + ''.join(f'<url><loc>{ORIGIN}{url(key)}</loc></url>' for key in ['index', *PAGES]) + '</urlset>\n')
-    (OUT / 'llms.txt').write_text('# Todoer documentation\n\n> Guides to task management, authorized integrations and self-hosting.\n\n' + '\n'.join(f'- [{title}]({ORIGIN}{url(key)}): {group}' for key, (title, group) in PAGES.items()) + '\n')
+    agent_index = ('# Todoer documentation\n\n'
+        '> Todoer is an open-source task manager with a web app, REST API, CLI and remote MCP.\n\n'
+        'Use the guides below as the source of truth. Connect to an existing instance; '
+        'cloud uses https://app.todoer.pro and self-hosted instances use their own HTTPS origin. '
+        'CLI uses REST credentials; MCP uses separate OAuth or MCP credentials. '
+        'Discover capabilities before writes and preserve revision, idempotency and access-review checks.\n\n'
+        f'- [Complete documentation]({ORIGIN}/llms-full.txt): all published guides in one file\n'
+        f'- [Agent skill](https://github.com/mattmezza/todoer.pro/blob/main/skills/todoer.pro/SKILL.md): connecting and operating safely\n\n'
+        + '\n'.join(f'## {group}\n\n' + '\n'.join(
+            f'- [{title}]({ORIGIN}/{key}.md): [human page]({ORIGIN}{url(key)})'
+            for key, title in entries) + '\n' for group, entries in GROUPS))
+    full = '# Todoer complete documentation\n\n' + '\n---\n\n'.join(machine_pages)
+    for name in ('llms.txt', 'llm.txt'):
+        (OUT / name).write_text(agent_index)
+    for name in ('llms-full.txt', 'llm-full.txt'):
+        (OUT / name).write_text(full)
     check_links()
     print(f'Built {len(PAGES) + 1} pages in {OUT.relative_to(REPO)}; all local links and heading anchors verified.')
 
