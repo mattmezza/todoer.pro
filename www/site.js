@@ -16,14 +16,4 @@
       }
     });
   }
-  const buttons = [...document.querySelectorAll('[data-choose-currency]')];
-  const panels = [...document.querySelectorAll('[data-currency]')];
-  if (buttons.length) {
-    function choose(currency) {
-      panels.forEach(el => { el.hidden = el.dataset.currency !== currency; });
-      buttons.forEach(el => el.setAttribute('aria-pressed', String(el.dataset.chooseCurrency === currency)));
-    }
-    buttons.forEach(el => el.addEventListener('click', () => choose(el.dataset.chooseCurrency)));
-    choose('EUR');
-  }
 })();

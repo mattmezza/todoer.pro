@@ -4,9 +4,9 @@ self_host=section('Your server.<br>Your Todoer.','<div class="self-host-band"><d
 title,desc,body=pages['index'];marker=section('Good questions. Clear answers.','').split('<h2>')[0] # add directly before FAQ section
 idx=body.index('<section class="wrap block"><h2>Good questions.')
 body=body[:idx]+self_host+body[idx:]
-body=body.replace('Your tasks, your pace. AI when you want it.','Hosted convenience or free self-hosting. AI when you want it.')
+body=body.replace('Your tasks, your pace. AI when you want it.','Free core. Cloud or self-hosted. AI when you want it.')
 pages['index']=(title,desc,body)
-# Third pricing choice sits outside currency panels because software access costs zero in every currency.
+# Self-hosting has the same free software access.
 title,desc,body=pages['pricing']
 free='<section class="wrap self-host-pricing"><article class="free-plan"><div><span class="pill">THE DIY OPTION</span><h2>Self-hosted</h2><p class="free-price">Free<span> software access</span></p><p>No Todoer subscription. Run the app on infrastructure you control.</p></div><div><ul><li>Your server and storage</li><li>Your deployment, updates and backups</li><li>Optional AI provider usage at your own cost</li></ul><a class="secondary" href="'+repo+'#readme">Start self-hosting ↗</a><p class="fine">Infrastructure is not included. Source use follows the license shipped with the release.</p></div></article></section>'
 idx=body.index('<section class="wrap block">');body=body[:idx]+free+body[idx:];pages['pricing']=(title,desc,body)

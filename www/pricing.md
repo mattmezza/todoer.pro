@@ -1,22 +1,16 @@
 # Todoer pricing
-Updated: 2026-10-28
+Updated: 2026-10-29
 
-Hosted pricing: not announced. No paid checkout, perpetual-access offer or AI credits currently sold by this website.
-Source: governed by the relevant repository license; self-hosting incurs your own infrastructure and optional AI provider costs.
-Self-hosting: no Todoer subscription fee; infrastructure, storage and optional provider costs are your responsibility. Source use follows the license shipped with the release.
-Future subscription and perpetual-license packaging remain proposals.
+## Free core
+Task management, web app, MCP, CLI and REST access are free. No subscription required. Hosted registration depends on service availability. External agent/provider charges remain separate.
 
-## Proposed prices (not available for purchase)
-Taxes excluded. EUR launch anchors fixed; other currencies include a 3% allowance before rounding. Planned standard prices are future references, not previous selling prices.
+## Built-in AI credits — planned
+Optional built-in AI will use prepaid credits. Credit sales, Stripe billing and spend overview are not available yet. No pack prices have been announced.
 
-### Yearly (year)
-- EUR: 12.00; planned standard: 24.00
-- USD: 14.00; planned standard: 28.00
-- GBP: 11.00; planned standard: 21.00
-- CAD: 20.00; planned standard: 39.00
+## Bring your own key — planned
+Per-account BYOK will have no Todoer AI usage fee. You pay your provider directly. Current built-in assistance is configured by the instance operator.
 
-### Perpetual (one_time)
-- EUR: 49.00; planned standard: 79.00
-- USD: 59.00; planned standard: 99.00
-- GBP: 49.00; planned standard: 69.00
-- CAD: 79.00; planned standard: 129.00
+## Self-hosted
+MIT-licensed software is free to self-host. Hosting, storage, operations and optional provider costs are your responsibility.
+
+Pricing may change as the service evolves. Any paid offer will publish its prices and terms before checkout opens.

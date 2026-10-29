@@ -386,3 +386,8 @@ dist
 /docs/_site/
 /www/_site/
 /app/assets/app.css
+
+# Local agent configuration and private business planning
+/.agents/product-marketing.md
+/.pi/
+/pricing.private.json
