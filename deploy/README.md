@@ -37,7 +37,7 @@ After a verified migrated database exists at `/var/lib/todoer/todoer.db` with
 ownership 10001:10001, run:
 
 ```sh
-./deploy/deploy.sh
+./deploy/deploy.sh v1.0.1
 ```
 
 Add `nginx.conf.example` locations to your existing TLS virtual host. Validate
@@ -54,7 +54,10 @@ the VPS with a read:packages token through `docker login ghcr.io`.
    and preserve attachment objects and the server key. See recovery docs.
 2. `git pull --ff-only origin main` works from the shallow clone; never check out
    release tags over private configuration. Review deploy-file changes.
-3. Set `TODOER_IMAGE` in `deploy/.env` to the explicit version/digest; run the script.
+3. Run `./deploy/deploy.sh v1.0.1` with the published version you intend to deploy.
+   The argument selects `ghcr.io/mattmezza/todoer.pro:v1.0.1`, overriding `.env`.
+   For digest-pinned operation, use direct Compose commands with `TODOER_IMAGE`
+   set to the reviewed digest and perform the same health checks.
 4. Inspect `cd deploy && docker compose --project-name todoer logs --tail 100 app`
    privately; verify the HTTPS endpoint and a task read/write.
 
@@ -66,6 +69,14 @@ may not understand a newer schema. Never blindly downgrade against the current D
 Backups exclude work written after the snapshot; reconcile that work before rollback.
 Do not use `down -v` or delete the original data during cutover.
 
+## Container design
+
+The runtime uses digest-pinned [Distroless](https://github.com/GoogleContainerTools/distroless)
+with glibc, OpenSSL and CA roots required by the Rust binaries. Build tooling stays
+in build stages. There is no runtime shell, package manager or curl; a small Rust
+probe checks `/ready`. Compose runs UID 10001, read-only, with capabilities dropped.
+Smaller images still need reviewed base-image updates and vulnerability scanning.
+
 ## Optional continuous backups
 
 Copy `replica.env.example` to `replica.env`, chmod 600, configure a private S3
@@ -75,3 +86,12 @@ Rehearse a restore into a new path and verify integrity and task counts before
 relying on replication. A replica does not replace pre-upgrade backups; preserve
 attachment objects and the encryption key independently. Health success is for
 the app; also inspect replica status/logs and periodically rehearse recovery.
+
+Litestream stays in an optional Compose overlay because self-hosters can choose
+their own backup system. Its [official Docker guide](https://litestream.io/guides/docker/)
+recommends the sidecar pattern for Docker and also supports `replicate -exec` for
+single-container hosts. Compose can manage both processes independently, so the
+app image does not need Litestream or a supervisor. `replica.env` keeps replication
+credentials out of the app process; `app.env` keeps authentication, AI and attachment
+credentials out of Litestream. Use separate bucket-scoped credentials so an app
+credential compromise does not also grant access to database backups.

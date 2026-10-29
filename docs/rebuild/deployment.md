@@ -21,6 +21,10 @@ Shallow clone the public repository and follow the versioned
 [VPS runbook](https://github.com/mattmezza/todoer.pro/blob/main/deploy/README.md).
 It includes Compose/environment examples, nginx locations, health polling without
 Compose `--wait`, optional separately credentialed Litestream, backups and rollback.
+Deploy an explicit published version with `./deploy/deploy.sh v1.0.1`. The argument
+selects `ghcr.io/mattmezza/todoer.pro:v1.0.1`. The runtime uses a pinned Distroless
+image with no shell or package manager.
+
 Real configuration belongs in ignored `deploy/.env`, `deploy/app.env` and optional
 `deploy/replica.env`; chmod 600 and never paste these into public logs.
 

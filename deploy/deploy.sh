@@ -1,6 +1,13 @@
 #!/usr/bin/env sh
 # Compatible with Compose versions lacking `up --wait`.
 set -eu
+if [ "$#" -ne 1 ] || ! printf '%s\n' "$1" | LC_ALL=C grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+    echo 'Usage: ./deploy/deploy.sh vX.Y.Z (for example v1.0.1)' >&2
+    exit 2
+fi
+# Environment wins over .env interpolation; never deploy an implicit latest tag.
+TODOER_IMAGE="ghcr.io/mattmezza/todoer.pro:$1"
+export TODOER_IMAGE
 cd "$(dirname "$0")"
 [ -f .env ] && [ -f app.env ] || {
     echo 'Configure deploy/.env and deploy/app.env first; see deploy/README.md.' >&2

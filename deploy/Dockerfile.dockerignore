@@ -4,6 +4,9 @@
 !Cargo.lock
 !package.json
 !package-lock.json
+!deploy
+deploy/**
+!deploy/healthcheck.rs
 !app
 app/**
 !app/Cargo.toml

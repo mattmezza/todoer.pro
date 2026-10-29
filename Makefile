@@ -42,8 +42,8 @@ www-publish www-deploy: ## Manually dispatch Cloudflare Pages publishing on main
 	gh workflow run www.yml --ref main
 docs-build: ## Build public docs (install docs/requirements.txt first)
 	python3 docs/build.py
-deploy: ## Deploy configured pinned image on VPS; never deploys automatically
-	./deploy/deploy.sh
+deploy: ## Deploy explicit release on VPS (version=vX.Y.Z); never deploys automatically
+	./deploy/deploy.sh "$(version)"
 backup: ## Verified backup to a new path (source=... destination=...)
 	python3 scripts/rebuild-backup.py backup "$(source)" "$(destination)"
 restore: ## Verify and restore to a new path (source=... destination=...)
