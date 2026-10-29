@@ -20,3 +20,25 @@ TODOER_AUTH_ADMIN_EMAILS=owner@example.invalid
 # A stable, private 64-hex-character server key encrypts authenticator seeds.
 # Back it up independently; changing it makes existing authenticator seeds unreadable.
 TODOER_SERVER_KEY=replace-with-a-long-random-secret
+
+# Optional built-in AI and billing. Core task/agent access never requires credits.
+# Start disabled; configure supported models/rates in the platform Admin panel.
+# Source support does not imply a hosted instance has checkout enabled.
+TODOER_AI_ENABLED=0
+TODOER_BILLING_ENABLED=0
+# Managed inference only; account BYOK uses the user's encrypted OpenRouter key.
+# TODOER_OPENROUTER_API_KEY=replace-with-openrouter-inference-key
+# Dedicated stable encryption key (openssl rand -hex 32); keep backups private.
+# TODOER_BYOK_ENCRYPTION_KEY=replace-with-64-random-hex-characters
+# Only during a controlled rotation; remove after records are rotated safely.
+# TODOER_BYOK_PREVIOUS_ENCRYPTION_KEY=replace-with-previous-encryption-material
+# Private runtime JSON with nonempty classify and draft strings. Never commit it.
+# TODOER_ASSIST_PROMPT_FILE=.local/private/prompts/ai-runtime.json
+# Stripe server/test credentials. Card details stay with Stripe.
+# TODOER_STRIPE_SECRET_KEY=sk_test_replace-with-test-secret
+# TODOER_STRIPE_WEBHOOK_SECRET=whsec_replace-with-endpoint-signing-secret
+# POST /api/billing/stripe/webhook receives signed successful payment/refund/dispute events.
+# EUR checkout is fixed. Optional usd/gbp/cad rates are currency units per EUR,
+# scaled by one million, configured deliberately and locked on each purchase.
+# TODOER_BILLING_CURRENCY_RATES={}
+# See docs/rebuild/ai-billing.md before enabling billing or changing encryption.

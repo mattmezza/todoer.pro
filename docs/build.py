@@ -50,6 +50,7 @@ GROUPS = [
         ('rebuild/subtree-query', 'Task tree queries'),
         ('rebuild/bulk', 'Preview and apply changes'),
         ('rebuild/assist', 'Optional AI assistance'),
+        ('rebuild/ai-billing', 'AI, BYOK and credits'),
     ]),
     ('Run your own Todoer', [
         ('rebuild/deployment', 'Deploy with Docker'),

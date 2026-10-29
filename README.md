@@ -35,11 +35,13 @@ and share it with someone whose todos live in six different places.
 Core task management and MCP, CLI and REST access are free. Your external agent's
 own service or provider charges are separate.
 
-**Planned:** prepaid credits for Todoer's built-in AI assistance, such as task
-breakdown and classification. Account-level **bring your own key (BYOK)** is also
-planned: no Todoer AI usage fee, with provider charges paid by you. Credit purchases,
-a billing dashboard and account-level BYOK are not available yet. Self-hosted
-operators can configure an instance-wide provider key today.
+The source supports prepaid credits for Todoer's built-in AI assistance and
+account-level **bring your own key (BYOK)** through OpenRouter. BYOK has no Todoer
+AI usage fee; your provider charges apply. Personal AI controls start off,
+managed AI requires administrator approval, and billing stays disabled until
+configured by the operator. Source support does not establish hosted availability.
+See [AI, BYOK and credits](https://docs.todoer.pro/rebuild/ai-billing.html) for
+configuration, usage history and safeguards.
 
 Pricing may change as the service grows. See the [public offer](https://todoer.pro/pricing.html)
 for availability and terms.

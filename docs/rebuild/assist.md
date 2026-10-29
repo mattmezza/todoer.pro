@@ -8,37 +8,34 @@ The standalone Assist screen has been removed. `/assist` and `/settings/assist` 
 
 ## Provider configuration and privacy
 
-Assistance is disabled when `TODOER_OPENROUTER_API_KEY` is absent. Capture continues to work. The key is server-only and is never included in HTML, JavaScript, responses, or logs. Production requests use the fixed HTTPS OpenRouter chat completion endpoint; clients cannot supply an endpoint or model.
+Built-in inference requires an enabled account AI switch, a supported enabled model and a valid funding source. Managed credits additionally require administrator approval, sufficient available credit, an operator-configured instance key and a configured rate card. BYOK uses the user's encrypted OpenRouter key. `TODOER_AI_ENABLED=0` stops new inference for the instance. Manual capture remains available.
 
-Self-hosted operators can select classification and drafting models with
-`TODOER_ASSIST_CLASSIFY_MODEL` and `TODOER_ASSIST_DRAFT_MODEL`. See the release's
-source configuration for defaults. Hosted model selection can change and is not
-part of the public pricing offer. Account-level BYOK and prepaid credit purchases
-are planned; the operator-wide key described here is available today. Current availability is described on the [pricing page](https://todoer.pro/pricing.html).
+The selected model and OpenRouter routing are visible before dispatch; the serving provider and token/cost metadata are shown afterward when available. Clients cannot supply arbitrary endpoints or unsupported model IDs. Settings and billing controls are browser-only. See [AI, BYOK and credits](ai-billing.md) for account controls, operator configuration and payment behavior.
+
+Operators can supply private prompt configuration through `TODOER_ASSIST_PROMPT_FILE`. The runtime file is kept outside Git and image build contexts. It does not replace code-level authorization or schema validation.
 
 Classification sends the saved capture text and at most 20 currently write-authorized destination IDs and short list titles (80 characters each). It does not send other tasks, comments, workspace descriptions, or account briefs. Drafting sends only the submitted brief. Avoid sending information you do not want processed by an external provider.
 
-Requests use strict JSON schema output, `require_parameters: true`, `data_collection: "deny"`, `allow_fallbacks: false`, and provider price caps of $1 per million prompt tokens, $4 per million completion tokens, and $0 per-request charges. These are routing caps, not claims about a model's current price. Data-collection restrictions do not establish a universal zero-retention guarantee; review the selected provider's policies. See the official [structured output documentation](https://openrouter.ai/docs/guides/features/structured-outputs) and [provider routing documentation](https://openrouter.ai/docs/guides/routing/provider-selection).
+Requests use strict JSON schema output, `require_parameters: true`, `data_collection: "deny"`, `allow_fallbacks: false`, and bounded provider routing prices derived from operator configuration where a conversion basis is available. Routing caps are independent of the retail quote shown to the user. Data-collection restrictions do not establish a universal zero-retention guarantee; review the selected provider's policies. See the official [structured output documentation](https://openrouter.ai/docs/guides/features/structured-outputs) and [provider routing documentation](https://openrouter.ai/docs/guides/routing/provider-selection).
 
 Classification has a two-second total HTTP timeout and 128 output-token cap; drafting has eight seconds and 4096 tokens. Responses are capped at 64 KiB. Redirects, application retries, provider fallback, tool execution, and model-selected destinations for drafts are disabled. Unknown destination IDs, extra output fields, malformed JSON, truncated completions, and invalid task trees are rejected. Model confidence is never used as authorization or as a reason to apply a suggestion.
 
 ## Durable limits
 
-Reservations are committed before dispatch, including serialized request/schema bytes plus an 8192-token wrapper allowance and the maximum output tokens. This deliberately conservative byte-based bound applies to the configured text models. Reserved cost uses the configured provider price caps. Reservations are never refunded, including after timeout, malformed output, failure, process interruption, or success; provider self-reported usage cannot release the budget.
+Abuse/safety reservations are committed before dispatch using a conservative request-size and maximum-output bound. These safety reservations are separate from purchased credits and are not a wallet debit. Account, model and provider spend controls also apply; capture never needs a balance.
 
-| Scope | Requests/minute | Requests/UTC day | Reserved tokens/day | Reserved cost/day |
-|---|---:|---:|---:|---:|
-| User identity, across credentials | 6 | 50 | 250,000 | $0.25 |
-| Deployment | 60 | 500 | 2,000,000 | $5.00 |
+Managed inference uses an accepted retail quote, an atomic maximum-credit reservation and a final settlement/release. Failed or interrupted operations retain a recoverable accounting state. BYOK has no Todoer credit debit but can still incur OpenRouter charges. See [usage and billing](ai-billing.md) for the distinction.
 
-These are fixed conservative deployment limits in this increment. When a budget is exhausted, manual capture remains available. A repeated request key returns the stored result, or a conflict if dispatch was interrupted before completion. It never silently calls the provider again. A new explicit key requests another attempt and reserves another budget. Reusing a key with different text, destination, model request, task revision, or permission context conflicts.
+A repeated request key returns its stored result or the current quote/recovery state. It never silently dispatches again after an uncertain provider outcome. A new explicit key requests another attempt. Reusing a key with changed input, model request, task revision or permission context conflicts.
 
 ## REST contract
 
 All routes use existing REST authentication and live authorization. Browser writes also require the existing CSRF token and same-origin checks. MCP credentials are not automatically REST credentials.
 
-- `GET /api/v1/assist/status`: enablement and behavior flags.
+- `GET /api/v1/assist/status`: account-aware enablement and behavior flags.
 - `POST /api/v1/assist/capture`: `{idempotency_key,text,list_id:null|ID,default_key:null|KEY}` → `{task,route_source,original_text_preserved:true}`.
+Classification and drafting first return `{status:"quote",quote}` when inference is available. Review the quote's funding, model, maximum customer debit and expiry, then submit the identical request body and idempotency key with `X-Todoer-AI-Quote` set to the returned quote ID. This explicit acceptance is required for dispatch. Quotes do not change task data. The native UI performs this confirmation before calling the provider.
+
 - `POST /api/v1/assist/classify`: `{idempotency_key,task_id,revision}` → `{status:"suggestion",task_id,revision,destination:null|{id,title},applied:false}`, or disabled/unavailable status. Current task revision and every suggested destination are rechecked after the HTTP call.
 - `POST /api/v1/assist/drafts`: `{idempotency_key,brief,target}` → `{status:"draft",preview,suggested_list_title}`, or disabled/unavailable. `target` is `{kind:"existing_list",list_id}` or `{kind:"new_list",workspace_id,title,description:"",restricted:true}`. Restricted creation requires workspace-owner access; explicitly choosing inherited access requires editor access.
 - `POST /api/v1/assist/drafts/{id}/review`: `{revision,payload}` → reviewed preview. `payload` contains `target` and `tasks:[{title,description,parent_index:null|earlierZeroBasedIndex}]`. Review explicitly validates edited content, destination permissions, and the current audience snapshot. Maximum 50 tasks, depth five, 500-character titles, 10-KiB descriptions, and 64-KiB total payload. Dates, schedules, reminders, and priorities are not accepted fields.
