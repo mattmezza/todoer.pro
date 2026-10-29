@@ -32,6 +32,12 @@ fn path() -> Result<PathBuf, Failure> {
         PathBuf::from(root)
     } else if let Some(root) = std::env::var_os("XDG_CONFIG_HOME") {
         PathBuf::from(root).join("todoer")
+    } else if cfg!(windows) {
+        PathBuf::from(
+            std::env::var_os("APPDATA")
+                .ok_or_else(|| failure("Set TODOER_CONFIG_DIR to store CLI credentials"))?,
+        )
+        .join("todoer")
     } else {
         PathBuf::from(
             std::env::var_os("HOME")

@@ -83,7 +83,10 @@ def main():
     restored = cli(
         "restore", task["id"], "--revision", str(trashed["revision"])
     )
-    assert cli("subtree", task["id"])[0]["id"] == restored["id"]
+    subtree = cli("subtree", task["id"])
+    assert subtree["root_id"] == restored["id"]
+    assert subtree["items"][0]["id"] == restored["id"]
+    assert subtree["has_more"] is False
     print(
         "CLI HTTP verification passed: capabilities, capture/retry, edit, undo, trash, restore, subtree"
     )
