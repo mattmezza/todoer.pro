@@ -20,7 +20,8 @@ COPY app/templates app/templates
 COPY app/migrations app/migrations
 COPY app/tests/fixtures app/tests/fixtures
 COPY --from=assets /build/app/assets app/assets
-RUN cargo build --locked --release --workspace
+ARG TODOER_BUILD_VERSION=0.1.0
+RUN TODOER_BUILD_VERSION="$TODOER_BUILD_VERSION" cargo build --locked --release --workspace
 
 FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8 AS runtime
 RUN apt-get update && apt-get install --no-install-recommends -y ca-certificates curl libgcc-s1 libssl3 \
