@@ -1,10 +1,10 @@
 {
   "private": true,
   "scripts": {
-    "assets": "tailwindcss -i rebuild/assets/source.css -o rebuild/assets/app.css --minify",
+    "assets": "tailwindcss -i app/assets/source.css -o app/assets/app.css --minify",
     "test:browser": "playwright test",
-    "format": "prettier --write \"rebuild/assets/*.js\" rebuild/assets/source.css \"rebuild/browser/*.js\" playwright.config.js package.json",
-    "format:check": "prettier --check \"rebuild/assets/*.js\" rebuild/assets/source.css \"rebuild/browser/*.js\" playwright.config.js package.json"
+    "format": "prettier --write \"app/assets/*.js\" app/assets/source.css \"app/browser/*.js\" playwright.config.js package.json",
+    "format:check": "prettier --check \"app/assets/*.js\" app/assets/source.css \"app/browser/*.js\" playwright.config.js package.json"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",
@@ -21,5 +21,6 @@
     "@tailwindcss/typography": {
       "postcss-selector-parser": "7.1.7"
     }
-  }
+  },
+  "license": "MIT"
 }

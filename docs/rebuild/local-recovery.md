@@ -18,7 +18,7 @@ Restore into an isolated directory first. Stop the server before changing its co
 The synthetic integration test creates a fresh temporary database, leaves its writer open with committed WAL content, captures a task, backs up and restores to new paths, and verifies list count plus task ID/reference/description. It also verifies unchanged source main-file bytes and source task identity, refusal of existing/self/missing-parent destinations, and rejection of legacy/empty databases. All generated files are removed after the successful test. Run:
 
 ```sh
-cargo test --manifest-path rebuild/Cargo.toml --test backup
+cargo test --manifest-path app/Cargo.toml --test backup
 ```
 
 This is a verified local SQLite copy and isolated restore test, not a complete disaster-recovery system. It does not test power loss, remote retention, encryption at rest, filesystem failure, point-in-time recovery, or periodic restore drills. Once attachments or other external objects are introduced, backing up this database alone will not recover them: object bytes and database/object-key consistency will require a coordinated recovery process.

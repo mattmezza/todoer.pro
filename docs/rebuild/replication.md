@@ -1,6 +1,6 @@
 # SQLite replication and isolated recovery
 
-The production configuration is `deploy/rebuild/litestream.yml`, verified with
+The production configuration is `deploy/litestream.yml`, verified with
 Litestream **0.5.17** against its current [configuration reference](https://litestream.io/reference/config/)
 and [restore reference](https://litestream.io/reference/restore/). Replica objects
 use separate bucket/prefix and credentials from application attachment storage.
@@ -47,7 +47,7 @@ Keep the damaged/current DB and its WAL/SHM files intact in a separate safe loca
 Use the same replica configuration and credentials to restore into a **new** path:
 
 ```sh
-litestream restore -config deploy/rebuild/litestream.yml \
+litestream restore -config deploy/litestream.yml \
   -o /isolated/restore/todoer.db -integrity-check full "$TODOER_RUST_DB"
 ```
 

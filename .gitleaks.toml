@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Explicitly documented non-secret placeholder"
+regexes = ['''replace-with-64-hexadecimal-characters''']

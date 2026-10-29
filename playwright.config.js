@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 export default defineConfig({
-  testDir: './rebuild/browser',
+  testDir: './app/browser',
   outputDir: '.local/rebuild/browser-results',
   reporter: 'list',
   use: {

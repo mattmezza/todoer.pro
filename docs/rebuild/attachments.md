@@ -41,7 +41,7 @@ In another terminal:
 
 ```sh
 uv run --no-project --python 3.11 --with 'moto[server]==5.1.17' python -c 'import boto3; boto3.client("s3", endpoint_url="http://127.0.0.1:8937", region_name="us-east-1", aws_access_key_id="synthetic-test", aws_secret_access_key="synthetic-test-secret").create_bucket(Bucket="todoer-synthetic-discussion")'
-TODOER_TEST_S3_ENDPOINT=http://127.0.0.1:8937 TODOER_TEST_S3_BUCKET=todoer-synthetic-discussion cargo test --manifest-path rebuild/Cargo.toml object_storage::tests::local_s3_put_head_get_and_immutable_finalization --lib -- --ignored --nocapture
+TODOER_TEST_S3_ENDPOINT=http://127.0.0.1:8937 TODOER_TEST_S3_BUCKET=todoer-synthetic-discussion cargo test --manifest-path app/Cargo.toml object_storage::tests::local_s3_put_head_get_and_immutable_finalization --lib -- --ignored --nocapture
 ```
 
 Actual result on 2026-10-26:

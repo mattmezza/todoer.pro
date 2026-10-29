@@ -16,7 +16,7 @@ const context = vm.createContext({
     clients: { matchAll: async () => [], openWindow: async (url) => opened.push(url) },
   },
 });
-vm.runInContext(await readFile('rebuild/assets/sw.js', 'utf8'), context);
+vm.runInContext(await readFile('app/assets/sw.js', 'utf8'), context);
 async function push(payload) {
   let work;
   handlers.get('push')({ data: { json: () => payload }, waitUntil: value => { work = value; } });

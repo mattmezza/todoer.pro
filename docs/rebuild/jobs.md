@@ -50,9 +50,9 @@ database to check private-account isolation, no transport/error disclosure,
 cache headers, list-scope/read-only credential rejection, admin access, credential
 revocation and session logout. No external provider or personal database is used.
 
-Observed verification: `cargo test --manifest-path rebuild/Cargo.toml jobs --lib
+Observed verification: `cargo test --manifest-path app/Cargo.toml jobs --lib
 -- --nocapture` passed five tests (the four new domain/router tests and the
-existing durable lease test). `cargo clippy --manifest-path rebuild/Cargo.toml
+existing durable lease test). `cargo clippy --manifest-path app/Cargo.toml
 --all-targets -- -D warnings` passed. This verifies the local data/router contract;
 physical-device delivery and production-provider health are not inferred from
 this page or these tests.

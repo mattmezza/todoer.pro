@@ -1,0 +1,58 @@
+name: Pull request checks
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions:
+  contents: read
+concurrency:
+  group: checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.99.0'
+          components: rustfmt, clippy
+      - run: npm ci
+      - run: make check
+      - run: python3 -m pip install -r docs/requirements.txt
+      - run: make docs-build www-build
+      - run: python3 scripts/rebuild-release-prepare.py self-test
+      - run: npx playwright install --with-deps chromium firefox
+      - name: Browser and CLI integration against synthetic data
+        shell: bash
+        env:
+          TODOER_DEV_AUTH: '1'
+          TODOER_DEV_TOKEN: synthetic-ci-token-not-for-production
+          TODOER_TOKEN: synthetic-ci-token-not-for-production
+          TODOER_RUST_PORT: '8092'
+          TODOER_URL: http://127.0.0.1:8092
+        run: |
+          set -euo pipefail
+          test_dir=$(mktemp -d)
+          export TODOER_RUST_DB="$test_dir/test.db"
+          target/debug/todoer-server >"$test_dir/server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; rm -rf "$test_dir"' EXIT
+          ready=false
+          for attempt in {1..60}; do
+            kill -0 "$server_pid" || { cat "$test_dir/server.log"; exit 1; }
+            if curl -fsS http://127.0.0.1:8092/ready >/dev/null; then ready=true; break; fi
+            sleep 1
+          done
+          test "$ready" = true || { cat "$test_dir/server.log"; exit 1; }
+          python3 scripts/rebuild-cli-check.py
+          npx playwright test --project=chromium --project=firefox --workers=1

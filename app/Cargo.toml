@@ -1,0 +1,56 @@
+[package]
+name = "todoer"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/mattmezza/todoer.pro"
+default-run = "todoer-server"
+
+[dependencies]
+genpdf = "=0.2.0"
+rusttype = "=0.8.3"
+png = "=0.17.16"
+axum = "=0.8.9"
+askama = "=0.16.1"
+rusqlite = { version = "=0.41.0", features = ["bundled", "backup"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+sha2 = "0.10"
+hmac = "=0.12.1"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["fs", "limit", "trace", "set-header"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+clap = { version = "4", features = ["derive", "env"] }
+
+rmcp = { version = "=3.7.0", features = ["transport-streamable-http-server"] }
+schemars = "1"
+pulldown-cmark = "=0.13.5"
+ammonia = "=4.2.4"
+futures-util = "0.3"
+chrono = { version = "=0.4.45", features = ["serde"] }
+chrono-tz = "=0.10.4"
+rusty-s3 = "=0.10.2"
+base64 = "=0.22.1"
+web-push = { version = "=0.11.0", default-features = false }
+csv = "=1.4.0"
+zip = { version = "=9.1.2", default-features = false }
+lettre = { version = "=0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls", "ring", "webpki-roots"] }
+oauth2 = { version = "=5.0.0", default-features = false }
+openidconnect = { version = "=4.0.1", default-features = false, features = ["reqwest", "rustls-tls", "timing-resistant-secret-traits"] }
+
+argon2 = "=0.5.3"
+chacha20poly1305 = "=0.10.1"
+totp-rs = { version = "=5.7.0", features = ["qr"] }
+webauthn-rs = "=0.5.5"
+
+[dev-dependencies]
+ece = "=2.4.2"
+rsa = { version = "=0.9.10", features = ["pem"] }
+rand = "=0.8.8"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+
+[build-dependencies]
+sha2 = "0.10"

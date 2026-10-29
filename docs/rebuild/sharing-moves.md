@@ -14,9 +14,9 @@ Task tags move to destination workspace scope by normalized name, reusing an exi
 
 ## Verification
 
-`cargo test --manifest-path rebuild/Cargo.toml workspace::tests --lib` covers preservation, permission expansion acknowledgment, restricted/direct guest access, tag reuse and audit, stale snapshots, independent comment revisions, owner revocation, and bounded credentials. All-target Clippy passes.
+`cargo test --manifest-path app/Cargo.toml workspace::tests --lib` covers preservation, permission expansion acknowledgment, restricted/direct guest access, tag reuse and audit, stale snapshots, independent comment revisions, owner revocation, and bounded credentials. All-target Clippy passes.
 
-`npx playwright test rebuild/browser/list-move.spec.js --project=chromium --project=firefox --workers=1` passed six checks against the running Rust server and a synthetic development database: phone and desktop native move forms, nested task/section preservation, stale task CAS, phone overflow and 44px submit target, and stale-preview recovery. WebKit was not verified because its required host libraries are unavailable. These checks do not establish production object-storage availability or real-account migration completeness.
+`npx playwright test app/browser/list-move.spec.js --project=chromium --project=firefox --workers=1` passed six checks against the running Rust server and a synthetic development database: phone and desktop native move forms, nested task/section preservation, stale task CAS, phone overflow and 44px submit target, and stale-preview recovery. WebKit was not verified because its required host libraries are unavailable. These checks do not establish production object-storage availability or real-account migration completeness.
 
 ## Section move REST adapter
 

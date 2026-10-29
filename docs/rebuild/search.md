@@ -47,7 +47,7 @@ The index backfills existing entities during migration 016 and maintains one FTS
 The domain tests cover authorization, live revocation, counts/excerpts, Unicode prefixes, literal operators, references, typo boundaries, inherited sections, direct guest breadcrumbs, completion, date/timezone/priority/recurrence filters, projection, tag ambiguity, and cursor invalidation. An ignored synthetic test builds 10,000 tasks plus 10,000 independent comments and measures an actual authorized query:
 
 ```sh
-cargo test --manifest-path rebuild/Cargo.toml search::tests::ten_thousand_tasks_and_comments -- --ignored --nocapture
+cargo test --manifest-path app/Cargo.toml search::tests::ten_thousand_tasks_and_comments -- --ignored --nocapture
 ```
 
 Saved filter storage, a visual filter builder, and a new HTML results layout are not provided by this module. Clients can reuse the same query document directly.

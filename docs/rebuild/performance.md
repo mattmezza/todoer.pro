@@ -3,10 +3,10 @@
 Run on 2026-10-26 in this development container (x86_64, rustc 1.99.0, debug test profile, bundled SQLite, in-memory database):
 
 ```sh
-cargo test --manifest-path rebuild/Cargo.toml --test performance -- --ignored --nocapture
+cargo test --manifest-path app/Cargo.toml --test performance -- --ignored --nocapture
 ```
 
-`rebuild/tests/performance.rs` is ignored by default and uses `Store::memory()` plus `seed_dev()`. It creates only synthetic content: exactly 10,000 tasks in 100 capture transactions of 100 tasks, each with a 504-byte description. Among the first five batches, 20 tasks per batch form five nested levels. One root's subtree contains 81 tasks (the other 19 first-level nodes are siblings). All titles, descriptions, and idempotency keys are generated locally. No existing database or personal content is read.
+`app/tests/performance.rs` is ignored by default and uses `Store::memory()` plus `seed_dev()`. It creates only synthetic content: exactly 10,000 tasks in 100 capture transactions of 100 tasks, each with a 504-byte description. Among the first five batches, 20 tasks per batch form five nested levels. One root's subtree contains 81 tasks (the other 19 first-level nodes are siblings). All titles, descriptions, and idempotency keys are generated locally. No existing database or personal content is read.
 
 The test times core calls using `Instant`, verifies task counts/search results/subtree size/change pagination, and prints measurements without asserting machine-dependent latency thresholds. Timings include core SQL, object allocation and deserialization, history and FTS writes where applicable. They exclude startup/migrations, network, HTTP/HTML rendering, JavaScript, disk I/O, and browser interaction. Read calls run 20 times; change traversal runs through ten 1,000-event pages and a terminal empty page. Percentiles use sorted samples and nearest-rank p95; this small sample is a diagnostic, not a statistical service-level claim.
 
@@ -44,7 +44,7 @@ test ten_thousand_tasks_with_descriptions_and_nested_subtrees ... ok
 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.18s
 ```
 
-At the initial performance increment, `cargo test --manifest-path rebuild/Cargo.toml --lib` also passed its then-current 15 tests, including permission, subtree completion/move, soft deletion/restoration, and migration behavior.
+At the initial performance increment, `cargo test --manifest-path app/Cargo.toml --lib` also passed its then-current 15 tests, including permission, subtree completion/move, soft deletion/restoration, and migration behavior.
 
 This does **not** establish full performance acceptance. `Store::tasks()` materializes the entire list, and the current UI does not virtualize that list. The server shares one SQLite connection behind a mutex, serializing core operations; concurrent request behavior and contention are unmeasured. This fixture covers five levels but not adversarial depth, giant sibling sets, many lists, large text bodies, attachment bytes, or comment workloads. Comments and attachments were added to the schema after these measurements; their presence does not make this earlier fixture a measurement of those features. It does not measure process memory, release builds, persistent WAL/checkpoint behavior, backup/restore, import performance, browser layout, mobile devices, or end-to-end latency. Future acceptance requires those separately, with explicit product latency and memory budgets.
 
@@ -69,7 +69,7 @@ fixture, and maintains SQLite's FTS/search triggers. It refuses an existing outp
 directory/database. It never reads the legacy or ordinary development databases.
 
 ```sh
-cargo build --manifest-path rebuild/Cargo.toml --locked --bin todoer-server
+cargo build --manifest-path app/Cargo.toml --locked --bin todoer-server
 python3 scripts/rebuild-http-performance.py \
   --binary target/debug/todoer-server \
   --output .local/rebuild/http-performance-20261026c --repetitions 7

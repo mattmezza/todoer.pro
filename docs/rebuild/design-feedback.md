@@ -50,7 +50,7 @@ The running Rust development server is rebuilt locally; production is untouched.
   exercising phone/desktop layouts, forms and keyboard
   submission, color saving, settings tabs/back, workspace lifecycle confirmation,
   pagination, long names, pointer ordering, nested task moves, draft conflicts,
-  comments, revocation and logout. See `rebuild/browser/design-feedback.spec.js`,
+  comments, revocation and logout. See `app/browser/design-feedback.spec.js`,
   `reference-layout.spec.js` and `task-page.spec.js`.
 - Browser checks use a separate ignored database and port 8094, leaving the
   owner's visible development data intact. Set `TODOER_BROWSER_URL` to target an
