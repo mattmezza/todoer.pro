@@ -11,7 +11,7 @@ independent `TODOER_RUST_DB`, and a stable 64-hex-character `TODOER_SERVER_KEY`.
 Google web-client credentials are required when Google login is enabled. Register the exact
 `{TODOER_PUBLIC_URL}/auth/google/callback` redirect with Google. Pass configuration
 through deployment environment/files, not command-line secrets or tracked files.
-See `rebuild/environment.example`. The existing reverse proxy terminates HTTPS;
+See `app/environment.example`. The existing reverse proxy terminates HTTPS;
 listen on loopback unless container networking requires another bind address.
 
 Google OpenID Connect discovery and authorization-code exchange use

@@ -1,22 +1,33 @@
-# Rust development checks
+# Checks and releases
 
-The `Rust development checks` GitHub Actions workflow is prepared for pushes, same-repository pull requests, and manual runs. It has not been executed in GitHub Actions as part of this change. The existing legacy Docker publishing workflow remains separate.
+PR checks use GitHub-hosted runners, read-only repository permissions and synthetic
+data. They run formatting, Clippy, Rust tests, service-worker checks, builds,
+docs/site builds, CLI checks and Chromium/Firefox tests. Fork PRs receive no
+production secrets or private-runner access.
 
-Configure repository variable `TODOER_RUNNER_LABELS` as a JSON array of labels for a private self-hosted runner, for example `["self-hosted","linux","todoer-private"]`. Its default is `["self-hosted","todoer-private"]`. The job-level condition rejects fork pull requests before runner allocation. The workflow uses `pull_request`, not a privileged pull-request-target trigger. Only trusted repository contributors should be able to push code that this private runner executes.
+Ordinary main pushes run nothing unless `docs/**` changed; then only documentation
+publishes. Cloudflare website publishing uses `workflow_dispatch`, exposed through
+`make www-publish` and `make www-deploy`. The VPS is never deployed by CI.
 
-The runner needs Bash, Git, Make, curl, a compatible stable Rust toolchain with rustfmt and Clippy, Node.js/npm, C build tooling for bundled SQLite, network access to package registries, and Playwright's Chromium/Firefox host libraries. Install those host packages when provisioning the runner; the workflow downloads browser binaries without privileged host-package installation. `uv` is optional and enables the official Python MCP SDK check. Check the repository's locked dependencies and Rust edition when provisioning toolchain versions.
+## App releases
 
-Checks run `npm ci`, `make rust-check` (assets, formatting, Clippy with warnings denied, tests, and a debug build), then Chromium and Firefox browser tests with one worker. WebKit is excluded because the development host lacked its required system libraries; this workflow does not establish WebKit compatibility. A runner provisioned with WebKit dependencies can run that project separately.
+`make release name=vX.Y.Z` creates a GitHub release from clean, current main.
+Only a published release starts the image publishing workflow. The job validates
+the tag and main ancestry, runs application checks, then pushes the explicit
+version to GHCR. Tag pushes and draft releases do not publish images.
 
-Browser, CLI, and optional MCP checks share a loopback-only server on port 8092 with a new synthetic SQLite database under `RUNNER_TEMP`. Port 8092 must be free. The development-only fixture token is public test data, not a deployment credential. The server starts only for the checks and a shell trap terminates it and removes the temporary database. The workflow neither accesses the legacy database nor requests production secrets.
+## CLI releases
 
-Permissions are limited to `contents: read`; checkout does not persist its credentials. There are no image-publishing, release, or deployment steps. The prepared workflow is a development validation gate. Production OIDC/session/scoped-credential code is implemented and locally tested;
-real tenant and hosted connector checks remain external acceptance work. A
-separate release workflow and isolated amd64 Docker/Compose/Litestream rehearsal
-are documented in [deployment](deployment.md). This development workflow does
-not publish or deploy, and passing it does not authorize production cutover.
-Final current-image, complete real-data/object recovery, service/device and
-migration acceptance remain necessary. The workflow itself has not been run on
-the remote private runner as part of the observed local work.
+`make cli-release name=vX.Y.Z` creates `cli-vX.Y.Z`. The release builds Linux
+amd64/arm64, macOS Intel/Apple Silicon and Windows amd64 executables and attaches
+each with a SHA-256 sidecar. Linux builds require glibc: amd64 2.35+, arm64 2.39+.
+CLI releases do not build/push app images or replace the app's latest GitHub release.
 
-GitHub documents [job conditions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif) and [self-hosted runner labels](https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/use-in-a-workflow). Checkout's [official usage documentation](https://github.com/actions/checkout/blob/main/README.md) documents `persist-credentials: false`; this workflow follows the repository's existing checkout v4 convention.
+## Hosting configuration
+
+Configure GitHub Pages to use Actions and the custom domain docs.todoer.pro.
+Configure Cloudflare Pages as Direct Upload with production branch main; add
+CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets to the cloudflare-pages
+environment. Optional variable CLOUDFLARE_PAGES_PROJECT overrides todoer-www.
+Set GHCR package visibility separately after its first publish for anonymous pulls.
+See the repository README and deployment runbook for setup and recovery.

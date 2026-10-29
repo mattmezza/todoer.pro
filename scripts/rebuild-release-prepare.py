@@ -10,16 +10,16 @@ import sys
 import unittest
 
 REPOSITORY = "mattmezza/todoer.pro"
-IMAGE = "ghcr.io/mattmezza/todoer.pro-rebuild"
+IMAGE = "ghcr.io/mattmezza/todoer.pro"
 VERSION = re.compile(
-    r"rebuild-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?\Z"
+    r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?\Z"
 )
 
 
 def version(tag):
     match = VERSION.fullmatch(tag)
     if not match or len(tag) > 128:
-        raise ValueError("expected rebuild-vMAJOR.MINOR.PATCH[-prerelease]")
+        raise ValueError("expected vMAJOR.MINOR.PATCH[-prerelease]")
     pre = match[4]
     if pre and any(
         not part or (part.isdigit() and len(part) > 1 and part[0] == "0")
@@ -46,7 +46,7 @@ def policy(repository, tag, known_tags):
     latest = pre is None and core >= max(stable, default=core)
     return {
         "image": IMAGE,
-        "version": tag.removeprefix("rebuild-v"),
+        "version": tag.removeprefix("v"),
         "latest": latest,
     }
 
@@ -75,10 +75,10 @@ def check_config(app_path, replica_path, origin, image):
             "app and replication credentials require separate files"
         )
     if not re.fullmatch(
-        r"ghcr\.io/mattmezza/todoer\.pro-rebuild@sha256:[a-f0-9]{64}", image
+        r"ghcr\.io/mattmezza/todoer\.pro@sha256:[a-f0-9]{64}", image
     ):
         raise ValueError(
-            "deployment requires the isolated package and an immutable image digest"
+            "deployment requires the application package and an immutable image digest"
         )
     app, replica = env_file(app_path), env_file(replica_path)
     from urllib.parse import urlsplit
@@ -191,34 +191,34 @@ def check_config(app_path, replica_path, origin, image):
 
 class PolicyTests(unittest.TestCase):
     def test_latest_only_newest_stable(self):
-        tags = ["rebuild-v1.1.0", "rebuild-v2.0.0-rc.1", "v99.0.0", "invalid"]
-        self.assertTrue(policy(REPOSITORY, "rebuild-v1.2.0", tags)["latest"])
-        self.assertFalse(policy(REPOSITORY, "rebuild-v1.0.0", tags)["latest"])
+        tags = ["v1.1.0", "v2.0.0-rc.1", "cli-v99.0.0", "invalid"]
+        self.assertTrue(policy(REPOSITORY, "v1.2.0", tags)["latest"])
+        self.assertFalse(policy(REPOSITORY, "v1.0.0", tags)["latest"])
         self.assertFalse(
-            policy(REPOSITORY, "rebuild-v3.0.0-rc.1", tags)["latest"]
+            policy(REPOSITORY, "v3.0.0-rc.1", tags)["latest"]
         )
         self.assertFalse(
-            policy(REPOSITORY, "rebuild-v2.0.0", ["rebuild-v10.0.0"])["latest"]
+            policy(REPOSITORY, "v2.0.0", ["v10.0.0"])["latest"]
         )
         self.assertTrue(
-            policy(REPOSITORY, "rebuild-v2.0.0", ["rebuild-v2.0.0"])["latest"]
+            policy(REPOSITORY, "v2.0.0", ["v2.0.0"])["latest"]
         )
 
     def test_invalid_and_fork_rejected(self):
         for tag in [
-            "v1.2.3",
-            "rebuild-v01.2.3",
-            "rebuild-v1.2",
-            "rebuild-v1.2.3-",
-            "rebuild-v1.2.3-rc..1",
-            "rebuild-v1.2.3-01",
-            "rebuild-v1.2.3+build",
-            "rebuild-v1.2.3\n",
+            "cli-v1.2.3",
+            "v01.2.3",
+            "v1.2",
+            "v1.2.3-",
+            "v1.2.3-rc..1",
+            "v1.2.3-01",
+            "v1.2.3+build",
+            "v1.2.3\n",
         ]:
             with self.assertRaises(ValueError):
                 version(tag)
         with self.assertRaises(ValueError):
-            policy("fork/todoer.pro", "rebuild-v1.2.3", [])
+            policy("fork/todoer.pro", "v1.2.3", [])
 
     def test_release_source_must_match_tag_and_trusted_branch(self):
         import tempfile
@@ -239,9 +239,9 @@ class PolicyTests(unittest.TestCase):
             git(
                 "commit", "--quiet", "--allow-empty", "-m", "Synthetic release"
             )
-            git("tag", "rebuild-v1.0.0")
+            git("tag", "v1.0.0")
             tags = root / "tags.txt"
-            tags.write_text("rebuild-v1.0.0\n")
+            tags.write_text("v1.0.0\n")
             command = [
                 sys.executable,
                 str(Path(__file__).resolve()),
@@ -249,7 +249,7 @@ class PolicyTests(unittest.TestCase):
                 "--repository",
                 REPOSITORY,
                 "--tag",
-                "rebuild-v1.0.0",
+                "v1.0.0",
                 "--tags-file",
                 str(tags),
                 "--release-branch",
@@ -271,12 +271,12 @@ class PolicyTests(unittest.TestCase):
                 ).returncode,
                 0,
             )
-            git("branch", "trusted", "rebuild-v1.0.0")
-            git("tag", "rebuild-v2.0.0")
+            git("branch", "trusted", "v1.0.0")
+            git("tag", "v2.0.0")
             outside = [
                 (
-                    "rebuild-v2.0.0"
-                    if value == "rebuild-v1.0.0"
+                    "v2.0.0"
+                    if value == "v1.0.0"
                     else "trusted" if value == "main" else value
                 )
                 for value in command

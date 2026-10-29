@@ -1,6 +1,6 @@
 # REST client workflow
 
-The Rust rebuild provides the `todoer` CLI as a REST client. Run it from the repository with `cargo run --manifest-path rebuild/Cargo.toml --bin todoer -- ...` or install/build the binary and use the examples below.
+The Rust rebuild provides the `todoer` CLI as a REST client. Run it from the repository with `cargo run --manifest-path app/Cargo.toml --bin todoer -- ...` or install/build the binary and use the examples below.
 
 Set `TODOER_TOKEN` to your configured Todoer bearer credential. `TODOER_URL` defaults to `http://127.0.0.1:8092`; `--url` overrides it. Keep tokens out of shell history and source control. The CLI does not print the token.
 
@@ -170,7 +170,7 @@ Historical integration observation on 2026-10-26 (not rerun by the later runbook
 Reproduce the isolated CLI, SDK and storage check with:
 
 ```sh
-cargo build --manifest-path rebuild/Cargo.toml --bin todoer --bin todoer-server
+cargo build --manifest-path app/Cargo.toml --bin todoer --bin todoer-server
 uv run --no-project scripts/rebuild-agent-check.py
 ```
 

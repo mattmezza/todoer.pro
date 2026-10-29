@@ -1,6 +1,6 @@
 # Rebuild REST API
 
-[OpenAPI 3.1 contract](../../rebuild/openapi.json) describes the JSON endpoints under `http://127.0.0.1:8092/api/v1`. This is an isolated development server backed by synthetic data. Its static bearer token and browser cookie adapter identify the synthetic development user; they are not production authentication. The contract does not describe an OAuth deployment.
+[OpenAPI 3.1 contract](../../app/openapi.json) describes the JSON endpoints under `http://127.0.0.1:8092/api/v1`. This is an isolated development server backed by synthetic data. Its static bearer token and browser cookie adapter identify the synthetic development user; they are not production authentication. The contract does not describe an OAuth deployment.
 
 Send `Authorization: Bearer <TODOER_TOKEN>` for an agent or CLI. Development browser sessions use the `todoer_dev` cookie issued by the development sign-in form; every cookie-authenticated write additionally requires the page's `X-CSRF-Token`. Bearer writes do not require that header. Request bodies use `Content-Type: application/json`; the server caps bodies at 128 KiB.
 

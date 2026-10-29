@@ -19,7 +19,7 @@ Opening the panel does not mark anything read. Individual acknowledgements and �
 
 ## Local acceptance
 
-Run `CARGO_INCREMENTAL=0 cargo test --manifest-path rebuild/Cargo.toml --lib` and `npx playwright test rebuild/browser/notifications.spec.js --project=chromium` against a development instance. The browser test checks presentation, arrival animation, pagination, mobile overflow and failed acknowledgements. Rust tests cover user isolation, access revocation, timezone boundaries, schedule identity, channel deduplication and push leases/read-state checks.
+Run `CARGO_INCREMENTAL=0 cargo test --manifest-path app/Cargo.toml --lib` and `npx playwright test app/browser/notifications.spec.js --project=chromium` against a development instance. The browser test checks presentation, arrival animation, pagination, mobile overflow and failed acknowledgements. Rust tests cover user isolation, access revocation, timezone boundaries, schedule identity, channel deduplication and push leases/read-state checks.
 
 For a real push check, use the HTTPS authentication instance, open Settings → Notifications → Manage push devices, enable this browser explicitly, and schedule a push reminder. Verify the bell/inbox with push disabled too. Browser permission and an actual provider delivery still require a manual acceptance test.
 

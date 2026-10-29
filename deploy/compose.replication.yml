@@ -1,0 +1,28 @@
+# Optional: docker compose -f compose.yml -f compose.replication.yml ...
+services:
+  litestream:
+    depends_on:
+      app:
+        condition: service_healthy
+    image: litestream/litestream:0.5.17@sha256:4b02b9859a6b6b4087d8b8944e15f7e984bd7957cba322bbeee38b0e27b9656a
+    restart: unless-stopped
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+    env_file:
+      - ./replica.env
+    environment:
+      TODOER_RUST_DB: /data/todoer.db
+    command: [replicate, -config, /etc/litestream.yml]
+    volumes:
+      - ${TODOER_DATA_DIR:-/var/lib/todoer}:/data
+      - ./litestream.yml:/etc/litestream.yml:ro
+    stop_grace_period: 35s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

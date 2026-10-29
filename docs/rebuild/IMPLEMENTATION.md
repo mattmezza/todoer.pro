@@ -1,6 +1,6 @@
 # Rust rebuild delivery ledger
 
-Branch: `rebuild/rust`. The Python application and original databases remain intact.
+Branch: `app/rust`. The Python application and original databases remain intact.
 No production cutover, push, or deployment is authorized.
 
 ## Decisions

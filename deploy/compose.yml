@@ -1,0 +1,29 @@
+# Host nginx forwards to loopback:8092. No recent Compose env_file syntax required.
+services:
+  app:
+    image: ${TODOER_IMAGE:?Set TODOER_IMAGE to a released version or digest}
+    restart: unless-stopped
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=640m,mode=1777
+    env_file:
+      - ./app.env
+    environment:
+      TODOER_DEV_AUTH: "0"
+      TODOER_RUST_DB: /data/todoer.db
+      TODOER_RUST_BIND: 0.0.0.0
+      TODOER_RUST_PORT: "8092"
+      TODOER_PUBLIC_URL: ${TODOER_PUBLIC_URL:-https://app.todoer.pro}
+    ports:
+      - "127.0.0.1:${TODOER_PORT:-8092}:8092"
+    volumes:
+      - ${TODOER_DATA_DIR:-/var/lib/todoer}:/data
+    stop_grace_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

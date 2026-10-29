@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory(prefix="litestream-", dir=".local/rebuild") as 
                TODOER_REPLICA_REGION="us-east-1", TODOER_REPLICA_BUCKET=bucket,
                TODOER_REPLICA_PREFIX="verification", TODOER_REPLICA_ACCESS_KEY_ID="development",
                TODOER_REPLICA_SECRET_ACCESS_KEY="development")
-    config = str(Path("deploy/rebuild/litestream.yml").resolve())
+    config = str(Path("deploy/litestream.yml").resolve())
     with (root / "replication.log").open("w") as log:
         process = subprocess.Popen([executable, "replicate", "-config", config], env=env, stdout=log, stderr=log)
         try:

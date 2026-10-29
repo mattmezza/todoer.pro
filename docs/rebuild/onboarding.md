@@ -65,7 +65,7 @@ both selected spaces, grouped list choices, reload, lost responses, desktop rest
 and celebration, reduced motion, mobile layout and installation deferral.
 
 Motion invariants can be checked independently with
-`node --test rebuild/tests/welcome-chase-motion.test.mjs`. Tests simulate multiple
+`node --test app/tests/welcome-chase-motion.test.mjs`. Tests simulate multiple
 window sizes/frame rates, verify separation on every frame, check that wrapping
 happens entirely offscreen, and complete from different chase/rest/resize states.
 

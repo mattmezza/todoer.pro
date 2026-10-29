@@ -1,199 +1,103 @@
-<div align="center">
-  <img src="public/icon512_maskable.png" alt="Todoer Pro" width="120" height="120" />
-  <h1>Todoer Pro</h1>
-  <p><strong>Get things done, like a pro.</strong></p>
-  <p>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
-    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.13%2B-blue" alt="Python 3.13+" /></a>
-    <a href="https://github.com/mattmezza/todoer.pro/releases"><img src="https://img.shields.io/github/v/release/mattmezza/todoer.pro" alt="Latest Release" /></a>
-    <a href="https://github.com/mattmezza/todoer.pro/actions/workflows/docker-publish.yml"><img src="https://github.com/mattmezza/todoer.pro/actions/workflows/docker-publish.yml/badge.svg" alt="Docker Build & Push" /></a>
-    <a href="https://github.com/mattmezza/todoer.pro/blob/main/CONTRIBUTING.md"><img src="https://img.shields.io/badge/contributions-welcome-brightgreen.svg" alt="Contributions Welcome" /></a>
-  </p>
-</div>
+# Todoer Pro
 
----
+Task management for a clearer head, with a Rust web app, REST API, MCP server
+and CLI. Original project code and documentation are licensed under [MIT](LICENSE).
 
-**Todoer Pro** is a fast, modern task management app built with **FastAPI**, **HTMX**, **Alpine.js**, **Tailwind CSS**, and **SQLite**. It features keyboard-driven navigation, real-time updates via HTMX, drag-and-drop reordering, AI-assisted task generation, and a full browser extension for quick capture.
+| Directory | Purpose | Production host |
+| --- | --- | --- |
+| [`app/`](app/) | Rust/Axum app, Askama templates, CLI, migrations | app.todoer.pro |
+| [`www/`](www/) | Static public website | todoer.pro · Cloudflare Pages |
+| [`docs/`](docs/) | Public documentation website and Markdown sources | docs.todoer.pro · GitHub Pages |
+| [`deploy/`](deploy/) | Docker, Compose, nginx examples and migration runbook | VPS |
+| [`legacy/`](legacy/) | Python app and supporting files retained as reference | Not hosted |
+| [`extension/`](extension/) | Browser extension | Separate client |
+| [`skills/`](skills/) | Agent integration resources | Source only |
 
-> 🚀 **Live demo:** [todoer.pro](https://todoer.pro)
+## Develop
 
----
+Requires Rust 1.99+, Node.js 24, npm, a C compiler and platform build tooling
+(Linux: pkg-config and OpenSSL development libraries). Python 3.11+ builds docs
+and runs administrative scripts. Cargo and npm dependencies are locked.
 
-## ✨ Features
-
-- **Keyboard-first** — Vim-style navigation (`j`/`k`, `G`, `gg`, `{`/`}`), actions (`x`, `e`, `d`, `s`), quick add (`n`), search (`Cmd+K`), shortcuts dialog (`?`)
-- **Spaces & Lists** — Organize tasks into spaces, each with multiple lists and sections
-- **Drag-and-drop** — Reorder tasks, sections, and lists with SortableJS
-- **Rich task editing** — Subtasks, comments, tags, priorities, due dates, bulk actions
-- **Inline editing** — Click any title or description to edit in place with hyperscript
-- **AI generation** — Generate task suggestions from natural language descriptions
-- **2FA** — Time-based one-time passwords (TOTP) with backup codes
-- **Notifications** — Real-time notification panel with read tracking
-- **Browser extension** — Chrome extension for quick task capture from any page
-- **Dark mode** — Full dark theme via Tailwind's `dark:` prefix
-- **Mobile-responsive** — Works on desktop and mobile browsers
-- **Self-hostable** — Single Docker image, SQLite-backed, deploy anywhere
-
----
-
-## 🖥 Tech Stack
-
-| Layer            | Technology                                                   |
-| ---------------- | ------------------------------------------------------------ |
-| Backend          | [FastAPI](https://fastapi.tiangolo.com/) + Python 3.13+      |
-| Frontend         | [HTMX](https://htmx.org/) + [Alpine.js](https://alpinejs.dev/) + [Hyperscript](http://hyperscript.org/) |
-| Templating       | [JinjaX](https://jinjax.scaletti.dev/) component system      |
-| CSS              | [Tailwind CSS v4](https://tailwindcss.com/)                  |
-| Database         | SQLite via [`databases`](https://www.encode.io/databases/)   |
-| Auth             | JWT (python-jose) + bcrypt passwords + TOTP 2FA              |
-| Storage          | S3-compatible (presigned URLs for attachments)               |
-| Drag & Drop      | [SortableJS](https://sortablejs.github.io/Sortable/)         |
-| CI/CD            | GitHub Actions → GHCR (Docker image)                         |
-
----
-
-## 🚀 Quick Start (Development)
-
-**Prerequisites:** Python 3.13+, Node.js 20+, [uv](https://docs.astral.sh/uv/)
-
-```bash
-# Clone the repo
-git clone https://github.com/mattmezza/todoer.pro.git
-cd todoer.pro
-
-# Install Python dependencies
-uv sync
-
-# Install Node dependencies (Tailwind CLI)
-npm install
-
-# Configure environment
-cp .env.example .envrc
-# Edit .envrc — set TODOER_SECRET_KEY (generate with: openssl rand -hex 32)
-```
-
-Then, in **two separate terminals**:
-
-```bash
-# Terminal 1 — Start the app server
-export TODOER_PORT=8000
+```sh
+make setup
+export TODOER_DEV_AUTH=1
+export TODOER_DEV_TOKEN=synthetic-local-token-at-least-24-characters
 make dev
-
-# Terminal 2 — Compile Tailwind CSS (watch mode)
-make cssd
 ```
 
-Open [http://localhost:8000](http://localhost:8000), sign up, and start managing tasks.
+Open http://127.0.0.1:8092. Synthetic development mode is explicitly enabled and
+loopback only; it never uses the Python database. Default data lives under
+`.local/rebuild/` (retained for compatibility with existing local checkouts).
+See [`app/.env.example`](app/.env.example) and
+[`app/environment.example`](app/environment.example) for configuration.
 
----
-
-## 🐳 Docker (Production / Self-Hosting)
-
-### Pre-built images
-
-Pre-built images are available on [GitHub Container Registry](https://github.com/mattmezza/todoer.pro/pkgs/container/todoer.pro):
-
-```bash
-docker pull ghcr.io/mattmezza/todoer.pro:latest
+```sh
+make check             # formatting, Clippy, tests, debug build
+make e2e               # browser tests against an already-running synthetic app
+make build             # release binaries
+make www-build         # stage only public website files under www/_site
+python3 -m venv .local/docs-venv
+.local/docs-venv/bin/pip install -r docs/requirements.txt
+.local/docs-venv/bin/python docs/build.py
 ```
 
-### Run with Docker
+Run CLI commands with `cargo run --bin todoer -- --help`. CLI authentication,
+REST and MCP setup are documented at [docs.todoer.pro](https://docs.todoer.pro).
 
-```bash
-docker run -d \
-  --name todoer \
-  -p 80:80 \
-  -e TODOER_SECRET_KEY="$(openssl rand -hex 32)" \
-  -e TODOER_ENV=prod \
-  -e TODOER_DB_URL="sqlite:////var/todoer.db" \
-  -v todoer_data:/var/todoer.db \
-  ghcr.io/mattmezza/todoer.pro:latest
+## Explicit releases
+
+Releases require a clean local `main` equal to current `origin/main`, `gh` login,
+and a new stable semantic version. These commands create a GitHub release;
+GitHub Actions performs the builds. They do not deploy to the VPS.
+
+```sh
+make release name=v1.0.0       # publishes v1.0.0; builds ghcr.io/mattmezza/todoer.pro:v1.0.0
+make cli-release name=v1.0.0   # publishes cli-v1.0.0; attaches platform executables
 ```
 
-### Run with Docker Compose
+Tag pushes, normal commits and draft releases publish nothing. There is no
+mutable `latest` image: deploy an explicit version or digest. App image currently
+supports Linux amd64. CLI downloads cover Linux amd64/arm64, macOS Intel/Apple
+Silicon and Windows amd64, each with a SHA-256 sidecar. Linux CLI binaries require
+glibc (amd64 ≥2.35, arm64 ≥2.39); they are not Alpine/musl executables. Download
+the matching `todoer-cli-vX.Y.Z-TARGET` asset, verify its checksum and `chmod +x`
+on Unix. `.exe` is directly executable on Windows. CLI tags don't replace the
+app release marked as latest in GitHub.
 
-See `deploy/docker-compose.prod.yml` for a production-ready compose file:
+## Hosting setup
 
-```bash
-# Set required env vars (see deploy/secrets.env.example)
-export TAG=latest
+- **App:** shallow clone `main` on the VPS and follow [deploy/README.md](deploy/README.md).
+  Existing host nginx terminates HTTPS. Docker binds loopback only. Compose needs
+  no `--wait` support. Initial database import is a separate, reviewed operation:
+  [migration runbook](deploy/MIGRATION.md). No existing todos are migrated by CI.
+- **Docs:** set repository Pages source to **GitHub Actions** and custom domain to
+  `docs.todoer.pro`. Set DNS CNAME to `mattmezza.github.io` and enforce HTTPS after
+  domain verification. The `docs.yml` workflow publishes only when `docs/**`
+  changes on `main`; unrelated main pushes run nothing.
+- **Public website:** create a **Direct Upload** Cloudflare Pages project named
+  `todoer-www` (production branch `main`). Add its custom domain `todoer.pro` in
+  Cloudflare and follow its DNS instructions. Disable Git auto-deploy if using an
+  existing Git-connected project. Configure environment `cloudflare-pages` with
+  secrets `CLOUDFLARE_API_TOKEN` (scoped to Pages editing) and
+  `CLOUDFLARE_ACCOUNT_ID`; optionally set variable `CLOUDFLARE_PAGES_PROJECT`.
+  Publish explicitly with `make www-publish` or `make www-deploy`, or run the
+  workflow manually. Those commands dispatch `main` on GitHub, not local files.
+- **Registry:** after the first app release, set GHCR package visibility to public
+  separately, or authenticate VPS pulls with a read:packages token.
 
-# Start the stack
-docker compose -f deploy/docker-compose.prod.yml up -d
-```
+PR checks run on hosted runners with read-only permissions and synthetic data,
+including fork PRs. No workflow runs on ordinary main pushes except docs changes;
+no workflow automatically deploys the VPS. Release jobs require a published
+GitHub release and verify that its source belongs to main.
 
-### Environment Variables
+## Data and licensing
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `TODOER_SECRET_KEY` | ✅ | — | JWT signing key (generate with `openssl rand -hex 32`) |
-| `TODOER_ENV` | ❌ | `local` | `local`, `dev`, or `prod` |
-| `TODOER_DB_URL` | ❌ | `sqlite:////var/todoer.db` | Database connection string |
-| `TODOER_ACCESS_TOKEN_EXPIRE_MINUTES` | ❌ | `43200` | JWT access token lifetime |
-| `TODOER_AUTH_COOKIE_EXPIRE_MINUTES` | ❌ | `43200` | Auth cookie lifetime |
-| `TODOER_STORAGE_*` | ❌ | — | S3 storage config for attachments |
+Never commit production environment files, databases, exports, backups, identity
+maps or credentials. Keep verified SQLite backups, attachment storage and the
+stable server key together in your recovery plan. Snapshot before every schema
+upgrade. See [recovery docs](docs/rebuild/local-recovery.md).
 
----
-
-## 📚 Project Structure
-
-```
-├── app/                # FastAPI application
-│   ├── main.py         # Entry point, router mounts
-│   ├── routers/        # Route handlers (decorated with @tpl.htmx)
-│   ├── repo/           # Data access layer (raw SQL)
-│   ├── svc/            # Business logic
-│   ├── deps.py         # FastAPI dependencies
-│   ├── security.py     # JWT auth, password hashing, 2FA
-│   ├── tpl.py          # Template rendering, JinjaX catalog
-│   ├── blob.py         # S3-compatible blob storage
-│   └── http.py         # Opt monad for nullable results
-├── components/         # JinjaX components (.jinja)
-├── styles/             # Tailwind CSS source
-├── migrations/         # SQL migration files (NNN.up.sql / NNN.down.sql)
-├── scripts/            # Build, deploy, migrate shell scripts
-├── deploy/             # Docker Compose files per environment
-├── extension/          # Chrome browser extension
-├── .github/workflows/  # CI/CD (Docker build & push to GHCR)
-└── public/             # Static assets
-```
-
----
-
-## 🧰 Makefile Targets
-
-| Target | Description |
-|---|---|
-| `make dev` | Start dev server on `$TODOER_PORT` with hot-reload |
-| `make cssd` | Compile Tailwind CSS and watch for changes |
-| `make css` | Compile and minify Tailwind CSS |
-| `make release name=v1.0` | Build Docker image, push to GHCR, create GitHub release |
-| `make build env=local name=v0.20` | Build Docker image for an environment |
-| `make deploy env=prod name=v0.20` | Build and deploy via Docker Compose |
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
-
-- Development setup guide
-- Code style (Black + isort)
-- Database migration workflow
-- Pull request process
-
-Please also read our [Code of Conduct](CODE_OF_CONDUCT.md).
-
----
-
-## 🛡 Security
-
-Report vulnerabilities privately to **mattmezza@gmail.com**. See [SECURITY.md](SECURITY.md) for details.
-
----
-
-## 📄 License
-
-Todoer Pro is open source under the [MIT License](LICENSE).
-
-Copyright (c) 2024 Matteo Merola
+The MIT license covers original code, docs, website and reference implementation.
+Bundled third-party fonts and libraries retain their licenses and notices;
+see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
