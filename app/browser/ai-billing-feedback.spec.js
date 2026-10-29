@@ -93,11 +93,20 @@ test('a form save shows progress, restores the action and confirms success', asy
       body: JSON.stringify({
         revision: 1,
         user_ai_enabled: false,
-        funding: 'none',
-        model_id: null,
+        funding: 'credits',
+        managed_ai_allowed: true,
+        model_id: 'synthetic/test',
       }),
     });
   });
+  await page.route('**/api/account/ai/models', (route) =>
+    route.fulfill({
+      json: { models: [{ id: 'synthetic/test', name: 'Synthetic', enabled: true }] },
+    }),
+  );
+  await page.route('**/api/account/billing', (route) =>
+    route.fulfill({ json: { enabled: true, wallet: { available_micro: 10000000 } } }),
+  );
   await page.goto('/settings/ai');
   await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
   const button = page.locator('[data-ai-policy] button[type=submit]');

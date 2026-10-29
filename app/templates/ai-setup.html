@@ -6,92 +6,111 @@
   data-ai-billing="ai"
   data-ai-section="setup"
 >
-  <p aria-live="polite" data-ai-notice="" role="status">Loading AI setup…</p>
-  <button class="secondary" data-ai-reload="" type="button">Refresh AI setup</button>
+  <a href="/settings/ai">← AI preferences</a>
+  <p aria-live="polite" data-ai-notice role="status">Loading AI setup…</p>
   <section class="settings-preference-card">
-    <h2>Account AI updates</h2>
-    <div data-ai-notices=""></div>
-    <button class="secondary" data-ai-notices-read="" type="button">
-      Mark updates read
-    </button>
-  </section>
-  <section class="settings-preference-card">
-    <h2>Model and payment source</h2>
+    <h2 data-ai-setup-heading>Set up built-in AI</h2>
     <p>
-      Choose a supported model and how to pay for built-in AI. Your AI feature switch is
-      managed separately.
+      Choose how to pay, then select a model. Nothing is sent to a provider during setup,
+      except checking a key you choose to connect.
     </p>
-    <form data-ai-policy="">
+    <form data-ai-policy id="ai-setup-policy">
+      <fieldset class="ai-funding-fieldset">
+        <legend>1. Choose how to pay</legend>
+        <div class="ai-funding-options">
+          <label class="settings-check ai-funding-option"
+            ><input name="funding" type="radio" value="credits" required /><span
+              ><strong>Todoer credits</strong
+              ><small
+                >Buy credits and pay for the AI you use. Administrator approval is
+                required.</small
+              ></span
+            ></label
+          >
+          <label class="settings-check ai-funding-option"
+            ><input name="funding" type="radio" value="byok" required /><span
+              ><strong>My OpenRouter key</strong
+              ><small
+                >OpenRouter bills your account. Todoer charges no AI usage fee.</small
+              ></span
+            ></label
+          >
+        </div>
+      </fieldset>
       <label
-        >Pay for AI with<select name="funding">
-          <option value="none">No AI funding</option>
-          <option value="credits">Todoer credits</option>
-          <option value="byok">My OpenRouter key</option>
-        </select></label
-      >
-      <label
-        >Supported model<select data-ai-model-select="" name="model_id">
+        >2. Choose a model<select data-ai-model-select name="model_id" required>
           <option value="">Choose a model</option>
         </select></label
       >
-      <p class="muted" data-ai-model-price=""></p>
-      <p class="muted">
-        The request preview shows your maximum charge before dispatch. Usage history shows
-        tokens, model, serving provider when known, and your final charge.
-      </p>
-      <button class="primary" type="submit">Save AI setup</button>
+      <p class="muted" data-ai-model-price></p>
+      <p data-ai-model-availability class="muted" hidden></p>
     </form>
   </section>
-  <section class="settings-preference-card">
-    <h2>AI credits access</h2>
-    <p data-ai-entitlement="">Checking access…</p>
-    <button class="secondary" data-ai-request-access="" type="button">
-      Request access
-    </button>
-    <p><a href="/settings/billing">Manage credits and top-ups →</a></p>
+  <section class="settings-preference-card" data-ai-credits-panel hidden>
+    <h2>Get access to Todoer credits</h2>
+    <p data-ai-entitlement>Checking access…</p>
+    <button class="secondary" data-ai-request-access type="button">Request access</button>
+    <a data-ai-credit-action href="/settings/billing">Buy or manage credits →</a>
   </section>
-  <section class="settings-preference-card">
-    <h2>Your OpenRouter key</h2>
-    <p data-ai-key-status="">Checking key status…</p>
+  <section class="settings-preference-card" data-ai-key-panel hidden>
+    <h2>Connect your OpenRouter key</h2>
+    <p data-ai-key-status>Checking key status…</p>
     <p>
-      Your key stays on this server, encrypted. Todoer charges no AI usage fee for BYOK;
-      OpenRouter bills your account. Provider charges may apply even if a response cannot
-      be used.
+      Your key stays encrypted on this server. OpenRouter bills your account, including
+      charges for responses Todoer cannot use.
     </p>
-    <form action="/api/account/ai/key" data-ai-key="" method="post">
+    <form action="/api/account/ai/key" data-ai-key method="post">
       <label
         >OpenRouter API key<input
           autocomplete="new-password"
           maxlength="512"
           name="key"
-          required=""
+          required
           spellcheck="false"
           type="password"
       /></label>
-      <label
-        >Supported model<select data-ai-model-select="" name="model_id" required="">
-          <option value="">Choose a model</option>
-        </select></label
-      >
       <p class="muted">
-        Successful setup switches funding to BYOK and pauses auto-top-up. It does not turn
-        your AI switch on.
+        Choose a supported model above before connecting a key. Connecting a key selects
+        BYOK and pauses auto-top-up; it never enables AI by itself.
       </p>
       <button class="primary" type="submit">Validate and save key</button>
     </form>
-    <button class="secondary danger-text" data-ai-remove-key="" type="button">
+    <button class="secondary danger-text" data-ai-remove-key type="button">
       Remove key
     </button>
   </section>
+  <section class="settings-preference-card" data-ai-setup-action>
+    <h2>Finish setup</h2>
+    <p data-ai-setup-next>Choose a payment source and model to continue.</p>
+    <p data-ai-enable-disclosure hidden>
+      Enabling built-in AI lets Todoer send selected task content to OpenRouter when you
+      request AI help. You can turn it off in AI preferences at any time.
+    </p>
+    <button
+      class="primary"
+      type="submit"
+      form="ai-setup-policy"
+      data-ai-setup-submit
+      disabled
+    >
+      Save AI setup
+    </button>
+    <a href="/settings/ai">Back to AI preferences</a>
+  </section>
+  <details class="settings-preference-card ai-advanced" data-ai-updates-panel hidden>
+    <summary>Account AI updates</summary>
+    <div data-ai-notices></div>
+    <button class="secondary" data-ai-notices-read type="button">
+      Mark updates read
+    </button>
+  </details>
   <nav aria-label="Related settings" class="ai-related-links">
-    <a href="/settings/ai"
-      ><strong>AI preferences →</strong
-      ><small>Turn built-in AI on or off and choose how it helps.</small></a
-    ><a href="/settings/ai/usage"
-      ><strong>AI usage<span aria-hidden="true">→</span></strong
+    <a href="/settings/ai/usage"
+      ><strong>AI usage <span aria-hidden="true">→</span></strong
       ><small>Review tokens and charges for each transaction.</small></a
-    ><a href="https://openrouter.ai/docs/guides/privacy/data-collection"
-      ><strong>OpenRouter privacy<span aria-hidden="true">→</span></strong
+    >
+    <a href="https://openrouter.ai/docs/guides/privacy/data-collection"
+      ><strong>OpenRouter privacy <span aria-hidden="true">→</span></strong
       ><small>Understand how inference data is handled.</small></a
     >
   </nav>

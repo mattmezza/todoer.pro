@@ -4,18 +4,20 @@ Todoer supports optional built-in AI through OpenRouter. Core task management an
 
 ## Choose whether to use AI
 
-Open **Settings → AI**. The personal **Allow built-in AI** switch starts off. Turning it off blocks new built-in inference, including BYOK, and pauses new automatic top-ups. Requests already sent to a provider can finish. Your external MCP, CLI and REST connections remain independently manageable under **Settings → Connected tools** (`/settings/ai/tools`).
+Open **Settings → AI** and choose **Set up and enable AI** for first use. Setup guides you through a payment source, an available model and any access/key requirements, then asks you to explicitly **Enable AI**. Credit-funded AI needs available credits before this final step. No AI is enabled by merely connecting a key or saving ordinary setup changes.
+
+The personal **Allow built-in AI** switch starts off. Once configured, it appears in AI preferences; turning it off blocks new built-in inference, including BYOK, and pauses new automatic top-ups. Requests already sent to a provider can finish. Your external MCP, CLI and REST connections remain independently manageable under **Settings → Connected tools** (`/settings/ai/tools`).
 
 Managed AI credits require administrator approval. Use **Request access** and follow the decision in account AI updates. Approval does not turn your personal AI switch on. BYOK availability starts on, but an administrator can disable it for an account.
 
-AI preferences (`/settings/ai`) control how features behave and whether built-in AI is allowed. AI setup (`/settings/ai/setup`) holds model selection, payment source, access requests and your OpenRouter key. Billing and transaction history have their own screens. Saving setup preserves your AI feature switch; saving preferences preserves your selected model and payment source.
+AI preferences (`/settings/ai`) control how features behave and whether built-in AI is allowed. AI setup (`/settings/ai/setup`) holds model selection, payment source, access requests and your OpenRouter key. Billing and transaction history have their own screens. Saving changes to an existing setup preserves your AI feature switch. The first-use flow turns it on only when you explicitly choose **Enable AI**. Saving preferences preserves your selected model and payment source.
 
 ## Bring your own OpenRouter key
 
 1. Open **Settings → AI setup** (`/settings/ai/setup`) and choose an enabled supported model.
 2. Enter your OpenRouter inference API key and select **Validate and save key**. Validation checks the fixed OpenRouter key endpoint without requesting inference.
 3. Successful setup selects BYOK funding and pauses auto-top-up, while preserving your AI switch.
-4. Enable built-in AI when you are ready to send selected content to OpenRouter.
+4. In the first-use setup flow, select **Enable AI** when you are ready to send selected content to OpenRouter. The action stays unavailable until the selected model and key are ready.
 
 Keys are write-only, encrypted on the server and bound to your account. Removing or invalidating a key blocks subsequent BYOK calls; Todoer never silently falls back to purchased credits. Only the supported model list is available. Arbitrary provider endpoints and model IDs are not accepted.
 
@@ -75,7 +77,7 @@ For a lost Stripe response, the admin recovery form can verify and reconcile an 
 
 Per-account billing controls let administrators block or restore billing after reviewing payment problems. Forgiving unpaid debt is a separate, explicit write-off action requiring a reason and acknowledgement; it does not refund a payment or erase usage history.
 
-Finance reports separate collected top-ups, net cash collected, paid-credit usage revenue, paid outstanding balances, bad debt, provider expense, payment fees and net profit/margin. Free credits issued, used and remaining, plus their inference expense, are shown separately overall and by model/provider. Promotional grants never count as top-ups or paid revenue. Net profit is unavailable when required provider or payment-fee data is unknown; provisional contribution before fees remains visible. Date ranges filter activity while balances remain current snapshots. BYOK provider charges are excluded from Todoer's managed revenue and expense. Do not treat the operational dashboard as a tax or audited financial statement.
+The finance overview starts with four figures: money received after refunds, AI and Stripe costs, profit, and unused purchased credits. Unused credits are not profit yet. Expand the free-credit, payment, profit and model breakdowns for the underlying figures. Promotional grants never count as sales; their inference costs are included in total costs. Unknown costs leave profit marked as still being confirmed. Date filters apply to activity; wallet balances show current totals. BYOK provider charges are paid directly by users and are excluded from Todoer's costs and earnings. This operational dashboard is not a tax or audited financial statement.
 
 The server starts a bounded billing worker when Stripe reconciliation is configured. Disabling new purchases does not discard signed webhooks or pending reconciliation while credentials remain configured. Watch pending purchases, unknown inference operations and reserved balances; use the audited reconciliation controls rather than editing ledger rows. See [backup and restore](local-recovery.md) before schema upgrades or encryption changes.
 

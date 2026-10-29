@@ -10876,3 +10876,14 @@ form[data-load-failed],
   width: 20px;
   height: 26px;
 }
+
+/* AI setup and usage belong to the AI settings section. */
+.settings-subnavigation {
+  margin: 0 0 6px 20px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
+.settings-subnavigation .nav-link {
+  font-size: 14px;
+  min-height: 36px;
+}

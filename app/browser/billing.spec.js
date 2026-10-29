@@ -66,12 +66,13 @@ test('BYOK setup clears the key and preserves the personal AI switch', async ({
   });
   await page.goto('/settings/ai/setup');
   await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
+  await page.getByRole('radio', { name: 'My OpenRouter key' }).check();
   await page.getByLabel('OpenRouter API key').fill('synthetic-key-never-real');
-  await page.locator('[data-ai-key] select').selectOption(model.id);
+  await page.locator('[data-ai-policy] select').selectOption(model.id);
   await page.getByRole('button', { name: 'Validate and save key' }).click();
   await expect(page.getByLabel('OpenRouter API key')).toHaveValue('');
   await expect(page.getByLabel('Allow built-in AI')).toHaveCount(0);
-  await expect(page.getByLabel('Pay for AI with')).toHaveValue('byok');
+  await expect(page.getByRole('radio', { name: 'My OpenRouter key' })).toBeChecked();
   await expect(page.locator('[data-ai-notice]')).toContainText(
     'Your AI feature switch was preserved',
   );
@@ -388,19 +389,19 @@ test('admin forms submit revision-bound access and prospective pricing changes',
   await page.goto('/admin/finance');
   await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
   expect(loadedPaths).toEqual(['/api/admin/ai/finance']);
-  const profit = page.locator('[data-admin-finance] div').filter({
-    has: page.getByText('Profit after provider/payment costs and adjustments', {
-      exact: true,
-    }),
+  const profit = page.locator('.ai-finance-headlines > div').filter({
+    has: page.getByText('Profit', { exact: true }),
   });
   await expect(profit).toContainText('€0.125');
+  await page.getByText('How profit is calculated', { exact: true }).click();
   const netMargin = page
-    .locator('[data-admin-finance] div')
-    .filter({ has: page.getByText('Net margin', { exact: true }) });
+    .locator('[data-admin-finance] dl > div')
+    .filter({ has: page.getByText('Profit margin', { exact: true }) });
   await expect(netMargin).toContainText('25.00%');
   await expect(page.locator('[data-admin-model-finance]')).toContainText(
     'Synthetic provider',
   );
+  await page.getByText('Filter by date', { exact: true }).click();
   const period = page.locator('[data-admin-finance-period]');
   await period.getByLabel('From (your timezone)').fill('2026-10-01T00:00');
   await period.getByLabel('To (your timezone)').fill('2026-10-31T23:59');
@@ -595,17 +596,20 @@ test('admin free grants require a reason and retain the exact reference after an
   });
   await page.goto('/admin/finance');
   await expect(page.locator('[data-ai-billing]')).toHaveAttribute('aria-busy', 'false');
+  await page.getByText('Free credit promotions', { exact: true }).click();
+  await page.getByText('Payments and balances', { exact: true }).click();
+  await page.getByText('How profit is calculated', { exact: true }).click();
   const issued = page
-    .locator('[data-admin-finance] div')
+    .locator('[data-admin-finance] dl > div')
     .filter({ has: page.getByText('Free credits issued', { exact: true }) });
   await expect(issued).toContainText('€1.000001');
   const topups = page
-    .locator('[data-admin-finance] div')
+    .locator('[data-admin-finance] dl > div')
     .filter({ has: page.getByText('Top-ups collected', { exact: true }) });
   await expect(topups).toContainText('€0.00');
   const revenue = page
-    .locator('[data-admin-finance] div')
-    .filter({ has: page.getByText('Paid-credit usage revenue', { exact: true }) });
+    .locator('[data-admin-finance] dl > div')
+    .filter({ has: page.getByText('Earned from AI usage', { exact: true }) });
   await expect(revenue).toContainText('€0.00');
   await expect(page.locator('[data-admin-model-finance]')).toContainText('€0.05');
 });

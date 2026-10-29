@@ -414,3 +414,117 @@
     align-self: end;
   }
 }
+
+.ai-finance-headlines {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 1.5rem;
+}
+.ai-finance-headlines dd {
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+.ai-finance-headlines dd small {
+  display: block;
+  margin-top: 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--muted, #94a3b8);
+}
+.ai-finance-details {
+  border-top: 1px solid var(--line, #334155);
+  padding-block: 1rem;
+}
+.ai-finance-details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.ai-finance-details[open] summary {
+  margin-bottom: 1rem;
+}
+.ai-finance-rows {
+  margin: 0;
+}
+.ai-finance-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 0.65rem;
+}
+.ai-finance-rows dt {
+  color: var(--muted, #94a3b8);
+}
+.ai-finance-rows dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 520px) {
+  .ai-finance-headlines {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ai-funding-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+.ai-billing-panel .ai-funding-option {
+  display: flex;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 1rem;
+  border: 1px solid var(--line, #334155);
+  border-radius: 0.75rem;
+  cursor: pointer;
+}
+.ai-billing-panel .ai-funding-option input[type='radio'] {
+  width: auto;
+  margin-top: 0.25rem;
+  flex: 0 0 auto;
+}
+.ai-funding-option:has(:checked) {
+  border-color: #818cf8;
+  background: #6366f112;
+}
+.ai-funding-option strong,
+.ai-funding-option small {
+  display: block;
+}
+.ai-funding-option small {
+  color: var(--muted, #94a3b8);
+  margin-top: 0.4rem;
+  line-height: 1.5;
+}
+.ai-billing-panel [data-ai-first-use] {
+  display: grid;
+  gap: 0.75rem;
+}
+[data-ai-first-use] .primary {
+  justify-self: start;
+  padding: 0.75rem 1rem;
+  border-radius: 0.65rem;
+  text-decoration: none;
+}
+@media (max-width: 520px) {
+  .ai-funding-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ai-billing-panel .ai-funding-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.ai-funding-fieldset legend {
+  padding: 0;
+  margin-bottom: 1rem;
+  font-weight: 600;
+}
+[data-ai-first-use] .primary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}

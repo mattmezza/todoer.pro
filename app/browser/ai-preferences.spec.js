@@ -26,6 +26,9 @@ for (const [path, template, enabled] of [
         body: `<!doctype html><html><head><meta name="csrf-token" content="synthetic"></head><body>${content}</body></html>`,
       }),
     );
+    await page.route('**/api/account/billing', (route) =>
+      route.fulfill({ json: { enabled: true, wallet: { available_micro: 1000000 } } }),
+    );
     await page.route('**/api/account/ai/**', (route) => {
       const requestPath = new URL(route.request().url()).pathname;
       if (requestPath.endsWith('/models'))

@@ -44,6 +44,7 @@ function element(tag, text, attrs = {}) {
 function notice(message, failed = false) {
   const node = root.querySelector('[data-ai-notice]');
   node.textContent = message;
+  node.hidden = !message;
   node.classList.toggle('danger-text', failed);
 }
 function list(data, key) {
@@ -106,12 +107,13 @@ async function run(callback) {
   const priorContent = trigger ? [...trigger.childNodes] : [];
   const priorDisabled = trigger?.getAttribute('aria-disabled');
   const loading = beginLoading(root, { variant: 'cards', preserve: initialized });
+  const loadingLabel = trigger?.matches('[data-ai-reload]')
+    ? 'Refreshing…'
+    : trigger?.type === 'submit'
+      ? 'Saving…'
+      : 'Working…';
   if (trigger) {
-    trigger.textContent = trigger.matches('[data-ai-reload]')
-      ? 'Refreshing…'
-      : trigger.type === 'submit'
-        ? 'Saving…'
-        : 'Working…';
+    trigger.textContent = loadingLabel;
     trigger.setAttribute('aria-disabled', 'true');
     trigger.setAttribute('aria-busy', 'true');
     trigger.classList.add('is-saving');
@@ -135,7 +137,7 @@ async function run(callback) {
   } finally {
     loading.finish();
     if (trigger?.isConnected) {
-      trigger.replaceChildren(...priorContent);
+      if (trigger.textContent === loadingLabel) trigger.replaceChildren(...priorContent);
       if (priorDisabled === null) trigger.removeAttribute('aria-disabled');
       else trigger.setAttribute('aria-disabled', priorDisabled);
       trigger.removeAttribute('aria-busy');
@@ -154,57 +156,163 @@ function modelOptions() {
     select.value = policy.model_id || '';
   }
 }
+let aiCreditState;
+function aiFundingReady(funding = policy.funding) {
+  if (funding === 'credits') return policy.managed_ai_allowed && !policy.billing_blocked;
+  if (funding === 'byok')
+    return policy.byok_allowed && policy.key_configured && policy.key_status === 'valid';
+  return false;
+}
+function aiModelReady(id = policy.model_id) {
+  return models.some((model) => model.enabled && model.id === id);
+}
+function enableAIIntent() {
+  return new URLSearchParams(location.search).get('enable') === '1';
+}
 function renderPolicy() {
   const form = root.querySelector('[data-ai-policy]');
   const enabled = field(form, 'user_ai_enabled');
-  if (enabled) enabled.checked = policy.user_ai_enabled;
+  if (enabled) {
+    enabled.checked = policy.user_ai_enabled;
+    const ready =
+      aiFundingReady() &&
+      aiModelReady() &&
+      (policy.funding !== 'credits' || (aiCreditState?.wallet?.available_micro ?? 0) > 0);
+    form.hidden = !policy.user_ai_enabled && !ready;
+    const firstUse = root.querySelector('[data-ai-first-use]');
+    if (firstUse) firstUse.hidden = !form.hidden;
+    const availability = root.querySelector('[data-ai-availability]');
+    if (availability)
+      availability.textContent = models.length
+        ? policy.funding === 'credits' && aiFundingReady() && aiModelReady()
+          ? aiCreditState
+            ? 'Add credits before enabling AI. Setup will show your next step.'
+            : 'Review your credit balance in setup before enabling AI.'
+          : 'Choose a model and payment source first. You will review your setup before enabling AI.'
+        : 'Built-in AI is not ready on this instance yet. Setup explains what is needed before you can enable it.';
+  }
   const funding = field(form, 'funding');
   if (funding) {
-    funding.value = policy.funding;
-    funding.querySelector('[value="credits"]').disabled = !policy.managed_ai_allowed;
-    funding.querySelector('[value="byok"]').disabled =
-      !policy.byok_allowed || !policy.key_configured;
+    funding.value = policy.funding === 'none' ? '' : policy.funding;
+    form.querySelector('[name=funding][value=byok]').disabled = !policy.byok_allowed;
   }
   const entitlement = root.querySelector('[data-ai-entitlement]');
   if (entitlement)
-    entitlement.textContent = policy.managed_ai_allowed
-      ? 'Credit-funded AI is ready. Add credits in Billing, then choose Todoer credits above.'
-      : `Credit-funded AI needs approval. Request status: ${policy.access_request || 'not requested'}.`;
+    entitlement.textContent = policy.billing_blocked
+      ? 'Billing needs administrator review before you can use Todoer credits.'
+      : policy.managed_ai_allowed
+        ? 'Your access is approved. Credits are only used when you request AI help; add credits in Billing when needed.'
+        : policy.access_request === 'pending'
+          ? 'Your request is being reviewed. You can return later or use your own OpenRouter key instead.'
+          : 'Request access before using Todoer credits. An administrator will review your request.';
+  const creditAction = root.querySelector('[data-ai-credit-action]');
+  if (creditAction)
+    creditAction.hidden = !policy.managed_ai_allowed || policy.billing_blocked;
   const requestAccess = root.querySelector('[data-ai-request-access]');
-  if (requestAccess)
-    requestAccess.disabled =
-      policy.managed_ai_allowed || policy.access_request === 'pending';
+  if (requestAccess) {
+    requestAccess.hidden = policy.managed_ai_allowed;
+    requestAccess.disabled = policy.access_request === 'pending';
+    requestAccess.textContent =
+      policy.access_request === 'pending' ? 'Request pending' : 'Request access';
+  }
   const keyStatus = root.querySelector('[data-ai-key-status]');
   if (keyStatus)
     keyStatus.textContent = !policy.byok_allowed
       ? 'Using your own key is disabled by an administrator.'
-      : policy.key_configured
-        ? 'Your OpenRouter key is connected.'
-        : 'No OpenRouter key connected.';
-  const keyForm = root.querySelector('[data-ai-key]');
-  if (keyForm) keyForm.querySelector('button').disabled = !policy.byok_allowed;
+      : policy.key_configured && policy.key_status === 'valid'
+        ? 'Your OpenRouter key is connected. Finish setup below when you are ready.'
+        : policy.key_configured
+          ? 'Your saved key needs to be reconnected before you can use it.'
+          : 'Connect your OpenRouter key after choosing a model above.';
   const removeKey = root.querySelector('[data-ai-remove-key]');
-  if (removeKey) removeKey.disabled = !policy.key_configured;
+  if (removeKey) removeKey.hidden = !policy.key_configured;
   modelOptions();
-  modelPrice();
+  renderAISetupState();
 }
 function modelPrice() {
   const select = root.querySelector('[data-ai-policy] [name=model_id]');
   const price = root.querySelector('[data-ai-model-price]');
   if (!select || !price) return;
   const model = models.find((item) => item.id === select.value);
+  const funding = field(root.querySelector('[data-ai-policy]'), 'funding').value;
   price.textContent = model
-    ? `OpenRouter · ${model.name || model.id}. Credit rates per million tokens: input ${money(model.input_micro_per_million)}, output ${money(model.output_micro_per_million)}. Your own key is billed by OpenRouter.`
+    ? funding === 'byok'
+      ? `OpenRouter · ${model.name || model.id}. Your OpenRouter account pays the provider's applicable rates.`
+      : `OpenRouter · ${model.name || model.id}. Credit rates per million tokens: input ${money(model.input_micro_per_million)}, output ${money(model.output_micro_per_million)}.`
     : 'Choose a supported model to see its rates.';
+}
+function renderAISetupState() {
+  if (root.dataset.aiSection !== 'setup') return;
+  const form = root.querySelector('[data-ai-policy]');
+  const funding = field(form, 'funding').value;
+  const selectedModel = field(form, 'model_id').value;
+  const modelReady = aiModelReady(selectedModel);
+  const available = models.some((model) => model.enabled);
+  const guided = enableAIIntent();
+  const availability = root.querySelector('[data-ai-model-availability]');
+  availability.hidden = available;
+  availability.textContent =
+    'No supported models are available on this instance yet. Ask an administrator to enable a model, then return to setup.';
+  field(form, 'model_id').disabled = !available;
+  root.querySelector('[data-ai-credits-panel]').hidden = funding !== 'credits';
+  root.querySelector('[data-ai-key-panel]').hidden = funding !== 'byok';
+  const keySubmit = root.querySelector('[data-ai-key] button[type=submit]');
+  keySubmit.disabled = !policy.byok_allowed || !modelReady;
+  root.querySelector('[data-ai-enable-disclosure]').hidden =
+    !guided || policy.user_ai_enabled;
+  const creditReady = (aiCreditState?.wallet?.available_micro ?? 0) > 0;
+  const ready =
+    modelReady &&
+    aiFundingReady(funding) &&
+    (!guided || funding !== 'credits' || creditReady);
+  const action = root.querySelector('[data-ai-setup-submit]');
+  action.disabled = !ready;
+  action.textContent = guided && !policy.user_ai_enabled ? 'Enable AI' : 'Save AI setup';
+  root.querySelector('[data-ai-setup-heading]').textContent = guided
+    ? 'Set up and enable AI'
+    : 'AI setup';
+  const next = root.querySelector('[data-ai-setup-next]');
+  next.textContent = !available
+    ? 'AI cannot be enabled until an administrator makes a supported model available.'
+    : !funding
+      ? 'Choose Todoer credits or your own OpenRouter key to continue.'
+      : !modelReady
+        ? 'Choose a supported model above to continue.'
+        : funding === 'credits' && policy.billing_blocked
+          ? 'An administrator needs to review your billing account before you can continue.'
+          : funding === 'credits' && !policy.managed_ai_allowed
+            ? policy.access_request === 'pending'
+              ? 'Your access request is pending. Return after approval, or choose your own OpenRouter key.'
+              : 'Request access above. You can finish enabling AI after your request is approved.'
+            : funding === 'credits' && !creditReady
+              ? !aiCreditState
+                ? 'Your credit balance could not be checked. Open Billing to review it before enabling AI.'
+                : aiCreditState.enabled
+                  ? 'Add credits in Billing before enabling AI. Unused credits stay in your wallet.'
+                  : 'Your wallet is empty and credit purchases are not available on this instance yet. Ask an administrator for access or free credits.'
+              : funding === 'byok' && !aiFundingReady('byok')
+                ? 'Connect your OpenRouter key above to continue. Connecting the key will not enable AI.'
+                : guided && !policy.user_ai_enabled
+                  ? 'Your model and payment source are ready. Enable AI when you want to start using built-in features.'
+                  : 'Save these choices. Your current AI feature switch will stay unchanged.';
+  modelPrice();
 }
 async function loadAI() {
   const setup = root.dataset.aiSection === 'setup';
   let notices;
   [policy, { models }, notices] = await Promise.all([
     api('/api/account/ai/settings'),
-    setup ? api('/api/account/ai/models') : { models: [] },
+    api('/api/account/ai/models'),
     setup ? api('/api/account/ai/notices') : { notices: [] },
   ]);
+  aiCreditState = null;
+  if (setup || policy.funding === 'credits') {
+    try {
+      aiCreditState = await api('/api/account/billing');
+    } catch {
+      /* Show an explicit unavailable balance, never assume zero or ready. */
+    }
+  }
   const updates = root.querySelector('[data-ai-notices]');
   if (updates) {
     updates.replaceChildren();
@@ -217,12 +325,14 @@ async function loadAI() {
       );
       noticeThrough = Math.max(noticeThrough, Number(item.id) || 0);
     }
-    if (!notices.notices?.length) updates.append(element('p', 'No account AI updates.'));
+    root.querySelector('[data-ai-updates-panel]').hidden = !notices.notices?.some(
+      (item) => item.unread,
+    );
   }
   const readUpdates = root.querySelector('[data-ai-notices-read]');
   if (readUpdates) readUpdates.disabled = !notices.notices?.some((item) => item.unread);
   renderPolicy();
-  notice(setup ? 'AI setup loaded.' : 'AI preferences loaded.');
+  notice('');
 }
 function bindAI() {
   root.querySelector('[data-ai-notices-read]')?.addEventListener('click', () =>
@@ -232,37 +342,62 @@ function bindAI() {
       notice('Updates marked as read.');
     }),
   );
-  root
-    .querySelector('[data-ai-policy] [name=model_id]')
-    ?.addEventListener('change', modelPrice);
-  root.querySelector('[data-ai-policy]').addEventListener('submit', (event) => {
+  const policyForm = root.querySelector('[data-ai-policy]');
+  policyForm.addEventListener('change', renderAISetupState);
+  policyForm.addEventListener('submit', (event) => {
     event.preventDefault();
     const form = event.currentTarget;
     run(async () => {
+      const setup = root.dataset.aiSection === 'setup';
+      const funding = field(form, 'funding')?.value ?? policy.funding;
+      const model = field(form, 'model_id')
+        ? field(form, 'model_id').value || null
+        : policy.model_id;
+      const enable = setup
+        ? enableAIIntent() || policy.user_ai_enabled
+        : field(form, 'user_ai_enabled').checked;
+      if (enable && (!aiFundingReady(funding) || !aiModelReady(model))) {
+        if (setup) renderAISetupState();
+        else location.assign('/settings/ai/setup?enable=1');
+        return;
+      }
       await api(
         '/api/account/ai/settings',
         {
-          user_ai_enabled:
-            field(form, 'user_ai_enabled')?.checked ?? policy.user_ai_enabled,
-          funding: field(form, 'funding')?.value ?? policy.funding,
-          model_id: field(form, 'model_id')
-            ? field(form, 'model_id').value || null
-            : policy.model_id,
+          user_ai_enabled: enable,
+          funding,
+          model_id: model,
           revision: policy.revision,
         },
         'PUT',
       );
+      if (setup && enableAIIntent()) {
+        const url = new URL(location.href);
+        url.searchParams.delete('enable');
+        history.replaceState(null, '', url.pathname + url.search + url.hash);
+      }
       await loadAI();
       notice(
-        root.dataset.aiSection === 'setup' ? 'AI setup saved.' : 'AI preferences saved.',
+        setup && enable
+          ? 'AI is enabled. You can turn it off in AI preferences at any time.'
+          : setup
+            ? 'AI setup saved.'
+            : 'AI preferences saved.',
       );
     });
   });
   root.querySelector('[data-ai-request-access]')?.addEventListener('click', () =>
     run(async () => {
+      const funding = field(policyForm, 'funding').value;
+      const model = field(policyForm, 'model_id').value;
       await api('/api/account/ai/access-request', {}, 'POST');
       await loadAI();
-      notice('Access request sent. An administrator will review it.');
+      field(policyForm, 'funding').value = funding;
+      field(policyForm, 'model_id').value = model;
+      renderAISetupState();
+      notice(
+        'Access request sent. You can finish setup after an administrator approves it.',
+      );
     }),
   );
   root.querySelector('[data-ai-key]')?.addEventListener('submit', (event) => {
@@ -272,13 +407,17 @@ function bindAI() {
     const key = field(form, 'key').value;
     field(form, 'key').value = '';
     run(async () => {
+      const selectedModel = field(policyForm, 'model_id').value;
+      if (!aiModelReady(selectedModel) || !policy.byok_allowed) return;
       await api(
         '/api/account/ai/key',
-        { key, model_id: field(form, 'model_id').value, revision: policy.revision },
+        { key, model_id: selectedModel, revision: policy.revision },
         'PUT',
       );
       await loadAI();
-      notice('OpenRouter key connected. Your AI feature switch was preserved.');
+      notice(
+        'OpenRouter key connected. Your AI feature switch was preserved. Finish setup when you are ready.',
+      );
     });
   });
   root.querySelector('[data-ai-remove-key]')?.addEventListener('click', () =>
@@ -704,26 +843,11 @@ function renderUsers(users, requests) {
       type: 'button',
       class: 'secondary',
     });
-    const spendMetrics = element('dl', undefined, { class: 'ai-metrics' });
+    const spendMetrics = element('div');
     spend.addEventListener('click', () =>
       run(async () => {
         const report = await api(financeURL(user.user_id));
-        spendMetrics.replaceChildren();
-        for (const [label, key] of [
-          ['Top-ups', 'topups_micro'],
-          ['Available credits', 'available_micro'],
-          ['Held credits', 'held_micro'],
-          ['Paid-credit usage revenue', 'usage_revenue_micro'],
-          ['Free credits issued', 'free_credits_issued_micro'],
-          ['Free credits used', 'free_credits_used_micro'],
-          ['Free credits remaining', 'free_credits_remaining_micro'],
-          ['Inference expense covered by free credits', 'free_inference_cost_micro'],
-          ['Provider expense', 'provider_cost_micro'],
-          ['Payment fees', 'payment_fees_micro'],
-          ['Contribution before payment fees (provisional)', 'contribution_micro'],
-        ])
-          metric(spendMetrics, label, money(report[key]));
-        netFinanceMetrics(spendMetrics, report);
+        renderFinanceSummary(spendMetrics, report);
         notice('Account spend loaded.');
       }),
     );
@@ -1001,66 +1125,108 @@ function financeURL(userId) {
   const query = params.toString();
   return `/api/admin/ai/finance${query ? `?${query}` : ''}`;
 }
-function netFinanceMetrics(container, data) {
-  for (const [label, key] of [
-    ['Net cash collected', 'net_cash_collected_micro'],
-    ['Paid unused credits (current)', 'paid_outstanding_micro'],
-    ['Bad debt', 'bad_debt_micro'],
-    ['Profit after provider/payment costs and adjustments', 'profit_micro'],
-  ])
-    metric(container, label, money(data[key]));
-  metric(
-    container,
-    'Net margin',
-    data.margin_bps == null ? 'Not available' : `${(data.margin_bps / 100).toFixed(2)}%`,
+function renderFinanceSummary(container, data) {
+  container.replaceChildren();
+  const headlines = element('dl', undefined, {
+    class: 'ai-metrics ai-finance-headlines',
+  });
+  const headline = (label, value, help) => {
+    metric(headlines, label, value);
+    headlines.lastElementChild.lastElementChild.append(element('small', help));
+  };
+  headline(
+    'Money received',
+    money(data.net_cash_collected_micro ?? data.topups_micro),
+    'Top-ups, after refunds. Some of this is still in user wallets.',
   );
+  const costsKnown =
+    data.provider_cost_micro != null &&
+    data.payment_fees_micro != null &&
+    !data.provider_fx_unknown;
+  headline(
+    'Costs',
+    costsKnown
+      ? money(data.provider_cost_micro + data.payment_fees_micro)
+      : 'Still being confirmed',
+    'AI provider costs, including free-credit usage, plus Stripe fees.',
+  );
+  headline(
+    'Profit',
+    data.profit_micro == null ? 'Still being confirmed' : money(data.profit_micro),
+    'Earned from credits already spent and top-up fees, minus costs and unpaid debt.',
+  );
+  headline(
+    'Unused paid credits',
+    money(data.paid_outstanding_micro),
+    'Money users can still spend. This is not profit yet.',
+  );
+  container.append(headlines);
   if (data.profit_micro == null || data.provisional)
     container.append(
       element(
         'p',
-        'Net profit is provisional or unavailable until provider expense and payment fees are reconciled. Unknown amounts are not zero.',
+        'Some costs are still being confirmed. Profit will appear once the missing costs are recorded.',
+        { class: 'muted' },
+      ),
+    );
+  const breakdown = (title, help, entries) => {
+    const section = element('details', undefined, { class: 'ai-finance-details' });
+    section.append(element('summary', title), element('p', help, { class: 'muted' }));
+    const values = element('dl', undefined, { class: 'ai-finance-rows' });
+    for (const [label, key] of entries) metric(values, label, money(data[key]));
+    section.append(values);
+    container.append(section);
+  };
+  breakdown(
+    'Free credit promotions',
+    'Grants are not sales. Their AI costs are included in Costs above.',
+    [
+      ['Free credits issued', 'free_credits_issued_micro'],
+      ['Free credits used', 'free_credits_used_micro'],
+      ['Free credits remaining', 'free_credits_remaining_micro'],
+      ['AI cost of free credits', 'free_inference_cost_micro'],
+    ],
+  );
+  breakdown(
+    'Payments and balances',
+    'Payments belong to the selected period. Unused balances show what is in wallets right now.',
+    [
+      ['Top-ups collected', 'topups_micro'],
+      ['Refunds', 'refunds_micro'],
+      ['Money received after refunds', 'net_cash_collected_micro'],
+      ['Unused purchased credits', 'paid_outstanding_micro'],
+    ],
+  );
+  breakdown(
+    'How profit is calculated',
+    'Profit counts purchased credits when users spend them, plus fees retained from top-ups. AI costs, Stripe fees and unpaid debt are then subtracted.',
+    [
+      ['Earned from AI usage', 'usage_revenue_micro'],
+      ['Fees retained from top-ups', 'conversion_revenue_micro'],
+      ['AI provider costs', 'provider_cost_micro'],
+      ['Stripe fees', 'payment_fees_micro'],
+      ['Unpaid debt', 'bad_debt_micro'],
+      ['Profit', 'profit_micro'],
+    ],
+  );
+  metric(
+    container.lastElementChild.querySelector('dl'),
+    'Profit margin',
+    data.margin_bps == null ? 'Not available' : `${(data.margin_bps / 100).toFixed(2)}%`,
+  );
+  if (data.byok_calls > 0)
+    container.append(
+      element(
+        'p',
+        `${data.byok_calls} requests used users’ own OpenRouter keys. Users paid for these directly; they are not included in your costs.`,
+        { class: 'muted' },
       ),
     );
 }
 function renderFinance(data) {
   const container = root.querySelector('[data-admin-finance]');
   if (!container) return;
-  container.replaceChildren();
-  for (const [label, key] of [
-    ['Top-ups collected', 'topups_micro'],
-    ['Conversion and processing revenue', 'conversion_revenue_micro'],
-    ['Paid-credit usage revenue', 'usage_revenue_micro'],
-    ['Free credits issued', 'free_credits_issued_micro'],
-    ['Free credits used', 'free_credits_used_micro'],
-    ['Free credits remaining', 'free_credits_remaining_micro'],
-    ['Inference expense covered by free credits', 'free_inference_cost_micro'],
-    ['Provider expense', 'provider_cost_micro'],
-    ['Unused credits', 'outstanding_micro'],
-    ['Payment fees', 'payment_fees_micro'],
-    ['Contribution before payment fees (provisional)', 'contribution_micro'],
-  ])
-    metric(container, label, money(data[key]));
-  metric(
-    container,
-    'BYOK requests (no Todoer revenue or provider expense)',
-    data.byok_calls == null ? 'Not available' : String(data.byok_calls),
-  );
-  netFinanceMetrics(container, data);
-  metric(
-    container,
-    'Contribution margin before fees (provisional)',
-    data.usage_revenue_micro + (data.conversion_revenue_micro || 0) > 0 &&
-      data.contribution_micro != null
-      ? `${((100 * data.contribution_micro) / (data.usage_revenue_micro + (data.conversion_revenue_micro || 0))).toFixed(2)}%`
-      : 'Not available',
-  );
-  if (data.provider_fx_unknown)
-    container.append(
-      element(
-        'p',
-        'Provider currency conversion is incomplete; contribution is provisional.',
-      ),
-    );
+  renderFinanceSummary(container, data);
   const rows = root.querySelector('[data-admin-model-finance]');
   rows.replaceChildren();
   for (const row of data.models || []) {

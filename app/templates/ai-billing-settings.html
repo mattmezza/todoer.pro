@@ -10,10 +10,14 @@
   <section class="settings-preference-card">
     <h2>Built-in AI features</h2>
     <p>
-      Choose whether Todoer can use AI when you ask for help with tasks. Your connected
-      agents work independently of this switch.
+      Get help breaking down tasks and organizing your work. Your connected agents work
+      independently of built-in AI.
     </p>
-    <form data-ai-policy>
+    <div data-ai-first-use hidden>
+      <p data-ai-availability></p>
+      <a class="primary" href="/settings/ai/setup?enable=1">Set up and enable AI</a>
+    </div>
+    <form data-ai-policy hidden>
       <label class="settings-check"
         ><input name="user_ai_enabled" type="checkbox" /><span
           >Allow built-in AI<small
@@ -27,8 +31,8 @@
   </section>
   <nav class="ai-related-links" aria-label="AI settings">
     <a href="/settings/ai/setup"
-      ><strong>Set up AI <span aria-hidden="true">→</span></strong
-      ><small>Choose a model, use credits or connect your OpenRouter key.</small></a
+      ><strong>AI setup <span aria-hidden="true">→</span></strong
+      ><small>Change your model, payment source or OpenRouter key.</small></a
     >
     <a href="/settings/ai/tools"
       ><strong>Connect an agent <span aria-hidden="true">→</span></strong
