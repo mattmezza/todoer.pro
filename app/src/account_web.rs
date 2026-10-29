@@ -121,7 +121,7 @@ fn add_cookie(r: &mut Response, name: &str, value: &str, max_age: i64) {
             .unwrap(),
     );
 }
-async fn auth_run<T: Send + 'static>(
+pub(super) async fn auth_run<T: Send + 'static>(
     s: &AppState,
     f: impl FnOnce(&mut AuthStore) -> Result<T, AuthError> + Send + 'static,
 ) -> Result<T, ApiError> {
@@ -181,7 +181,11 @@ async fn throttle(s: &AppState, address: &str) -> Result<(), ApiError> {
     })
     .await
 }
-async fn session_user(s: &AppState, h: &HeaderMap, recent: bool) -> Result<String, ApiError> {
+pub(super) async fn session_user(
+    s: &AppState,
+    h: &HeaderMap,
+    recent: bool,
+) -> Result<String, ApiError> {
     same_origin(s, h)?;
     let user = s.auth(h, true)?;
     if user.starts_with("credential:") {

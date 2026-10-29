@@ -1,5 +1,13 @@
 #[path = "activity_web.rs"]
 mod activity_http;
+#[path = "ai_billing_ui.rs"]
+mod ai_billing_ui;
+#[path = "ai_policy_web.rs"]
+mod ai_policy_http;
+#[path = "ai_usage_web.rs"]
+mod ai_usage_http;
+#[path = "billing_web.rs"]
+mod billing_http;
 #[path = "notification_web.rs"]
 mod notification_http;
 #[path = "planning_web.rs"]
@@ -133,6 +141,22 @@ impl AppState {
         self.push
             .as_ref()
             .map(|transport| push_http::start_push_worker(self.clone(), transport.as_ref().clone()))
+    }
+    pub fn start_ai_accounting_worker(&self) -> tokio::task::JoinHandle<()> {
+        let state = self.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+            loop {
+                interval.tick().await;
+                if state.stopping.load(std::sync::atomic::Ordering::SeqCst) {
+                    break;
+                }
+                let _ = state.run(|db| db.ai_reconcile_expired()).await;
+            }
+        })
+    }
+    pub fn start_billing_worker(&self) -> Option<tokio::task::JoinHandle<()>> {
+        billing_http::start_worker(self.clone())
     }
     pub fn start_statistics_worker(&self) -> tokio::task::JoinHandle<()> {
         statistics_http::start_statistics_worker(self.clone())
@@ -316,6 +340,10 @@ pub fn router(state: AppState) -> Router {
         .merge(structured_search::routes())
         .merge(statistics_http::routes())
         .merge(assist_http::routes())
+        .merge(ai_policy_http::routes())
+        .merge(ai_usage_http::routes())
+        .merge(billing_http::routes())
+        .merge(ai_billing_ui::routes())
         .merge(jobs_http::routes())
         .merge(notification_http::routes())
         .merge(task_page::routes())
@@ -1918,3 +1946,7 @@ async fn not_found(
         .map_err(|_| Error::Invalid("Could not render page".into()))?;
     Ok((StatusCode::NOT_FOUND, Html(html)).into_response())
 }
+
+#[cfg(test)]
+#[path = "ai_billing_integration_tests.rs"]
+mod ai_billing_integration_tests;

@@ -43,6 +43,7 @@ impl AtomicWrite<'_> {
 pub(crate) struct StoreWrite<'a> {
     store: &'a mut Store,
     finished: bool,
+    savepoint: Option<String>,
 }
 impl<'a> StoreWrite<'a> {
     pub(crate) fn new(store: &'a mut Store) -> Result<Self, Error> {
@@ -55,10 +56,27 @@ impl<'a> StoreWrite<'a> {
         Ok(Self {
             store,
             finished: false,
+            savepoint: None,
+        })
+    }
+    pub(crate) fn nested(store: &'a mut Store) -> Result<Self, Error> {
+        if store.conn.is_autocommit() {
+            return Self::new(store);
+        }
+        let name = format!("atomic_{}", Uuid::new_v4().simple());
+        store.conn.execute_batch(&format!("SAVEPOINT {name}"))?;
+        Ok(Self {
+            store,
+            finished: false,
+            savepoint: Some(name),
         })
     }
     pub(crate) fn commit(mut self) -> Result<(), Error> {
-        self.store.conn.execute_batch("COMMIT")?;
+        if let Some(name) = &self.savepoint {
+            self.store.conn.execute_batch(&format!("RELEASE {name}"))?;
+        } else {
+            self.store.conn.execute_batch("COMMIT")?;
+        }
         self.finished = true;
         Ok(())
     }
@@ -77,7 +95,14 @@ impl DerefMut for StoreWrite<'_> {
 impl Drop for StoreWrite<'_> {
     fn drop(&mut self) {
         if !self.finished {
-            let _ = self.store.conn.execute_batch("ROLLBACK");
+            if let Some(name) = &self.savepoint {
+                let _ = self
+                    .store
+                    .conn
+                    .execute_batch(&format!("ROLLBACK TO {name}; RELEASE {name}"));
+            } else {
+                let _ = self.store.conn.execute_batch("ROLLBACK");
+            }
         }
     }
 }

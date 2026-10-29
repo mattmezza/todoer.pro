@@ -1,0 +1,104 @@
+.ai-billing-panel {
+  display: grid;
+  gap: 1.25rem;
+  min-width: 0;
+  margin-block: 1.5rem;
+}
+.ai-billing-panel .settings-preference-card {
+  display: grid;
+  gap: 0.8rem;
+  min-width: 0;
+}
+.ai-billing-panel form {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.ai-billing-panel input:not([type='checkbox']),
+.ai-billing-panel select {
+  width: 100%;
+  min-width: 0;
+}
+.ai-billing-panel .settings-check {
+  align-items: start;
+}
+.ai-billing-panel .settings-check small {
+  display: block;
+  margin-top: 0.4rem;
+}
+.ai-billing-panel button {
+  justify-self: start;
+  max-width: 100%;
+}
+.ai-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+.ai-table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  min-width: 0;
+}
+.ai-billing-panel table {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: normal;
+}
+.ai-billing-panel :is(th, td) {
+  padding: 0.65rem;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid #334155;
+  font-size: 0.85rem;
+}
+.ai-billing-panel th {
+  color: #cbd5e1;
+}
+.ai-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+.ai-metrics div {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 0.65rem;
+  padding: 1rem;
+  min-width: 0;
+}
+.ai-metrics dt {
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+.ai-metrics dd {
+  margin: 0.5rem 0 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.ai-admin-user,
+.ai-admin-model,
+.ai-admin-billing {
+  border-top: 1px solid #334155;
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+}
+.ai-billing-panel [role='status'] {
+  overflow-wrap: anywhere;
+}
+.ai-billing-panel [data-usage-filter] {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  align-items: end;
+}
+.ai-billing-panel button:disabled {
+  opacity: 0.55;
+}
+.ai-billing-panel [data-ai-reload] {
+  justify-self: start;
+}
+.ai-billing-panel fieldset {
+  min-width: 0;
+}

@@ -16,6 +16,7 @@ pub(super) struct SidebarSpace {
 }
 pub(super) struct Sidebar {
     pub space_overview: bool,
+    pub is_platform_admin: bool,
     pub settings_section: String,
     pub favorites: Vec<SidebarList>,
     pub favorite_ids: Vec<String>,
@@ -177,7 +178,10 @@ pub(super) fn build_sidebar(
         .take(10)
         .cloned()
         .collect();
+    let is_platform_admin = !actor.starts_with("credential:")
+        && crate::account_security::is_admin(&db.conn, &user).map_err(|_| Error::Forbidden)?;
     Ok(Sidebar {
+        is_platform_admin,
         menu_spaces,
         space_overview: false,
         settings_section: String::new(),
@@ -209,6 +213,32 @@ pub(super) fn build_sidebar(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn platform_admin_menu_follows_the_live_account_role() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        assert!(
+            !build_sidebar(&db, "dev", "", String::new())
+                .unwrap()
+                .is_platform_admin
+        );
+        db.conn
+            .execute("INSERT INTO auth_admins(user_id) VALUES('dev')", [])
+            .unwrap();
+        assert!(
+            build_sidebar(&db, "dev", "", String::new())
+                .unwrap()
+                .is_platform_admin
+        );
+        db.conn
+            .execute("DELETE FROM auth_admins WHERE user_id='dev'", [])
+            .unwrap();
+        assert!(
+            !build_sidebar(&db, "dev", "", String::new())
+                .unwrap()
+                .is_platform_admin
+        );
+    }
     #[test]
     fn gravatar_uses_normalized_verified_identity_and_real_workspace_slug() {
         let mut db = Store::memory().unwrap();

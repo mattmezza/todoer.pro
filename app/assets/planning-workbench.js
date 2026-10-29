@@ -1,3 +1,4 @@
+import { inference } from './ai-transaction.js';
 import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { setSaveState } from './quiet-info.js';
@@ -53,6 +54,8 @@ function button(text, action, cls) {
   return b;
 }
 async function api(path, method = 'GET', body, key) {
+  if (path === 'assist/classify' || path === 'assist/drafts')
+    return inference(path.slice(7), body, csrf);
   const r = await fetch('/api/v1/' + path, {
     method,
     cache: 'no-store',

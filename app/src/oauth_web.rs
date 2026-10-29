@@ -676,7 +676,7 @@ async fn issue_form(
 async fn settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult {
     let actor = browser(&s, &h, false)?;
     let Some(production) = s.production.as_ref() else {
-        return super::scheduling_http::render_settings(&s, &h, "AI", r#"<section class="settings-preference-card"><h2>Connected tools</h2><p class="muted">Connect an AI agent or your own scripts to Todoer.</p><p class="muted">Credential management is available when OAuth is configured for this installation.</p></section>"#.into(), "agents").await.map_err(|_| bad("Could not load settings"));
+        return super::scheduling_http::render_settings(&s, &h, "AI", ai_billing_ui::ai_settings_body().to_owned() + r#"<section class="settings-preference-card"><h2>Connected tools</h2><p class="muted">Connect an AI agent or your own scripts to Todoer.</p><p class="muted">Credential management is available when OAuth is configured for this installation.</p></section>"#, "agents").await.map_err(|_| bad("Could not load settings"));
     };
     let rows = production
         .store
@@ -744,9 +744,15 @@ async fn settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult {
         r#"<section class="settings-preference-card" aria-labelledby="connected-tools-heading"><h2 id="connected-tools-heading">Connected tools</h2><p class="muted">Give an AI agent or script access to the lists you choose.</p><details class="credential-create"><summary>Create a credential…</summary><form method="post" action="/settings/credentials"><input type="hidden" name="csrf" value="{}"><label>Connection type<select name="audience"><option value="mcp">AI agent (MCP)</option><option value="rest">Script (REST API)</option></select></label><fieldset><legend>Permissions</legend><label class="settings-check"><input type="checkbox" name="read" value="yes" checked>Read</label><label class="settings-check"><input type="checkbox" name="write" value="yes">Write (includes read)</label><label class="settings-check"><input type="checkbox" name="admin" value="yes">Admin (requires ownership)</label></fieldset><fieldset><legend>List access</legend><label class="settings-check"><input type="checkbox" name="allow_all" value="yes" data-credential-all>All current and future accessible lists</label><div data-credential-lists>{}</div></fieldset><label>Expires after (days)<input name="ttl_days" type="number" min="1" max="90" value="30" required></label><button class="primary">Create credential</button></form></details><details class="credential-history"><summary>Manage connected tools</summary><ul>{}</ul></details></section>"#,
         csrf, options, existing
     );
-    super::scheduling_http::render_settings(&s, &h, "AI", html, "agents")
-        .await
-        .map_err(|_| bad("Could not load settings"))
+    super::scheduling_http::render_settings(
+        &s,
+        &h,
+        "AI",
+        ai_billing_ui::ai_settings_body().to_owned() + &html,
+        "agents",
+    )
+    .await
+    .map_err(|_| bad("Could not load settings"))
 }
 #[cfg(test)]
 mod tests {

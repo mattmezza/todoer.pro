@@ -1,0 +1,37 @@
+<link rel="stylesheet" href="/assets/ai-billing.css">
+<script type="module" src="/assets/ai-billing.js"></script>
+<section data-ai-billing="billing" class="ai-billing-panel" aria-busy="true">
+  <p data-ai-notice role="status" aria-live="polite">Loading billing…</p>
+  <button type="button" class="secondary" data-ai-reload>Reload saved billing</button>
+  <section class="settings-preference-card">
+    <h2>Your credits</h2>
+    <dl class="ai-metrics" data-wallet></dl>
+    <p class="muted">Paid and free credits are shown separately. Free grants are not payments. Pending reservations reduce your available balance until the request settles. Task management and external agent access remain free.</p>
+    <form data-credit-topup>
+      <fieldset><legend>Top up credits</legend>
+        <label>Payment currency<select name="currency"><option value="EUR">EUR</option></select></label>
+        <div class="ai-preset-row" aria-label="Suggested euro-equivalent top-ups"><button type="button" class="secondary" data-topup-preset="5">€5 equivalent</button><button type="button" class="secondary" data-topup-preset="10">€10 equivalent</button><button type="button" class="secondary" data-topup-preset="25">€25 equivalent</button><button type="button" class="secondary" data-topup-preset="50">€50 equivalent</button></div>
+        <label>Amount<input name="amount" type="number" inputmode="decimal" min="5" max="1000" step="0.01" value="10.00" required></label>
+        <p data-topup-equivalent class="muted">Minimum €5 equivalent. Checkout confirms the payment amount.</p>
+        <label class="settings-check"><input name="save_for_auto_topup" type="checkbox"><span>Save this payment method for optional auto-top-up<small>You still need to enable auto-top-up below and agree to its amount and limits.</small></span></label>
+        <button type="submit" class="primary">Continue to Stripe</button>
+      </fieldset>
+    </form>
+  </section>
+  <section class="settings-preference-card">
+    <h2>Auto-top-up</h2>
+    <p data-auto-state></p>
+    <p>Optional automatic payments add the chosen amount when your balance falls below your threshold. Amounts and limits below are in EUR.</p>
+    <form data-auto-topup>
+      <label class="settings-check"><input name="enabled" type="checkbox"><span>Enable auto-top-up</span></label>
+      <label>Amount to add (€)<input name="amount" type="number" min="5" max="1000" step="0.01" value="10" required></label>
+      <label>Balance threshold (€)<input name="threshold" type="number" min="0" max="1000" step="0.01" value="2" required></label>
+      <label>Monthly payment cap (€)<input name="monthly_cap" type="number" min="5" max="10000" step="0.01" value="50" required></label>
+      <label>Minimum hours between payments<input name="cooldown_hours" type="number" min="1" max="720" step="1" value="1" required></label>
+      <label class="settings-check"><input name="consent" type="checkbox"><span>I authorize these off-session Stripe payments within the amount, threshold, monthly cap and timing above.<small>Disable this setting any time to stop new automatic payments. A payment already dispatched may still complete.</small></span></label>
+      <button type="submit" class="primary">Save auto-top-up settings</button>
+    </form>
+  </section>
+  <section class="settings-preference-card"><h2>Top-up history</h2><div class="ai-table-scroll"><table><thead><tr><th>Time</th><th>Amount</th><th>Credits</th><th>Status</th></tr></thead><tbody data-purchases></tbody></table></div></section>
+  <p><a href="/settings/ai/usage">AI usage and charges →</a> · <a href="/settings/ai">AI settings →</a></p>
+</section>

@@ -1,0 +1,10 @@
+<link rel="stylesheet" href="/assets/ai-billing.css">
+<script type="module" src="/assets/ai-billing.js"></script>
+<section data-ai-billing="usage" class="ai-billing-panel" aria-busy="true">
+  <p data-ai-notice role="status" aria-live="polite">Loading AI transactions…</p>
+  <p>Managed AI shows total credit consumption, the portion covered by free credits, and the portion consumed from paid credits. BYOK shows the reported OpenRouter charge to your own key, with no Todoer credit debit. Unknown usage stays unknown. Prompts and task content are not included in this history.</p>
+  <form data-usage-filter><label>Funding<select name="funding"><option value="">All</option><option value="credits">Todoer credits</option><option value="byok">BYOK</option></select></label><label>Status<select name="status"><option value="">All</option><option value="settled">Settled</option><option value="failed">Failed</option><option value="unknown">Pending reconciliation</option></select></label><button class="secondary">Apply filters</button></form>
+  <div class="ai-preset-row"><button type="button" class="secondary" data-ai-reload>Refresh</button><button type="button" class="secondary" data-usage-export>Export this page as CSV</button><button type="button" class="secondary" data-usage-next hidden>Next page</button></div>
+  <div class="ai-table-scroll"><table><thead><tr><th>Time</th><th>Feature</th><th>Funding</th><th>Model / provider</th><th>Input / output tokens</th><th>Credit use / paid charge</th><th>Status</th></tr></thead><tbody data-usage-rows></tbody></table></div>
+  <p><a href="/settings/billing">Billing →</a> · <a href="/settings/ai">AI settings →</a></p>
+</section>

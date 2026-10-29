@@ -24,9 +24,10 @@ pub(super) fn routes() -> Router<AppState> {
         )
 }
 async fn status(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Value>, ApiError> {
-    s.auth(&h, false)?;
+    let actor = s.auth(&h, false)?;
+    let enabled = s.run(move |db| Ok(db.ai_resolve(&actor).is_ok())).await?;
     Ok(Json(
-        json!({"enabled":s.assist.enabled(),"capture_always_available":true,"classification_is_suggestion_only":true,"draft_requires_review":true}),
+        json!({"enabled":enabled,"capture_always_available":true,"classification_is_suggestion_only":true,"draft_requires_review":true}),
     ))
 }
 async fn capture(
@@ -43,12 +44,15 @@ async fn classify(
     Input(input): Input<ClassifyInput>,
 ) -> Result<Json<Value>, ApiError> {
     let actor = s.auth(&h, true)?;
-    let service = s.assist.clone();
     let a = actor.clone();
+    let funding = s.run(move |db| db.ai_resolve(&a)).await?;
+    let service = s.assist.for_account(funding.api_key, &funding.model_id);
+    let a = actor.clone();
+    let prep_service = service.clone();
     let prepared = s
-        .run(move |db| db.assist_prepare_classify(&a, input, &service))
+        .run(move |db| db.assist_prepare_classify(&a, input, &prep_service))
         .await?;
-    complete(s, actor, prepared).await
+    complete(s, actor, prepared, service, h).await
 }
 async fn draft(
     State(s): State<AppState>,
@@ -56,26 +60,146 @@ async fn draft(
     Input(input): Input<DraftInput>,
 ) -> Result<Json<Value>, ApiError> {
     let actor = s.auth(&h, true)?;
-    let service = s.assist.clone();
     let a = actor.clone();
+    let funding = s.run(move |db| db.ai_resolve(&a)).await?;
+    let service = s.assist.for_account(funding.api_key, &funding.model_id);
+    let a = actor.clone();
+    let prep_service = service.clone();
     let prepared = s
-        .run(move |db| db.assist_prepare_draft(&a, input, &service))
+        .run(move |db| db.assist_prepare_draft(&a, input, &prep_service))
         .await?;
-    complete(s, actor, prepared).await
+    complete(s, actor, prepared, service, h).await
 }
-async fn complete(s: AppState, actor: String, prepared: Prepared) -> Result<Json<Value>, ApiError> {
+async fn complete(
+    s: AppState,
+    actor: String,
+    prepared: Prepared,
+    service: crate::assist::AssistService,
+    h: HeaderMap,
+) -> Result<Json<Value>, ApiError> {
     match prepared {
         Prepared::Cached(value) => Ok(Json(value)),
-        Prepared::Dispatch(plan) => {
-            let output = s.assist.execute(&plan).await;
-            Ok(Json(
-                s.run(move |db| {
-                    db.assist_finish(&actor, *plan, output.map_err(|_| "provider_unavailable"))
+        Prepared::Dispatch(mut plan) => {
+            let quote_id = plan.id.clone();
+            let model = plan.body["model"].as_str().unwrap_or("").to_owned();
+            let (p, m, route) = s
+                .run(move |db| {
+                    Ok((
+                        db.ai_provider_policy()?,
+                        db.ai_models(true)?
+                            .into_iter()
+                            .find(|v| v["id"] == model)
+                            .ok_or(Error::NotFound)?,
+                        db.conn
+                            .query_row(
+                                "SELECT route_json FROM ai_operations WHERE id=?1",
+                                [quote_id],
+                                |r| r.get::<_, String>(0),
+                            )
+                            .optional()?
+                            .map(|v| serde_json::from_str::<Value>(&v))
+                            .transpose()
+                            .map_err(|_| Error::Invalid("invalid stored route".into()))?,
+                    ))
                 })
-                .await?,
-            ))
+                .await?;
+            // The upstream route stays bounded by the operator's configured rates.
+            if let Some(route) = route {
+                plan.body["provider"] = route;
+            } else if p.usd_eur_ppm > 0 {
+                plan.body["provider"]["max_price"] = json!({"prompt":m["input_micro_per_million"].as_i64().unwrap_or(0) as f64/p.usd_eur_ppm as f64,"completion":m["output_micro_per_million"].as_i64().unwrap_or(0) as f64/p.usd_eur_ppm as f64,"request":0});
+            } else {
+                plan.body["provider"]
+                    .as_object_mut()
+                    .unwrap()
+                    .remove("max_price");
+            }
+            let a = actor.clone();
+            let id = plan.id.clone();
+            let kind = plan.kind.clone();
+            let key = plan.request_key.clone();
+            let body = plan.body.clone();
+            let quote = s
+                .run(move |db| db.ai_quote(&a, &id, &kind, &key, &body))
+                .await?;
+            let Some(accepted) = h.get("x-todoer-ai-quote").and_then(|v| v.to_str().ok()) else {
+                return Ok(Json(
+                    json!({"status":"quote","quote":quote,"provider":"OpenRouter","byok_provider_charges_apply":quote.funding=="byok"}),
+                ));
+            };
+            let a = actor.clone();
+            let id = plan.id.clone();
+            let body = plan.body.clone();
+            let accepted = accepted.to_owned();
+            let dispatched = s
+                .run(move |db| db.ai_dispatch(&a, &id, &accepted, &body))
+                .await?;
+            let key_revision = dispatched.policy_revision;
+            let owner = dispatched.user_id.clone();
+            let service = service.for_account(dispatched.api_key, &dispatched.model_id);
+            let (mut output, usage) = service.execute_metered(&plan).await;
+            if output.is_ok() && usage.model.as_deref() != Some(dispatched.model_id.as_str()) {
+                output = Err("invalid_provider_output");
+            }
+            if quote.funding == "byok"
+                && output.as_ref().is_err_and(|e| *e == "invalid_provider_key")
+            {
+                let a = owner.clone();
+                s.run(move |db| db.ai_invalidate_key_revision(&a, key_revision))
+                    .await?;
+            }
+            let operation = plan.id.clone();
+            let a = actor.clone();
+            // A completed logout/revocation prevents delivery, but never loses expense accounting.
+            let delivery_state = s.clone();
+            let delivery_headers = h.clone();
+            let result = s
+                .run(move |db| {
+                    let mut tx = crate::agent_ops::StoreWrite::new(db)?;
+                    let delivery = delivery_identity(&delivery_state, &delivery_headers, &tx)
+                        .is_some_and(|current| current == a);
+                    let result = if delivery {
+                        tx.assist_finish(&a, *plan, output)
+                    } else {
+                        Err(Error::Forbidden)
+                    };
+                    let usable = result
+                        .as_ref()
+                        .is_ok_and(|v| v["status"] == "draft" || v["status"] == "suggestion");
+                    tx.ai_settle_user(&owner, &operation, &usage, usable)?;
+                    tx.commit()?;
+                    result
+                })
+                .await?;
+            Ok(Json(result))
         }
     }
+}
+fn delivery_identity(s: &AppState, h: &HeaderMap, db: &Store) -> Option<String> {
+    if s.production.is_none()
+        && let Some(token) = h
+            .get(header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.strip_prefix("Bearer "))
+    {
+        let hash: [u8; 32] = Sha256::digest(token.as_bytes()).into();
+        if hash
+            .iter()
+            .zip(s.token_hash)
+            .fold(0u8, |a, (x, y)| a | (x ^ y))
+            == 0
+        {
+            return Some("dev".into());
+        }
+        return db
+            .cli_bearer(
+                token,
+                &format!("{}/api/v1", s.origin.trim_end_matches('/')),
+                true,
+            )
+            .ok();
+    }
+    s.auth(h, true).ok()
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
