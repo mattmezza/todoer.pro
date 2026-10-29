@@ -91,6 +91,8 @@ The compose proxy uses host networking for Linux local development, with nginx
 listening only on loopback. The self-signed certificate requires a local browser
 exception or explicit trust. Use a trusted local certificate before testing
 WebAuthn; do not copy local TLS keys or Google credentials into source control.
+The launcher builds the current server before starting it, so compiled templates match
+the JavaScript assets. Restart the launcher after changing Rust code or templates.
 The launcher reads credentials directly into the child process environment and
 uses an untracked, persistent server key. Other TODOER settings, including
 development authentication and notification workers, are deliberately

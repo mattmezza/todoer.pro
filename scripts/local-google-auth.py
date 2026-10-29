@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import subprocess
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--with-local-storage', action='store_true',
@@ -14,6 +15,8 @@ args = parser.parse_args()
 
 root = Path(__file__).resolve().parent.parent
 os.chdir(root)
+# Askama templates are compiled into the server; always launch the current source.
+subprocess.run(['cargo', 'build', '--locked', '--bin', 'todoer-server'], check=True)
 credential_path = Path.home() / '.config/todoer/google-local.json'
 credentials = json.loads(credential_path.read_text())['web']
 origin = 'https://localhost:8443'
