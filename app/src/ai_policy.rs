@@ -109,8 +109,15 @@ fn current_revision(p: &AiPolicy, revision: i64) -> Result<(), Error> {
     }
     Ok(())
 }
+const ADMIN_ACCOUNT_PREFIX_SQL: &str = r"WITH
+              names AS (SELECT id FROM users WHERE name COLLATE NOCASE LIKE ?1 ESCAPE '\' ORDER BY name COLLATE NOCASE,id LIMIT ?2),
+              ids AS (SELECT id FROM users WHERE id COLLATE NOCASE LIKE ?1 ESCAPE '\' ORDER BY id COLLATE NOCASE LIMIT ?2),
+              emails AS (SELECT user_id AS id FROM auth_identities WHERE email COLLATE NOCASE LIKE ?1 ESCAPE '\' ORDER BY email COLLATE NOCASE,user_id LIMIT ?2),
+              matches AS (SELECT id FROM names UNION SELECT id FROM ids UNION SELECT id FROM emails)
+              SELECT u.id FROM matches JOIN users u ON u.id=matches.id ORDER BY u.name COLLATE NOCASE,u.id LIMIT ?2";
+
 fn active_model(c: &Connection, model: &str) -> Result<(), Error> {
-    let enabled:bool=c.query_row("SELECT EXISTS(SELECT 1 FROM ai_models m JOIN ai_provider_policy p ON p.id=m.provider WHERE m.id=?1 AND m.enabled=1 AND p.enabled=1)",[model],|r|r.get(0))?;
+    let enabled:bool=c.query_row("SELECT EXISTS(SELECT 1 FROM ai_models m JOIN ai_provider_policy p ON p.id=m.provider WHERE m.id=?1 AND m.enabled=1 AND m.archived=0 AND p.enabled=1)",[model],|r|r.get(0))?;
     if !enabled {
         return Err(invalid("Choose an available supported model"));
     }
@@ -450,6 +457,43 @@ impl Store {
             .collect::<Result<Vec<_>, _>>()?;
         ids.into_iter().map(|id| read(&self.conn, &id)).collect()
     }
+    /// Indexed prefix search; each branch contributes at most twenty candidates.
+    pub fn ai_admin_search_users(
+        &self,
+        actor: &str,
+        query: &str,
+        selected: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<AiPolicy>, Error> {
+        require_admin(&self.conn, actor)?;
+        let query = query.trim();
+        if query.len() > 200 || selected.is_some_and(|id| id.len() > 100) {
+            return Err(invalid("Account search is too long"));
+        }
+        if selected.is_none() && query.is_empty() {
+            return Ok(Vec::new());
+        }
+        let limit = limit.clamp(1, 20) as i64;
+        let ids = if let Some(selected) = selected {
+            self.conn
+                .prepare("SELECT id FROM users WHERE id=?1")?
+                .query_map([selected], |row| row.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?
+        } else {
+            let prefix = format!(
+                "{}%",
+                query
+                    .replace('\\', "\\\\")
+                    .replace('%', "\\%")
+                    .replace('_', "\\_")
+            );
+            self.conn
+                .prepare(ADMIN_ACCOUNT_PREFIX_SQL)?
+                .query_map(params![prefix, limit], |row| row.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?
+        };
+        ids.into_iter().map(|id| read(&self.conn, &id)).collect()
+    }
     pub fn ai_admin_requests(
         &self,
         actor: &str,
@@ -457,7 +501,7 @@ impl Store {
         limit: usize,
     ) -> Result<Vec<AccessRequest>, Error> {
         require_admin(&self.conn, actor)?;
-        Ok(self.conn.prepare("SELECT user_id,state,requested_at,decided_at FROM ai_access_requests WHERE (?1 IS NULL OR user_id>?1) ORDER BY user_id LIMIT ?2")?.query_map(params![after,limit.clamp(1,100) as i64],|r|Ok(AccessRequest{user_id:r.get(0)?,state:r.get(1)?,requested_at:r.get(2)?,decided_at:r.get(3)?}))?.collect::<Result<_,_>>()?)
+        Ok(self.conn.prepare("SELECT user_id,state,requested_at,decided_at FROM ai_access_requests WHERE state='pending' AND (?1 IS NULL OR user_id>?1) ORDER BY user_id LIMIT ?2")?.query_map(params![after,limit.clamp(1,100) as i64],|r|Ok(AccessRequest{user_id:r.get(0)?,state:r.get(1)?,requested_at:r.get(2)?,decided_at:r.get(3)?}))?.collect::<Result<_,_>>()?)
     }
     pub fn ai_admin_update(
         &mut self,
@@ -579,6 +623,73 @@ mod tests {
             },
         )
         .unwrap();
+    }
+    #[test]
+    fn administrator_account_search_is_bounded_literal_and_exact_selection_is_private() {
+        let db = fixture();
+        for i in 0..35 {
+            let id = format!("search-{i:02}");
+            db.conn
+                .execute(
+                    "INSERT INTO users(id,name) VALUES(?1,?2)",
+                    params![id, format!("Search person {i:02}")],
+                )
+                .unwrap();
+        }
+        db.conn.execute("INSERT INTO auth_identities(issuer,subject,user_id,email) VALUES('synthetic','search-34','search-34','search-person@example.invalid')",[]).unwrap();
+        assert_eq!(
+            db.ai_admin_search_users("dev", "Search", None, 1000)
+                .unwrap()
+                .len(),
+            20
+        );
+        assert!(
+            db.ai_admin_search_users("dev", "", None, 20)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            db.ai_admin_search_users("dev", "%", None, 20)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            db.ai_admin_search_users("other", "Search", None, 20)
+                .is_err()
+        );
+        let email = db
+            .ai_admin_search_users("dev", "search-person@", None, 20)
+            .unwrap();
+        assert_eq!(email.len(), 1);
+        assert_eq!(email[0].user_id, "search-34");
+        let exact = db
+            .ai_admin_search_users("dev", "", Some("search-09"), 20)
+            .unwrap();
+        assert_eq!(exact.len(), 1);
+        assert_eq!(exact[0].user_id, "search-09");
+        assert!(
+            db.ai_admin_search_users("dev", &"a".repeat(201), None, 20)
+                .is_err()
+        );
+        let plan = db
+            .conn
+            .prepare(&format!("EXPLAIN QUERY PLAN {ADMIN_ACCOUNT_PREFIX_SQL}"))
+            .unwrap()
+            .query_map(params!["search%", 20], |row| row.get::<_, String>(3))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        for index in [
+            "users_admin_name_prefix",
+            "users_admin_id_prefix",
+            "identities_admin_email_prefix",
+        ] {
+            assert!(
+                plan.iter()
+                    .any(|step| step.contains("SEARCH") && step.contains(index)),
+                "Search must use {index}: {plan:?}"
+            );
+        }
     }
     #[test]
     fn default_off_request_workflow_and_live_admin_roles() {

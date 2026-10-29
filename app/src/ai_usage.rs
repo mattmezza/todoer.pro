@@ -136,13 +136,27 @@ impl Usage {
         }
     }
 }
+fn valid_model_id(id: &str) -> bool {
+    id.len() <= 150
+        && id.split_once('/').is_some_and(|(provider, model)| {
+            !provider.is_empty()
+                && !model.is_empty()
+                && !model.contains('/')
+                && provider
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                && model
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"._:-".contains(&b))
+        })
+}
 impl Store {
     pub fn ai_provider_policy(&self) -> Result<ProviderPolicy, Error> {
         Ok(self.conn.query_row("SELECT enabled,margin_bps,usd_eur_ppm,daily_limit_micro,version FROM ai_provider_policy WHERE id='openrouter'",[],|r|Ok(ProviderPolicy{enabled:r.get(0)?,margin_bps:r.get(1)?,usd_eur_ppm:r.get(2)?,daily_limit_micro:r.get(3)?,version:r.get(4)?}))?)
     }
     pub fn ai_models(&self, admin: bool) -> Result<Vec<Value>, Error> {
         let provider = self.ai_provider_policy()?;
-        let rows=self.conn.prepare("SELECT id,name,enabled,classify,draft,input_micro_per_million,output_micro_per_million,cached_micro_per_million,margin_bps,version,daily_limit_micro FROM ai_models ORDER BY input_micro_per_million,id")?.query_map([],|r|Ok(Model{id:r.get(0)?,name:r.get(1)?,enabled:r.get(2)?,classify:r.get(3)?,draft:r.get(4)?,input_micro_per_million:r.get(5)?,output_micro_per_million:r.get(6)?,cached_micro_per_million:r.get(7)?,margin_bps:r.get(8)?,version:r.get(9)?,daily_limit_micro:r.get(10)?}))?.collect::<Result<Vec<_>,_>>()?;
+        let rows=self.conn.prepare("SELECT id,name,enabled,classify,draft,input_micro_per_million,output_micro_per_million,cached_micro_per_million,margin_bps,version,daily_limit_micro FROM ai_models WHERE archived=0 ORDER BY input_micro_per_million,id")?.query_map([],|r|Ok(Model{id:r.get(0)?,name:r.get(1)?,enabled:r.get(2)?,classify:r.get(3)?,draft:r.get(4)?,input_micro_per_million:r.get(5)?,output_micro_per_million:r.get(6)?,cached_micro_per_million:r.get(7)?,margin_bps:r.get(8)?,version:r.get(9)?,daily_limit_micro:r.get(10)?}))?.collect::<Result<Vec<_>,_>>()?;
         rows.into_iter()
             .filter(|m| admin || (m.enabled && provider.enabled))
             .map(|m| {
@@ -172,7 +186,7 @@ impl Store {
     }
     pub fn ai_model_update(&mut self, admin: &str, m: Model) -> Result<(), Error> {
         crate::ai_policy::require_admin(&self.conn, admin)?;
-        if m.id.len() > 150
+        if !valid_model_id(&m.id)
             || m.name.trim().is_empty()
             || m.name.len() > 120
             || m.margin_bps < -1
@@ -189,15 +203,72 @@ impl Store {
         {
             return Err(invalid("invalid model rates or limits"));
         }
-        if m.enabled && (m.input_micro_per_million == 0 || m.output_micro_per_million == 0) {
+        if m.enabled
+            && (m.input_micro_per_million == 0
+                || m.output_micro_per_million == 0
+                || (!m.classify && !m.draft))
+        {
             return Err(invalid("configure nonzero model rates before enabling"));
         }
         let tx = StoreWrite::new(self)?;
-        if tx.conn.execute("UPDATE ai_models SET name=?2,enabled=?3,classify=?4,draft=?5,input_micro_per_million=?6,output_micro_per_million=?7,cached_micro_per_million=?8,margin_bps=?9,version=version+1,daily_limit_micro=?10 WHERE id=?1 AND version=?11",params![m.id,m.name,m.enabled,m.classify,m.draft,m.input_micro_per_million,m.output_micro_per_million,m.cached_micro_per_million,m.margin_bps,m.daily_limit_micro,m.version])? !=1 {return Err(Error::Conflict("model changed or unsupported model".into()));}
+        if tx.conn.execute("UPDATE ai_models SET name=?2,enabled=?3,classify=?4,draft=?5,input_micro_per_million=?6,output_micro_per_million=?7,cached_micro_per_million=?8,margin_bps=?9,version=version+1,daily_limit_micro=?10 WHERE id=?1 AND version=?11 AND archived=0",params![m.id,m.name,m.enabled,m.classify,m.draft,m.input_micro_per_million,m.output_micro_per_million,m.cached_micro_per_million,m.margin_bps,m.daily_limit_micro,m.version])? !=1 {return Err(Error::Conflict("model changed or unsupported model".into()));}
         tx.conn.execute(
             "INSERT INTO ai_usage_audit(actor,action,target) VALUES(?1,'model.update',?2)",
             params![admin, m.id],
         )?;
+        tx.conn.execute("INSERT INTO ai_admin_audit(actor,target,action,reason,before_json,after_json) VALUES(?1,?2,'model.update','Update supported model','{}','{}')", params![admin,m.id])?;
+        tx.commit()
+    }
+    pub fn ai_model_create(&mut self, admin: &str, id: &str, name: &str) -> Result<(), Error> {
+        crate::ai_policy::require_admin(&self.conn, admin)?;
+        if !valid_model_id(id)
+            || name.trim().is_empty()
+            || name.len() > 120
+            || name.chars().any(char::is_control)
+        {
+            return Err(invalid("Use a valid OpenRouter model ID and display name"));
+        }
+        let tx = StoreWrite::new(self)?;
+        let existing: Option<bool> = tx
+            .conn
+            .query_row("SELECT archived FROM ai_models WHERE id=?1", [id], |r| {
+                r.get(0)
+            })
+            .optional()?;
+        match existing {
+            Some(false) => {
+                return Err(Error::Conflict(
+                    "This model is already in the catalog".into(),
+                ));
+            }
+            Some(true) => {
+                tx.conn.execute("UPDATE ai_models SET archived=0,enabled=0,name=?2,version=version+1 WHERE id=?1", params![id,name.trim()])?;
+            }
+            None => {
+                tx.conn.execute(
+                    "INSERT INTO ai_models(id,name,classify,draft) VALUES(?1,?2,0,0)",
+                    params![id, name.trim()],
+                )?;
+            }
+        }
+        tx.conn.execute(
+            "INSERT INTO ai_usage_audit(actor,action,target) VALUES(?1,'model.add',?2)",
+            params![admin, id],
+        )?;
+        tx.conn.execute("INSERT INTO ai_admin_audit(actor,target,action,reason,before_json,after_json) VALUES(?1,?2,'model.add','Add supported model','{}','{}')", params![admin,id])?;
+        tx.commit()
+    }
+    pub fn ai_model_remove(&mut self, admin: &str, id: &str, version: i64) -> Result<(), Error> {
+        crate::ai_policy::require_admin(&self.conn, admin)?;
+        let tx = StoreWrite::new(self)?;
+        if tx.conn.execute("UPDATE ai_models SET archived=1,enabled=0,version=version+1 WHERE id=?1 AND version=?2 AND archived=0", params![id,version])? != 1 {
+            return Err(Error::Conflict("Model changed or was already removed. Refresh and try again.".into()));
+        }
+        tx.conn.execute(
+            "INSERT INTO ai_usage_audit(actor,action,target) VALUES(?1,'model.remove',?2)",
+            params![admin, id],
+        )?;
+        tx.conn.execute("INSERT INTO ai_admin_audit(actor,target,action,reason,before_json,after_json) VALUES(?1,?2,'model.remove','Remove supported model','{}','{}')", params![admin,id])?;
         tx.commit()
     }
     pub fn ai_provider_update(&mut self, admin: &str, p: ProviderPolicy) -> Result<(), Error> {
@@ -211,6 +282,7 @@ impl Store {
         let tx = StoreWrite::new(self)?;
         if tx.conn.execute("UPDATE ai_provider_policy SET enabled=?1,margin_bps=?2,usd_eur_ppm=?3,daily_limit_micro=?4,version=version+1 WHERE id='openrouter' AND version=?5",params![p.enabled,p.margin_bps,p.usd_eur_ppm,p.daily_limit_micro,p.version])?!=1{return Err(Error::Conflict("provider policy changed".into()));}
         tx.conn.execute("INSERT INTO ai_usage_audit(actor,action,target) VALUES(?1,'provider.update','openrouter')",[admin])?;
+        tx.conn.execute("INSERT INTO ai_admin_audit(actor,target,action,reason,before_json,after_json) VALUES(?1,'openrouter','provider.update','Update provider controls','{}','{}')",[admin])?;
         tx.commit()
     }
     pub fn ai_wallet(&self, actor: &str) -> Result<Wallet, Error> {
@@ -694,6 +766,85 @@ mod tests {
             .unwrap();
         s.ai_credit("dev", "fixture", 2_000_000, "topup").unwrap();
         s
+    }
+    #[test]
+    fn model_catalog_requires_admin_and_removal_preserves_versioned_history() {
+        let mut db = fixture();
+        assert!(
+            db.ai_model_create("dev", "vendor/new-model", "New model")
+                .is_err()
+        );
+        db.conn
+            .execute("INSERT INTO auth_admins VALUES('dev')", [])
+            .unwrap();
+        for id in [
+            "https://evil.example/model",
+            "vendor/../evil",
+            "vendor/model?key=x",
+            "vendor/a/b",
+            "vendor/",
+            "/model",
+        ] {
+            assert!(db.ai_model_create("dev", id, "Invalid").is_err());
+        }
+        db.ai_model_create("dev", "vendor/new-model:free", "New model")
+            .unwrap();
+        let created = db
+            .ai_models(true)
+            .unwrap()
+            .into_iter()
+            .find(|m| m["id"] == "vendor/new-model:free")
+            .unwrap();
+        assert_eq!(created["enabled"], false);
+        assert_eq!(created["classify"], false);
+        assert!(
+            !db.ai_models(false)
+                .unwrap()
+                .iter()
+                .any(|m| m["id"] == created["id"])
+        );
+        let mut model: Model = serde_json::from_value(created).unwrap();
+        model.enabled = true;
+        assert!(db.ai_model_update("dev", model.clone()).is_err());
+        model.input_micro_per_million = 1000000;
+        model.output_micro_per_million = 2000000;
+        model.classify = true;
+        db.ai_model_update("dev", model.clone()).unwrap();
+        assert!(
+            db.ai_models(false)
+                .unwrap()
+                .iter()
+                .any(|m| m["id"] == model.id)
+        );
+        assert!(db.ai_model_remove("dev", &model.id, model.version).is_err());
+        model.version += 1;
+        db.ai_model_remove("dev", &model.id, model.version).unwrap();
+        assert!(db.ai_model_update("dev", model.clone()).is_err());
+        assert!(
+            !db.ai_models(true)
+                .unwrap()
+                .iter()
+                .any(|m| m["id"] == model.id)
+        );
+        let rows: i64 = db
+            .conn
+            .query_row(
+                "SELECT count(*) FROM ai_models WHERE id=?1",
+                [&model.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(rows, 1);
+        db.ai_model_create("dev", &model.id, "Restored model")
+            .unwrap();
+        let restored = db
+            .ai_models(true)
+            .unwrap()
+            .into_iter()
+            .find(|m| m["id"] == model.id)
+            .unwrap();
+        assert_eq!(restored["enabled"], false);
+        assert!(restored["version"].as_i64().unwrap() > model.version);
     }
     fn body() -> Value {
         json!({"model":"openai/gpt-4.1-mini","max_tokens":128,"messages":[{"role":"user","content":"synthetic"}]})

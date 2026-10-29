@@ -4,7 +4,13 @@ pub(super) fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/account/ai/models", get(models))
         .route("/api/account/ai/usage", get(usage))
-        .route("/api/admin/ai/models", get(admin_models).put(update_model))
+        .route(
+            "/api/admin/ai/models",
+            get(admin_models)
+                .post(create_model)
+                .put(update_model)
+                .delete(remove_model),
+        )
         .route("/api/admin/ai/provider", get(provider).put(update_provider))
         .route("/api/admin/ai/finance", get(finance))
         .route("/api/admin/ai/adjustments", post(adjust))
@@ -161,6 +167,42 @@ async fn update_model(
     let a = admin(&s, &h, true).await?;
     admin_run(&s, &h, a, true, move |db, a| db.ai_model_update(a, m)).await?;
     Ok(Json(json!({"saved":true})))
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NewModel {
+    id: String,
+    name: String,
+}
+async fn create_model(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Json(m): Json<NewModel>,
+) -> Result<Json<Value>, ApiError> {
+    let a = admin(&s, &h, true).await?;
+    admin_run(&s, &h, a, true, move |db, a| {
+        db.ai_model_create(a, &m.id, &m.name)
+    })
+    .await?;
+    Ok(Json(json!({"saved":true})))
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RemoveModel {
+    id: String,
+    version: i64,
+}
+async fn remove_model(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Json(m): Json<RemoveModel>,
+) -> Result<Json<Value>, ApiError> {
+    let a = admin(&s, &h, true).await?;
+    admin_run(&s, &h, a, true, move |db, a| {
+        db.ai_model_remove(a, &m.id, m.version)
+    })
+    .await?;
+    Ok(Json(json!({"removed":true})))
 }
 async fn provider(
     State(s): State<AppState>,

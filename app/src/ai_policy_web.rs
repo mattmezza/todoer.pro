@@ -198,6 +198,8 @@ async fn remove_key(
 struct Page {
     after: Option<String>,
     limit: Option<usize>,
+    q: Option<String>,
+    user_id: Option<String>,
 }
 async fn users(
     State(s): State<AppState>,
@@ -207,8 +209,11 @@ async fn users(
     let actor = session(&s, &h, false, false).await?;
     let (users, next) = s
         .run(move |db| {
-            let policies = db.ai_admin_users(&actor, page.after.as_deref(), page.limit.unwrap_or(50))?;
-            let next = if policies.len() == page.limit.unwrap_or(50).clamp(1, 100) { policies.last().map(|p| p.user_id.clone()) } else { None };
+            let searching = page.q.is_some() || page.user_id.is_some();
+            let policies = if searching {
+                db.ai_admin_search_users(&actor, page.q.as_deref().unwrap_or(""), page.user_id.as_deref(), page.limit.unwrap_or(20))?
+            } else { db.ai_admin_users(&actor, page.after.as_deref(), page.limit.unwrap_or(50))? };
+            let next = if !searching && policies.len() == page.limit.unwrap_or(50).clamp(1, 100) { policies.last().map(|p| p.user_id.clone()) } else { None };
             let users = policies.into_iter().map(|policy| {
                 let (name, email): (String, Option<String>) = db.conn.query_row(
                     "SELECT name,(SELECT email FROM auth_identities WHERE user_id=users.id ORDER BY issuer,subject LIMIT 1) FROM users WHERE id=?1",
@@ -229,16 +234,17 @@ async fn requests(
     Query(page): Query<Page>,
 ) -> Result<Json<Value>, ApiError> {
     let actor = session(&s, &h, false, false).await?;
-    let requests = s
+    let (requests, next) = s
         .run(move |db| {
-            db.ai_admin_requests(&actor, page.after.as_deref(), page.limit.unwrap_or(50))
-        })
-        .await?;
-    let next = if requests.len() == page.limit.unwrap_or(50).clamp(1, 100) {
-        requests.last().map(|p| p.user_id.clone())
-    } else {
-        None
-    };
+            let requests = db.ai_admin_requests(&actor, page.after.as_deref(), page.limit.unwrap_or(50))?;
+            let next = if requests.len() == page.limit.unwrap_or(50).clamp(1,100) { requests.last().map(|p| p.user_id.clone()) } else { None };
+            let requests = requests.into_iter().map(|request| {
+                let (name,email):(String,Option<String>) = db.conn.query_row("SELECT name,(SELECT email FROM auth_identities WHERE user_id=users.id ORDER BY issuer,subject LIMIT 1) FROM users WHERE id=?1",[&request.user_id],|row|Ok((row.get(0)?,row.get(1)?)))?;
+                let mut value = serde_json::to_value(request).map_err(|_|Error::Forbidden)?;
+                value["name"]=json!(name);value["email"]=json!(email);Ok(value)
+            }).collect::<Result<Vec<Value>,Error>>()?;
+            Ok((requests,next))
+        }).await?;
     Ok(Json(json!({"requests":requests,"next_cursor":next})))
 }
 async fn update_user(
