@@ -11011,3 +11011,7 @@ form[data-load-failed],
   margin: 0 auto 0 0;
   align-self: center;
 }
+
+.search-omnibar #omnibar-results > :is(.loading-skeleton, .loading-error) {
+  inset-inline: 28px;
+}
