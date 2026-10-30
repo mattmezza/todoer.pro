@@ -66,6 +66,15 @@ test('archived lists are separate, show provenance, and can be restored', async 
   });
   expect(captured.ok()).toBeTruthy();
   const [task] = await captured.json();
+  const children = await page.request.post('/api/v1/capture', {
+    headers: { ...headers, 'Idempotency-Key': randomUUID() },
+    data: {
+      list_id: list.id,
+      tasks: [{ title: 'Retained subtask', description: '', parent_id: task.id }],
+    },
+  });
+  expect(children.ok()).toBeTruthy();
+  const [child] = await children.json();
   const archived = await page.request.patch(`/api/v1/lists/${list.id}`, {
     headers,
     data: { revision: list.revision, archived: true },
@@ -76,22 +85,38 @@ test('archived lists are separate, show provenance, and can be restored', async 
   await page.getByRole('checkbox', { name: 'Show archived lists' }).check();
   await expect(page.locator('[data-archived-lists]')).toContainText('Archived by you on');
   await page.locator('[data-archived-lists] a').click();
-  await expect(page.getByText('This list is archived and read-only.')).toBeVisible();
+  await expect(page.getByText('Archived list · read-only')).toBeVisible();
   await expect(page.locator('body')).toHaveAttribute('data-can-write', 'false');
   await expect(page.locator('[data-list-edit-open]').first()).toBeDisabled();
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   const banner = page.getByRole('region', { name: 'Archived list', exact: true });
   const bounds = await banner.boundingBox();
-  expect(bounds.width).toBeGreaterThan(600);
-  expect(bounds.height).toBeLessThan(200);
-  expect(bounds.y).toBeLessThan(100);
+  expect(bounds.x).toBe(0);
+  expect(bounds.width).toBe(page.viewportSize().width);
+  expect(bounds.height).toBeLessThanOrEqual(36);
+  expect(bounds.y).toBe(0);
   await page.goto(`/tasks/${task.id}`);
   await expect(banner).toBeVisible();
   await expect(page.locator('[data-task-page]')).toHaveAttribute(
     'data-can-write',
     'false',
   );
-  await page.getByRole('button', { name: 'Restore list…', exact: true }).click();
+  await page.goto(`/tasks/${child.id}`);
+  await expect(banner).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobileBounds = await banner.boundingBox();
+  expect(mobileBounds.x).toBe(0);
+  expect(mobileBounds.width).toBe(390);
+  expect(mobileBounds.height).toBeLessThanOrEqual(36);
+  const textBounds = await banner.locator('span').first().boundingBox();
+  const buttonBounds = await page.locator('[data-list-restore]').boundingBox();
+  expect(buttonBounds.x).toBeGreaterThan(textBounds.x + textBounds.width);
+  expect(
+    Math.abs(
+      textBounds.y + textBounds.height / 2 - (buttonBounds.y + buttonBounds.height / 2),
+    ),
+  ).toBeLessThan(2);
+  await page.getByRole('button', { name: 'Restore list...', exact: true }).click();
   const confirmation = page.getByRole('dialog', { name: 'Restore this list?' });
   await expect(confirmation).toContainText('search results');
   await expect(confirmation).toContainText(
@@ -99,7 +124,7 @@ test('archived lists are separate, show provenance, and can be restored', async 
   );
   await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(banner).toBeVisible();
-  await page.getByRole('button', { name: 'Restore list…', exact: true }).click();
+  await page.getByRole('button', { name: 'Restore list...', exact: true }).click();
   await confirmation.getByRole('button', { name: 'Restore list', exact: true }).click();
   await expect(page.locator('[data-task-page]')).toHaveAttribute(
     'data-can-write',
