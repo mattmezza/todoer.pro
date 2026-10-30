@@ -56,7 +56,8 @@ const STATIC = [
   '/legacy-assets/icon512_rounded.png',
   '/legacy-assets/icon512_maskable.png',
   '/assets/htmx.min.js',
-  '/legacy-assets/favicon.png',
+  '/assets/favicon.svg?v=2',
+  '/favicon.ico?v=2',
 ];
 const scopes = new Map();
 const pageCache = (scope) => `todoer-page-${scope}`;
@@ -179,7 +180,7 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
-  if (STATIC.includes(url.pathname)) {
+  if (STATIC.includes(url.pathname) || STATIC.includes(url.pathname + url.search)) {
     event.respondWith(
       (async () => {
         try {

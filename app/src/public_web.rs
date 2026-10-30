@@ -11,7 +11,7 @@ pub(super) fn routes() -> Router<AppState> {
             get(|| async {
                 (
                     [(header::CONTENT_TYPE, "image/x-icon")],
-                    include_bytes!("../assets/icons/favicon.ico").as_slice(),
+                    include_bytes!("../assets/favicon.ico").as_slice(),
                 )
             }),
         )
@@ -109,7 +109,7 @@ fn metadata(origin: &str, path: &str, title: &str, description: &str, image: &st
     let url = format!("{origin}{path}");
     let image = format!("{origin}{image}");
     format!(
-        r#"<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml"><link rel="alternate icon" href="/favicon.ico"><meta name="description" content="{}"><meta property="og:type" content="website"><meta property="og:site_name" content="Todoer"><meta property="og:title" content="{}"><meta property="og:description" content="{}"><meta property="og:url" content="{}"><meta property="og:image" content="{}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="{}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{}"><meta name="twitter:description" content="{}"><meta name="twitter:image" content="{}">"#,
+        r#"{favicon}<meta name="description" content="{}"><meta property="og:type" content="website"><meta property="og:site_name" content="Todoer"><meta property="og:title" content="{}"><meta property="og:description" content="{}"><meta property="og:url" content="{}"><meta property="og:image" content="{}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="{}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{}"><meta name="twitter:description" content="{}"><meta name="twitter:image" content="{}">"#,
         esc(description),
         esc(title),
         esc(description),
@@ -118,7 +118,8 @@ fn metadata(origin: &str, path: &str, title: &str, description: &str, image: &st
         esc(title),
         esc(title),
         esc(description),
-        esc(&image)
+        esc(&image),
+        favicon = include_str!("../templates/favicon-head.html"),
     )
 }
 pub(super) async fn show(
@@ -288,6 +289,25 @@ mod tests {
             "http://127.0.0.1:8092".into(),
         );
         let app = router(state.clone());
+        let favicon = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/favicon.ico?v=2")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(favicon.status(), StatusCode::OK);
+        assert_eq!(favicon.headers()[header::CONTENT_TYPE], "image/x-icon");
+        let favicon = favicon.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(favicon.as_ref(), include_bytes!("../assets/favicon.ico"));
+        assert_ne!(
+            favicon.as_ref(),
+            include_bytes!("../assets/icons/favicon.ico")
+        );
+
         let response = app
             .clone()
             .oneshot(
@@ -309,6 +329,8 @@ mod tests {
                 .to_vec(),
         )
         .unwrap();
+        assert!(html.contains(include_str!("../templates/favicon-head.html").trim()));
+        assert!(!html.contains("/legacy-assets/favicon"));
         assert!(html.contains("property=\"og:title\" content=\"Tiny forest sentinel\""));
         assert!(html.contains(&format!("http://127.0.0.1:8092/og/task/{reference}.png")));
         assert!(!html.contains("data-brief-form"));

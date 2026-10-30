@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-<head><meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false}'><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="color-scheme" content="dark light"><meta name="account-id" content="{{ account_id }}"><meta name="csrf-token" content="{{ csrf }}"><title>#{{ list.title }} · Todoer</title><link rel="icon" href="/legacy-assets/favicon.png"><link rel="stylesheet" href="/assets/app.css"><script src="/assets/htmx.min.js" defer></script><script type="module" src="/assets/app.js"></script>{% include "pwa-head.html" %}</head>
+<head><meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false}'><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="color-scheme" content="dark light"><meta name="account-id" content="{{ account_id }}"><meta name="csrf-token" content="{{ csrf }}"><title>#{{ list.title }} · Todoer</title><link rel="stylesheet" href="/assets/app.css"><script src="/assets/htmx.min.js" defer></script><script type="module" src="/assets/app.js"></script>{% include "pwa-head.html" %}</head>
 <body {% if color.starts_with("#") %}data-list-color="{{ color }}"{% endif %} class="reference-list-page" data-ready="false" data-cursor="{{ change_cursor }}" data-can-write="{{ can_write }}" data-list="{{ list.id }}">
 <a class="skip" href="#main">Skip to tasks</a>
 {% include "mobile-nav.html" %}

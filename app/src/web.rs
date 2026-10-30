@@ -499,8 +499,9 @@ fn auth_screen(s: AppState, q: SigninQuery, signup: bool) -> Html<String> {
         )
     };
     Html(format!(
-        r##"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="dark light"><link rel="manifest" href="/assets/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png"><meta name="theme-color" content="#030712"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Todoer"><title>{} · Todoer</title><link rel="stylesheet" href="/assets/app.css"></head><body class="auth-page"><main class="auth-shell"><section class="auth-card" aria-labelledby="auth-heading"><a class="brand auth-brand" href="/">todoer<span>.pro</span></a><h1 id="auth-heading">{title}</h1><p class="auth-intro">{intro}</p>{content}</section><p class="auth-footer">One thing at a time.</p></main></body></html>"##,
-        if signup { "Create account" } else { "Sign in" }
+        r##"<!doctype html><html lang="en"><head>{favicon}<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="dark light"><link rel="manifest" href="/assets/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png"><meta name="theme-color" content="#030712"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Todoer"><title>{} · Todoer</title><link rel="stylesheet" href="/assets/app.css"></head><body class="auth-page"><main class="auth-shell"><section class="auth-card" aria-labelledby="auth-heading"><a class="brand auth-brand" href="/">todoer<span>.pro</span></a><h1 id="auth-heading">{title}</h1><p class="auth-intro">{intro}</p>{content}</section><p class="auth-footer">One thing at a time.</p></main></body></html>"##,
+        if signup { "Create account" } else { "Sign in" },
+        favicon = include_str!("../templates/favicon-head.html"),
     ))
 }
 
