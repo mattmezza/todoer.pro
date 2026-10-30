@@ -16,6 +16,7 @@ pub(super) struct SidebarSpace {
 }
 pub(super) struct Sidebar {
     pub space_overview: bool,
+    pub font: String,
     pub is_platform_admin: bool,
     pub settings_section: String,
     pub favorites: Vec<SidebarList>,
@@ -181,6 +182,7 @@ pub(super) fn build_sidebar(
     let is_platform_admin = !actor.starts_with("credential:")
         && crate::account_security::is_admin(&db.conn, &user).map_err(|_| Error::Forbidden)?;
     Ok(Sidebar {
+        font: db.notification_preferences(actor)?.font,
         is_platform_admin,
         menu_spaces,
         space_overview: false,

@@ -35,6 +35,10 @@ pub(super) fn routes() -> Router<AppState> {
         .route("/recurring/{id}/state", post(series_state_form))
         .route("/settings", get(general_settings))
         .route("/settings/account", get(account_settings))
+        .route(
+            "/settings/appearance",
+            get(appearance_settings).post(save_appearance),
+        )
         .route("/settings/general", get(general_settings))
         .route("/today", get(today))
         .route("/upcoming", get(upcoming))
@@ -614,6 +618,7 @@ async fn notification_form(
         week_start: current.week_start,
         fun_animations: current.fun_animations,
         fun_animation: current.fun_animation,
+        font: current.font,
         email_opt_in: form.contains_key("email_opt_in"),
         quiet_start: nonempty("quiet_start"),
         quiet_end: nonempty("quiet_end"),
@@ -846,6 +851,38 @@ mod tests {
 
 async fn account_settings(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
     render_settings(&s, &h, "Account", String::new(), "account").await
+}
+
+async fn appearance_settings(
+    State(s): State<AppState>,
+    h: HeaderMap,
+) -> Result<Response, ApiError> {
+    render_settings(&s, &h, "Appearance", String::new(), "appearance").await
+}
+async fn save_appearance(
+    State(s): State<AppState>,
+    mut h: HeaderMap,
+    Form(form): Form<std::collections::HashMap<String, String>>,
+) -> Result<Response, ApiError> {
+    if !s.origin_ok(&h) || h.contains_key(header::AUTHORIZATION) {
+        return Err(Error::Forbidden.into());
+    }
+    h.insert(
+        "x-csrf-token",
+        form.get("csrf")
+            .ok_or(Error::Forbidden)?
+            .parse()
+            .map_err(|_| Error::Forbidden)?,
+    );
+    let actor = s.auth(&h, true)?;
+    let font = form.get("font").cloned().unwrap_or_default();
+    s.run(move |db| {
+        let mut preferences = db.notification_preferences(&actor)?;
+        preferences.font = font;
+        db.set_notification_preferences(&actor, preferences)
+    })
+    .await?;
+    Ok(Redirect::to("/settings/appearance").into_response())
 }
 
 #[derive(Template)]

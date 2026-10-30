@@ -16,6 +16,7 @@ pub struct Preferences {
     pub week_start: u32,
     pub fun_animations: bool,
     pub fun_animation: String,
+    pub font: String,
     pub email_opt_in: bool,
     pub quiet_start: Option<String>,
     pub quiet_end: Option<String>,
@@ -38,6 +39,7 @@ impl Default for Preferences {
             week_start: 1,
             fun_animations: true,
             fun_animation: "tasks".into(),
+            font: "geist".into(),
             email_opt_in: false,
             quiet_start: None,
             quiet_end: None,
@@ -128,6 +130,9 @@ impl Store {
         let user = actor_user(&self.conn, actor, 3)?;
         if !matches!(value.fun_animation.as_str(), "cards" | "tasks" | "chase") {
             return Err(invalid("Unknown playful animation"));
+        }
+        if !matches!(value.font.as_str(), "geist" | "inter") {
+            return Err(invalid("Unknown appearance font"));
         }
         zone(&value.timezone)?;
         time(&value.daily_time)?;
@@ -287,6 +292,22 @@ mod tests {
         let mut s = Store::memory().unwrap();
         s.seed_dev().unwrap();
         s
+    }
+    #[test]
+    fn appearance_font_defaults_validates_and_persists() {
+        let mut db = db();
+        assert_eq!(
+            serde_json::from_str::<Preferences>("{}").unwrap().font,
+            "geist"
+        );
+        let mut preferences = db.notification_preferences("dev").unwrap();
+        preferences.font = "inter".into();
+        db.set_notification_preferences("dev", preferences.clone())
+            .unwrap();
+        assert_eq!(db.notification_preferences("dev").unwrap().font, "inter");
+        preferences.font = "untrusted".into();
+        assert!(db.set_notification_preferences("dev", preferences).is_err());
+        assert_eq!(db.notification_preferences("dev").unwrap().font, "inter");
     }
     #[test]
     fn playful_preferences_preserve_defaults_validate_and_persist() {

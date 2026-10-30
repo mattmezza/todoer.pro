@@ -1,0 +1,7 @@
+<form action="/settings/appearance" method="post" class="appearance-fonts">
+<input type="hidden" name="csrf" value="{{ sidebar.csrf }}">
+<fieldset><legend>Font</legend>
+<label class="appearance-font appearance-inter"><input type="radio" name="font" value="inter" {% if sidebar.font == "inter" %}checked{% endif %}>Inter<p>Make room for what matters.</p><small>Your spaces, lists and everyday plans. Aa Bb Cc 0123456789</small></label>
+<label class="appearance-font appearance-geist"><input type="radio" name="font" value="geist" {% if sidebar.font == "geist" %}checked{% endif %}>Geist<p>Make room for what matters.</p><small>Your spaces, lists and everyday plans. Aa Bb Cc 0123456789</small></label>
+</fieldset><div><button type="submit" class="primary">Save appearance</button></div>
+</form>
