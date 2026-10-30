@@ -576,6 +576,7 @@ struct SpaceOverview {
     workspace: Workspace,
     reference: String,
     lists: Vec<SpaceListCard>,
+    archived_lists: Vec<SpaceListCard>,
     open: i64,
     completed: i64,
     total: i64,
@@ -584,6 +585,7 @@ struct SpaceOverview {
     can_edit: bool,
 }
 struct SpaceListCard {
+    archive_note: String,
     id: String,
     title: String,
     description: String,
@@ -615,12 +617,19 @@ async fn space_page(
         let reference = crate::defaults::public_id(&db.conn, "workspace", &id)?;
         // Aggregate only lists visible through the live actor view. Hidden lists
         // and their task totals never contribute to this overview.
-        let mut query = db.conn.prepare("SELECT l.id,l.title,l.description,coalesce(l.color_hex,l.color,'blue'),sum(CASE WHEN t.complete=0 THEN 1 ELSE 0 END),sum(CASE WHEN t.complete=1 THEN 1 ELSE 0 END),sum(CASE WHEN t.complete=0 AND json_extract(s.document,'$.priority')=0 THEN 1 ELSE 0 END),sum(CASE WHEN t.complete=0 AND json_extract(s.document,'$.priority')=1 THEN 1 ELSE 0 END) FROM lists l JOIN actor_list_access a ON a.list_id=l.id AND a.actor_id=?1 AND a.rank>=1 LEFT JOIN tasks t ON t.list_id=l.id AND t.deleted_at IS NULL LEFT JOIN task_schedule s ON s.task_id=t.id WHERE l.workspace_id=?2 AND l.archived=0 GROUP BY l.id ORDER BY l.position,l.id")?;
-        let mut lists = query.query_map(rusqlite::params![actor,id], |r| {
+        let mut query = db.conn.prepare("SELECT l.id,l.title,l.description,coalesce(l.color_hex,l.color,'blue'),sum(CASE WHEN t.complete=0 THEN 1 ELSE 0 END),sum(CASE WHEN t.complete=1 THEN 1 ELSE 0 END),sum(CASE WHEN t.complete=0 AND json_extract(s.document,'$.priority')=0 THEN 1 ELSE 0 END),sum(CASE WHEN t.complete=0 AND json_extract(s.document,'$.priority')=1 THEN 1 ELSE 0 END) FROM lists l JOIN actor_list_access a ON a.list_id=l.id AND a.actor_id=?1 AND a.rank>=1 LEFT JOIN tasks t ON t.list_id=l.id AND t.deleted_at IS NULL LEFT JOIN task_schedule s ON s.task_id=t.id WHERE l.workspace_id=?2 GROUP BY l.id ORDER BY l.archived,l.position,l.id")?;
+        let lists = query.query_map(rusqlite::params![actor,id], |r| {
             let description: String = r.get(2)?;
             let open: i64 = r.get(4)?; let completed: i64 = r.get(5)?;
-            Ok(SpaceListCard { id:r.get(0)?, title:r.get(1)?, description: if description.chars().count()>160 { format!("{}…",description.chars().take(160).collect::<String>()) } else {description},color:r.get(3)?,open,completed,total:open+completed,p0:r.get(6)?,p1:r.get(7)?,favorite:false })
+            Ok(SpaceListCard { archive_note:String::new(), id:r.get(0)?, title:r.get(1)?, description: if description.chars().count()>160 { format!("{}…",description.chars().take(160).collect::<String>()) } else {description},color:r.get(3)?,open,completed,total:open+completed,p0:r.get(6)?,p1:r.get(7)?,favorite:false })
         })?.collect::<Result<Vec<_>,_>>()?;
+        let mut archived_lists = Vec::new();
+        let mut active_lists = Vec::new();
+        for mut card in lists {
+            if let Some(note) = db.list_archive_note(&actor, &card.id)? { card.archive_note = note; archived_lists.push(card); }
+            else { active_lists.push(card); }
+        }
+        let mut lists = active_lists;
         let mut sidebar = super::build_sidebar(db,&actor,lists.first().map(|l|l.id.as_str()).unwrap_or(""),csrf)?;
         sidebar.current_list_id.clear();
         sidebar.current_workspace_id = id;
@@ -636,7 +645,7 @@ async fn space_page(
         let tasks = tasks.iter().filter(|row| lists.iter().any(|list| list.id == row.task.list_id)).collect::<Vec<_>>();
         let planned_today = tasks.iter().filter(|row| row.dates.iter().any(|date| date == &today.to_string())).count();
         let planned_week = tasks.len();
-        Ok(SpaceOverview { sidebar, workspace, reference, lists, open, completed, total:open+completed, planned_today, planned_week, can_edit:rank>=3 })
+        Ok(SpaceOverview { sidebar, workspace, reference, lists, archived_lists, open, completed, total:open+completed, planned_today, planned_week, can_edit:rank>=3 })
     }).await?;
     if requested != overview.reference {
         return Ok(Redirect::to(&format!("/space/{}", overview.reference)).into_response());

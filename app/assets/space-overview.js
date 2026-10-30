@@ -93,3 +93,8 @@ for (const card of document.querySelectorAll('.space-list-card')) {
       dot.dataset.entityColor || getComputedStyle(dot).backgroundColor,
     );
 }
+
+const archivedToggle = document.querySelector('[data-show-archived]');
+archivedToggle?.addEventListener('change', () => {
+  document.querySelector('[data-archived-lists]').hidden = !archivedToggle.checked;
+});

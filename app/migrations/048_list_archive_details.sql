@@ -1,0 +1,2 @@
+ALTER TABLE lists ADD COLUMN archived_by TEXT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE lists ADD COLUMN archived_at TEXT;

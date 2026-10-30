@@ -395,13 +395,21 @@ impl Store {
         for table in [
             "workspace_members",
             "memberships",
+            "lists",
             "comments",
             "attachments",
             "recurrence_series",
             "history",
         ] {
             for row in tables.get(table).into_iter().flatten() {
-                for key in ["user_id", "author_id", "creator_id", "actor", "actor_id"] {
+                for key in [
+                    "user_id",
+                    "author_id",
+                    "creator_id",
+                    "actor",
+                    "actor_id",
+                    "archived_by",
+                ] {
                     if let Some(value) = row[key].as_str() {
                         user_ids.insert(value.into());
                     }
@@ -823,6 +831,7 @@ pub fn import_bundle(
                     "author_id",
                     "creator_id",
                     "owner_id",
+                    "archived_by",
                     "recipient",
                     "actor",
                     "actor_id",

@@ -566,6 +566,10 @@ impl Store {
                 "Your personal Inbox cannot be archived".into(),
             ));
         }
+        if let Some(archived) = change.archived {
+            let user = crate::core::actor_identity(&tx, actor)?.0;
+            tx.execute("UPDATE lists SET archived_by=CASE WHEN ?2 THEN ?3 ELSE NULL END,archived_at=CASE WHEN ?2 THEN datetime('now') ELSE NULL END WHERE id=?1 AND archived!=?2",params![id,archived,user])?;
+        }
         crate::navigation::validate_list_color(&change.color)?;
         let title = change.title.unwrap_or(old.title);
         let description = change.description.unwrap_or(old.description);
@@ -581,6 +585,20 @@ impl Store {
         let result = bump_list(&tx, id)?;
         tx.commit()?;
         Ok(result)
+    }
+    pub fn list_archive_note(&self, actor: &str, id: &str) -> Result<Option<String>, Error> {
+        require_list(&self.conn, actor, id, 1)?;
+        let user = crate::core::actor_identity(&self.conn, actor)?.0;
+        self.conn.query_row("SELECT l.archived,l.archived_by,u.name,l.archived_at FROM lists l LEFT JOIN users u ON u.id=l.archived_by WHERE l.id=?1",[id],|r| {
+            let archived: bool = r.get(0)?;
+            let by: Option<String> = r.get(1)?;
+            let name: Option<String> = r.get(2)?;
+            let at: Option<String> = r.get(3)?;
+            Ok(archived.then(|| match (by,at) {
+                (Some(by),Some(at)) => format!("Archived by {} on {} UTC",if by == user { "you".into() } else { name.unwrap_or_else(|| "a former member".into()) },at),
+                _ => "Archived · archive details unavailable".into(),
+            }))
+        }).map_err(Into::into)
     }
     pub fn set_list_restricted(
         &mut self,
@@ -1361,6 +1379,43 @@ mod tests {
             },
         )
         .unwrap()
+    }
+    #[test]
+    fn list_archiving_records_actor_preserves_content_and_restores() {
+        let mut db = db();
+        let space = workspace(&mut db);
+        let list = list(&mut db, &space.id, false);
+        let change = |revision, archived| ListChange {
+            revision,
+            archived: Some(archived),
+            title: None,
+            description: None,
+            color: None,
+        };
+        let archived = db
+            .update_list("dev", &list.id, change(list.revision, true))
+            .unwrap();
+        assert!(
+            db.list_archive_note("dev", &list.id)
+                .unwrap()
+                .unwrap()
+                .starts_with("Archived by you on ")
+        );
+        assert!(db.list_archive_note("guest", &list.id).is_err());
+        assert!(
+            db.update_list("guest", &list.id, change(archived.revision, false))
+                .is_err()
+        );
+        assert!(
+            db.update_list("dev", &list.id, change(list.revision, false))
+                .is_err()
+        );
+        let restored = db
+            .update_list("dev", &list.id, change(archived.revision, false))
+            .unwrap();
+        assert!(db.list_archive_note("dev", &list.id).unwrap().is_none());
+        assert_eq!(restored.title, list.title);
+        assert!(!db.list_info("dev", &list.id).unwrap().archived);
     }
     #[test]
     fn legacy_direct_grants_retain_editor_access_without_workspace() {

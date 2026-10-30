@@ -628,6 +628,8 @@ async fn logout(
 #[derive(Template)]
 #[template(path = "list.html")]
 struct ListPage {
+    archive_note: String,
+    can_restore: bool,
     change_cursor: i64,
     reference: String,
     sidebar: Sidebar,
@@ -910,13 +912,24 @@ pub(super) async fn page(
         .find(|item| item.id == list.id)
         .map(|item| item.slug.clone())
         .unwrap_or_else(|| list.title.clone());
+    let archive_actor = actor.clone();
+    let archive_id = id.clone();
+    let (archive_note, can_restore) = s
+        .run(move |db| {
+            Ok((
+                db.list_archive_note(&archive_actor, &archive_id)?
+                    .unwrap_or_default(),
+                db.list_permission(&archive_actor, &archive_id)? >= 2,
+            ))
+        })
+        .await?;
     let (groups, task_count, can_write, color, change_cursor) = s
         .run(move |db| {
             let (groups, count) = grouped_rows(db, &actor, &id)?;
             Ok((
                 groups,
                 count,
-                db.list_permission(&actor, &id)? >= 2,
+                db.list_permission(&actor, &id)? >= 2 && db.list_archive_note(&actor, &id)?.is_none(),
                 db.list_color(&actor, &id)?.unwrap_or_else(|| "blue".into()),
                 db.conn.query_row("SELECT COALESCE(MAX(h.seq),0) FROM history h JOIN actor_list_access a ON a.list_id=h.list_id WHERE a.actor_id=?1",[&actor],|r|r.get::<_,i64>(0))?,
             ))
@@ -931,6 +944,9 @@ pub(super) async fn page(
         })
         .await?;
     let html = ListPage {
+        can_write: can_write && archive_note.is_empty(),
+        archive_note,
+        can_restore,
         change_cursor,
         reference,
         sidebar,
@@ -942,7 +958,6 @@ pub(super) async fn page(
         task_count,
         csrf: s.csrf_for(&h),
         account_id: account_id.clone(),
-        can_write,
         capture_key: uuid::Uuid::new_v4().to_string(),
     }
     .render()
@@ -999,7 +1014,8 @@ async fn task_fragment(
         .run(move |db| {
             Ok((
                 grouped_rows(db, &actor, &id)?.0,
-                db.list_permission(&actor, &id)? >= 2,
+                db.list_permission(&actor, &id)? >= 2
+                    && db.list_archive_note(&actor, &id)?.is_none(),
             ))
         })
         .await?;

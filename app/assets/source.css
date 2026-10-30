@@ -11130,3 +11130,55 @@ body:has(#navigation[data-font='inter']) {
 .appearance-geist {
   font-family: 'Geist', sans-serif;
 }
+
+.space-lists-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.archived-lists-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.archived-list-grid {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.archived-list-grid[hidden] {
+  display: none;
+}
+.archived-list-card {
+  background: rgb(148 163 184 / 0.04);
+  color: var(--muted);
+  border-style: dashed;
+}
+.archived-list-card .list-dot {
+  opacity: 0.5;
+}
+.archive-card-note {
+  font-size: 12px;
+  margin-top: auto;
+  padding-top: 20px;
+}
+.list-archive-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  margin-bottom: 24px;
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.list-archive-banner p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}

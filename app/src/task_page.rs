@@ -84,7 +84,7 @@ async fn page(
         .run(move |db| {
             let task = crate::core::task(&db.conn, &id)?;
             crate::core::access_rank(&db.conn, &a, &task.list_id, 1)?;
-            let can_write = crate::core::access_rank(&db.conn, &a, &task.list_id, 2).is_ok();
+            let can_write = crate::core::access_rank(&db.conn, &a, &task.list_id, 2).is_ok() && db.list_archive_note(&a, &task.list_id)?.is_none();
             let account_id = crate::core::actor_identity(&db.conn, &a)?.0;
             let info = db.list_info(&a, &task.list_id)?;
             let slugs = db.entity_slugs(&a)?;

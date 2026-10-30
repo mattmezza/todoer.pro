@@ -289,6 +289,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
         47,
         include_str!("../migrations/047_compact_section_ids.sql"),
     ),
+    (
+        48,
+        include_str!("../migrations/048_list_archive_details.sql"),
+    ),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {
