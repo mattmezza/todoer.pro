@@ -209,3 +209,34 @@ test('capture tags stack beneath priority without separating title and descripti
     }
   }
 });
+
+test('quick capture close button stays clear of parsed metadata', async ({ page }) => {
+  await page.addStyleTag({
+    content: readFileSync('app/assets/app.css', 'utf8').replace(/@import[^;]+;/g, ''),
+  });
+  await page.evaluate(async () => {
+    const { mountSmartCapture } = await import('/assets/smart-capture.js');
+    const dialog = document.createElement('dialog');
+    dialog.className = 'capture-omnibar';
+    dialog.innerHTML =
+      '<button class="capture-close" aria-label="Close capture">×</button><form class="quick-capture-form"><input name="title" value="buy milk p0 +family"><textarea name="description" placeholder="Add description"></textarea></form>';
+    document.body.append(dialog);
+    dialog.showModal();
+    await mountSmartCapture(dialog.querySelector('form')).ready;
+    dialog.querySelector('.capture-entry').classList.add('quick-capture-fields');
+  });
+  for (const width of [375, 1100]) {
+    await page.setViewportSize({ width, height: 600 });
+    const close = await page.getByRole('button', { name: 'Close capture' }).boundingBox();
+    for (const selector of [
+      '.capture-priority',
+      '.capture-tag',
+      '.smart-capture-input',
+    ]) {
+      const content = await page.locator(selector).boundingBox();
+      expect(
+        content.x + content.width <= close.x || content.y >= close.y + close.height,
+      ).toBe(true);
+    }
+  }
+});

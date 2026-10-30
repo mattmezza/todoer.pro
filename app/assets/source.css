@@ -10067,7 +10067,7 @@ main.auth-shell {
   white-space: nowrap;
   border: 0;
 }
-.capture-omnibar .smart-capture-input {
+.capture-omnibar .capture-entry {
   margin-right: 42px;
 }
 .capture-omnibar .smart-capture-input > input {
