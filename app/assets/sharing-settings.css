@@ -128,3 +128,42 @@
     padding: 16px;
   }
 }
+
+/* A single sharing pane needs no one-item tab bar. */
+.list-settings-panel[data-settings-kind='list'] > .settings-tabs:has(> button:only-child),
+.list-settings-panel[data-settings-kind='workspace']
+  > .settings-tabs:has(> button:only-child) {
+  display: none;
+}
+.list-settings-panel .sharing-panel > form {
+  padding: 16px;
+  margin: 20px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.list-settings-panel .sharing-panel > form > button {
+  justify-self: start;
+  margin: 4px 0 0;
+}
+.list-settings-panel .sharing-panel > h3 {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+  margin-top: 24px;
+}
+.list-settings-panel .sharing-panel :is(.sharing-consent, .public-sharing-toggle) > span {
+  flex: 1;
+  min-width: 0;
+}
+.list-settings-panel .sharing-panel .public-sharing-control > p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.list-settings-panel .sharing-panel .public-sharing-toggle {
+  margin: 12px 0;
+}
+@media (max-width: 520px) {
+  .list-settings-panel .sharing-panel > form {
+    padding: 12px;
+  }
+}

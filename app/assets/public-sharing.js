@@ -55,7 +55,9 @@ export async function mountPublicSharing(section, kind, id) {
     toggle.type = 'checkbox';
     toggle.checked = state.enabled;
     toggle.disabled = !state.can_manage;
-    label.append(toggle, 'Anyone with the link can view');
+    const labelText = document.createElement('span');
+    labelText.textContent = 'Anyone with the link can view';
+    label.append(toggle, labelText);
     root.append(label);
     if (state.inherited) {
       const note = document.createElement('p');
