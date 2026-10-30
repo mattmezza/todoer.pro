@@ -10,7 +10,7 @@ export function editorAnchor(node) {
     color: style.color,
   };
 }
-export function alignEditorField(field, anchor) {
+export function alignEditorField(field, anchor, { expand = false } = {}) {
   Object.assign(field.style, {
     font: anchor.font,
     letterSpacing: anchor.letterSpacing,
@@ -31,6 +31,7 @@ export function alignEditorField(field, anchor) {
   const current = field.getBoundingClientRect();
   field.style.marginLeft = `${anchor.box.left - current.left}px`;
   field.style.marginTop = `${anchor.box.top - current.top}px`;
+  if (expand) field.style.width = `calc(100% - ${anchor.box.left - current.left}px)`;
   if (field.tagName === 'TEXTAREA') {
     const resize = () => {
       field.style.height = '0px';

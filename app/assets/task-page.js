@@ -234,7 +234,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
       description.value = draft.description;
       get('[data-discard]').hidden = false;
     }
-    alignEditorField(title, titleAnchor);
+    alignEditorField(title, titleAnchor, { expand: true });
     alignEditorField(description, descriptionAnchor);
     (field === 'description' ? description : title).focus();
     if (field === 'title') title.select();
