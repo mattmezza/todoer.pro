@@ -94,7 +94,9 @@ export function mountListUi({ api, notice, listId }) {
       edit.hidden = false;
       document.querySelector('[data-list-display]').hidden = true;
       document.querySelector('.list-description').hidden = true;
-      alignEditorField(edit.querySelector('[name="title"]'), titleAnchor);
+      alignEditorField(edit.querySelector('[name="title"]'), titleAnchor, {
+        expand: true,
+      });
       alignEditorField(edit.querySelector('[name="description"]'), descriptionAnchor);
       edit
         .querySelector(

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
-test('task title editing uses available width and grows only when text needs to wrap', async ({
+test('title editing uses available width and grows only when text needs to wrap', async ({
   page,
 }) => {
   await page.route('https://editor.test/**', (route) => {
@@ -15,7 +15,7 @@ test('task title editing uses available width and grows only when text needs to 
       contentType: 'text/html',
       body: `<!doctype html><style>
       main { margin: 24px; } button, textarea { font: 600 36px/1.25 sans-serif; }
-      button { padding: 0; border: 0; } form { padding: 0; } textarea { resize: none; overflow: hidden; }
+      button { padding: 0; border: 0; margin-left: 32px; } form { padding: 0; } textarea { resize: none; overflow: hidden; }
       </style><main><button>two cartons</button><form><textarea hidden rows="1">two cartons</textarea></form></main>`,
     });
   });

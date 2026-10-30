@@ -27,7 +27,7 @@ function editSpace(target) {
   description.hidden = true;
   const title = form.querySelector('[name="title"]');
   const brief = form.querySelector('[name="description"]');
-  alignEditorField(title, titleAnchor);
+  alignEditorField(title, titleAnchor, { expand: true });
   alignEditorField(brief, descriptionAnchor);
   const input = target.closest('.space-overview-description') ? brief : title;
   input.focus();
