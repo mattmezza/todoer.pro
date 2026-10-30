@@ -18,7 +18,7 @@ test('capture preview waits for options without blocking typing or flashing lite
   const preview = page.locator('.capture-result');
   await expect(preview).toHaveAttribute('data-loading-pending', 'text');
   await expect(preview.locator('.skeleton-line')).toBeVisible();
-  const priority = page.locator('.smart-capture-input > .capture-priority');
+  const priority = page.locator('.capture-badges > .capture-priority');
   await expect(priority).toBeHidden();
   await expect(title).toBeEnabled();
   release();

@@ -34,7 +34,25 @@ export function mountSmartCapture(form) {
   priorityBadge.className = 'capture-priority';
   priorityBadge.setAttribute('aria-live', 'polite');
   priorityBadge.hidden = true;
-  wrapper.append(priorityBadge);
+  const entry = document.createElement('div');
+  entry.className = 'capture-entry';
+  wrapper.before(entry);
+  entry.append(wrapper);
+  const badges = document.createElement('div');
+  badges.className = 'capture-badges';
+  const tags = document.createElement('div');
+  tags.className = 'capture-tags';
+  tags.setAttribute('aria-live', 'polite');
+  badges.append(priorityBadge, tags);
+  entry.append(badges);
+  const description = form.querySelector('[name=description]');
+  if (description) {
+    const descriptionField = description.closest('details') || description;
+    const label = descriptionField.previousElementSibling;
+    if (label?.matches('label.sr-only')) entry.append(label);
+    descriptionField.classList.add('capture-entry-description');
+    entry.append(descriptionField);
+  }
   const suggestions = document.createElement('div');
   suggestions.className = 'capture-suggestions';
   suggestions.id = `capture-suggestions-${crypto.randomUUID()}`;
@@ -94,7 +112,7 @@ export function mountSmartCapture(form) {
   if (scoped) help.append(literalControl);
   block.append(info, controls);
   (form.querySelector('.inline-actions, .composer-actions') || block).prepend(help);
-  wrapper.insertAdjacentElement('afterend', block);
+  entry.insertAdjacentElement('afterend', block);
   let optionsLoaded = false;
   const previewLoading = scoped ? null : beginLoading(info, { variant: 'text' });
   let data = null,
@@ -130,9 +148,13 @@ export function mountSmartCapture(form) {
       'aria-label',
       v.priority === null ? '' : `Priority ${v.priority}`,
     );
-    wrapper.classList.toggle('has-capture-priority', v.priority !== null);
+    entry.classList.toggle(
+      'has-capture-badges',
+      v.priority !== null || v.tags.length > 0 || !!v.section_id,
+    );
     if (!optionsLoaded) return;
     info.replaceChildren();
+    tags.replaceChildren();
     literalControl.replaceChildren();
     if (v.title.trim()) {
       if (!scoped) {
@@ -170,24 +192,25 @@ export function mountSmartCapture(form) {
         info.append(target);
       }
       const metadata = [];
-      if (v.due) metadata.push(document.createTextNode(`Due ${v.due}`));
+      if (v.due) info.append(document.createTextNode(`Due ${v.due}`));
       metadata.push(
         ...v.tags.map((tag) => {
           const badge = document.createElement('span');
-          badge.className = 'capture-tag';
+          badge.className = 'tag-pill capture-tag';
           badge.textContent = `+${tag}`;
           return badge;
         }),
       );
       if (v.section_id) {
         const badge = document.createElement('span');
-        badge.className = 'capture-tag';
+        badge.className = 'tag-pill capture-tag';
         badge.textContent = `$${sections.find((section) => section.id === v.section_id)?.title || ''}`;
         metadata.push(badge);
       }
-      info.append(...metadata);
+      tags.append(...metadata);
     }
     info.hidden = !info.childNodes.length;
+    block.hidden = scoped && info.hidden;
 
     if (parsed.spans.length || literal) {
       const toggle = document.createElement('button');

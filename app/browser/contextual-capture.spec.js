@@ -6,7 +6,7 @@ test.beforeEach(async ({ page }) => {
     const path = new URL(route.request().url()).pathname;
     if (path.startsWith('/assets/'))
       return route.fulfill({
-        contentType: 'text/javascript',
+        contentType: path.endsWith('.css') ? 'text/css' : 'text/javascript',
         body: readFileSync(`app${path}`, 'utf8'),
       });
     if (path === '/api/v1/capture/options')
@@ -85,7 +85,7 @@ test('all contextual composers show parsed priority and tag badges without desti
     const form = page.locator(`[data-kind="${kind}"]`);
     const input = form.locator('input');
     const preview = form.locator('.capture-result');
-    const priority = form.locator('.smart-capture-input > .capture-priority');
+    const priority = form.locator('.capture-badges > .capture-priority');
     await input.fill('Buy milk');
     await expect(preview).toBeHidden();
     await expect(priority).toBeHidden();
@@ -98,7 +98,10 @@ test('all contextual composers show parsed priority and tag badges without desti
       await input.fill(`Buy milk ${shortcut} +home +errands`);
       await expect(priority).toHaveText(`P${value}`);
       await expect(priority).toHaveAttribute('data-priority', String(value));
-      await expect(preview.locator('.capture-tag')).toHaveText(['+home', '+errands']);
+      await expect(form.locator('.capture-tags .tag-pill')).toHaveText([
+        '+home',
+        '+errands',
+      ]);
       await expect(preview).not.toContainText('Will add');
       await expect(preview).not.toContainText('To ');
     }
@@ -137,4 +140,72 @@ test('refresh appends rows without remounting existing tasks or capture forms', 
       );
     }),
   ).toBe(true);
+});
+
+test('capture tags stack beneath priority without separating title and description', async ({
+  page,
+}) => {
+  await page.route('https://fonts.bunny.net/**', (route) => route.abort());
+  await page.addStyleTag({
+    content: readFileSync('app/assets/app.css', 'utf8').replace(/@import[^;]+;/g, ''),
+  });
+  await page.evaluate(async () => {
+    const { mountSmartCapture } = await import('/assets/smart-capture.js');
+    document.body.className = 'reference-list-page';
+    const main = document.querySelector('main');
+    main.className = 'task-page';
+    main.style.cssText = 'margin:24px;padding:0;max-width:none;min-width:0';
+    for (const kind of ['main', 'section', 'child', 'quick']) {
+      const form = document.createElement('form');
+      form.dataset.kind = kind;
+      if (kind === 'child') form.dataset.childForm = '';
+      else if (kind === 'quick') form.className = 'quick-capture-form';
+      else form.className = 'inline-capture';
+      if (kind === 'main') form.id = 'capture-form';
+      form.innerHTML =
+        '<input name="title" value="Buy milk p1 +family +weekly-shopping"><textarea name="description" placeholder="Description"></textarea><div class="inline-actions"></div>';
+      main.append(form);
+      await mountSmartCapture(form).ready;
+      if (kind === 'quick')
+        form.querySelector('.capture-entry').classList.add('quick-capture-fields');
+    }
+    const settings = document.createElement('div');
+    settings.className = 'settings-content';
+    settings.innerHTML = '<span class="tag-pill">+family</span>';
+    main.append(settings);
+  });
+  for (const width of [1100, 375]) {
+    await page.setViewportSize({ width, height: 900 });
+    const geometry = await page.evaluate(() => {
+      const reference = getComputedStyle(
+        document.querySelector('.settings-content .tag-pill'),
+      );
+      return [...document.querySelectorAll('form')].map((form) => {
+        const input = form.querySelector('input').getBoundingClientRect();
+        const description = form.querySelector('textarea').getBoundingClientRect();
+        const priority = form.querySelector('.capture-priority').getBoundingClientRect();
+        const tag = form.querySelector('.capture-tag');
+        const pill = tag.getBoundingClientRect();
+        const style = getComputedStyle(tag);
+        return {
+          kind: form.dataset.kind,
+          tagsBelow: pill.top >= priority.bottom,
+          tagsRight: pill.left >= input.right,
+          descriptionGap: description.top - input.bottom,
+          matchingStyle: ['borderRadius', 'fontSize', 'color', 'backgroundColor'].every(
+            (key) => style[key] === reference[key],
+          ),
+          overflow: document.documentElement.scrollWidth > window.innerWidth,
+        };
+      });
+    });
+    for (const item of geometry) {
+      expect(item.tagsBelow).toBe(true);
+      expect(item.tagsRight).toBe(true);
+      expect(item.descriptionGap).toBeGreaterThanOrEqual(0);
+      expect(item.descriptionGap).toBeLessThanOrEqual(12);
+      expect(item.matchingStyle).toBe(true);
+      expect(item.overflow).toBe(false);
+    }
+  }
 });

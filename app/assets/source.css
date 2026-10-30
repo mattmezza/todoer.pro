@@ -1418,9 +1418,7 @@ input[type='checkbox'] {
   padding: 6px 0;
 }
 .section-heading h2 {
-  font:
-    600 16px ui-monospace,
-    monospace;
+  font: 600 16px var(--font-sans);
 }
 .section-collapse summary {
   cursor: pointer;
@@ -4222,7 +4220,8 @@ form[data-list-edit] input.list-edit-color {
   gap: 8px;
   margin: 0 0 10px;
 }
-.settings-content .tag-pill {
+.settings-content .tag-pill,
+.capture-tags .tag-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -10890,8 +10889,7 @@ form[data-load-failed],
 
 /* Reference headings and quiet, contextual capture help. */
 [data-space-display] h1,
-[data-list-display] h1,
-.task-section .section-heading h2 {
+[data-list-display] h1 {
   font-family: var(--font-mono) !important;
 }
 .section-heading-copy {
@@ -10944,18 +10942,49 @@ form[data-load-failed],
   color: var(--muted);
 }
 
-.smart-capture-input.has-capture-priority > input {
-  padding-right: 56px;
+.capture-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: min-content minmax(0, 1fr);
+  gap: 6px 16px;
+  align-items: start;
 }
-.smart-capture-input > .capture-priority {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  pointer-events: none;
+.capture-entry.has-capture-badges {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 30%);
 }
-.capture-priority,
-.capture-tag {
+.capture-entry > .smart-capture-input {
+  grid-column: 1;
+  grid-row: 1;
+}
+.capture-entry > .capture-entry-description {
+  grid-column: 1;
+  grid-row: 2;
+}
+.capture-entry > .capture-badges {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 6px;
+}
+.capture-entry:not(.has-capture-badges) > .capture-badges {
+  display: none;
+}
+.capture-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 100%;
+}
+.capture-tags .tag-pill {
+  padding-right: 12px;
+  overflow-wrap: anywhere;
+}
+.capture-priority {
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--line);
@@ -10964,12 +10993,10 @@ form[data-load-failed],
   font: 500 12px/1.4 var(--font-mono);
   background: var(--hover);
 }
+.smart-capture[hidden],
 .capture-priority[hidden],
 .capture-result[hidden] {
   display: none;
-}
-.capture-tag {
-  color: var(--muted);
 }
 .capture-help > span:has(.capture-literal) {
   margin-left: 8px;
