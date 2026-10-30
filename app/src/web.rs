@@ -628,8 +628,6 @@ async fn logout(
 #[derive(Template)]
 #[template(path = "list.html")]
 struct ListPage {
-    archive_note: String,
-    can_restore: bool,
     change_cursor: i64,
     reference: String,
     sidebar: Sidebar,
@@ -912,17 +910,6 @@ pub(super) async fn page(
         .find(|item| item.id == list.id)
         .map(|item| item.slug.clone())
         .unwrap_or_else(|| list.title.clone());
-    let archive_actor = actor.clone();
-    let archive_id = id.clone();
-    let (archive_note, can_restore) = s
-        .run(move |db| {
-            Ok((
-                db.list_archive_note(&archive_actor, &archive_id)?
-                    .unwrap_or_default(),
-                db.list_permission(&archive_actor, &archive_id)? >= 2,
-            ))
-        })
-        .await?;
     let (groups, task_count, can_write, color, change_cursor) = s
         .run(move |db| {
             let (groups, count) = grouped_rows(db, &actor, &id)?;
@@ -944,9 +931,7 @@ pub(super) async fn page(
         })
         .await?;
     let html = ListPage {
-        can_write: can_write && archive_note.is_empty(),
-        archive_note,
-        can_restore,
+        can_write,
         change_cursor,
         reference,
         sidebar,

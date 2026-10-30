@@ -60,6 +60,12 @@ test('archived lists are separate, show provenance, and can be restored', async 
   });
   expect(listResponse.ok()).toBeTruthy();
   const list = await listResponse.json();
+  const captured = await page.request.post('/api/v1/capture', {
+    headers: { ...headers, 'Idempotency-Key': randomUUID() },
+    data: { list_id: list.id, tasks: [{ title: 'Retained task', description: '' }] },
+  });
+  expect(captured.ok()).toBeTruthy();
+  const [task] = await captured.json();
   const archived = await page.request.patch(`/api/v1/lists/${list.id}`, {
     headers,
     data: { revision: list.revision, archived: true },
@@ -74,7 +80,32 @@ test('archived lists are separate, show provenance, and can be restored', async 
   await expect(page.locator('body')).toHaveAttribute('data-can-write', 'false');
   await expect(page.locator('[data-list-edit-open]').first()).toBeDisabled();
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
-  await page.getByRole('button', { name: 'Restore list', exact: true }).click();
+  const banner = page.getByRole('region', { name: 'Archived list', exact: true });
+  const bounds = await banner.boundingBox();
+  expect(bounds.width).toBeGreaterThan(600);
+  expect(bounds.height).toBeLessThan(200);
+  expect(bounds.y).toBeLessThan(100);
+  await page.goto(`/tasks/${task.id}`);
+  await expect(banner).toBeVisible();
+  await expect(page.locator('[data-task-page]')).toHaveAttribute(
+    'data-can-write',
+    'false',
+  );
+  await page.getByRole('button', { name: 'Restore list…', exact: true }).click();
+  const confirmation = page.getByRole('dialog', { name: 'Restore this list?' });
+  await expect(confirmation).toContainText('search results');
+  await expect(confirmation).toContainText(
+    'Existing members and direct shares keep their access',
+  );
+  await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(banner).toBeVisible();
+  await page.getByRole('button', { name: 'Restore list…', exact: true }).click();
+  await confirmation.getByRole('button', { name: 'Restore list', exact: true }).click();
+  await expect(page.locator('[data-task-page]')).toHaveAttribute(
+    'data-can-write',
+    'true',
+  );
+  await page.goto(`/lists/${list.id}`);
   await expect(page.locator('body')).toHaveAttribute('data-can-write', 'true');
   await expect(page.locator('.list-archive-banner')).toHaveCount(0);
   await page.goto(`/space/${space.id}`);

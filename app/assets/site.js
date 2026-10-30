@@ -1,3 +1,4 @@
+import './list-archive.js';
 import './entity-name.js';
 import { beginLoading } from './loading.js';
 import './notification-center.js';

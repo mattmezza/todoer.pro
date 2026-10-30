@@ -15,6 +15,9 @@ pub(super) struct SidebarSpace {
     pub slug: String,
 }
 pub(super) struct Sidebar {
+    pub archive_note: String,
+    pub archive_revision: i64,
+    pub can_restore_list: bool,
     pub space_overview: bool,
     pub font: String,
     pub is_platform_admin: bool,
@@ -181,7 +184,23 @@ pub(super) fn build_sidebar(
         .collect();
     let is_platform_admin = !actor.starts_with("credential:")
         && crate::account_security::is_admin(&db.conn, &user).map_err(|_| Error::Forbidden)?;
+    let archive_note = if current_list.is_empty() {
+        String::new()
+    } else {
+        db.list_archive_note(actor, current_list)?
+            .unwrap_or_default()
+    };
+    let archive_revision = if archive_note.is_empty() {
+        0
+    } else {
+        db.list_info(actor, current_list)?.list.revision
+    };
+    let can_restore_list =
+        !archive_note.is_empty() && db.list_permission(actor, current_list)? >= 2;
     Ok(Sidebar {
+        archive_note,
+        archive_revision,
+        can_restore_list,
         font: db.notification_preferences(actor)?.font,
         is_platform_admin,
         menu_spaces,

@@ -11166,6 +11166,10 @@ body:has(#navigation[data-font='inter']) {
   padding-top: 20px;
 }
 .list-archive-banner {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  width: 100%;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
