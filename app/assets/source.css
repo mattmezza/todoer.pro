@@ -10892,7 +10892,7 @@ form[data-load-failed],
 [data-space-display] h1,
 [data-list-display] h1,
 .task-section .section-heading h2 {
-  font-family: var(--font-mono);
+  font-family: var(--font-mono) !important;
 }
 .section-heading-copy {
   flex: 1;

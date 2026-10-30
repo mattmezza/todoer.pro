@@ -76,6 +76,7 @@ export function mountCaptures({
     if (!form) return;
     event.preventDefault();
     if (!canWrite || form.dataset.busy === 'true') return;
+    await mountSmartCapture(form).ready;
     const interpreted = mountSmartCapture(form).get();
     const text = interpreted.title,
       brief = description(form).value;
@@ -90,7 +91,7 @@ export function mountCaptures({
         interpreted.list_id || listId,
         text,
         brief,
-        interpreted.list_id && interpreted.list_id !== listId ? null : section(form),
+        section(form) || interpreted.section_id || null,
         interpreted.metadata,
       );
       title(form).value = '';

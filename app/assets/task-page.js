@@ -1,3 +1,4 @@
+import { mountSmartCapture } from './smart-capture.js';
 import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { editorAnchor, alignEditorField } from './seamless-editor.js';
@@ -893,11 +894,15 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     }
   });
   childDescription.addEventListener('input', () => grow(childDescription));
+  const childCapture = mountSmartCapture(childForm);
   childForm.addEventListener('input', rememberChild);
   childForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (busy || !canWrite) return;
     rememberChild();
+    await childCapture.ready;
+    const interpreted = childCapture.get();
+    if (!interpreted.title) return;
     const writing = { ...childDraft };
     const release = beginWrite();
     try {
@@ -906,8 +911,9 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         'POST',
         {
           list_id: task.list_id,
+          metadata: interpreted.metadata,
           tasks: [
-            { title: writing.title, description: writing.description, parent_id: id },
+            { title: interpreted.title, description: writing.description, parent_id: id },
           ],
         },
         { headers: { 'Idempotency-Key': writing.key } },
@@ -917,6 +923,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         childDescription.value === writing.description
       ) {
         childTitle.value = '';
+        childCapture.reset();
         childDescription.value = '';
         childDraft = null;
         store(childKey, null);

@@ -18,6 +18,14 @@ async function options() {
 export function mountSmartCapture(form) {
   if (form.smartCapture) return form.smartCapture;
   const title = form.querySelector('[name=title]');
+  const scoped = form.matches('.inline-capture, [data-child-form]');
+  const allowSection = scoped && form.id === 'capture-form';
+  const sections = allowSection
+    ? [...document.querySelectorAll('.task-section[data-section-id]')]
+        .filter((s) => s.dataset.sectionId)
+        .map((s) => ({ id: s.dataset.sectionId, title: s.dataset.sectionTitle }))
+    : [];
+
   const wrapper = document.createElement('div');
   wrapper.className = 'smart-capture-input';
   title.parentNode.insertBefore(wrapper, title);
@@ -45,7 +53,9 @@ export function mountSmartCapture(form) {
   helpButton.type = 'button';
   helpButton.textContent = 'Shortcuts';
   const helpText = document.createElement('span');
-  helpText.textContent = '@space · #list · +tag · p0–p3 · ! / !! / !!! · today';
+  helpText.textContent = scoped
+    ? `${allowSection ? '$section · ' : ''}+tag · p0–p3 · ! / !! / !!!`
+    : '@space · #list · +tag · p0–p3 · ! / !! / !!! · today';
   helpText.title =
     'You can also use !0–!3 and date phrases. Quote names containing spaces.';
   helpText.hidden = true;
@@ -75,7 +85,8 @@ export function mountSmartCapture(form) {
     }, 30000);
   });
   help.append(helpButton, helpText);
-  block.append(info, controls, help);
+  block.append(info, controls);
+  (form.querySelector('.inline-actions, .composer-actions') || block).prepend(help);
   wrapper.insertAdjacentElement('afterend', block);
   let optionsLoaded = false;
   const previewLoading = beginLoading(info, { variant: 'text' });
@@ -183,8 +194,9 @@ export function mountSmartCapture(form) {
     parsed =
       data?.preferences.smart_enabled && !literal
         ? parseCapture(title.value, {
-            destinations: data.destinations,
-            dates: data.preferences.date_enabled,
+            destinations: scoped ? [] : data.destinations,
+            sections,
+            dates: !scoped && data.preferences.date_enabled,
           })
         : {
             title: title.value,
@@ -220,24 +232,28 @@ export function mountSmartCapture(form) {
     title.removeAttribute('aria-activedescendant');
     if (!data || literal || !data.preferences.smart_enabled) return;
     const before = title.value.slice(0, title.selectionStart);
-    const match = /(?:^|\s|(?<=@[\p{L}\p{N}_-]+))([@#+])([^\s@#+]*)$/u.exec(before);
+    const match = /(?:^|\s|(?<=@[\p{L}\p{N}_-]+))([@#+$])([^\s@#+$]*)$/u.exec(before);
     if (!match) return;
     const symbol = match[1],
       needle = match[2].replace(/^"/, '').toLocaleLowerCase();
+    if (scoped && (symbol === '@' || symbol === '#' || (symbol === '$' && !allowSection)))
+      return;
     const space = /@(?:"([^"]+)"|([\p{L}\p{N}_-]+))/u.exec(before);
     let values =
-      symbol === '@'
-        ? data.destinations.map((d) => d.space)
-        : symbol === '#'
-          ? data.destinations
-              .filter(
-                (d) =>
-                  !space ||
-                  d.space.toLocaleLowerCase() ===
-                    (space[1] || space[2]).toLocaleLowerCase(),
-              )
-              .map((d) => d.list)
-          : data.tags || [];
+      symbol === '$'
+        ? sections.map((s) => s.title)
+        : symbol === '@'
+          ? data.destinations.map((d) => d.space)
+          : symbol === '#'
+            ? data.destinations
+                .filter(
+                  (d) =>
+                    !space ||
+                    d.space.toLocaleLowerCase() ===
+                      (space[1] || space[2]).toLocaleLowerCase(),
+                )
+                .map((d) => d.list)
+            : data.tags || [];
     choices = [...new Set(values)]
       .filter((x) => x.toLocaleLowerCase().startsWith(needle))
       .slice(0, 50);
@@ -322,6 +338,7 @@ export function mountSmartCapture(form) {
       return {
         title: v.title.trim(),
         list_id: v.destination?.list_id,
+        section_id: v.section_id,
         metadata: v.spans.length
           ? { priority: v.priority, due_date: v.due, tags: v.tags }
           : null,

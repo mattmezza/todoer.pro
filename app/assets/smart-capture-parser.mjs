@@ -7,7 +7,7 @@ const dateString = (d) =>
 
 export function parseCapture(
   text,
-  { destinations = [], now = new Date(), dates = true } = {},
+  { destinations = [], now = new Date(), dates = true, sections = [] } = {},
 ) {
   const spans = [],
     warnings = [],
@@ -28,7 +28,7 @@ export function parseCapture(
   for (let i = 0; i < text.length; i++) {
     const symbol = text[i];
     if (
-      !'@#+'.includes(symbol) ||
+      !'@#+$'.includes(symbol) ||
       (i && !/\s/.test(text[i - 1]) && !(symbol === '#' && tokens.at(-1)?.end === i))
     )
       continue;
@@ -81,6 +81,15 @@ export function parseCapture(
       if (space) consume(space.start, space.end, 'space', matches[0].space);
       if (list) consume(list.start, list.end, 'list', matches[0].list);
     } else warnings.push('Destination is unknown or ambiguous');
+  }
+  const sectionTokens = tokens.filter((t) => t.symbol === '$');
+  if (sectionTokens.length === 1) {
+    const token = sectionTokens[0];
+    const matches = sections.filter((s) => exact(s.title, token.name));
+    if (matches.length === 1) {
+      result.section_id = matches[0].id;
+      consume(token.start, token.end, 'section', token.name);
+    }
   }
   for (const t of tokens.filter((t) => t.symbol === '+')) {
     result.tags.push(t.name);
@@ -153,6 +162,7 @@ export function parseCapture(
   if (!result.title) {
     result.title = text;
     result.destination = null;
+    result.section_id = undefined;
     result.tags = [];
     result.priority = null;
     result.due = null;
