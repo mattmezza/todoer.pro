@@ -47,11 +47,13 @@ fn prefix(kind: &str) -> Result<&'static str, Error> {
     }
 }
 pub fn public_id(c: &Connection, kind: &str, id: &str) -> Result<String, Error> {
-    if matches!(kind, "task" | "list" | "workspace") {
+    if matches!(kind, "task" | "list" | "workspace") || (kind == "section" && c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='section_public_ids')", [], |row| row.get::<_, bool>(0))?) {
         let (table, column, entities) = if kind == "task" {
             ("task_public_ids", "task_id", "tasks")
         } else if kind == "list" {
             ("list_public_ids", "list_id", "lists")
+        } else if kind == "section" {
+            ("section_public_ids", "section_id", "sections")
         } else {
             ("workspace_public_ids", "workspace_id", "workspaces")
         };
@@ -104,11 +106,13 @@ pub fn public_id(c: &Connection, kind: &str, id: &str) -> Result<String, Error> 
     }
 }
 pub fn resolve(c: &Connection, kind: &str, id: &str) -> Result<String, Error> {
-    if matches!(kind, "task" | "list" | "workspace") {
+    if matches!(kind, "task" | "list" | "workspace") || (kind == "section" && c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='section_public_ids')", [], |row| row.get::<_, bool>(0))?) {
         let (table, column) = if kind == "task" {
             ("task_public_ids", "task_id")
         } else if kind == "list" {
             ("list_public_ids", "list_id")
+        } else if kind == "section" {
+            ("section_public_ids", "section_id")
         } else {
             ("workspace_public_ids", "workspace_id")
         };
@@ -329,6 +333,49 @@ mod tests {
         core::{Capture, NewTask, Store},
         workspace::{CreateList, WorkspaceInput},
     };
+    #[test]
+    fn section_references_are_compact_stable_and_preserve_old_aliases() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let section = db
+            .create_section(
+                "dev",
+                "inbox",
+                crate::workspace::SectionInput {
+                    title: "Vegetables".into(),
+                    description: String::new(),
+                },
+            )
+            .unwrap();
+        let reference = public_id(&db.conn, "section", &section.id).unwrap();
+        assert_eq!(reference.len(), 7);
+        assert!(
+            reference
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+        );
+        assert_eq!(
+            reference,
+            public_id(&db.conn, "section", &section.id).unwrap()
+        );
+        db.conn.execute("INSERT INTO entity_public_ids(kind,entity_id,public_id) VALUES('section',?1,'c_legacy_alias')",[&section.id]).unwrap();
+        for alias in [&reference, "c_legacy_alias", &section.id] {
+            assert_eq!(resolve(&db.conn, "section", alias).unwrap(), section.id);
+            assert_eq!(
+                db.resolve_reference("dev", &format!("${alias}"))
+                    .unwrap()
+                    .choices[0]
+                    .id,
+                section.id
+            );
+        }
+        assert!(
+            db.resolve_reference("other", &format!("${reference}"))
+                .unwrap()
+                .choices
+                .is_empty()
+        );
+    }
     #[test]
     fn legacy_inbox_adoption_preserves_private_access_and_is_repeatable() {
         let mut db = Store::open(":memory:").unwrap();

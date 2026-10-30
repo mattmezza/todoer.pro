@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 pub struct CaptureMetadata {
     pub priority: Option<u8>,
     pub due_date: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub planned_date: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
 }
@@ -84,13 +86,19 @@ impl Store {
         {
             item = tx.set_section(actor, &item.id, item.revision, Some(section_id))?;
         }
-        if metadata.priority.is_some() || metadata.due_date.is_some() {
+        if metadata.priority.is_some()
+            || metadata.due_date.is_some()
+            || metadata.planned_date.is_some()
+        {
             let mut schedule = tx.get_schedule(actor, &item.id)?.schedule;
             if let Some(priority) = metadata.priority {
                 schedule.priority = Some(priority);
             }
             if let Some(date) = metadata.due_date {
                 schedule.due = Some(crate::scheduling::Moment::Date { date });
+            }
+            if let Some(date) = metadata.planned_date {
+                schedule.planned = Some(crate::scheduling::Moment::Date { date });
             }
             tx.set_schedule(actor, &item.id, item.revision, schedule)?;
             item = crate::core::task(&tx.conn, &item.id)?;
@@ -285,6 +293,7 @@ mod tests {
         let metadata = CaptureMetadata {
             priority: Some(0),
             due_date: Some("2026-11-01".into()),
+            planned_date: Some("2026-10-31".into()),
             tags: vec!["home".into()],
         };
         let first = db
@@ -302,6 +311,28 @@ mod tests {
             Some(0)
         );
         assert_eq!(db.task_tags("dev", &first[0].id).unwrap()[0].name, "home");
+        let schedule = db.get_schedule("dev", &first[0].id).unwrap().schedule;
+        assert_eq!(
+            schedule.planned,
+            Some(crate::scheduling::Moment::Date {
+                date: "2026-10-31".into()
+            })
+        );
+        assert_eq!(
+            schedule.due,
+            Some(crate::scheduling::Moment::Date {
+                date: "2026-11-01".into()
+            })
+        );
+        let bad_date = CaptureMetadata {
+            planned_date: Some("2026-02-30".into()),
+            ..Default::default()
+        };
+        assert!(
+            db.capture_with_metadata("dev", "bad-date", capture(), None, bad_date)
+                .is_err()
+        );
+
         let invalid = CaptureMetadata {
             priority: Some(9),
             ..Default::default()

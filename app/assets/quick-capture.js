@@ -155,6 +155,7 @@ export async function openCapture(listId) {
       error.textContent = '';
       try {
         const data = new FormData(form);
+        await smart.ready;
         const interpreted = { ...smart.get(), repeat: repeat.checked };
         const account = document.querySelector('meta[name=account-id]')?.content;
         if (!account) throw Error('Sign in again to capture this task.');

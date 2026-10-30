@@ -714,6 +714,7 @@ struct TaskRows {
     can_write: bool,
 }
 struct TaskGroup {
+    reference: String,
     progress: usize,
     completed: usize,
     total: usize,
@@ -729,6 +730,7 @@ fn grouped_rows(db: &Store, actor: &str, list: &str) -> Result<(Vec<TaskGroup>, 
     let count = tasks.iter().filter(|task| task.parent_id.is_none()).count();
     let slugs = db.entity_slugs(actor)?;
     let mut groups = vec![TaskGroup {
+        reference: String::new(),
         progress: 0,
         completed: 0,
         total: 0,
@@ -749,6 +751,7 @@ fn grouped_rows(db: &Store, actor: &str, list: &str) -> Result<(Vec<TaskGroup>, 
         }
         let description_html = crate::markdown::render(&section.description);
         groups.push(TaskGroup {
+            reference: crate::defaults::public_id(&db.conn, "section", &section.id)?,
             progress: 0,
             completed: 0,
             total: 0,
@@ -1093,7 +1096,7 @@ async fn capture_options(State(s): State<AppState>, h: HeaderMap) -> Result<Json
                     destinations.push(json!({"space":space.title,"space_id":id,"list":list.title,"list_id":list.id,"default_list":default_list}));
                 }
         }
-        Ok(json!({"preferences":{"smart_enabled":prefs.smart_enabled,"date_enabled":prefs.date_enabled,"repeat_capture":prefs.repeat_capture},"destinations":destinations,"list_colors":list_colors,"tags":tags}))
+        Ok(json!({"preferences":{"smart_enabled":prefs.smart_enabled,"date_enabled":prefs.date_enabled,"repeat_capture":prefs.repeat_capture},"destinations":destinations,"list_colors":list_colors,"tags":tags,"timezone":db.notification_preferences(&actor)?.timezone}))
     }).await?))
 }
 #[derive(Deserialize)]

@@ -980,6 +980,8 @@ fn target(
             .map(|title| (title, format!("/lists/{id}")))
         }
         "section" => {
+            let resolved = crate::defaults::resolve(c, "section", id)?;
+            let id = resolved.as_str();
             let row: Option<(String, String)> = c
                 .query_row(
                     "SELECT title,list_id FROM sections WHERE id=?1",

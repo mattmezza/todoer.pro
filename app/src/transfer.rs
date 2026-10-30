@@ -77,6 +77,7 @@ const BUSINESS: &[&str] = &[
     "task_public_ids",
     "list_public_ids",
     "workspace_public_ids",
+    "section_public_ids",
     "task_locations",
     "tags",
     "task_tags",
@@ -282,6 +283,14 @@ impl Store {
                 .collect(),
         );
         let section_ids = ids(tables.get("sections").unwrap(), "id");
+        tables.insert(
+            "section_public_ids".into(),
+            selected(
+                rows(&self.conn, "section_public_ids", "", &[])?,
+                "section_id",
+                &section_ids,
+            ),
+        );
         tables.insert(
             "entity_public_ids".into(),
             rows(&self.conn, "entity_public_ids", "", &[])?

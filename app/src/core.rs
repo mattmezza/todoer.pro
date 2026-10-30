@@ -285,6 +285,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
         46,
         include_str!("../migrations/046_admin_account_search.sql"),
     ),
+    (
+        47,
+        include_str!("../migrations/047_compact_section_ids.sql"),
+    ),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {
@@ -321,8 +325,18 @@ impl Store {
             )?;
             if !applied {
                 tx.execute_batch(sql)?;
-                if version == 30 {
-                    crate::defaults::backfill(&tx)?;
+                if version == 30 || version == 47 {
+                    if version == 30 {
+                        crate::defaults::backfill(&tx)?;
+                    } else {
+                        let ids = tx
+                            .prepare("SELECT id FROM sections")?
+                            .query_map([], |row| row.get::<_, String>(0))?
+                            .collect::<Result<Vec<_>, _>>()?;
+                        for id in ids {
+                            crate::defaults::public_id(&tx, "section", &id)?;
+                        }
+                    }
                 }
                 if version == 30 {
                     crate::defaults::adopt_legacy_inboxes(&tx)?;

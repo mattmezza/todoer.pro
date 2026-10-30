@@ -14,6 +14,7 @@ if (form) {
     if (submit.disabled) return;
     submit.disabled = true;
     try {
+      await smart.ready;
       const data = new FormData(form),
         value = smart.get(),
         list = value.list_id || data.get('list_id');

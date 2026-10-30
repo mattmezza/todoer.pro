@@ -240,3 +240,41 @@ test('quick capture close button stays clear of parsed metadata', async ({ page 
     }
   }
 });
+
+test('contextual dates parse separately, shortcuts navigate, and long titles wrap', async ({
+  page,
+}) => {
+  await page.addStyleTag({ content: readFileSync('app/assets/app.css', 'utf8') });
+  await page.evaluate(async () => {
+    document.querySelector('main').innerHTML =
+      '<form class="inline-capture" id="capture-form" style="width:360px"><textarea name="title" rows="1"></textarea><textarea name="description"></textarea><div class="inline-actions"></div></form>';
+    const { mountSmartCapture } = await import('/assets/smart-capture.js');
+    window.capture = mountSmartCapture(document.querySelector('form'));
+    await window.capture.ready;
+  });
+  const title = page.locator('textarea[name=title]');
+  await title.fill('Plan vegetables .today -in3d +home p1');
+  const metadata = await page.evaluate(() => window.capture.get().metadata);
+  expect(metadata.planned_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  expect(metadata.due_date).not.toBe(metadata.planned_date);
+  await expect(page.locator('.capture-date')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Shortcuts', exact: true }).click();
+  await page.getByRole('button', { name: 'Planned date →', exact: true }).click();
+  await page.getByRole('button', { name: 'Everyday →', exact: true }).click();
+  await page.getByRole('button', { name: '.tomo', exact: true }).click();
+  await expect(title).toBeFocused();
+  await page.getByRole('button', { name: 'Shortcuts', exact: true }).click();
+  await page.getByRole('button', { name: 'Due date →', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to previous shortcuts' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Planned date →', exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press('Escape');
+  await title.fill(
+    'A long task title with enough words to wrap across several lines while remaining fully visible without horizontal scrolling '.repeat(
+      3,
+    ),
+  );
+  await expect.poll(() => title.evaluate((el) => el.offsetHeight)).toBeGreaterThan(60);
+  expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBeTruthy();
+});

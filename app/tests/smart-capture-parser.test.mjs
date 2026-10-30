@@ -59,3 +59,46 @@ test('date-like words inside quoted tags remain part of the tag', () => {
   assert.deepEqual(p.tags, ['today notes']);
   assert.equal(p.due, '2026-10-29');
 });
+
+test('planned and due prefixes share aliases and can be combined independently', () => {
+  const expected = new Map([
+    ['today', '2026-10-28'], ['t', '2026-10-28'], ['td','2026-10-28'],
+    ['tomo','2026-10-29'], ['tomorrow','2026-10-29'], ['tmr','2026-10-29'],
+    ['mon','2026-11-02'], ['monday','2026-11-02'], ['tue','2026-11-03'], ['tuesday','2026-11-03'],
+    ['wed','2026-11-04'], ['wednesday','2026-11-04'], ['thu','2026-10-29'], ['thursday','2026-10-29'],
+    ['fri','2026-10-30'], ['friday','2026-10-30'], ['sat','2026-10-31'], ['saturday','2026-10-31'], ['sun','2026-11-01'], ['sunday','2026-11-01'],
+    ['oct31','2026-10-31'], ['31oct','2026-10-31'], ['october31','2026-10-31'],
+    ['nw','2026-11-02'], ['nextweek','2026-11-02'], ['nm','2026-11-01'], ['nextmonth','2026-11-01'],
+    ['in1week','2026-11-04'], ['in1month','2026-11-28'], ['in3days','2026-10-31'], ['in3d','2026-10-31'], ['in2w','2026-11-11'], ['in2m','2026-12-28'],
+    ['2027-01-01','2027-01-01'], ['weekend','2026-10-31'], ['feb29','2028-02-29'],
+  ]);
+  for (const [alias, date] of expected) for (const [prefix, kind] of [['.','planned'],['-','due']]) {
+    const result = parse(`buy milk ${prefix}${alias} p1 +family`);
+    assert.equal(result[kind], date, prefix+alias);
+    assert.equal(result.title,'buy milk');
+    assert.equal(result.priority,1); assert.deepEqual(result.tags,['family']);
+  }
+  const both = parse('buy milk .tomo -nw');
+  assert.equal(both.planned,'2026-10-29'); assert.equal(both.due,'2026-11-02'); assert.equal(both.title,'buy milk');
+});
+test('calendar offsets clamp months and retain local dates across DST', () => {
+  assert.equal(parseCapture('task .in1m', {now:new Date(2027,0,31)}).planned,'2027-02-28');
+  assert.equal(parseCapture('task .in1y', {now:new Date(2028,1,29)}).planned,'2029-02-28');
+  assert.equal(parseCapture('task .in3d', {now:new Date(2026,2,27)}).planned,'2026-03-30');
+  assert.equal(parseCapture('task .oct31', {now:new Date(2026,10,1)}).planned,'2027-10-31');
+});
+test('unknown, impossible, quoted and conflicting date shortcuts remain literal', () => {
+  for(const token of ['.feb30','-feb30','.in99999d','-in0d','.2026-02-29','.nonsense']) assert.equal(parse(`task ${token}`).title,`task ${token}`);
+  const conflict=parse('task .today .tomo -nw');
+  assert.equal(conflict.planned,null);assert.equal(conflict.due,'2026-11-02');assert.equal(conflict.title,'task .today .tomo');
+  const dueConflict=parse('task -today -tomo .nw');
+  assert.equal(dueConflict.due,null);assert.equal(dueConflict.planned,'2026-11-02');
+  const quoted=parse('task +".today -tomo"');
+  assert.equal(quoted.planned,null);assert.equal(quoted.due,null);assert.deepEqual(quoted.tags,['.today -tomo']);
+  assert.equal(parseCapture('task .tomo -nw',{dates:false}).title,'task .tomo -nw');
+  const scoped=parseCapture('task tomorrow .tomo -nw',{naturalDates:false,now:new Date(2026,9,28)});
+  assert.equal(scoped.title,'task tomorrow');assert.equal(scoped.planned,'2026-10-29');assert.equal(scoped.due,'2026-11-02');
+});
+test('date shortcuts without a title never silently create an empty task',()=>{
+  const result=parse('.tomo -nw');assert.equal(result.title,'.tomo -nw');assert.equal(result.planned,null);assert.equal(result.due,null);
+});

@@ -1376,7 +1376,7 @@ input[type='checkbox'] {
   padding: 6px 0;
   box-shadow: none;
 }
-.inline-capture input[name='title'],
+.inline-capture :is(input, textarea)[name='title'],
 .inline-entity-form input[name='title'] {
   font-size: 18px;
   font-weight: 600;
@@ -9902,7 +9902,7 @@ main.auth-shell {
 .smart-capture-input {
   position: relative;
 }
-.smart-capture-input > input {
+.smart-capture-input > :is(input, textarea) {
   width: 100%;
 }
 .capture-suggestions {
@@ -10070,7 +10070,7 @@ main.auth-shell {
 .capture-omnibar .capture-entry {
   margin-right: 42px;
 }
-.capture-omnibar .smart-capture-input > input {
+.capture-omnibar .smart-capture-input > :is(input, textarea) {
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -10081,11 +10081,11 @@ main.auth-shell {
   font-weight: 650;
   line-height: 1.4;
 }
-.capture-omnibar .smart-capture-input > input::placeholder {
+.capture-omnibar .smart-capture-input > :is(input, textarea)::placeholder {
   color: var(--muted);
   opacity: 1;
 }
-.capture-omnibar .smart-capture-input > input:focus-visible {
+.capture-omnibar .smart-capture-input > :is(input, textarea):focus-visible {
   box-shadow: 0 2px var(--accent);
 }
 
@@ -10884,7 +10884,7 @@ form[data-load-failed],
 /* Reference headings and quiet, contextual capture help. */
 [data-space-display] h1,
 [data-list-display] h1 {
-  font-family: var(--font-mono) !important;
+  font-family: var(--font-sans) !important;
 }
 .section-heading-copy {
   display: flex;
@@ -11014,4 +11014,84 @@ form[data-load-failed],
 
 .search-omnibar #omnibar-results > :is(.loading-skeleton, .loading-error) {
   inset-inline: 28px;
+}
+
+.smart-capture-input > textarea.capture-title {
+  width: 100%;
+  min-height: 0;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.capture-date {
+  color: var(--muted);
+  font: 12px/1.5 var(--font-sans);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.capture-shortcut-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  max-height: min(420px, 65dvh);
+  overflow-y: auto;
+  padding: 12px;
+  background: var(--sidebar);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px #0006;
+  font: 14px/1.5 var(--font-sans);
+}
+.capture-shortcut-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.capture-shortcut-menu button {
+  color: var(--text);
+  text-decoration: none;
+  padding: 8px;
+  border-radius: 5px;
+}
+.capture-shortcut-menu button:hover {
+  background: var(--hover);
+}
+.capture-shortcut-category {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+.capture-shortcut-row {
+  padding: 8px;
+  border-top: 1px solid var(--line);
+}
+.capture-shortcut-row > span {
+  display: block;
+  color: var(--muted);
+}
+.capture-shortcut-row > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.capture-shortcut-row > div > button {
+  font-family: var(--font-mono);
+  color: var(--accent);
+}
+.capture-shortcut-row small {
+  display: block;
+  color: var(--muted);
+}
+
+.section-heading > .section-reference {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.section-heading > .section-reference + .section-progress {
+  margin-left: 0;
 }

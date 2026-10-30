@@ -1,3 +1,5 @@
+import { captureToday } from './capture-dates.mjs';
+import { mountCaptureHelp } from './capture-help.js';
 import { beginLoading } from './loading.js';
 import { parseCapture } from './smart-capture-parser.mjs';
 import { request } from './request.js';
@@ -18,6 +20,25 @@ async function options() {
 export function mountSmartCapture(form) {
   if (form.smartCapture) return form.smartCapture;
   const title = form.querySelector('[name=title]');
+  title.classList.add('capture-title');
+  function resizeTitle() {
+    if (title.tagName !== 'TEXTAREA' || !title.clientWidth) return;
+    title.style.height = '0px';
+    title.style.height = `${title.scrollHeight + title.offsetHeight - title.clientHeight}px`;
+  }
+  let lastWidth = -1;
+  const sizeObserver = new ResizeObserver(() => {
+    if (!form.isConnected) {
+      sizeObserver.disconnect();
+      return;
+    }
+    const width = title.clientWidth;
+    if (width !== lastWidth) {
+      lastWidth = width;
+      resizeTitle();
+    }
+  });
+  sizeObserver.observe(title);
   const scoped = form.matches('.inline-capture, [data-child-form]');
   const allowSection = scoped && form.id === 'capture-form';
   const sections = allowSection
@@ -70,44 +91,22 @@ export function mountSmartCapture(form) {
   info.className = 'capture-result';
   info.setAttribute('aria-live', 'polite');
   const controls = document.createElement('div');
-  const help = document.createElement('div');
-  help.className = 'capture-help';
-  const helpButton = document.createElement('button');
-  helpButton.type = 'button';
-  helpButton.textContent = 'Shortcuts';
-  const helpText = document.createElement('span');
-  helpText.textContent = scoped
-    ? `${allowSection ? '$section · ' : ''}+tag · p0–p3 · ! / !! / !!!`
-    : '@space · #list · +tag · p0–p3 · ! / !! / !!! · today';
-  helpText.title =
-    'You can also use !0–!3 and date phrases. Quote names containing spaces.';
-  helpText.hidden = true;
-  let hovering = false,
-    expired = false,
-    helpTimer;
-  const hideHelp = () => {
-    helpText.hidden = true;
-    helpButton.hidden = false;
-    expired = false;
-  };
-  help.addEventListener('pointerenter', () => {
-    hovering = true;
+  const help = mountCaptureHelp({
+    scoped,
+    allowSection,
+    datesEnabled: () => data?.preferences.date_enabled !== false,
+    insert(token) {
+      const start = title.selectionStart ?? title.value.length,
+        end = title.selectionEnd ?? start;
+      const before = title.value.slice(0, start),
+        after = title.value.slice(end);
+      const inserted = `${before && !/\s$/.test(before) ? ' ' : ''}${token} `;
+      title.value = before + inserted + after;
+      title.focus();
+      title.setSelectionRange(start + inserted.length, start + inserted.length);
+      title.dispatchEvent(new Event('input', { bubbles: true }));
+    },
   });
-  help.addEventListener('pointerleave', () => {
-    hovering = false;
-    if (expired) hideHelp();
-  });
-  helpButton.addEventListener('click', () => {
-    helpButton.hidden = true;
-    helpText.hidden = false;
-    expired = false;
-    clearTimeout(helpTimer);
-    helpTimer = setTimeout(() => {
-      expired = true;
-      if (!hovering) hideHelp();
-    }, 30000);
-  });
-  help.append(helpButton, helpText);
   const literalControl = document.createElement('span');
   if (scoped) help.append(literalControl);
   block.append(info, controls);
@@ -150,7 +149,11 @@ export function mountSmartCapture(form) {
     );
     entry.classList.toggle(
       'has-capture-badges',
-      v.priority !== null || v.tags.length > 0 || !!v.section_id,
+      v.priority !== null ||
+        v.tags.length > 0 ||
+        !!v.section_id ||
+        !!v.planned ||
+        !!v.due,
     );
     if (!optionsLoaded) return;
     info.replaceChildren();
@@ -192,7 +195,17 @@ export function mountSmartCapture(form) {
         info.append(target);
       }
       const metadata = [];
-      if (v.due) info.append(document.createTextNode(`Due ${v.due}`));
+      for (const [kind, date] of [
+        ['Planned', v.planned],
+        ['Due', v.due],
+      ]) {
+        if (!date) continue;
+        const badge = document.createElement('span');
+        badge.className = 'capture-date';
+        badge.dataset.dateKind = kind.toLowerCase();
+        badge.textContent = `${kind} ${date}`;
+        metadata.push(badge);
+      }
       metadata.push(
         ...v.tags.map((tag) => {
           const badge = document.createElement('span');
@@ -209,8 +222,15 @@ export function mountSmartCapture(form) {
       }
       tags.append(...metadata);
     }
+    for (const warning of v.warnings.filter((value) =>
+      /^Multiple (planned|due) dates/.test(value),
+    )) {
+      const message = document.createElement('span');
+      message.textContent = warning;
+      info.append(message);
+    }
     info.hidden = !info.childNodes.length;
-    block.hidden = scoped && info.hidden;
+    block.hidden = scoped && info.hidden && !controls.childNodes.length;
 
     if (parsed.spans.length || literal) {
       const toggle = document.createElement('button');
@@ -235,7 +255,9 @@ export function mountSmartCapture(form) {
         ? parseCapture(title.value, {
             destinations: scoped ? [] : data.destinations,
             sections,
-            dates: !scoped && data.preferences.date_enabled,
+            dates: data.preferences.date_enabled,
+            naturalDates: !scoped,
+            now: captureToday(data.timezone),
           })
         : {
             title: title.value,
@@ -243,26 +265,31 @@ export function mountSmartCapture(form) {
             tags: [],
             priority: null,
             due: null,
+            planned: null,
             destination: null,
             spans: [],
             warnings: [],
           };
     const v = { ...parsed, ...changes };
     renderPreview(v);
+    resizeTitle();
     controls.replaceChildren();
-    if (parsed.due) {
-      const label = document.createElement('label');
-      label.textContent = 'Due';
-      const date = document.createElement('input');
-      date.type = 'date';
-      date.value = v.due || '';
-      date.onchange = () => {
-        changes.due = date.value || null;
-        renderPreview({ ...parsed, ...changes });
-      };
-      label.append(date);
-      controls.append(label);
-    }
+    for (const kind of ['planned', 'due'])
+      if (parsed[kind]) {
+        const label = document.createElement('label');
+        label.textContent = kind === 'planned' ? 'Planned' : 'Due';
+        const date = document.createElement('input');
+        date.type = 'date';
+        date.setAttribute('aria-label', kind === 'planned' ? 'Planned date' : 'Due date');
+        date.value = v[kind] || '';
+        date.onchange = () => {
+          changes[kind] = date.value || null;
+          renderPreview({ ...parsed, ...changes });
+        };
+        label.append(date);
+        controls.append(label);
+      }
+    block.hidden = scoped && info.hidden && !controls.childNodes.length;
     suggestions.replaceChildren();
     choices = [];
     completion = null;
@@ -326,7 +353,14 @@ export function mountSmartCapture(form) {
     title.setAttribute('aria-activedescendant', `${suggestions.id}-${active}`);
   };
   title.addEventListener('keydown', (event) => {
-    if (!completion || suggestions.hidden) return;
+    if (!completion || suggestions.hidden) {
+      if (event.key === 'Enter' && !event.isComposing) {
+        event.preventDefault();
+        event.stopPropagation();
+        form.requestSubmit();
+      }
+      return;
+    }
     const down =
       event.key === 'ArrowDown' || (event.ctrlKey && event.key.toLowerCase() === 'n');
     const up =
@@ -361,6 +395,7 @@ export function mountSmartCapture(form) {
     setup();
   });
   title.addEventListener('click', setup);
+  title.addEventListener('focus', resizeTitle);
   form.querySelector('[name=list_id]')?.addEventListener('change', setup);
   const ready = options().then((value) => {
     data = value;
@@ -379,7 +414,12 @@ export function mountSmartCapture(form) {
         list_id: v.destination?.list_id,
         section_id: v.section_id,
         metadata: v.spans.length
-          ? { priority: v.priority, due_date: v.due, tags: v.tags }
+          ? {
+              priority: v.priority,
+              due_date: v.due,
+              ...(v.planned ? { planned_date: v.planned } : {}),
+              tags: v.tags,
+            }
           : null,
         repeat: !!data?.preferences.repeat_capture,
       };

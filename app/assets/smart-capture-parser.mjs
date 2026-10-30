@@ -1,13 +1,18 @@
+import { captureDateSpans } from './capture-dates.mjs';
 // Deterministic suggestions only. The caller must preserve the original input
 // until the user has reviewed the interpretation and persisted the metadata.
 const boundaries = /[\p{L}\p{N}_-]/u;
 const fold = (s) => s.normalize('NFKC').toLocaleLowerCase();
-const dateString = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 export function parseCapture(
   text,
-  { destinations = [], now = new Date(), dates = true, sections = [] } = {},
+  {
+    destinations = [],
+    now = new Date(),
+    dates = true,
+    sections = [],
+    naturalDates = true,
+  } = {},
 ) {
   const spans = [],
     warnings = [],
@@ -18,6 +23,7 @@ export function parseCapture(
       tags: [],
       priority: null,
       due: null,
+      planned: null,
       spans,
       warnings,
     };
@@ -116,44 +122,11 @@ export function parseCapture(
     );
   } else if (priorities.length > 1) warnings.push('Multiple priorities; choose one');
   if (dates) {
-    const found = [
-      ...text.matchAll(
-        /(?:^|\s)(today|tomorrow|in\s+\d+\s+days?|(?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))(?=\s|$|[,.!?])/gi,
-      ),
-    ].filter(outsideTokens);
-    if (found.length === 1) {
-      const m = found[0],
-        phrase = m[1].toLowerCase(),
-        d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      if (phrase === 'tomorrow') d.setDate(d.getDate() + 1);
-      else if (phrase.startsWith('in ')) {
-        const n = Number(phrase.match(/\d+/)[0]);
-        if (n <= 3650) d.setDate(d.getDate() + n);
-        else warnings.push('Date is too far away');
-      } else if (phrase !== 'today') {
-        const target = [
-          'sunday',
-          'monday',
-          'tuesday',
-          'wednesday',
-          'thursday',
-          'friday',
-          'saturday',
-        ].indexOf(phrase.replace('next ', ''));
-        let offset = (target - d.getDay() + 7) % 7 || 7;
-        if (phrase.startsWith('next ') && target > d.getDay()) offset += 7;
-        d.setDate(d.getDate() + offset);
-      }
-      if (!warnings.includes('Date is too far away')) {
-        result.due = dateString(d);
-        consume(
-          m.index + m[0].length - m[1].length,
-          m.index + m[0].length,
-          'date',
-          result.due,
-        );
-      }
-    } else if (found.length > 1) warnings.push('Multiple dates; choose one');
+    const parsedDates = captureDateSpans(text, { now, naturalDates, tokens });
+    result.planned = parsedDates.planned;
+    result.due = parsedDates.due;
+    spans.push(...parsedDates.spans);
+    warnings.push(...parsedDates.warnings);
   }
   let title = text;
   for (const span of [...spans].sort((a, b) => b.start - a.start))
@@ -166,6 +139,7 @@ export function parseCapture(
     result.tags = [];
     result.priority = null;
     result.due = null;
+    result.planned = null;
     spans.length = 0;
     warnings.push('Task title cannot be empty');
   }

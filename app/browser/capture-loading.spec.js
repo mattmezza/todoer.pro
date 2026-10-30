@@ -13,7 +13,7 @@ test('capture preview waits for options without blocking typing or flashing lite
     await route.continue();
   });
   await page.goto('/capture?list=inbox');
-  const title = page.locator('input[name=title]');
+  const title = page.locator('[name=title]');
   await title.fill('Capture while loading p0');
   const preview = page.locator('.capture-result');
   await expect(preview).toHaveAttribute('data-loading-pending', 'text');
