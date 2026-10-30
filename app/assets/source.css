@@ -11182,3 +11182,27 @@ body:has(#navigation[data-font='inter']) {
   color: var(--muted);
   font-size: 13px;
 }
+
+.appearance-fonts fieldset {
+  display: grid;
+  gap: 12px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.appearance-fonts legend {
+  padding: 0;
+  margin-bottom: 12px;
+}
+.appearance-font-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+.appearance-font input[type='radio'] {
+  width: auto;
+  display: inline-block;
+  margin: 0;
+  flex: 0 0 auto;
+}
