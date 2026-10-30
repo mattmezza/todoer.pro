@@ -1113,9 +1113,7 @@ input[type='checkbox'] {
 }
 .reference-sidebar .list-navigation {
   gap: 12px;
-  font:
-    14px/1.5 ui-monospace,
-    monospace;
+  font: 14px/1.5 var(--font-sans);
   align-items: flex-start;
 }
 .reference-sidebar .list-navigation > span:last-child {
@@ -4747,9 +4745,7 @@ dialog:is(.quick-dialog, .sharing-modal, .workspace-create-dialog, [data-move-di
 }
 .reference-sidebar .list-navigation {
   gap: 12px;
-  font:
-    400 14px/24px ui-monospace,
-    monospace;
+  font: 400 14px/24px var(--font-sans);
 }
 .reference-sidebar .list-navigation.active {
   font-weight: 400;
@@ -5002,9 +4998,7 @@ button[aria-label$='actions']:is(:hover, :focus-visible) {
   box-shadow: 0 0 0 1px #334155;
 }
 .reference-sidebar .space-navigation {
-  font:
-    600 14px/24px ui-monospace,
-    monospace;
+  font: 600 14px/24px var(--font-sans);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
