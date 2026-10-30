@@ -725,7 +725,7 @@ struct TaskGroup {
 }
 fn grouped_rows(db: &Store, actor: &str, list: &str) -> Result<(Vec<TaskGroup>, usize), Error> {
     let tasks = rendered_tasks(db, actor, list)?;
-    let count = tasks.len();
+    let count = tasks.iter().filter(|task| task.parent_id.is_none()).count();
     let slugs = db.entity_slugs(actor)?;
     let mut groups = vec![TaskGroup {
         progress: 0,
@@ -801,6 +801,8 @@ fn grouped_rows(db: &Store, actor: &str, list: &str) -> Result<(Vec<TaskGroup>, 
         group.progress = (group.completed * 100)
             .checked_div(group.total)
             .unwrap_or(0);
+        // Descendants contribute to leaf progress, but belong on the task page.
+        group.tasks.retain(|task| task.parent_id.is_none());
     }
     Ok((groups, count))
 }
@@ -1950,3 +1952,91 @@ async fn not_found(
 #[cfg(test)]
 #[path = "ai_billing_integration_tests.rs"]
 mod ai_billing_integration_tests;
+
+#[cfg(test)]
+mod list_rows_tests {
+    use super::*;
+    use crate::core::{Change, NewTask};
+    use crate::workspace::SectionInput;
+
+    fn capture(db: &mut Store, title: &str, parent_id: Option<String>) -> Task {
+        db.capture(
+            "dev",
+            title,
+            Capture {
+                list_id: "inbox".into(),
+                tasks: vec![NewTask {
+                    title: title.into(),
+                    description: String::new(),
+                    parent_id,
+                }],
+            },
+        )
+        .unwrap()
+        .remove(0)
+    }
+
+    #[test]
+    fn list_rows_hide_descendants_but_keep_leaf_progress_and_task_data() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let root = capture(&mut db, "Buy milk", None);
+        let child = capture(&mut db, "Two cartons", Some(root.id.clone()));
+        let grandchild = capture(&mut db, "Whole milk", Some(child.id.clone()));
+        let other = capture(&mut db, "Bread", None);
+        let section = db
+            .create_section(
+                "dev",
+                "inbox",
+                SectionInput {
+                    title: "Shopping Today".into(),
+                    description: "Homegrown".into(),
+                },
+            )
+            .unwrap();
+        db.set_section("dev", &root.id, root.revision, Some(section.id.clone()))
+            .unwrap();
+        let grandchild_revision = crate::core::task(&db.conn, &grandchild.id)
+            .unwrap()
+            .revision;
+        db.update(
+            "dev",
+            &grandchild.id,
+            Change {
+                revision: grandchild_revision,
+                complete: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let (groups, count) = grouped_rows(&db, "dev", "inbox").unwrap();
+        assert_eq!(count, 2);
+        assert_eq!(groups[0].tasks.len(), 1);
+        assert_eq!(groups[0].tasks[0].id, other.id);
+        let group = groups.iter().find(|group| group.id == section.id).unwrap();
+        assert_eq!(group.tasks.len(), 1);
+        assert_eq!(group.tasks[0].id, root.id);
+        assert_eq!(group.slug, "shopping-today");
+        assert_eq!((group.completed, group.total, group.progress), (1, 1, 100));
+        let html = TaskRows {
+            groups,
+            can_write: true,
+        }
+        .render()
+        .unwrap();
+        assert!(html.contains(&format!("data-id=\"{}\"", root.id)));
+        assert!(!html.contains(&format!("data-id=\"{}\"", child.id)));
+        assert!(!html.contains(&format!("data-id=\"{}\"", grandchild.id)));
+        let stored = db.tasks("dev", "inbox").unwrap();
+        assert_eq!(stored.len(), 4);
+        assert_eq!(
+            stored
+                .iter()
+                .find(|task| task.id == child.id)
+                .unwrap()
+                .parent_id
+                .as_deref(),
+            Some(root.id.as_str())
+        );
+    }
+}
