@@ -10995,3 +10995,19 @@ form[data-load-failed],
 .capture-help > span:has(.capture-literal) {
   margin-left: 8px;
 }
+
+.entity-name-reference {
+  display: block;
+  margin: 4px 0 8px;
+  color: var(--muted);
+  font: 12px/1.5 var(--font-sans);
+  overflow-wrap: anywhere;
+}
+.entity-name-reference[hidden] {
+  display: none;
+}
+
+.inline-actions > .entity-name-reference {
+  margin: 0 auto 0 0;
+  align-self: center;
+}

@@ -245,6 +245,7 @@ export function mountListUi({ api, notice, listId }) {
     const form = document.createElement('form');
     const title = document.createElement('input');
     title.name = 'title';
+    title.dataset.referencePrefix = '$';
     title.required = true;
     title.maxLength = 500;
     title.value = section.title;

@@ -1,3 +1,4 @@
+import './entity-name.js';
 import { beginLoading } from './loading.js';
 import './notification-center.js';
 import { request as fetch } from './request.js';
