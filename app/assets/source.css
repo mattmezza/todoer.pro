@@ -10911,3 +10911,34 @@ form[data-load-failed],
   font-size: inherit;
   color: var(--muted);
 }
+
+.smart-capture-input.has-capture-priority > input {
+  padding-right: 56px;
+}
+.smart-capture-input > .capture-priority {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.capture-priority,
+.capture-tag {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font: 500 12px/1.4 var(--font-mono);
+  background: var(--hover);
+}
+.capture-priority[hidden],
+.capture-result[hidden] {
+  display: none;
+}
+.capture-tag {
+  color: var(--muted);
+}
+.capture-help > span:has(.capture-literal) {
+  margin-left: 8px;
+}

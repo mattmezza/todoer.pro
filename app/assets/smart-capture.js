@@ -30,6 +30,11 @@ export function mountSmartCapture(form) {
   wrapper.className = 'smart-capture-input';
   title.parentNode.insertBefore(wrapper, title);
   wrapper.append(title);
+  const priorityBadge = document.createElement('span');
+  priorityBadge.className = 'capture-priority';
+  priorityBadge.setAttribute('aria-live', 'polite');
+  priorityBadge.hidden = true;
+  wrapper.append(priorityBadge);
   const suggestions = document.createElement('div');
   suggestions.className = 'capture-suggestions';
   suggestions.id = `capture-suggestions-${crypto.randomUUID()}`;
@@ -85,11 +90,13 @@ export function mountSmartCapture(form) {
     }, 30000);
   });
   help.append(helpButton, helpText);
+  const literalControl = document.createElement('span');
+  if (scoped) help.append(literalControl);
   block.append(info, controls);
   (form.querySelector('.inline-actions, .composer-actions') || block).prepend(help);
   wrapper.insertAdjacentElement('afterend', block);
   let optionsLoaded = false;
-  const previewLoading = beginLoading(info, { variant: 'text' });
+  const previewLoading = scoped ? null : beginLoading(info, { variant: 'text' });
   let data = null,
     literal = false,
     parsed = null,
@@ -116,64 +123,72 @@ export function mountSmartCapture(form) {
   }
   function renderPreview(v) {
     info.hidden = !v.title.trim();
+    priorityBadge.hidden = v.priority === null;
+    priorityBadge.textContent = v.priority === null ? '' : `P${v.priority}`;
+    priorityBadge.dataset.priority = v.priority ?? '';
+    priorityBadge.setAttribute(
+      'aria-label',
+      v.priority === null ? '' : `Priority ${v.priority}`,
+    );
+    wrapper.classList.toggle('has-capture-priority', v.priority !== null);
     if (!optionsLoaded) return;
     info.replaceChildren();
+    literalControl.replaceChildren();
     if (v.title.trim()) {
-      const caption = document.createElement('span');
-      caption.textContent = 'Will add';
-      const text = document.createElement('strong');
-      text.textContent = v.title.trim();
-      const target = document.createElement('span');
-      const fallback = form.querySelector('[name=list_id]');
-      const defaultName =
-        fallback?.selectedOptions?.[0]?.textContent?.trim() ||
-        document
-          .querySelector('.planning-list-title, [data-list-title]')
-          ?.textContent?.trim() ||
-        '';
-      const fallbackId = fallback?.value || document.body.dataset.list;
-      const fallbackDestination = data?.destinations.find(
-        (d) => d.list_id === fallbackId,
-      );
-      const destination = v.destination || fallbackDestination;
-      target.append('To ');
-      if (destination) target.append(`@${destination.space} / `);
-      const list = document.createElement('span');
-      list.className = 'capture-destination-list';
-      list.textContent = destination
-        ? `#${destination.list}`
-        : defaultName || 'Current list';
-      const listId = destination?.list_id || fallbackId;
-      const color =
-        data?.list_colors && listId in data.list_colors
-          ? data.list_colors[listId] || 'blue'
-          : null;
-      if (/^#[0-9a-f]{6}$/i.test(color || '')) list.style.color = color;
-      else if (
-        ['blue', 'green', 'amber', 'red', 'violet', 'pink', 'gray'].includes(color)
-      )
-        list.classList.add(`list-color-${color}`);
-      target.append(list);
-      info.append(caption, text, target);
+      if (!scoped) {
+        const target = document.createElement('span');
+        const fallback = form.querySelector('[name=list_id]');
+        const defaultName =
+          fallback?.selectedOptions?.[0]?.textContent?.trim() ||
+          document
+            .querySelector('.planning-list-title, [data-list-title]')
+            ?.textContent?.trim() ||
+          '';
+        const fallbackId = fallback?.value || document.body.dataset.list;
+        const fallbackDestination = data?.destinations.find(
+          (d) => d.list_id === fallbackId,
+        );
+        const destination = v.destination || fallbackDestination;
+        target.append('To ');
+        if (destination) target.append(`@${destination.space} / `);
+        const list = document.createElement('span');
+        list.className = 'capture-destination-list';
+        list.textContent = destination
+          ? `#${destination.list}`
+          : defaultName || 'Current list';
+        const listId = destination?.list_id || fallbackId;
+        const color =
+          data?.list_colors && listId in data.list_colors
+            ? data.list_colors[listId] || 'blue'
+            : null;
+        if (/^#[0-9a-f]{6}$/i.test(color || '')) list.style.color = color;
+        else if (
+          ['blue', 'green', 'amber', 'red', 'violet', 'pink', 'gray'].includes(color)
+        )
+          list.classList.add(`list-color-${color}`);
+        target.append(list);
+        info.append(target);
+      }
       const metadata = [];
       if (v.due) metadata.push(document.createTextNode(`Due ${v.due}`));
-      if (v.priority !== null) {
-        const priority = document.createElement('span');
-        priority.className = 'capture-priority';
-        priority.dataset.priority = v.priority;
-        priority.textContent = `P${v.priority}`;
-        metadata.push(priority);
+      metadata.push(
+        ...v.tags.map((tag) => {
+          const badge = document.createElement('span');
+          badge.className = 'capture-tag';
+          badge.textContent = `+${tag}`;
+          return badge;
+        }),
+      );
+      if (v.section_id) {
+        const badge = document.createElement('span');
+        badge.className = 'capture-tag';
+        badge.textContent = `$${sections.find((section) => section.id === v.section_id)?.title || ''}`;
+        metadata.push(badge);
       }
-      metadata.push(...v.tags.map((tag) => document.createTextNode(`+${tag}`)));
-      if (metadata.length) {
-        const details = document.createElement('span');
-        metadata.forEach((item, index) => {
-          if (index) details.append(' · ');
-          details.append(item);
-        });
-        info.append(details);
-      }
+      info.append(...metadata);
     }
+    info.hidden = !info.childNodes.length;
+
     if (parsed.spans.length || literal) {
       const toggle = document.createElement('button');
       toggle.type = 'button';
@@ -187,7 +202,8 @@ export function mountSmartCapture(form) {
         changes = {};
         setup();
       };
-      info.append(toggle);
+      (scoped ? literalControl : info).append(toggle);
+      if (!scoped) info.hidden = false;
     }
   }
   const setup = () => {
@@ -326,7 +342,7 @@ export function mountSmartCapture(form) {
   const ready = options().then((value) => {
     data = value;
     optionsLoaded = true;
-    previewLoading.finish();
+    previewLoading?.finish();
     setup();
   });
   setup();

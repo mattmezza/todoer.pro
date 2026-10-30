@@ -65,6 +65,56 @@ test('contextual forms preserve locations and dates while parsing allowed metada
   }
 });
 
+test('all contextual composers show parsed priority and tag badges without destination prose', async ({
+  page,
+}) => {
+  await page.evaluate(async () => {
+    const { mountSmartCapture } = await import('/assets/smart-capture.js');
+    for (const kind of ['main', 'section', 'child']) {
+      const form = document.createElement('form');
+      form.dataset.kind = kind;
+      if (kind === 'child') form.dataset.childForm = '';
+      else form.className = 'inline-capture';
+      if (kind === 'main') form.id = 'capture-form';
+      form.innerHTML = '<input name="title"><div class="inline-actions"></div>';
+      document.querySelector('main').append(form);
+      await mountSmartCapture(form).ready;
+    }
+  });
+  for (const kind of ['main', 'section', 'child']) {
+    const form = page.locator(`[data-kind="${kind}"]`);
+    const input = form.locator('input');
+    const preview = form.locator('.capture-result');
+    const priority = form.locator('.smart-capture-input > .capture-priority');
+    await input.fill('Buy milk');
+    await expect(preview).toBeHidden();
+    await expect(priority).toBeHidden();
+    for (const [shortcut, value] of [
+      ['p0', 0],
+      ['!!', 1],
+      ['!', 2],
+      ['!3', 3],
+    ]) {
+      await input.fill(`Buy milk ${shortcut} +home +errands`);
+      await expect(priority).toHaveText(`P${value}`);
+      await expect(priority).toHaveAttribute('data-priority', String(value));
+      await expect(preview.locator('.capture-tag')).toHaveText(['+home', '+errands']);
+      await expect(preview).not.toContainText('Will add');
+      await expect(preview).not.toContainText('To ');
+    }
+    await form.getByRole('button', { name: 'Use text as typed' }).click();
+    await expect(priority).toBeHidden();
+    await expect(preview).toBeHidden();
+    await form.getByRole('button', { name: 'Interpret shortcuts' }).click();
+    await expect(priority).toHaveText('P3');
+    await input.fill('Buy milk p0 p1 +home');
+    await expect(priority).toBeHidden();
+    await input.fill('');
+    await expect(priority).toBeHidden();
+    await expect(preview).toBeHidden();
+  }
+});
+
 test('refresh appends rows without remounting existing tasks or capture forms', async ({
   page,
 }) => {

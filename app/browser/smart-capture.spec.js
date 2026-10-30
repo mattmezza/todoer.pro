@@ -5,7 +5,9 @@ test('smart capture saves the reviewed priority, date and tag', async ({ page })
   await page.goto('/capture?list=groceries');
   const title = `Smart capture ${Date.now()}`;
   await page.getByLabel('Task', { exact: true }).fill(`${title} today p0 +shopping`);
-  await expect(page.locator('.capture-result').getByText(/P0/)).toBeVisible();
+  await expect(
+    page.locator('.smart-capture-input > .capture-priority').getByText(/P0/),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Add task', exact: true }).click();
   await expect(page).toHaveURL(/\/lists\//);
   const task = page.getByRole('link', { name: title, exact: true });
@@ -29,7 +31,9 @@ test('quick capture parses without losing the task when AI is disabled', async (
   await expect(dialog).toBeVisible();
   const title = `Quick smart ${Date.now()}`;
   await dialog.getByLabel('Task', { exact: true }).fill(`${title} tomorrow p1`);
-  await expect(dialog.locator('.capture-result').getByText(/P1/)).toBeVisible();
+  await expect(
+    dialog.locator('.smart-capture-input > .capture-priority').getByText(/P1/),
+  ).toBeVisible();
   await dialog.getByRole('button', { name: 'Add task', exact: true }).click();
   await expect(dialog).not.toBeVisible();
 });
@@ -105,7 +109,9 @@ test('offline queue retains interpreted metadata for retry', async ({ page }) =>
   await page.goto('/capture');
   const title = `Offline smart ${Date.now()}`;
   await page.getByLabel('Task', { exact: true }).fill(`${title} tomorrow p0 +offline`);
-  await expect(page.locator('.capture-result').getByText(/P0/)).toBeVisible();
+  await expect(
+    page.locator('.smart-capture-input > .capture-priority').getByText(/P0/),
+  ).toBeVisible();
   await page.route('**/api/v1/capture', (route) => route.abort());
   await page.getByRole('button', { name: 'Add task', exact: true }).click();
   await expect(
@@ -306,17 +312,17 @@ test('suggestions support Ctrl-N, Ctrl-P, arrows and Tab', async ({ page }) => {
     'color',
     'rgb(18, 171, 52)',
   );
-  await expect(preview.locator('.capture-priority')).toHaveCSS(
+  await expect(page.locator('.smart-capture-input > .capture-priority')).toHaveCSS(
     'color',
     'rgb(255, 59, 59)',
   );
   await task.fill('buy @Personal p1');
-  await expect(preview.locator('.capture-priority')).toHaveCSS(
+  await expect(page.locator('.smart-capture-input > .capture-priority')).toHaveCSS(
     'color',
     'rgb(217, 154, 50)',
   );
   await task.fill('buy @Personal p2');
-  await expect(preview.locator('.capture-priority')).toHaveCSS(
+  await expect(page.locator('.smart-capture-input > .capture-priority')).toHaveCSS(
     'color',
     'rgb(120, 170, 255)',
   );
@@ -369,12 +375,22 @@ test('priority is previewed without a selector and literal text can be restored'
   await page.keyboard.press('n');
   const dialog = page.getByRole('dialog', { name: 'What’s on your mind?' });
   await dialog.getByLabel('Task', { exact: true }).fill('buy milk p0');
-  await expect(dialog.locator('.capture-result')).toContainText('P0');
+  await expect(dialog.locator('.capture-priority')).toHaveText('P0');
   await expect(dialog.getByRole('combobox', { name: 'Priority' })).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Use text as typed' }).click();
-  await expect(dialog.locator('.capture-result strong')).toHaveText('buy milk p0');
+  await expect(dialog.locator('.capture-priority')).toBeHidden();
+  expect(
+    await dialog
+      .locator('.quick-capture-form')
+      .evaluate((form) => form.smartCapture.get().title),
+  ).toBe('buy milk p0');
   await dialog.getByRole('button', { name: 'Interpret shortcuts' }).click();
-  await expect(dialog.locator('.capture-result strong')).toHaveText('buy milk');
+  await expect(dialog.locator('.capture-priority')).toHaveText('P0');
+  expect(
+    await dialog
+      .locator('.quick-capture-form')
+      .evaluate((form) => form.smartCapture.get().title),
+  ).toBe('buy milk');
 });
 
 test('quick capture reveals an auto-growing description and can keep adding', async ({

@@ -18,10 +18,11 @@ test('capture preview waits for options without blocking typing or flashing lite
   const preview = page.locator('.capture-result');
   await expect(preview).toHaveAttribute('data-loading-pending', 'text');
   await expect(preview.locator('.skeleton-line')).toBeVisible();
-  await expect(preview.getByText('Will add')).toHaveCount(0);
+  const priority = page.locator('.smart-capture-input > .capture-priority');
+  await expect(priority).toBeHidden();
   await expect(title).toBeEnabled();
   release();
   await expect(preview).not.toHaveAttribute('data-loading-pending');
-  await expect(preview.getByText('Will add')).toBeVisible();
-  await expect(preview).toContainText('P0');
+  await expect(priority).toHaveText('P0');
+  await expect(priority).toBeVisible();
 });
