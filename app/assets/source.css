@@ -11175,7 +11175,7 @@ body:has(#navigation[data-font='inter']) {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px;
+  padding: 16px 64px 16px 16px;
   margin-bottom: 24px;
   background: var(--sidebar);
   border: 1px solid var(--line);
