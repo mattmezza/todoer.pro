@@ -358,7 +358,7 @@ mod tests {
             reference,
             public_id(&db.conn, "section", &section.id).unwrap()
         );
-        db.conn.execute("INSERT INTO entity_public_ids(kind,entity_id,public_id) VALUES('section',?1,'c_legacy_alias')",[&section.id]).unwrap();
+        db.conn.execute("INSERT INTO entity_public_ids(kind,entity_id,short_id) VALUES('section',?1,'c_legacy_alias')",[&section.id]).unwrap();
         for alias in [&reference, "c_legacy_alias", &section.id] {
             assert_eq!(resolve(&db.conn, "section", alias).unwrap(), section.id);
             assert_eq!(
