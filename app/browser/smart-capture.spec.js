@@ -6,7 +6,7 @@ test('smart capture saves the reviewed priority, date and tag', async ({ page })
   const title = `Smart capture ${Date.now()}`;
   await page.getByLabel('Task', { exact: true }).fill(`${title} today p0 +shopping`);
   await expect(
-    page.locator('.smart-capture-input > .capture-priority').getByText(/P0/),
+    page.locator('.smart-capture-input > .capture-priority').filter({ hasText: 'P0' }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Add task', exact: true }).click();
   await expect(page).toHaveURL(/\/lists\//);
@@ -32,7 +32,7 @@ test('quick capture parses without losing the task when AI is disabled', async (
   const title = `Quick smart ${Date.now()}`;
   await dialog.getByLabel('Task', { exact: true }).fill(`${title} tomorrow p1`);
   await expect(
-    dialog.locator('.smart-capture-input > .capture-priority').getByText(/P1/),
+    dialog.locator('.smart-capture-input > .capture-priority').filter({ hasText: 'P1' }),
   ).toBeVisible();
   await dialog.getByRole('button', { name: 'Add task', exact: true }).click();
   await expect(dialog).not.toBeVisible();
@@ -110,7 +110,7 @@ test('offline queue retains interpreted metadata for retry', async ({ page }) =>
   const title = `Offline smart ${Date.now()}`;
   await page.getByLabel('Task', { exact: true }).fill(`${title} tomorrow p0 +offline`);
   await expect(
-    page.locator('.smart-capture-input > .capture-priority').getByText(/P0/),
+    page.locator('.smart-capture-input > .capture-priority').filter({ hasText: 'P0' }),
   ).toBeVisible();
   await page.route('**/api/v1/capture', (route) => route.abort());
   await page.getByRole('button', { name: 'Add task', exact: true }).click();
