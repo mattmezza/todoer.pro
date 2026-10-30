@@ -10887,3 +10887,27 @@ form[data-load-failed],
   font-size: 14px;
   min-height: 36px;
 }
+
+/* Reference headings and quiet, contextual capture help. */
+[data-space-display] h1,
+[data-list-display] h1,
+.task-section .section-heading h2 {
+  font-family: var(--font-mono);
+}
+.section-heading-copy {
+  flex: 1;
+  min-width: 0;
+}
+.section-heading-copy .section-description {
+  margin: 4px 0 8px;
+}
+.inline-actions > .capture-help,
+.composer-actions > .capture-help {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+.capture-help button {
+  font-size: inherit;
+  color: var(--muted);
+}
