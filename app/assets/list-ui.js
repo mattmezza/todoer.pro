@@ -98,14 +98,13 @@ export function mountListUi({ api, notice, listId }) {
         expand: true,
       });
       alignEditorField(edit.querySelector('[name="description"]'), descriptionAnchor);
-      edit
-        .querySelector(
-          event.target.closest('.list-description')
-            ? '[name="description"]'
-            : '[name="title"]',
-        )
-        .focus();
-      edit.querySelector('[name="title"]').select();
+      const focused = edit.querySelector(
+        event.target.closest('.list-description')
+          ? '[name="description"]'
+          : '[name="title"]',
+      );
+      focused.focus();
+      if (focused.name === 'title') focused.select();
     }
     if (event.target.closest('[data-list-edit-cancel]')) {
       edit.hidden = true;
