@@ -1,3 +1,4 @@
+import { reconcileTasks } from './task-list-refresh.js';
 import { loadingDialog } from './loading.js';
 import { request as fetch } from './request.js';
 import { stowInfo } from './quiet-info.js';
@@ -150,6 +151,18 @@ document.body.addEventListener('htmx:beforeSwap', (e) => {
     e.detail.shouldSwap = false;
     pendingRefresh = true;
     $('#refresh-notice').hidden = false;
+  } else if (e.detail.target?.id === 'task-list' && e.detail.shouldSwap) {
+    const incoming = document.createElement('div');
+    incoming.innerHTML = e.detail.serverResponse;
+    reconcileTasks(e.detail.target, incoming);
+    e.detail.shouldSwap = false;
+    e.detail.target.dispatchEvent(
+      new CustomEvent('htmx:afterSwap', {
+        bubbles: true,
+        detail: { target: e.detail.target },
+      }),
+    );
+    $('#task-count').textContent = document.querySelectorAll('#task-list .task').length;
   }
 });
 document.body.addEventListener('htmx:afterSwap', (e) => {
