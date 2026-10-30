@@ -10895,11 +10895,43 @@ form[data-load-failed],
   font-family: var(--font-mono) !important;
 }
 .section-heading-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
   flex: 1;
   min-width: 0;
 }
+.section-heading-copy > h2 {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 50%;
+  margin: 0;
+}
+.section-heading-copy > h2:only-child {
+  max-width: 100%;
+}
+.section-heading-copy > h2 > button {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .section-heading-copy .section-description {
-  margin: 4px 0 8px;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 14px;
+}
+.section-heading-copy .section-description * {
+  display: inline;
+  margin: 0;
+}
+.section-heading-copy .section-description br {
+  display: none;
 }
 .inline-actions > .capture-help,
 .composer-actions > .capture-help {
