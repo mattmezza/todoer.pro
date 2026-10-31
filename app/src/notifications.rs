@@ -107,6 +107,12 @@ fn dates(schedule: &Schedule, tz: Tz) -> Result<Vec<String>, Error> {
     dates.sort();
     Ok(dates)
 }
+fn moment_description(moment: &Moment) -> String {
+    match moment {
+        Moment::Date { date } => date.clone(),
+        Moment::Timed { local, timezone } => format!("{} ({timezone})", local.replace('T', " ")),
+    }
+}
 impl Store {
     pub fn notification_preferences(&self, actor: &str) -> Result<Preferences, Error> {
         let user = actor_user(&self.conn, actor, 1)?;
@@ -1024,10 +1030,18 @@ impl Store {
                     body.push_str(&format!("\n{group}\n"));
                     last_group = group;
                 }
+                let schedule = &row.schedule.schedule;
+                let mut details = Vec::new();
+                if let Some(planned) = &schedule.planned {
+                    details.push(format!("Planned: {}", moment_description(planned)));
+                }
+                if let Some(due) = &schedule.due {
+                    details.push(format!("Due: {}", moment_description(due)));
+                }
                 body.push_str(&format!(
                     "- {} · {} · {}\n",
                     row.task.title,
-                    row.dates.join(", "),
+                    details.join(" · "),
                     row.task.reference
                 ));
             }
