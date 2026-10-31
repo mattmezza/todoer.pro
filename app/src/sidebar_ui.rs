@@ -87,9 +87,14 @@ pub(super) fn build_sidebar(
     for row in ranks.query_map([actor], |r| r.get::<_, String>(0))? {
         editable.insert(row?);
     }
+    let archived_spaces = db.conn.prepare("SELECT workspace_id FROM workspace_lifecycle WHERE archived=1 OR deleted_at IS NOT NULL")?
+        .query_map([], |r| r.get::<_, String>(0))?.collect::<Result<std::collections::HashSet<_>, _>>()?;
+    let active_lists = db.conn.prepare("SELECT l.id FROM lists l JOIN actor_list_access a ON a.list_id=l.id WHERE a.actor_id=?1 AND l.archived=0 AND NOT EXISTS (SELECT 1 FROM workspace_lifecycle w WHERE w.workspace_id=l.workspace_id AND (w.archived=1 OR w.deleted_at IS NOT NULL))")?
+        .query_map([actor], |r| r.get::<_, String>(0))?.collect::<Result<std::collections::HashSet<_>, _>>()?;
     let spaces = db
         .workspaces(actor)?
         .into_iter()
+        .filter(|w| !archived_spaces.contains(&w.id))
         .map(|w| SidebarSpace {
             writable: editable.contains(&w.id),
             id: w.id.clone(),
@@ -126,6 +131,7 @@ pub(super) fn build_sidebar(
     let lists = db
         .lists(actor)?
         .into_iter()
+        .filter(|l| active_lists.contains(&l.id))
         .filter(|l| {
             workspace.as_ref().is_some_and(|w| {
                 db.conn
@@ -151,12 +157,12 @@ pub(super) fn build_sidebar(
     let personal_favorites = db.favorites(actor)?;
     let favorite_ids: Vec<String> = personal_favorites
         .iter()
-        .filter(|f| f.kind == "list")
+        .filter(|f| f.kind == "list" && active_lists.contains(&f.id))
         .map(|f| f.id.clone())
         .collect();
     let favorites = personal_favorites
         .into_iter()
-        .filter(|f| f.kind == "list")
+        .filter(|f| f.kind == "list" && active_lists.contains(&f.id))
         .map(|f| SidebarList {
             slug: slugs
                 .lists
@@ -172,8 +178,6 @@ pub(super) fn build_sidebar(
             title: f.title,
         })
         .collect();
-    let archived_spaces = db.conn.prepare("SELECT workspace_id FROM workspace_lifecycle WHERE archived=1 OR deleted_at IS NOT NULL")?
-        .query_map([], |r| r.get::<_, String>(0))?.collect::<Result<std::collections::HashSet<_>, _>>()?;
     let menu_spaces = spaces
         .iter()
         .filter(|s| Some(&s.id) == workspace.as_ref())
@@ -234,6 +238,32 @@ pub(super) fn build_sidebar(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn archived_lists_are_absent_from_navigation_and_favorites() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO favorites(user_id,target_kind,target_id) VALUES('dev','list','inbox')",
+                [],
+            )
+            .unwrap();
+        assert!(
+            build_sidebar(&db, "dev", "inbox", String::new())
+                .unwrap()
+                .favorites
+                .iter()
+                .any(|l| l.id == "inbox")
+        );
+        db.conn
+            .execute("UPDATE lists SET archived=1 WHERE id='inbox'", [])
+            .unwrap();
+        let sidebar = build_sidebar(&db, "dev", "inbox", String::new()).unwrap();
+        assert!(sidebar.lists.iter().all(|l| l.id != "inbox"));
+        assert!(sidebar.favorites.is_empty());
+        assert!(sidebar.favorite_ids.is_empty());
+        assert!(!sidebar.archive_note.is_empty());
+    }
     #[test]
     fn platform_admin_menu_follows_the_live_account_role() {
         let mut db = Store::memory().unwrap();
