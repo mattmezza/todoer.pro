@@ -11398,3 +11398,21 @@ body:has(> .list-archive-banner) .notification-bell {
 .breakdown-editor {
   flex-basis: 100%;
 }
+
+.reauth-dialog > p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.reauth-dialog > .reauth-hint {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.reauth-dialog .confirmation-actions {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.reauth-dialog .confirmation-actions > button {
+  margin: 0;
+}

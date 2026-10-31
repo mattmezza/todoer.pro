@@ -4,14 +4,23 @@ export function reauthenticate() {
   if (pending) return pending;
   pending = new Promise((resolve) => {
     const dialog = document.createElement('dialog');
-    dialog.className = 'confirm-dialog';
+    dialog.className = 'quick-dialog confirmation-dialog reauth-dialog';
     const title = document.createElement('h2');
     title.id = 'reauth-title';
-    title.textContent = 'Sign in again to continue';
+    title.innerHTML =
+      '<span class="modal-heading-icon" aria-hidden="true"><svg class="ui-icon" width="20" height="20"><use href="/assets/icons.svg#shield"/></svg></span>Confirm it’s you';
     dialog.setAttribute('aria-labelledby', title.id);
     const message = document.createElement('p');
+    message.id = 'reauth-message';
     message.textContent =
-      'This action needs a fresh sign-in. Sign in in a separate window, then your action will continue here. Your unfinished work stays on this page.';
+      'Sign in again to continue this action. Your work will stay here.';
+    dialog.setAttribute('aria-describedby', message.id);
+    const hint = document.createElement('p');
+    hint.className = 'reauth-hint';
+    hint.textContent = 'A secure sign-in window will open.';
+    hint.setAttribute('role', 'status');
+    const actions = document.createElement('div');
+    actions.className = 'confirmation-actions';
     const start = document.createElement('button');
     start.type = 'button';
     start.className = 'primary';
@@ -44,10 +53,14 @@ export function reauthenticate() {
         return;
       }
       start.disabled = true;
+      start.textContent = 'Waiting for sign-in…';
+      hint.textContent = 'Finish signing in in the other window to continue.';
       timer = setInterval(() => {
         if (popup.closed) {
           clearInterval(timer);
           start.disabled = false;
+          start.textContent = 'Sign in';
+          hint.textContent = 'A secure sign-in window will open.';
           return;
         }
         try {
@@ -67,6 +80,8 @@ export function reauthenticate() {
             clearInterval(timer);
             popup.close();
             start.disabled = false;
+            start.textContent = 'Sign in';
+            hint.textContent = 'A secure sign-in window will open.';
             message.textContent =
               'Sign in with the same account to continue this action.';
             return;
@@ -78,7 +93,8 @@ export function reauthenticate() {
         }
       }, 500);
     };
-    dialog.append(title, message, cancel, start);
+    actions.append(cancel, start);
+    dialog.append(title, message, hint, actions);
     document.body.append(dialog);
     dialog.showModal();
     start.focus();
