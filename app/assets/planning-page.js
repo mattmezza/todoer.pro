@@ -178,9 +178,16 @@ if (main) {
     }
   }
   document.addEventListener('click', (event) => {
-    const link = event.target.closest(
+    let link = event.target.closest(
       '[data-planning-rows] a[href^="/tasks/"],.planning-detail-content a[href^="/tasks/"]',
     );
+    if (
+      !link &&
+      !event.target.closest('button, input, select, textarea, a, summary, details')
+    ) {
+      const row = event.target.closest('[data-planning-rows] .inbox-task');
+      link = row?.querySelector('a[href^="/tasks/"]');
+    }
     if (link?.hasAttribute('data-full-task')) return;
     if (!link || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
