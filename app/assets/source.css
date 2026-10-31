@@ -11607,6 +11607,7 @@ body:has(> .list-archive-banner) .notification-bell {
   padding: 5px;
   width: fit-content;
   max-width: 100%;
+  margin: 16px auto 24px;
   overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: 12px;
