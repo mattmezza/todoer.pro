@@ -38,6 +38,19 @@ for (const type of ['pointerup', 'pointercancel'])
     true,
   );
 main?.addEventListener('focusout', () => setTimeout(resumeRefresh, 0));
+document.addEventListener('click', (event) => {
+  for (const menu of main?.querySelectorAll('.inbox-plan-menu[open]') || [])
+    if (!menu.contains(event.target)) menu.open = false;
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  const menu = main?.querySelector('.inbox-plan-menu[open]');
+  if (!menu || document.querySelector('dialog[open]')) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  menu.open = false;
+  menu.querySelector('summary').focus();
+});
 let inboxId,
   entries = [],
   generation = 0;
