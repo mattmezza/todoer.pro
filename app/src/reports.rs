@@ -75,7 +75,7 @@ impl Store {
                         .collect(),
                 )
             }
-            "inbox" => ("Inbox · needs planning".into(), self.intake_tasks(actor)?),
+            "inbox" => ("Inbox · to settle".into(), self.intake_tasks(actor)?),
             "plan" => {
                 let from = scope
                     .from
