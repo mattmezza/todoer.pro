@@ -1,7 +1,7 @@
 import { inference } from './ai-transaction.js';
 import { beginLoading } from './loading.js';
 import { request } from './request.js';
-export function mountBreakdown(root) {
+export function mountBreakdown(root, { inline = false } = {}) {
   if (!root || root.dataset.canWrite !== 'true') return;
   const menu = root.querySelector('.task-context-menu');
   const dialog = document.createElement('dialog');
@@ -40,10 +40,22 @@ export function mountBreakdown(root) {
   const box = document.createElement('div');
   box.className = 'breakdown-preview';
   button.hidden = true;
+  let inlineButton;
+  if (inline) {
+    inlineButton = document.createElement('button');
+    inlineButton.type = 'button';
+    inlineButton.className = 'panel-breakdown-action';
+    inlineButton.innerHTML =
+      '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#sparkles"/></svg><span>AI breakdown…</span>';
+    inlineButton.hidden = true;
+    inlineButton.onclick = () => button.click();
+    root.querySelector('[data-child-composer]')?.after(inlineButton);
+  }
   request('/api/v1/assist/status')
     .then((r) => r.json())
     .then((state) => {
       button.hidden = !state.enabled;
+      if (inlineButton) inlineButton.hidden = !state.enabled;
     })
     .catch(() => {});
   menu.querySelector('div').append(button);

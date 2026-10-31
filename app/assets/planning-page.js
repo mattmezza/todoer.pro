@@ -58,11 +58,6 @@ if (main) {
     document.body.classList.remove('planning-detail-open');
     highlight();
   }
-  const date = (offset) => {
-    const day = new Date(main.dataset.planningToday + 'T12:00:00Z');
-    day.setUTCDate(day.getUTCDate() + offset);
-    return day.toISOString().slice(0, 10);
-  };
   async function open(url) {
     const version = ++generation;
     stop();
@@ -77,11 +72,6 @@ if (main) {
     document.body.classList.add('planning-detail-open');
     const header = document.createElement('header');
     header.className = 'planning-detail-toolbar';
-    const title = document.createElement('strong');
-    title.textContent = 'Task details';
-    const full = document.createElement('a');
-    full.href = url;
-    full.textContent = 'Open full page';
     const dismiss = document.createElement('button');
     dismiss.type = 'button';
     dismiss.setAttribute('aria-label', 'Close task details');
@@ -104,68 +94,6 @@ if (main) {
       highlight();
       task.removeAttribute('id');
       task.dataset.embedded = 'true';
-      const quick = document.createElement('div');
-      quick.className = 'planning-quick-actions';
-      const caption = document.createElement('span');
-      caption.textContent = 'Replan';
-      quick.append(caption);
-      const weekday =
-        new Date(main.dataset.planningToday + 'T12:00:00Z').getUTCDay() || 7;
-      const nextWeek = 7 - ((weekday - Number(main.dataset.weekStart) + 7) % 7);
-      const notice = document.createElement('p');
-      notice.className = 'planning-quick-status';
-      notice.role = 'status';
-      for (const [label, offset] of [
-        ['Today', 0],
-        ['Tomorrow', 1],
-        ['Next week', nextWeek],
-      ]) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = label;
-        button.disabled = task.dataset.canWrite !== 'true';
-        button.onclick = async () => {
-          if (loading) return;
-          loading = true;
-          for (const b of quick.querySelectorAll('button')) b.disabled = true;
-          notice.textContent = '';
-          setSaveState('preview-planning', 'saving');
-          try {
-            const saved = await fetch(
-              `/api/v1/tasks/${encodeURIComponent(task.dataset.taskId)}/schedule`,
-              { cache: 'no-store' },
-            );
-            if (!saved.ok) throw Error('Could not load the saved planning.');
-            const state = await saved.json();
-            const r = await fetch(
-              `/api/v1/tasks/${encodeURIComponent(task.dataset.taskId)}/schedule`,
-              {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-                body: JSON.stringify({
-                  revision: state.task_revision,
-                  schedule: {
-                    ...state.schedule,
-                    planned: { kind: 'date', date: date(offset) },
-                  },
-                }),
-              },
-            );
-            if (!r.ok)
-              throw Error(
-                (await r.json()).error?.message || 'Planning was not saved. Try again.',
-              );
-            setSaveState('preview-planning', 'saved');
-            await refreshRows();
-          } catch (error) {
-            setSaveState('preview-planning', 'error', error.message);
-          } finally {
-            loading = false;
-            for (const b of quick.querySelectorAll('button')) b.disabled = false;
-          }
-        };
-        quick.append(button);
-      }
       let priorityVersion = 0;
       const reprio = document.createElement('div');
       reprio.className = 'planning-quick-actions planning-reprio';
@@ -223,22 +151,8 @@ if (main) {
         };
         reprio.append(button);
       }
-      content.replaceChildren(quick, reprio, notice, task);
+      content.replaceChildren(reprio, task);
       stop = mountTaskPage(task, { embedded: true });
-      const titleLink = document.createElement('a');
-      titleLink.href = url;
-      titleLink.dataset.fullTask = '';
-      titleLink.textContent = task.querySelector('[data-edit-title]').textContent;
-      titleLink.title = 'Open full task';
-      task.querySelector('.task-page-heading h1').append(titleLink);
-      task.querySelector('[data-edit-title]').disabled = true;
-      task.querySelector('[data-edit-description]').disabled = true;
-      task.querySelector('[data-saved-description]').removeAttribute('tabindex');
-      task
-        .querySelector('[data-saved-description]')
-        .addEventListener('click', (event) => event.stopImmediatePropagation(), {
-          capture: true,
-        });
       const initialPriorityVersion = priorityVersion;
       fetch(`/api/v1/tasks/${encodeURIComponent(task.dataset.taskId)}/schedule`, {
         cache: 'no-store',

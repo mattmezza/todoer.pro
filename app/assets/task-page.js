@@ -1251,6 +1251,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     );
   } else draft = null;
   mountControllers();
+  if (embedded) mountBreakdown(root, { inline: true });
   if (!embedded) setupTaskSettingsDock(root);
   if (new URLSearchParams(location.search).get('move') === '1')
     get('[data-open-move]').click();

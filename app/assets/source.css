@@ -7606,23 +7606,17 @@ form[data-list-edit] [role='alert']:empty {
     .breadcrumbs,
     .task-context-menu,
     .entity-reference,
-    [data-edit-title],
-    [data-edit-description],
     .task-settings-dock-toggle,
     .task-due-summary,
     .task-priority-summary,
-    [data-file-form],
     [data-file-delete],
     .task-child-menu,
     .task-files-empty
   ) {
   display: none !important;
 }
-.planning-detail-content .task-files:not(:has([data-file-row])) {
+.planning-detail-content .task-files:not(:has([data-file-row], [data-file-form])) {
   display: none;
-}
-.planning-detail-content [data-saved-description] {
-  cursor: default;
 }
 .planning-list-page .planning-welcome {
   margin-bottom: 16px;
@@ -11677,4 +11671,118 @@ body:has(> .list-archive-banner) .notification-bell {
   background: var(--hover);
   color: var(--muted);
   font-weight: 600;
+}
+
+/* Compact task details in the planning side panel. */
+.planning-detail-content .planning-reprio {
+  margin: 0 0 8px;
+}
+.planning-reprio button[data-priority='0'] {
+  color: #ff6b6b;
+}
+.planning-reprio button[data-priority='1'] {
+  color: #e7a93f;
+}
+.planning-reprio button[data-priority='2'] {
+  color: #78aaff;
+}
+.planning-reprio button[data-priority='3'] {
+  color: var(--text);
+}
+.planning-reprio button[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+.planning-detail-content .task-page {
+  padding: 12px 0 0;
+}
+.planning-detail-content .task-page-heading {
+  align-items: flex-start;
+}
+.planning-detail-content .task-title-display {
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.planning-detail-content .task-page-checklist {
+  margin-top: 22px;
+}
+.planning-detail-content .task-page [data-discussion-fragment] {
+  margin-top: 18px;
+}
+.planning-detail-content .comment-composer {
+  margin-top: 12px;
+}
+.planning-detail-content
+  :is(
+    [data-child-composer] > summary,
+    [data-comment-composer] > summary,
+    .panel-breakdown-action,
+    [data-file-choose]
+  ) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 8px;
+  color: #9ab5d1;
+  font: 500 14px/1.4 var(--font-sans);
+  border-radius: 6px;
+}
+.planning-detail-content
+  :is(
+    [data-child-composer][open] > summary,
+    [data-comment-composer][open] > summary,
+    .panel-breakdown-action[hidden]
+  ) {
+  display: none;
+}
+.planning-detail-content
+  :is(
+    [data-child-composer] > summary,
+    [data-comment-composer] > summary,
+    .panel-breakdown-action,
+    [data-file-choose]
+  ):hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.planning-detail-content .panel-breakdown-action {
+  margin-top: 2px;
+}
+.planning-detail-content :is([data-child-form], [data-new-comment]) {
+  margin: 4px 0 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  gap: 6px;
+  background: var(--surface, transparent);
+}
+.planning-detail-content :is([data-child-form], [data-new-comment]) textarea {
+  min-height: 38px;
+  padding: 7px 8px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.planning-detail-content [data-new-comment] textarea {
+  min-height: 64px;
+}
+.planning-detail-content :is([data-child-form], [data-new-comment]) .composer-actions {
+  padding-top: 6px;
+  gap: 6px;
+}
+.planning-detail-content
+  :is([data-child-form], [data-new-comment])
+  .composer-actions
+  button {
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.planning-detail-content .task-files-heading {
+  display: none;
+}
+.planning-detail-content .task-files {
+  margin: 0;
+}
+.planning-detail-content .task-files .attachment-form {
+  margin: 0;
 }
