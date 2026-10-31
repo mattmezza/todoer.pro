@@ -48,6 +48,14 @@ expose it through nginx. GHCR package visibility is independent of repository
 visibility: make the image package public after its first release, or authenticate
 the VPS with a read:packages token through `docker login ghcr.io`.
 
+For a standalone Certbot webroot setup, see `nginx-app.conf.example`. Keep its
+HTTP challenge location available for renewal. The optional
+`certbot-reload-nginx.sh` deploy hook validates and reloads nginx after any
+successful certificate renewal; install it executable under
+`/etc/letsencrypt/renewal-hooks/deploy/`, check that the Certbot timer is enabled,
+and test both the hook and `certbot renew --dry-run --cert-name app.todoer.pro`.
+The deploy hook runs for renewals of other certificates on the host as well.
+
 ## Updates and rollback
 
 1. Take a verified SQLite backup (online SQLite backup API, not a live-file copy)
