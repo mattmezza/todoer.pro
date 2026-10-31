@@ -161,7 +161,7 @@ export function mountListUi({ api, notice, listId }) {
           revision: Number(edit.dataset.revision),
           archived: true,
         });
-        location.assign('/workspaces');
+        location.reload();
       } catch (error) {
         notice(error.message, true);
       }
