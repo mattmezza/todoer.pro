@@ -6086,6 +6086,9 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
   margin-bottom: 10px;
 }
 .space-overview-empty button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 20px;
   padding: 9px 14px;
   border-radius: 8px;
