@@ -75,11 +75,20 @@ test('archived lists are separate, show provenance, and can be restored', async 
   });
   expect(children.ok()).toBeTruthy();
   const [child] = await children.json();
+  const favorite = await page.request.put('/api/v1/favorites', {
+    headers,
+    data: { kind: 'list', id: list.id, favorite: true },
+  });
+  expect(favorite.ok()).toBeTruthy();
   const archived = await page.request.patch(`/api/v1/lists/${list.id}`, {
     headers,
     data: { revision: list.revision, archived: true },
   });
   expect(archived.ok()).toBeTruthy();
+  await page.goto('/today');
+  await expect(
+    page.locator(`nav[aria-label=Favorites] a[href="/lists/${list.id}"]`),
+  ).toHaveCount(0);
   await page.goto(`/space/${space.id}`);
   await expect(page.locator('[data-archived-lists]')).toBeHidden();
   await page.getByRole('checkbox', { name: 'Show archived lists' }).check();

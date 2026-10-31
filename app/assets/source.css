@@ -11248,3 +11248,8 @@ body:has(> .list-archive-banner) .notification-bell {
   margin: 0;
   flex: 0 0 auto;
 }
+
+/* SVG fill attributes paint custom navigation colors before scripts load. */
+.reference-sidebar .list-dot-custom {
+  background: transparent;
+}

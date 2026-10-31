@@ -465,8 +465,12 @@ async function openSettings(listId, selected, kind, taskRoot) {
         for (const badge of document.querySelectorAll(
           `.entity-color,.list-navigation[href="/lists/${listId}"] .list-dot`,
         )) {
-          badge.dataset.entityColor = color;
-          badge.style.backgroundColor = color;
+          const circle = badge.querySelector('circle');
+          if (circle) circle.setAttribute('fill', color);
+          else {
+            badge.dataset.entityColor = color;
+            badge.style.backgroundColor = color;
+          }
         }
       }
       const edit = document.querySelector('[data-list-edit]');
