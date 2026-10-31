@@ -465,7 +465,8 @@ mod tests {
 use crate::scheduling::{Channel, ReminderJob};
 use chrono::{Datelike, Utc};
 use lettre::{
-    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor, message::Mailbox,
+    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
+    message::{Mailbox, MultiPart},
     transport::smtp::authentication::Credentials,
 };
 use std::sync::{Arc, Mutex};
@@ -536,7 +537,7 @@ impl Notifications {
         email: &str,
         link: &str,
     ) -> Result<(), Error> {
-        self.send(id,Delivery{to:self.test_recipient.as_deref().unwrap_or(email).to_owned(),subject:"Invitation to Todoer".into(),body:format!("You have been invited to a private Todoer workspace or list.\nSign in with the invited Google email to review your access.\n\n{link}\n\nThis invitation expires after seven days. If you did not expect it, you can ignore this message.")}).await
+        self.send(id,Delivery{to:self.test_recipient.as_deref().unwrap_or(email).to_owned(),subject:"You're invited to Todoer".into(),body:format!("You've been invited to a private space or list in Todoer.\nSign in with the invited email address to review your access.\n\n{link}\n\nThis invitation expires after seven days. If you weren't expecting it, you can ignore this email.")}).await
     }
     #[cfg(test)]
     pub(crate) fn synthetic_smtp(port: u16) -> Self {
@@ -568,6 +569,7 @@ impl Notifications {
         .await
     }
     async fn send(&self, id: &str, delivery: Delivery) -> Result<(), Error> {
+        let html = email_html(&delivery.subject, &delivery.body);
         let message = Message::builder()
             .from(self.from.clone())
             .to(delivery
@@ -576,8 +578,7 @@ impl Notifications {
                 .map_err(|_| invalid("verified recipient address is invalid"))?)
             .message_id(Some(format!("<{id}@todoer.invalid>")))
             .subject(delivery.subject)
-            .header(lettre::message::header::ContentType::TEXT_PLAIN)
-            .body(delivery.body)
+            .multipart(MultiPart::alternative_plain_html(delivery.body, html))
             .map_err(|_| invalid("could not build notification message"))?;
         tokio::time::timeout(std::time::Duration::from_secs(20), self.smtp.send(message))
             .await
@@ -585,6 +586,34 @@ impl Notifications {
             .map_err(|_| invalid("SMTP operation failed; delivery may have been accepted"))?;
         Ok(())
     }
+}
+
+// Email clients often block remote images and web fonts. The wordmark and all
+// essential content are therefore text, with inline styles and system fallbacks.
+fn email_html(subject: &str, body: &str) -> String {
+    fn escape(value: &str) -> String {
+        value
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;")
+            .replace('\'', "&#39;")
+    }
+    let content = body.lines().map(|line| {
+        if line.is_empty() {
+            "<div style=\"height:16px;line-height:16px\">&nbsp;</div>".to_string()
+        } else if (line.starts_with("https://") || line.starts_with("http://")) && !line.chars().any(char::is_whitespace) {
+            let link = escape(line);
+            format!("<div style=\"overflow-wrap:anywhere;word-break:break-all\"><a href=\"{link}\" style=\"color:#93c5fd;text-decoration:underline\">{link}</a></div>")
+        } else {
+            format!("<div>{}</div>", escape(line))
+        }
+    }).collect::<String>();
+    format!(
+        r##"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{}</title></head><body style="margin:0;padding:0;background-color:#030712;color:#cbd5e1;font-family:Geist,Arial,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#030712"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:600px"><tr><td style="padding:0 8px 24px;font-size:25px;font-weight:bold;letter-spacing:-1px;color:#e4e4e7">todoer<span style="font-size:13px;letter-spacing:0;color:#a5b4fc;vertical-align:super"> pro</span></td></tr><tr><td bgcolor="#111827" style="background-color:#111827;border:1px solid #263244;border-radius:12px;padding:28px 24px"><h1 style="margin:0 0 20px;font-size:24px;line-height:1.25;color:#e2e8f0">{}</h1><div style="font-size:15px;line-height:1.65;color:#cbd5e1">{content}</div></td></tr><tr><td style="padding:22px 8px;color:#94a3b8;font-size:12px;line-height:1.5">Todoer Pro · A clearer head. A smaller next step.</td></tr></table></td></tr></table></body></html>"##,
+        escape(subject),
+        escape(subject)
+    )
 }
 #[derive(Debug, Default, Serialize)]
 pub struct WorkerReport {
@@ -752,9 +781,9 @@ impl Store {
             .unwrap_or_else(|| "No due date".into());
         let result = Decision::Send(Delivery {
             to,
-            subject: "Todoer task reminder".into(),
+            subject: "A reminder from Todoer".into(),
             body: format!(
-                "{}\n\nDue: {}\nReference: {}\n\nYou enabled email reminders in Todoer. Change notification preferences to unsubscribe.\n",
+                "A little reminder for your list:\n\n{}\nDue: {}\nReference: {}\n\nYou can change your email reminders in Todoer notification settings.\n",
                 task.title, due, task.reference
             ),
         });
@@ -930,17 +959,25 @@ impl Store {
         } else {
             from
         };
-        let rows = self
+        let mut rows = self
             .planning_tasks(&job.user, &start.to_string(), &end.to_string())?
             .into_iter()
             .filter(|r| !prefs.list_opt_out.contains(&r.task.list_id))
             .collect::<Vec<_>>();
+        rows.sort_by(|a, b| {
+            a.dates
+                .cmp(&b.dates)
+                .then_with(|| a.task.title.cmp(&b.task.title))
+        });
         let mut body = format!(
-            "Todoer {} summary for {} ({})\n\n{} scheduled open tasks in the last year and upcoming period.\n",
-            job.kind,
-            job.period,
-            prefs.timezone,
-            rows.len()
+            "{}\nAs of {} · {}\n\n",
+            if job.kind == "weekly" {
+                "A little perspective for the week ahead."
+            } else {
+                "Here's a little help finding your next step."
+            },
+            today,
+            prefs.timezone
         );
         if job.kind == "weekly" {
             let from = tz
@@ -958,26 +995,54 @@ impl Store {
                 .timestamp();
             let count:i64=self.conn.query_row("SELECT COUNT(*) FROM history h JOIN tasks t ON t.id=json_extract(h.event,'$.task.id') JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?1 WHERE h.occurred_at>=?2 AND h.occurred_at<?3 AND json_extract(h.event,'$.task.complete')=1 AND json_extract(h.before_event,'$.complete')=0 AND json_extract(h.event,'$.countable_leaf')=1 AND a.rank>=1 AND t.list_id NOT IN(SELECT value FROM json_each(?4))",params![job.user,from,to,serde_json::to_string(&prefs.list_opt_out).unwrap()],|r|r.get(0))?;
             body.push_str(&format!(
-                "{count} leaf completion transitions this week; repeat completions count again.\n"
+                "Progress since {period}: {count} {} completed. This counts tasks without subtasks, including repeat completions.\n\n",
+                if count == 1 { "task" } else { "tasks" }
             ));
         }
-        for row in rows.iter().take(100) {
+        if rows.is_empty() {
+            body.push_str("There's nothing scheduled in this window. Enjoy the breathing room.\n");
+        } else {
             body.push_str(&format!(
-                "- {} [{}] ({})\n",
-                row.task.title,
-                row.dates.join(", "),
-                row.task.reference
+                "{} open {} with a planned or due date between {} and {}.\n",
+                rows.len(),
+                if rows.len() == 1 { "task" } else { "tasks" },
+                start,
+                end
             ));
+            let today_string = today.to_string();
+            let mut last_group = "";
+            for row in rows.iter().take(100) {
+                let first_date = row.dates.first().map(String::as_str).unwrap_or("");
+                let group = if first_date < today_string.as_str() {
+                    "Earlier dates"
+                } else if first_date == today_string {
+                    "Today"
+                } else {
+                    "Coming up"
+                };
+                if group != last_group {
+                    body.push_str(&format!("\n{group}\n"));
+                    last_group = group;
+                }
+                body.push_str(&format!(
+                    "- {} · {} · {}\n",
+                    row.task.title,
+                    row.dates.join(", "),
+                    row.task.reference
+                ));
+            }
         }
         if rows.len() > 100 {
-            body.push_str(
-                "Further tasks are omitted from this email; open Todoer for the full view.\n",
-            );
+            body.push_str("\nShowing the first 100 tasks. Open Todoer for the full view.\n");
         }
-        body.push_str("\nOnly tasks you can currently access and have not muted are included. Change notification preferences in Todoer to unsubscribe.\n");
+        body.push_str("\nOnly tasks you can currently access in unmuted lists are included. Change your email summaries in Todoer notification settings.\n");
         let result = Decision::Send(Delivery {
             to,
-            subject: format!("Todoer {} summary", job.kind),
+            subject: if job.kind == "weekly" {
+                "Your week in Todoer".into()
+            } else {
+                "Your day in Todoer".into()
+            },
             body,
         });
         tx.commit()?;
@@ -1329,6 +1394,8 @@ mod delivery_tests {
             panic!("digest should be deliverable")
         };
         assert!(delivery.body.contains("Visible task"));
+        assert!(delivery.body.contains("Today\n- Visible task"));
+        assert!(delivery.body.contains("As of"));
         assert!(!delivery.body.contains("Muted secret"));
         assert!(!delivery.body.contains("Private secret"));
         db.conn
@@ -1344,5 +1411,18 @@ mod delivery_tests {
             panic!("empty digest is still deliverable")
         };
         assert!(!delivery.body.contains("Visible task"));
+        assert!(delivery.body.contains("breathing room"));
+    }
+
+    #[test]
+    fn email_html_escapes_content_and_links_without_remote_assets() {
+        let html = email_html(
+            "Task <review>",
+            "<script>alert('x')</script>\n\nhttps://example.test/?a=1&b=2",
+        );
+        assert!(html.contains("Task &lt;review&gt;"));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("href=\"https://example.test/?a=1&amp;b=2\""));
+        assert!(!html.contains("<img"));
     }
 }

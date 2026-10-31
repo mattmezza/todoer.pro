@@ -13,6 +13,8 @@ pub struct PlanEntry {
     pub space: Option<String>,
     pub local_time: Option<String>,
     pub timezone: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<i64>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -77,24 +79,21 @@ impl Store {
         }
     }
     pub fn intake_tasks(&self, actor: &str) -> Result<Vec<PlanEntry>, Error> {
-        let inbox = self.personal_inbox(actor)?;
-        if !self.conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM lists WHERE id=?1)",
-            [&inbox],
-            |r| r.get::<_, bool>(0),
-        )? {
-            return Ok(vec![]);
+        let user = actor_identity(&self.conn, actor)?.0;
+        self.entries(actor, None, None, None, Some(&user))
+    }
+    pub fn set_inbox_settled(&mut self, actor: &str, id: &str, settled: bool) -> Result<(), Error> {
+        let user = actor_identity(&self.conn, actor)?.0;
+        let t = task(&self.conn, id)?;
+        access_rank(&self.conn, actor, &t.list_id, 2)?;
+        let changed = self.conn.execute(
+            "UPDATE inbox_entries SET settled_at=CASE WHEN ?3 THEN unixepoch() ELSE NULL END WHERE user_id=?1 AND task_id=?2",
+            params![user, t.id, settled],
+        )?;
+        if changed == 0 {
+            return Err(Error::NotFound);
         }
-        self.plan_entries(actor, None, None, Some(&inbox))
-            .map(|rows| {
-                rows.into_iter()
-                    .filter(|r| {
-                        !r.task.complete
-                            && r.task.parent_id.is_none()
-                            && r.schedule.planned.is_none()
-                    })
-                    .collect()
-            })
+        Ok(())
     }
     pub fn plan_entries(
         &self,
@@ -102,6 +101,16 @@ impl Store {
         from: Option<&str>,
         to: Option<&str>,
         list: Option<&str>,
+    ) -> Result<Vec<PlanEntry>, Error> {
+        self.entries(actor, from, to, list, None)
+    }
+    fn entries(
+        &self,
+        actor: &str,
+        from: Option<&str>,
+        to: Option<&str>,
+        list: Option<&str>,
+        inbox_user: Option<&str>,
     ) -> Result<Vec<PlanEntry>, Error> {
         if let Some(id) = list {
             access_rank(&self.conn, actor, id, 1)?;
@@ -111,9 +120,9 @@ impl Store {
             .timezone
             .parse()
             .map_err(|_| Error::Invalid("Invalid timezone".into()))?;
-        let mut query = self.conn.prepare("SELECT t.id,t.reference,t.list_id,t.parent_id,t.title,t.description,t.complete,t.revision,t.position FROM tasks t JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?1 JOIN lists l ON l.id=t.list_id WHERE t.deleted_at IS NULL AND l.archived=0 AND (?2 IS NULL OR t.list_id=?2) AND (?3 IS NULL OR (json_extract((SELECT document FROM task_schedule WHERE task_id=t.id),'$.planned.date') BETWEEN date(?3,'-1 day') AND date(?4,'+1 day'))) ORDER BY t.position,t.id LIMIT 10001")?;
+        let mut query = self.conn.prepare("SELECT t.id,t.reference,t.list_id,t.parent_id,t.title,t.description,t.complete,t.revision,t.position FROM tasks t JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?1 JOIN lists l ON l.id=t.list_id WHERE t.deleted_at IS NULL AND l.archived=0 AND (?2 IS NULL OR t.list_id=?2) AND (?5 IS NULL OR EXISTS(SELECT 1 FROM inbox_entries i WHERE i.user_id=?5 AND i.task_id=t.id AND i.settled_at IS NULL)) AND (?3 IS NULL OR (json_extract((SELECT document FROM task_schedule WHERE task_id=t.id),'$.planned.date') BETWEEN date(?3,'-1 day') AND date(?4,'+1 day'))) ORDER BY CASE WHEN ?5 IS NOT NULL THEN (SELECT created_at FROM inbox_entries WHERE user_id=?5 AND task_id=t.id) END DESC,CASE WHEN ?5 IS NOT NULL THEN (SELECT rowid FROM inbox_entries WHERE user_id=?5 AND task_id=t.id) END DESC,t.position,t.id LIMIT 10001")?;
         let tasks = query
-            .query_map(params![actor, list, from, to], task_row)?
+            .query_map(params![actor, list, from, to, inbox_user], task_row)?
             .collect::<Result<Vec<_>, _>>()?;
         if tasks.len() > 10000 {
             return Err(Error::Invalid(
@@ -160,7 +169,17 @@ impl Store {
                     continue;
                 }
             }
+            let created_at = if let Some(user) = inbox_user {
+                Some(self.conn.query_row(
+                    "SELECT created_at FROM inbox_entries WHERE user_id=?1 AND task_id=?2",
+                    params![user, t.id],
+                    |r| r.get(0),
+                )?)
+            } else {
+                None
+            };
             result.push(PlanEntry {
+                created_at,
                 schedule,
                 task: t,
                 list: name,
@@ -256,7 +275,7 @@ mod tests {
         .remove(0)
     }
     #[test]
-    fn personal_intake_is_isolated_and_planning_removes_task() {
+    fn personal_intake_is_isolated_and_requires_explicit_settling() {
         let mut s = setup();
         let inbox = s.personal_inbox("dev").unwrap();
         assert_ne!(inbox, "inbox");
@@ -300,7 +319,12 @@ mod tests {
                 },
             )
             .unwrap();
+        assert_eq!(s.intake_tasks("dev").unwrap().len(), 1);
+        assert!(s.set_inbox_settled("other", &t.id, true).is_err());
+        s.set_inbox_settled("dev", &t.id, true).unwrap();
         assert!(s.intake_tasks("dev").unwrap().is_empty());
+        s.set_inbox_settled("dev", &t.id, false).unwrap();
+        assert_eq!(s.intake_tasks("dev").unwrap().len(), 1);
         let plan = s
             .plan_entries("dev", Some("2026-10-28"), Some("2026-10-28"), None)
             .unwrap();
@@ -333,6 +357,33 @@ mod tests {
         )
         .unwrap();
         assert_eq!(s.intake_tasks("dev").unwrap().len(), 1);
+    }
+    #[test]
+    fn captured_tasks_in_other_lists_stay_in_the_creators_inbox() {
+        let mut s = setup();
+        let task = s
+            .capture(
+                "dev",
+                "filed-capture",
+                Capture {
+                    list_id: "inbox".into(),
+                    tasks: vec![NewTask {
+                        title: "Filed from the start".into(),
+                        description: "Details".into(),
+                        parent_id: None,
+                    }],
+                },
+            )
+            .unwrap()
+            .remove(0);
+        let entries = s.intake_tasks("dev").unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].task.id, task.id);
+        assert!(entries[0].created_at.is_some());
+        assert!(s.intake_tasks("other").unwrap().is_empty());
+        s.set_inbox_settled("dev", &task.id, true).unwrap();
+        assert!(s.intake_tasks("dev").unwrap().is_empty());
+        assert_eq!(s.tasks("dev", "inbox").unwrap().len(), 1);
     }
     #[test]
     fn nonexistent_or_ambiguous_clock_time_does_not_change_task() {

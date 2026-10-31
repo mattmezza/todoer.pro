@@ -293,6 +293,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
         48,
         include_str!("../migrations/048_list_archive_details.sql"),
     ),
+    (49, include_str!("../migrations/049_inbox_stream.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {
@@ -531,6 +532,11 @@ impl Store {
                 ],
             )?;
             if n.parent_id.is_none() {
+                let user = actor_identity(&tx, actor)?.0;
+                tx.execute(
+                    "INSERT INTO inbox_entries(user_id,task_id) VALUES(?1,?2)",
+                    params![user, id],
+                )?;
                 tx.execute("INSERT INTO task_locations(task_id,section_id) SELECT ?1,section_id FROM list_defaults WHERE list_id=?2",params![id,request.list_id])?;
             }
             crate::defaults::public_id(&tx, "task", &id)?;

@@ -7,6 +7,7 @@ pub(super) fn routes() -> Router<AppState> {
         .route("/inbox", get(inbox_page))
         .route("/plan", get(plan_page))
         .route("/api/v1/inbox", get(intake))
+        .route("/api/v1/tasks/{id}/inbox", axum::routing::put(settle_inbox))
         .route("/api/v1/plan", get(plan))
         .route("/api/v1/tasks/{id}/placement", axum::routing::put(place))
         .route("/api/v1/triage/destinations", get(destinations))
@@ -42,7 +43,7 @@ async fn page(s: AppState, h: HeaderMap, mode: &str) -> Result<Response, ApiErro
             sidebar,
             title: if inbox { "Inbox" } else { "Plan" }.into(),
             description: if inbox {
-                "Capture first. Choose when or where when you’re ready."
+                "A place for new tasks. Give each one your attention, then settle it."
             } else {
                 "Make room for the things that matter."
             }
@@ -70,6 +71,22 @@ async fn intake(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Value>, 
         })
         .await?,
     ))
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InboxSettlement {
+    settled: bool,
+}
+async fn settle_inbox(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+    Input(input): Input<InboxSettlement>,
+) -> Result<Json<Value>, ApiError> {
+    let actor = s.auth(&h, true)?;
+    s.run(move |db| db.set_inbox_settled(&actor, &id, input.settled))
+        .await?;
+    Ok(Json(json!({"settled": input.settled})))
 }
 #[derive(Deserialize)]
 struct Range {
