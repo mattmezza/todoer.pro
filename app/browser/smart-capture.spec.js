@@ -452,3 +452,54 @@ test('shortcut help expires after 30 seconds but stays visible while hovered', a
   await page.mouse.move(0, 0);
   await expect(button).toBeVisible();
 });
+
+test('keep adding resets a destination parsed from the previous title', async ({
+  page,
+}) => {
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  await page.goto('/inbox');
+  const csrf = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+  const suffix = String(Date.now());
+  const spaceName = `capture${suffix}`;
+  const listName = `filed${suffix}`;
+  const headers = { 'X-CSRF-Token': csrf, 'Idempotency-Key': `space-${suffix}` };
+  const spaceResponse = await page.request.post('/api/v1/workspaces', {
+    headers,
+    data: { title: spaceName },
+  });
+  expect(spaceResponse.ok()).toBeTruthy();
+  const space = await spaceResponse.json();
+  const listResponse = await page.request.post('/api/v1/lists', {
+    headers: { ...headers, 'Idempotency-Key': `list-${suffix}` },
+    data: {
+      workspace_id: space.id,
+      title: listName,
+      description: '',
+      color: '#3b82f6',
+      restricted: false,
+    },
+  });
+  expect(listResponse.ok()).toBeTruthy();
+  const list = await listResponse.json();
+  const inbox = await (await page.request.get('/api/v1/inbox')).json();
+  await page.getByRole('link', { name: 'Capture a task…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'What’s on your mind?' });
+  const title = dialog.getByLabel('Task', { exact: true });
+  await dialog.getByLabel('Keep adding').check();
+  await title.fill(`First ${suffix} @${spaceName}#${listName}`);
+  await expect(dialog.locator('.capture-result')).toContainText('#' + listName);
+  const firstSave = page.waitForResponse(
+    (r) => r.url().endsWith('/api/v1/capture') && r.request().method() === 'POST',
+  );
+  await dialog.getByRole('button', { name: 'Add task', exact: true }).click();
+  expect((await firstSave).request().postDataJSON().list_id).toBe(list.id);
+  await expect(title).toHaveValue('');
+  await title.fill(`Second ${suffix}`);
+  await expect(dialog.locator('.capture-result')).toContainText('Inbox');
+  const secondSave = page.waitForResponse(
+    (r) => r.url().endsWith('/api/v1/capture') && r.request().method() === 'POST',
+  );
+  await dialog.getByRole('button', { name: 'Add task', exact: true }).click();
+  expect((await secondSave).request().postDataJSON().list_id).toBe(inbox.list_id);
+});
