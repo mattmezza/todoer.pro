@@ -11448,6 +11448,63 @@ body:has(> .list-archive-banner) .notification-bell {
 }
 
 /* Inbox: a quiet stream with one clear decision per task. */
+main[data-workbench='inbox'] [data-workbench-toolbar] {
+  position: sticky;
+  top: 12px;
+  z-index: 10;
+  padding: 8px 0 16px;
+}
+main[data-workbench='inbox'] [data-workbench-toolbar]::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -12px -12px 0;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  mask-image: linear-gradient(transparent, #000 25%, #000 65%, transparent);
+}
+main[data-workbench='inbox'] .inbox-capture {
+  margin: 0;
+}
+main[data-workbench='inbox'].inbox-has-more-below::after {
+  content: '';
+  position: fixed;
+  z-index: 9;
+  inset: auto 0 0;
+  height: 48px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+}
+.inbox-gap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 26px 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+.inbox-gap::before,
+.inbox-gap::after {
+  content: '';
+  flex: 1;
+  height: 8px;
+  opacity: 0.5;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='8' viewBox='0 0 16 8'%3E%3Cpath d='M0 4 Q2 0 4 4 T8 4 T12 4 T16 4' fill='none' stroke='%2394a3b8' stroke-width='1'/%3E%3C/svg%3E")
+    repeat-x center;
+}
+.inbox-load-more {
+  display: block;
+  margin: 24px auto;
+  padding: 8px 14px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.inbox-load-more:hover {
+  color: var(--text);
+  background: var(--hover);
+}
 .inbox-group-heading {
   margin: 28px 0 8px;
   color: var(--muted);

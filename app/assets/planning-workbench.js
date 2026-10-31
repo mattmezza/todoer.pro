@@ -11,10 +11,12 @@ const toolbar = main?.querySelector('[data-workbench-toolbar]');
 const status = main?.querySelector('[data-workbench-status]');
 let pointerHeld = false,
   deferredRefresh = false;
+const pendingSettles = new Set();
 function resumeRefresh() {
   if (
     deferredRefresh &&
     !pointerHeld &&
+    pendingSettles.size === 0 &&
     !main?.querySelector('input:focus,textarea:focus,select:focus')
   ) {
     deferredRefresh = false;
@@ -53,7 +55,12 @@ document.addEventListener('keydown', (event) => {
 });
 let inboxId,
   entries = [],
-  generation = 0;
+  generation = 0,
+  inboxNext = null,
+  inboxRevision = 0,
+  morePending = false,
+  moreObserver;
+const inboxPageSize = 40;
 const node = (tag, text, cls) => {
   const n = document.createElement(tag);
   if (text) n.textContent = text;
@@ -456,8 +463,31 @@ async function settle(entry, row, b) {
     await api(`tasks/${encodeURIComponent(entry.task.id)}/inbox`, 'PUT', {
       settled: true,
     });
+    const previousIndex = entries.findIndex((item) => item.task.id === entry.task.id);
+    const nextId = entries[previousIndex + 1]?.task.id;
     entries = entries.filter((item) => item.task.id !== entry.task.id);
-    row.classList.add('is-settling');
+    inboxRevision++;
+    pendingSettles.add(entry.task.id);
+    let restored = false;
+    row.style.overflow = 'hidden';
+    const animation = !matchMedia('(prefers-reduced-motion: reduce)').matches
+      ? row.animate(
+          [
+            { height: row.offsetHeight + 'px', opacity: 1 },
+            {
+              height: '0px',
+              paddingTop: '0px',
+              paddingBottom: '0px',
+              marginTop: '0px',
+              marginBottom: '0px',
+              borderWidth: '0px',
+              opacity: 0,
+              transform: 'translateX(16px)',
+            },
+          ],
+          { duration: 320, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'forwards' },
+        )
+      : null;
     const undo = node('div', null, 'inbox-undo');
     undo.setAttribute('role', 'status');
     undo.append(node('span', 'Settled · ' + entry.task.title));
@@ -467,13 +497,68 @@ async function settle(entry, row, b) {
         await api(`tasks/${encodeURIComponent(entry.task.id)}/inbox`, 'PUT', {
           settled: false,
         });
-        undo.remove();
-        await load();
-        const restored = [...content.querySelectorAll('[data-task-id]')].find(
+        const collapsedHeight = row.isConnected ? row.getBoundingClientRect().height : 0;
+        restored = true;
+        inboxRevision++;
+        animation?.cancel();
+        pendingSettles.delete(entry.task.id);
+        const current = entries.findIndex((item) => item.task.id === entry.task.id);
+        if (current < 0) {
+          const nextIndex = entries.findIndex((item) => item.task.id === nextId);
+          entries.splice(
+            nextIndex < 0 ? Math.min(previousIndex, entries.length) : nextIndex,
+            0,
+            entry,
+          );
+        }
+        let restoredRow = [...content.querySelectorAll('.inbox-task')].find(
           (item) => item.dataset.taskId === entry.task.id,
         );
-        restored?.classList.add('is-restored');
-        restored?.querySelector('.inbox-settle')?.focus();
+        if (!restoredRow) {
+          restoredRow = taskCard(entry, true);
+          const following = [...content.querySelectorAll('.inbox-task')].find(
+            (item) => item.dataset.taskId === nextId,
+          );
+          content.querySelector('.planning-empty')?.remove();
+          content.insertBefore(
+            restoredRow,
+            following || content.querySelector('[data-inbox-more]'),
+          );
+        }
+        if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          restoredRow.style.overflow = 'hidden';
+          const expandedHeight = restoredRow.offsetHeight;
+          const style = getComputedStyle(restoredRow);
+          const returning = restoredRow.animate(
+            [
+              {
+                height: collapsedHeight + 'px',
+                paddingTop: '0px',
+                paddingBottom: '0px',
+                marginTop: '0px',
+                marginBottom: '0px',
+                borderWidth: '0px',
+                opacity: 0,
+              },
+              {
+                height: expandedHeight + 'px',
+                paddingTop: style.paddingTop,
+                paddingBottom: style.paddingBottom,
+                marginTop: style.marginTop,
+                marginBottom: style.marginBottom,
+                borderWidth: style.borderTopWidth,
+                opacity: 1,
+              },
+            ],
+            { duration: 300, easing: 'cubic-bezier(.2,.7,.2,1)' },
+          );
+          returning.finished.finally(() => (restoredRow.style.overflow = ''));
+        } else restoredRow.style.overflow = '';
+        restoredRow.querySelector('.inbox-settle').disabled = false;
+        decorateInbox();
+        restoredRow.querySelector('.inbox-settle').focus();
+        undo.remove();
+        resumeRefresh();
       } catch (error) {
         restore.disabled = false;
         fail(error);
@@ -481,10 +566,20 @@ async function settle(entry, row, b) {
     });
     undo.append(restore);
     main.append(undo);
-    setTimeout(() => {
+    const finish = () => {
+      if (restored) return;
       row.remove();
-      if (!entries.length) renderInbox();
-    }, 260);
+      pendingSettles.delete(entry.task.id);
+      if (!entries.length && !inboxNext) renderInbox();
+      else {
+        decorateInbox();
+        if (!entries.length && inboxNext) loadMore();
+      }
+      updateInboxFade();
+      resumeRefresh();
+    };
+    if (animation) animation.finished.then(finish).catch(() => {});
+    else finish();
     setTimeout(() => undo.remove(), 10000);
   } catch (error) {
     b.disabled = false;
@@ -533,6 +628,93 @@ function inboxGroup(timestamp) {
     timeZone: 'UTC',
   }).format(new Date(local + 'T12:00:00Z'));
 }
+function gapText(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  if (hours < 24) return `${hours} hours between captures`;
+  const days = Math.floor(hours / 24);
+  if (days < 14) return `${days} ${days === 1 ? 'day' : 'days'} between captures`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 8) return `${weeks} weeks between captures`;
+  const months = Math.floor(days / 30);
+  return `${months} months between captures`;
+}
+function decorateInbox() {
+  content
+    .querySelectorAll('.inbox-group-heading, .inbox-gap')
+    .forEach((item) => item.remove());
+  const byId = new Map(entries.map((entry) => [entry.task.id, entry]));
+  let previous, group;
+  for (const row of content.querySelectorAll('.inbox-task')) {
+    const entry = byId.get(row.dataset.taskId);
+    if (!entry) continue;
+    if (
+      previous?.created_at &&
+      entry.created_at &&
+      previous.created_at - entry.created_at >= 6 * 3600
+    ) {
+      const gap = node(
+        'div',
+        gapText(previous.created_at - entry.created_at),
+        'inbox-gap',
+      );
+      gap.setAttribute('role', 'separator');
+      content.insertBefore(gap, row);
+    }
+    const label = inboxGroup(entry.created_at);
+    if (label !== group) {
+      group = label;
+      content.insertBefore(node('h2', label, 'inbox-group-heading'), row);
+    }
+    previous = entry;
+  }
+}
+function updateInboxFade() {
+  if (main?.dataset.workbench !== 'inbox') return;
+  main.classList.toggle(
+    'inbox-has-more-below',
+    document.documentElement.scrollHeight - (window.scrollY + window.innerHeight) > 8,
+  );
+}
+async function loadMore() {
+  if (!inboxNext || morePending) return;
+  const cursor = inboxNext,
+    version = generation;
+  morePending = true;
+  const trigger = content.querySelector('[data-inbox-more]');
+  if (trigger) {
+    trigger.disabled = true;
+    trigger.textContent = 'Loading more…';
+  }
+  try {
+    const data = await api(
+      `inbox?limit=${inboxPageSize}&before=${encodeURIComponent(cursor)}`,
+    );
+    if (version !== generation) return;
+    const known = new Set(entries.map((entry) => entry.task.id));
+    for (const entry of data.entries) {
+      if (known.has(entry.task.id)) continue;
+      known.add(entry.task.id);
+      entries.push(entry);
+      content.insertBefore(taskCard(entry, true), trigger);
+    }
+    inboxNext = data.next;
+    inboxRevision++;
+    trigger?.remove();
+    decorateInbox();
+    morePending = false;
+    addInboxMore();
+    requestAnimationFrame(updateInboxFade);
+  } catch (error) {
+    if (version === generation && trigger) {
+      moreObserver?.disconnect();
+      trigger.disabled = false;
+      trigger.textContent = 'Could not load more. Try again';
+      fail(error);
+    }
+  } finally {
+    if (version === generation) morePending = false;
+  }
+}
 function renderInbox() {
   if (!toolbar.querySelector('.inbox-capture')) {
     const trigger = node('a', 'Capture a task…', 'inbox-capture');
@@ -541,17 +723,11 @@ function renderInbox() {
     trigger.dataset.captureList = inboxId;
     toolbar.append(trigger);
   }
-  content.replaceChildren();
-  let group;
-  for (const entry of entries) {
-    const label = inboxGroup(entry.created_at);
-    if (label !== group) {
-      group = label;
-      content.append(node('h2', label, 'inbox-group-heading'));
-    }
-    content.append(taskCard(entry, true));
-  }
-  if (!entries.length) {
+  moreObserver?.disconnect();
+  content.replaceChildren(...entries.map((entry) => taskCard(entry, true)));
+  decorateInbox();
+  addInboxMore();
+  if (!entries.length && !inboxNext) {
     const empty = node('div', null, 'planning-empty');
     empty.innerHTML =
       '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#inbox"/></svg>';
@@ -563,6 +739,24 @@ function renderInbox() {
       ),
     );
     content.append(empty);
+  }
+  requestAnimationFrame(updateInboxFade);
+}
+function addInboxMore() {
+  moreObserver?.disconnect();
+  if (inboxNext) {
+    const more = button('Load more tasks', loadMore, 'inbox-load-more');
+    more.dataset.inboxMore = '';
+    content.append(more);
+    if ('IntersectionObserver' in window) {
+      moreObserver = new IntersectionObserver(
+        (records) => {
+          if (records.some((record) => record.isIntersecting)) loadMore();
+        },
+        { rootMargin: '240px 0px' },
+      );
+      moreObserver.observe(more);
+    }
   }
 }
 function addPlannedTask(date, initialTime = '') {
@@ -915,7 +1109,13 @@ function monthBoard() {
 }
 
 async function load() {
+  if (pendingSettles.size) {
+    deferredRefresh = true;
+    return;
+  }
   const version = ++generation;
+  const inboxSnapshot = inboxRevision;
+  morePending = false;
   const selection =
     main.dataset.workbench === 'inbox' ? 'inbox' : `${view}:${anchor}:${query}`;
   const sameSelection = content.dataset.selection === selection;
@@ -931,16 +1131,42 @@ async function load() {
   try {
     const intake = main.dataset.workbench === 'inbox';
     if (!intake) range();
-    const data = await api(intake ? 'inbox' : `plan?from=${from}&to=${to}`);
+    let data;
+    if (intake) {
+      const target = Math.max(inboxPageSize, entries.length);
+      data = await api(`inbox?limit=${inboxPageSize}`);
+      while (data.next && data.entries.length < target) {
+        const page = await api(
+          `inbox?limit=${inboxPageSize}&before=${encodeURIComponent(data.next)}`,
+        );
+        data.entries.push(...page.entries);
+        data.next = page.next;
+        if (version !== generation) return;
+      }
+    } else data = await api(`plan?from=${from}&to=${to}`);
     if (version !== generation) return;
+    if (intake && inboxSnapshot !== inboxRevision) {
+      deferredRefresh = true;
+      setTimeout(resumeRefresh, 0);
+      return;
+    }
     if (sameSelection && content.dataset.loaded === 'true') {
-      if (JSON.stringify(entries) === JSON.stringify(data.entries)) return;
-      if (pointerHeld || main.querySelector('input:focus,textarea:focus,select:focus')) {
+      if (
+        JSON.stringify(entries) === JSON.stringify(data.entries) &&
+        (!intake || inboxNext === data.next)
+      )
+        return;
+      if (
+        pointerHeld ||
+        pendingSettles.size ||
+        main.querySelector('input:focus,textarea:focus,select:focus')
+      ) {
         deferredRefresh = true;
         return;
       }
     }
     entries = data.entries;
+    if (intake) inboxNext = data.next;
     inboxId = data.list_id;
     status.textContent = '';
     if (intake) renderInbox();
@@ -972,6 +1198,10 @@ if (main) {
     import('./export-menu.js').then((m) => m.openExport(scope)).catch(fail);
   };
   if (main.dataset.workbench === 'plan') syncRange();
+  else {
+    addEventListener('scroll', updateInboxFade, { passive: true });
+    addEventListener('resize', updateInboxFade);
+  }
   load();
   document.addEventListener('todoer:capture', load);
 }
