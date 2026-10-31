@@ -11636,3 +11636,27 @@ body:has(> .list-archive-banner) .notification-bell {
   align-items: center;
   gap: 8px;
 }
+
+.inbox-tag {
+  color: var(--accent);
+}
+.inbox-priority[data-priority='0'] {
+  color: #ff3b3b;
+}
+.inbox-priority[data-priority='1'] {
+  color: #f59e0b;
+}
+.inbox-priority[data-priority='2'] {
+  color: #60a5fa;
+}
+.inbox-priority[data-priority='3'] {
+  color: var(--muted);
+}
+
+.inbox-location {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--hover);
+  color: var(--muted);
+  font-weight: 600;
+}

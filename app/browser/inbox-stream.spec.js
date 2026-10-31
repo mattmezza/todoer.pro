@@ -34,6 +34,7 @@ test('Inbox keeps planned tasks until settled and can undo, with working details
     data: {
       list_id: intake.list_id,
       tasks: [{ title, description: 'A little context' }],
+      metadata: { priority: 1, due_date: null, tags: ['errands'] },
     },
   });
   expect(response.ok()).toBeTruthy();
@@ -41,6 +42,10 @@ test('Inbox keeps planned tasks until settled and can undo, with working details
   const row = page.locator('.inbox-task').filter({ hasText: title });
   await expect(row).toBeVisible();
   await expect(row).toContainText('A little context');
+  await expect(row.locator('.inbox-location')).toHaveText('Inbox');
+  await expect(row.locator('.inbox-tag')).toHaveText('+errands');
+  await expect(row.locator('.inbox-priority')).toHaveText('P1');
+  await expect(row.locator('.inbox-priority')).toHaveCSS('color', 'rgb(245, 158, 11)');
   await row.getByText('Plan…').click();
   await row.getByRole('button', { name: 'Tomorrow' }).click();
   await expect(row).toContainText('Planned');

@@ -379,6 +379,7 @@ function taskCard(entry, intake = false) {
       meta.append(
         node('span', `${entry.space ? '@' + entry.space + ' / ' : ''}#${entry.list}`),
       );
+    else meta.append(node('span', 'Inbox', 'inbox-location'));
     if (entry.schedule.planned)
       meta.append(
         node(
@@ -394,8 +395,12 @@ function taskCard(entry, intake = false) {
           'Due · ' + (entry.schedule.due.date || entry.schedule.due.local?.slice(0, 10)),
         ),
       );
-    if (entry.schedule.priority != null)
-      meta.append(node('span', 'P' + entry.schedule.priority));
+    for (const tag of entry.tags || []) meta.append(node('span', '+' + tag, 'inbox-tag'));
+    if (entry.schedule.priority != null) {
+      const priority = node('span', 'P' + entry.schedule.priority, 'inbox-priority');
+      priority.dataset.priority = entry.schedule.priority;
+      meta.append(priority);
+    }
     if (meta.childNodes.length) text.append(meta);
     const actions = node('div', null, 'inbox-quick-actions');
     const plan = node('details', null, 'inbox-plan-menu');

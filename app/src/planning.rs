@@ -15,6 +15,8 @@ pub struct PlanEntry {
     pub timezone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<i64>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -178,8 +180,17 @@ impl Store {
             } else {
                 None
             };
+            let tags = if inbox_user.is_some() {
+                self.task_tags(actor, &t.id)?
+                    .into_iter()
+                    .map(|tag| tag.name)
+                    .collect()
+            } else {
+                Vec::new()
+            };
             result.push(PlanEntry {
                 created_at,
+                tags,
                 schedule,
                 task: t,
                 list: name,
@@ -376,8 +387,16 @@ mod tests {
             )
             .unwrap()
             .remove(0);
+        s.set_task_tags(
+            "dev",
+            &task.id,
+            task.revision,
+            vec![crate::taxonomy::TagSelector::Name("errands".into())],
+        )
+        .unwrap();
         let entries = s.intake_tasks("dev").unwrap();
         assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].tags, vec!["errands"]);
         assert_eq!(entries[0].task.id, task.id);
         assert!(entries[0].created_at.is_some());
         s.capture(
