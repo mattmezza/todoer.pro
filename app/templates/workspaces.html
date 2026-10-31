@@ -17,6 +17,7 @@
 {% if workspaces.is_empty() %}<p class="muted">No spaces to show.</p>{% endif %}
 </section>
 {% if can_create %}
+<div class="workspace-add-action"><button type="button" class="primary" data-workspace-create-open><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#plus"/></svg> Add space</button></div>
 <dialog class="quick-dialog workspace-create-dialog" id="workspace-create-dialog" aria-labelledby="create-heading"><button type="button" class="dialog-close" data-workspace-create-close aria-label="Close new space"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg></button><h2 id="create-heading">Add a new space</h2><p class="muted">A private space with an Inbox, ready for your first task.</p>
 <form method="post" action="/spaces"><input type="hidden" name="csrf" value="{{ csrf }}"><label for="workspace-title">Space name</label><input id="workspace-title" name="title" data-reference-prefix="@" required maxlength="500" autocomplete="off" placeholder="Space name"><label for="workspace-description">Description</label><textarea id="workspace-description" name="description" rows="3" maxlength="100000" placeholder="What belongs here?"></textarea><div class="composer-actions"><button type="button" data-workspace-create-close>Cancel</button><button class="primary" type="submit">Create space</button></div></form></dialog>
 {% endif %}

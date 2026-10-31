@@ -11621,3 +11621,14 @@ body:has(> .list-archive-banner) .notification-bell {
 .planning-space-filters {
   row-gap: 8px;
 }
+
+.workspace-add-action {
+  display: flex;
+  justify-content: center;
+  margin: 32px 0;
+}
+.workspace-add-action button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}

@@ -199,7 +199,10 @@ test('spaces contextual add creates the complete hierarchy and destructive dialo
   await page.goto('/spaces');
   await page.waitForFunction(() => document.body.dataset.workspacesReady === 'true');
   await expect(page.locator('#workspace-title')).toBeHidden();
-  await page.getByRole('button', { name: 'Add space', exact: true }).click();
+  await page
+    .locator('main')
+    .getByRole('button', { name: 'Add space', exact: true })
+    .click();
   const modal = page.getByRole('dialog', { name: 'Add a new space' });
   await expect(modal).toBeVisible();
   await expect(modal.locator('[name=title]')).toBeFocused();
