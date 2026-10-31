@@ -91,6 +91,8 @@ Smaller images still need reviewed base-image updates and vulnerability scanning
 Copy `replica.env.example` to `replica.env`, chmod 600, configure a private S3
 bucket and credentials distinct from attachments, then enable `COMPOSE_FILE` in
 `.env`. Litestream gets only replica credentials. Run the normal deploy script.
+The non-secret `litestream.yml` must be readable by container UID 10001; a checkout
+created with a restrictive umask may need `chmod 644 deploy/litestream.yml`.
 Rehearse a restore into a new path and verify integrity and task counts before
 relying on replication. A replica does not replace pre-upgrade backups; preserve
 attachment objects and the encryption key independently. Health success is for
