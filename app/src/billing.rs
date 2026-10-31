@@ -17,7 +17,7 @@ fn invalid(s: &str) -> Error {
     Error::Invalid(s.into())
 }
 const MAX_TOPUP_MICRO: i64 = 1_000_000_000;
-const STRIPE_VERSION: &str = "2025-09-30.clover";
+const STRIPE_VERSION: &str = "2026-10-28.endive";
 const CONSENT_VERSION: &str = "auto-topup-v1";
 
 #[derive(Clone)]
