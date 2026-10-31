@@ -964,7 +964,7 @@ async function load() {
 if (main) {
   main.dataset.planningToday = today;
   content.dataset.planningRows = '';
-  import('./planning-page.js');
+  await import('./planning-page.js');
   document.addEventListener('todoer:workbench-refresh', load);
   main.querySelector('[data-export-workbench]').onclick = () => {
     const scope =
