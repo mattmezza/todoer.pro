@@ -171,6 +171,7 @@ function dateInput(value) {
 }
 function modal(title) {
   const dialog = node('dialog', null, 'quick-dialog workbench-dialog');
+  dialog.setAttribute('aria-label', title);
   const h = node('h2', title);
   const close = button('', () => dialog.close(), 'workbench-dialog-close');
   close.innerHTML =
