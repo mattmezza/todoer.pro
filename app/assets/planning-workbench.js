@@ -59,8 +59,11 @@ let inboxId,
   inboxNext = null,
   inboxRevision = 0,
   morePending = false,
-  moreObserver;
+  moreObserver,
+  rollObserver,
+  rollFrame;
 const inboxPageSize = 40;
+const visibleInboxRows = new Set();
 const node = (tag, text, cls) => {
   const n = document.createElement(tag);
   if (text) n.textContent = text;
@@ -401,6 +404,8 @@ function taskCard(entry, intake = false) {
   row.append(check, text);
   if (intake) {
     row.classList.add('inbox-task');
+    if (rollObserver) rollObserver.observe(row);
+    else visibleInboxRows.add(row);
     if (t.description) text.append(node('p', t.description, 'inbox-description'));
     const meta = node('div', null, 'inbox-meta');
     if (t.list_id !== inboxId)
@@ -569,6 +574,8 @@ async function settle(entry, row, b) {
     const finish = () => {
       if (restored) return;
       row.remove();
+      rollObserver?.unobserve(row);
+      visibleInboxRows.delete(row);
       pendingSettles.delete(entry.task.id);
       if (!entries.length && !inboxNext) renderInbox();
       else {
@@ -674,6 +681,23 @@ function updateInboxFade() {
     'inbox-has-more-below',
     document.documentElement.scrollHeight - (window.scrollY + window.innerHeight) > 8,
   );
+  scheduleInboxRoll();
+}
+function scheduleInboxRoll() {
+  if (rollFrame) return;
+  rollFrame = requestAnimationFrame(() => {
+    rollFrame = null;
+    const top = Math.max(0, toolbar.getBoundingClientRect().bottom - 8);
+    for (const row of visibleInboxRows) {
+      const bounds = row.getBoundingClientRect();
+      const center = bounds.top + bounds.height / 2;
+      const proximity = Math.max(
+        0,
+        Math.min(1, (center - top) / 220, (innerHeight - center) / 220),
+      );
+      row.style.setProperty('--inbox-roll-scale', String(0.96 + 0.04 * proximity));
+    }
+  });
 }
 async function loadMore() {
   if (!inboxNext || morePending) return;
@@ -730,6 +754,8 @@ function renderInbox() {
     toolbar.append(trigger);
   }
   moreObserver?.disconnect();
+  rollObserver?.disconnect();
+  visibleInboxRows.clear();
   content.replaceChildren(...entries.map((entry) => taskCard(entry, true)));
   decorateInbox();
   addInboxMore();
@@ -1205,6 +1231,18 @@ if (main) {
   };
   if (main.dataset.workbench === 'plan') syncRange();
   else {
+    if ('IntersectionObserver' in window) {
+      rollObserver = new IntersectionObserver(
+        (records) => {
+          for (const record of records) {
+            if (record.isIntersecting) visibleInboxRows.add(record.target);
+            else visibleInboxRows.delete(record.target);
+          }
+          scheduleInboxRoll();
+        },
+        { rootMargin: '80px 0px' },
+      );
+    }
     addEventListener('scroll', updateInboxFade, { passive: true });
     addEventListener('resize', updateInboxFade);
   }

@@ -1099,6 +1099,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
       csrf,
       container: get('[data-discussion]'),
       accountId: account,
+      dropTarget: embedded ? root.closest('.planning-detail-panel') : null,
       onConflict: (error) => notice(error.message, true),
     });
     const shared = {

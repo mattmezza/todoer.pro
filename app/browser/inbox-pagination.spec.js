@@ -44,7 +44,29 @@ test('long Inbox loads as you scroll and settles without replacing neighboring r
   await page.locator('[data-inbox-more]').scrollIntoViewIfNeeded();
   await expect(rows).toHaveCount(80, { timeout: 30000 });
   expect((await page.locator('.inbox-capture').boundingBox()).y).toBeLessThan(32);
-  await page.locator('[data-inbox-more]').scrollIntoViewIfNeeded();
+  const edgeRow = rows.nth(75);
+  await edgeRow.scrollIntoViewIfNeeded();
+  await edgeRow.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    window.scrollBy(0, bounds.top + bounds.height / 2 - (window.innerHeight - 30));
+  });
+  await expect
+    .poll(() =>
+      edgeRow.evaluate((element) =>
+        Number(element.style.getPropertyValue('--inbox-roll-scale')),
+      ),
+    )
+    .toBeLessThan(0.99);
+  const edgeScale = await edgeRow.evaluate((element) =>
+    Number(element.style.getPropertyValue('--inbox-roll-scale')),
+  );
+  const innerScale = await rows
+    .nth(74)
+    .evaluate((element) => Number(element.style.getPropertyValue('--inbox-roll-scale')));
+  expect(innerScale).toBeGreaterThan(edgeScale);
+  expect(innerScale).toBeLessThan(1);
+  if ((await rows.count()) < 85 && (await page.locator('[data-inbox-more]').count()))
+    await page.locator('[data-inbox-more]').scrollIntoViewIfNeeded();
   await expect(rows).toHaveCount(85, { timeout: 30000 });
   expect(await neighbor.evaluate((element) => element.isConnected)).toBe(true);
 });

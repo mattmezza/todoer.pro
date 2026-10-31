@@ -92,6 +92,13 @@ if (main) {
       if (version !== generation) return;
       const task = doc.querySelector('[data-task-page]');
       if (!task) throw Error('Task is no longer accessible.');
+      const openPage = document.createElement('a');
+      openPage.href = `/tasks/${encodeURIComponent(task.dataset.taskId)}`;
+      openPage.className = 'planning-detail-open-page';
+      openPage.dataset.fullTask = '';
+      openPage.innerHTML =
+        '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#open"/></svg><span>Open task page</span>';
+      header.prepend(openPage);
       selected = task.dataset.taskId;
       highlight();
       task.removeAttribute('id');

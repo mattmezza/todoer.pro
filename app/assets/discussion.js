@@ -4,7 +4,14 @@ import { preferredTimeFormatter } from './preferred-time.js';
 import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
 // Task-local controller. Parent must call its cleanup before replacing the panel.
-export function mountDiscussion({ taskId, csrf, container, accountId, onConflict }) {
+export function mountDiscussion({
+  taskId,
+  csrf,
+  container,
+  accountId,
+  onConflict,
+  dropTarget,
+}) {
   if (!container || !taskId || !accountId)
     throw new Error('Discussion requires a task, account and container');
   const prefix = `todoer:${encodeURIComponent(accountId)}:discussion:${encodeURIComponent(taskId)}:`;
@@ -235,7 +242,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
       form.hidden = false;
       row.querySelector('[data-comment-rendered]').hidden = true;
     }
-    if (fileState) updateFileUi();
+    updateFileUi();
   }
   async function refresh() {
     if (!active || loading) return;
@@ -323,6 +330,12 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
   function updateFileUi() {
     const form = get('[data-file-form]');
     if (!form) return;
+    if (dropTarget && !form.querySelector('.attachment-drop-hint')) {
+      const hint = document.createElement('span');
+      hint.className = 'attachment-drop-hint';
+      hint.textContent = 'or drop a file anywhere in this panel';
+      form.querySelector('[data-file-choose]').after(hint);
+    }
     const description = form.querySelector('[data-file-selection]');
     const button = form.querySelector('[data-file-upload]');
     const choose = form.querySelector('[data-file-choose]');
@@ -509,6 +522,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
       fileState = null;
       pendingRefresh = true;
       notice('');
+      if (draftsActive()) refreshFiles();
     } catch (error) {
       persistFile();
       if (active)
@@ -523,6 +537,21 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
         updateFileUi();
         if (pendingRefresh && !draftsActive() && !busy.size) refresh();
       }
+    }
+  }
+  async function refreshFiles() {
+    try {
+      const markup = await request(
+        `/fragments/tasks/${encodeURIComponent(taskId)}/discussion`,
+        'GET',
+        undefined,
+        true,
+      );
+      const grid = get('.task-files .attachment-grid');
+      const updated = parsed(markup).querySelector('.task-files .attachment-grid');
+      if (active && grid && updated) grid.replaceChildren(...updated.childNodes);
+    } catch {
+      // A full discussion refresh remains queued; keep any comment draft intact.
     }
   }
   function growComments() {
@@ -797,20 +826,36 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
   }
   const dropZone = document.createElement('div');
   dropZone.className = 'attachment-drop-zone';
+  if (dropTarget) dropZone.classList.add('attachment-drop-zone-panel');
   dropZone.hidden = true;
-  dropZone.textContent = 'Drop a file to attach to this task';
+  dropZone.innerHTML =
+    '<div><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#upload"/></svg><strong>Drop a file to attach it</strong><span>One file at a time · up to 25 MiB</span></div>';
   dropZone.setAttribute('aria-hidden', 'true');
   document.body.append(dropZone);
   let dragDepth = 0;
   function acceptsDrag(event) {
     return (
-      active && get('[data-file-form]') && event.dataTransfer?.types.includes('Files')
+      active &&
+      get('[data-file-form]') &&
+      (!dropTarget || dropTarget.contains(event.target)) &&
+      Array.from(event.dataTransfer?.types || []).includes('Files')
     );
   }
   function onDragEnter(event) {
     if (!acceptsDrag(event)) return;
     event.preventDefault();
     dragDepth++;
+    if (dropTarget) {
+      const bounds = dropTarget.getBoundingClientRect();
+      Object.assign(dropZone.style, {
+        top: `${bounds.top + 12}px`,
+        left: `${bounds.left + 12}px`,
+        width: `${Math.max(0, bounds.width - 24)}px`,
+        height: `${Math.max(0, bounds.height - 24)}px`,
+        right: 'auto',
+        bottom: 'auto',
+      });
+    }
     dropZone.hidden = false;
   }
   function onDragOver(event) {
@@ -819,17 +864,22 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
     event.dataTransfer.dropEffect = hashing || fileState?.busy ? 'none' : 'copy';
   }
   function onDragLeave(event) {
-    if (!acceptsDrag(event)) return;
+    if (dropZone.hidden) return;
     if (--dragDepth <= 0) {
       dragDepth = 0;
       dropZone.hidden = true;
     }
   }
-  async function onDrop(event) {
-    if (!acceptsDrag(event)) return;
-    event.preventDefault();
+  function endDrag() {
     dragDepth = 0;
     dropZone.hidden = true;
+  }
+  async function onDrop(event) {
+    const accepted = acceptsDrag(event);
+    dragDepth = 0;
+    dropZone.hidden = true;
+    if (!accepted) return;
+    event.preventDefault();
     if (hashing || fileState?.busy) return;
     if (event.dataTransfer.files.length !== 1) {
       notice('Please attach one file at a time.', true);
@@ -845,6 +895,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
   document.addEventListener('dragover', onDragOver);
   document.addEventListener('dragleave', onDragLeave);
   document.addEventListener('drop', onDrop);
+  document.addEventListener('dragend', endDrag);
   const savedUpload = read('upload');
   if (savedUpload?.intent) fileState = { ...savedUpload, file: null, busy: false };
   container.addEventListener('input', onInput);
@@ -867,6 +918,7 @@ export function mountDiscussion({ taskId, csrf, container, accountId, onConflict
     document.removeEventListener('dragover', onDragOver);
     document.removeEventListener('dragleave', onDragLeave);
     document.removeEventListener('drop', onDrop);
+    document.removeEventListener('dragend', endDrag);
     dropZone.remove();
     active = false;
     selectionVersion++;

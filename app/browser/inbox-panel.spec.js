@@ -91,9 +91,18 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
   ).toBeLessThan(2);
   await child.click();
   await expect(panel.getByLabel('New sub-task')).toBeVisible();
+  await expect(panel.getByLabel('New sub-task')).toHaveCSS('font-size', '16px');
+  await expect(panel.getByLabel('Sub-task description')).toHaveCSS('font-size', '13px');
+  const childTitle = await panel.getByLabel('New sub-task').boundingBox();
+  const childDescription = await panel.getByLabel('Sub-task description').boundingBox();
+  expect(childDescription.y - (childTitle.y + childTitle.height)).toBeLessThan(10);
   await panel.locator('[data-child-cancel]').click();
   await comment.click();
   await expect(panel.getByLabel('Add a comment')).toBeVisible();
+  await expect(panel.getByLabel('Add a comment')).toHaveCSS(
+    'background-color',
+    'rgba(0, 0, 0, 0)',
+  );
   await expect(panel.getByRole('button', { name: 'AI breakdown…' })).toBeVisible();
   await panel.getByRole('button', { name: 'AI breakdown…' }).click();
   await expect(panel.getByRole('dialog', { name: 'Break down task' })).toBeVisible();
@@ -111,4 +120,7 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
     'color',
     'rgb(231, 169, 63)',
   );
+  await panel.getByRole('link', { name: 'Open task page' }).click();
+  await expect(page).toHaveURL(/\/tasks\//);
+  await expect(page.locator('main[data-task-page]')).toBeVisible();
 });

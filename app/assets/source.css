@@ -7577,6 +7577,22 @@ form[data-list-edit] [role='alert']:empty {
   justify-content: flex-end;
   padding: 10px 16px 0;
 }
+.planning-detail-toolbar .planning-detail-open-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--muted);
+}
+.planning-detail-toolbar .planning-detail-open-page:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.planning-detail-open-page .ui-icon {
+  width: 16px;
+  height: 16px;
+}
 .planning-reprio {
   margin-top: 8px;
 }
@@ -7609,7 +7625,6 @@ form[data-list-edit] [role='alert']:empty {
     .task-settings-dock-toggle,
     .task-due-summary,
     .task-priority-summary,
-    [data-file-delete],
     .task-child-menu,
     .task-files-empty
   ) {
@@ -11516,6 +11531,7 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
 .inbox-task {
   position: relative;
   cursor: pointer;
+  transform: scale(var(--inbox-roll-scale, 1));
   align-items: flex-start;
   gap: 14px;
   padding: 17px 14px;
@@ -11523,13 +11539,14 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   border-radius: 12px;
   margin: 7px 0;
   background: var(--surface, transparent);
-  transition:
-    opacity 0.25s ease,
-    transform 0.25s ease;
+  transition: opacity 0.25s ease;
 }
 .inbox-task:hover,
 .inbox-task:focus-within {
   background: var(--hover);
+}
+.inbox-task:has(.inbox-plan-menu[open]) {
+  z-index: 2;
 }
 .inbox-task .workbench-check {
   margin-top: 2px;
@@ -11664,6 +11681,7 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
 @media (prefers-reduced-motion: reduce) {
   .inbox-task {
     transition: none;
+    transform: none;
   }
   .inbox-task.is-restored {
     animation: none;
@@ -11842,8 +11860,31 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   font-size: 14px;
   line-height: 1.4;
 }
+.planning-detail-content [data-child-form] .capture-entry {
+  grid-template-rows: auto auto;
+  row-gap: 2px;
+}
+.planning-detail-content [data-child-form] textarea[name='title'] {
+  min-height: 34px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.planning-detail-content [data-child-form] textarea[name='description'] {
+  min-height: 34px;
+  font-size: 13px;
+}
+.planning-detail-content [data-child-form] textarea::placeholder {
+  opacity: 1;
+}
 .planning-detail-content [data-new-comment] textarea {
   min-height: 64px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  resize: vertical;
+}
+.planning-detail-content :is([data-child-form], [data-new-comment]):focus-within {
+  border-color: var(--muted);
 }
 .planning-detail-content :is([data-child-form], [data-new-comment]) .composer-actions {
   padding-top: 6px;
@@ -11865,4 +11906,51 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
 }
 .planning-detail-content .task-files .attachment-form {
   margin: 0;
+  gap: 0 8px;
+}
+.attachment-drop-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+.attachment-drop-zone > div {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+}
+.attachment-drop-zone .ui-icon {
+  width: 30px;
+  height: 30px;
+}
+.attachment-drop-zone span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+.attachment-drop-zone-panel {
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--sidebar) 94%, transparent);
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    0 12px 32px #0006;
+  font-size: 17px;
+}
+.planning-detail-content .attachment-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+.planning-detail-content .attachment-card {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--field);
+}
+.planning-detail-content .attachment-type {
+  width: 36px;
+  height: 40px;
+  font-size: 9px;
+}
+.planning-detail-content .attachment-card-info {
+  gap: 2px;
 }
