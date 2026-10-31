@@ -403,6 +403,8 @@ function renderInbox() {
   content.replaceChildren(...entries.map((e) => taskCard(e, true)));
   if (!entries.length) {
     const empty = node('div', null, 'planning-empty');
+    empty.innerHTML =
+      '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#inbox"/></svg>';
     empty.append(
       node('h2', 'A clear place to start.'),
       node(

@@ -373,7 +373,7 @@ async fn calendar(
           if row.task.complete { " is-complete" } else { "" }, esc(&row.task.id), esc(&row.task.id), if row.task.complete { "✓" } else { "" }, esc(&row.task.id), esc(&row.task.title), description, priority, priority_label, esc(&row.dates[0]), esc(&row.dates[0])));
     }
     if body.is_empty() {
-        body.push_str("<div class=\"planning-empty\"><h2>A little breathing room.</h2><p>Nothing planned here yet. Enjoy the space, or capture something you want to make time for.</p><a href=\"/capture\" class=\"primary\">Add a task</a></div>");
+        body.push_str("<div class=\"planning-empty\"><svg class=\"ui-icon\" aria-hidden=\"true\"><use href=\"/assets/icons.svg#calendar\"/></svg><h2>A little breathing room.</h2><p>Nothing planned here yet. Enjoy the space, or capture something you want to make time for.</p><a href=\"/capture\" class=\"primary\">Add a task</a></div>");
     }
     let mut tabs = String::new();
     for tab in [
