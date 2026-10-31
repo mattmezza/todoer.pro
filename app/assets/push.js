@@ -6,6 +6,7 @@ export function mountPushSettings(root) {
   const status = root.querySelector('[data-push-status]');
   const enable = root.querySelector('[data-push-enable]');
   const disable = root.querySelector('[data-push-disable]');
+  const test = root.querySelector('[data-push-test]');
   const optIn = root.querySelector('[data-push-opt-in]');
   const label = root.querySelector('[data-push-label]');
   const csrf = root.dataset.csrf;
@@ -85,17 +86,46 @@ export function mountPushSettings(root) {
     registry.replaceChildren(...entries);
     document.querySelector('[data-device-empty]').hidden = entries.length > 0;
   }
+  // Push browser operations cannot be cancelled. Keep the pending operation so
+  // retries never create competing subscriptions; only the current attempt saves.
+  let subscriptionPending;
+  async function bounded(operation, message) {
+    let timer;
+    try {
+      return await Promise.race([
+        operation,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(message)), 30000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   async function enableDevice() {
     if (busy) return;
     busy = true;
     enable.disabled = true;
+    say('Connecting to the browser push service… Allow notifications if prompted.');
     try {
       // subscribe itself requests permission in the direct click path. Avoid an
       // asynchronous fetch before this browser permission operation.
-      current = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: fromBase64(root.dataset.publicKey),
-      });
+      if (!subscriptionPending) {
+        subscriptionPending = registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: fromBase64(root.dataset.publicKey),
+        });
+        subscriptionPending.catch(() => {
+          subscriptionPending = null;
+        });
+      }
+      current = await bounded(
+        subscriptionPending,
+        'The browser push service did not respond. Check your connection and browser push support, then retry or reload. Permission alone does not register a device',
+      );
+      if (!active) return;
+      say('Saving this device…');
+      if (test) test.hidden = false;
       const serialized = current.toJSON();
       const device = await request('/api/v1/push/devices', 'POST', {
         endpoint: serialized.endpoint,
@@ -109,9 +139,10 @@ export function mountPushSettings(root) {
       say('Notifications are enabled in this browser.');
       refreshRegistry().catch(() => {});
     } catch (e) {
-      if (e.name !== 'AbortError')
+      if (active && test) test.hidden = Notification.permission !== 'granted';
+      if (!abort.signal.aborted)
         say(
-          `Could not enable notifications: ${e.message}. If browser permission was granted, retry this same button to complete registration.`,
+          `Could not enable notifications: ${e.message}. Check that your browser supports a push service (Helium may not). Retry here or use a browser with Web Push support.`,
         );
     } finally {
       busy = false;
@@ -139,7 +170,7 @@ export function mountPushSettings(root) {
       say('Notifications are off in this browser.');
       refreshRegistry().catch(() => {});
     } catch (e) {
-      if (e.name !== 'AbortError') say(e.message);
+      if (!abort.signal.aborted) say(e.message);
     } finally {
       busy = false;
       disable.disabled = false;
@@ -157,11 +188,31 @@ export function mountPushSettings(root) {
       );
     } catch (e) {
       optIn.checked = !value;
-      if (e.name !== 'AbortError') say(e.message);
+      if (!abort.signal.aborted) say(e.message);
     } finally {
       optIn.disabled = false;
     }
   }
+  async function testNotification() {
+    test.disabled = true;
+    try {
+      await bounded(
+        registration.showNotification('Todoer test notification', {
+          body: 'Browser notifications work. This local test does not verify server push delivery.',
+          tag: 'todoer-local-test',
+        }),
+        'The browser did not finish displaying the test notification',
+      );
+      say(
+        'Test notification requested. If it is missing, check browser and system notification settings. This tests local display, not server push delivery.',
+      );
+    } catch (e) {
+      if (!abort.signal.aborted) say(`Could not display test notification: ${e.message}`);
+    } finally {
+      test.disabled = false;
+    }
+  }
+  test?.addEventListener('click', testNotification);
   enable.addEventListener('click', enableDevice);
   disable.addEventListener('click', disableDevice);
   optIn.addEventListener('change', changeOptIn);
@@ -222,6 +273,7 @@ export function mountPushSettings(root) {
         return;
       }
       root.dataset.publicKey = config.public_key;
+      if (test) test.hidden = Notification.permission !== 'granted';
       current = await registration.pushManager.getSubscription();
       let registered;
       if (current) {
@@ -248,12 +300,13 @@ export function mountPushSettings(root) {
             : 'Get reminders even when Todoer isn’t open.',
       );
     } catch (e) {
-      if (e.name !== 'AbortError') say(`Push status unavailable: ${e.message}`);
+      if (!abort.signal.aborted) say(`Push status unavailable: ${e.message}`);
     }
   })();
   return () => {
     active = false;
     abort.abort();
+    test?.removeEventListener('click', testNotification);
     enable.removeEventListener('click', enableDevice);
     disable.removeEventListener('click', disableDevice);
     optIn.removeEventListener('change', changeOptIn);

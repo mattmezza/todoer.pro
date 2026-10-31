@@ -55,6 +55,35 @@ The settings controller feature-detects secure contexts, service workers, PushMa
 
 On iOS/iPadOS 16.4 and later, Web Push requires a Home Screen web app; normal browser tabs do not provide the same enablement flow. Safari/macOS and Chromium/Firefox behavior is feature-detected rather than inferred from a browser name. The service worker must display a user-visible notification and handle the canonical same-origin task link. Provider acceptance is not proof the OS displayed it.
 
+### Registration failures and local display test
+
+Browser permission does not guarantee that the browser has a working push
+service. In particular, Helium has an [upstream push support
+issue](https://github.com/imputnet/helium/issues/705), closed as not planned.
+A synthetic localhost probe with the installed Linux Helium browser reproduced
+`subscribe()` rejecting with `AbortError: Registration failed - permission denied`.
+The old controller silently ignored that browser error as though the page had
+been unmounted; it never reached the registration POST. Lifecycle cancellation
+is now distinguished using the controller's own abort signal.
+
+Enablement shows connection and save progress. A browser subscription still
+pending after 30 seconds produces recovery guidance and releases the button.
+Browser subscription operations cannot be cancelled: retry reuses the pending
+promise, and a late result is saved only by an actively waiting attempt. Reload
+starts a fresh controller. No timeout automatically unsubscribes a device.
+
+**Test notification** uses the active service worker's `showNotification()` when
+permission is granted. It checks local browser/OS display, including on browsers
+whose remote push service is unavailable. The result explicitly explains that
+it does not test server/provider delivery. Browser and OS settings can suppress
+notifications even when this API resolves.
+
+The isolated `app/browser/push-registration.spec.js` fixture serves synthetic
+HTML, browser API doubles and API responses without an application database.
+It covers visible/retryable browser AbortError, a pending subscription timeout
+and late completion without duplicate POSTs, and the local display test. Run
+`npx playwright test app/browser/push-registration.spec.js`.
+
 ## Verification and limits
 
 `cargo test --manifest-path app/Cargo.toml push --lib -- --nocapture` passed the initial reminder tests; later digest tests additionally cover independent opt-in, local-period uniqueness, timing changes, live list/device access and actual encrypted summary HTTP delivery. `cargo clippy --manifest-path app/Cargo.toml --lib --tests -- -D warnings` and `node --check app/assets/push.js` passed. Coverage includes endpoint/SSRF checks, real session expiry/revocation and opt-out eligibility, subscription ownership, device leases, stale lease completion, and production HTTP cookie/CSRF rules. Synthetic local HTTP fixtures capture actual encrypted POST bodies, decrypt using an independently generated receiver key through `ece 2.4.2`, inspect VAPID contact/audience claims and encryption/TTL headers, verify `410` deactivation, honor a `429 Retry-After`, and demonstrate that a successful device is not sent again when another device retries. The fixture checks VAPID structure/claims, not an independent verification of its ECDSA signature.
