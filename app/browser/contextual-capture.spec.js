@@ -259,6 +259,14 @@ test('contextual dates parse separately, shortcuts navigate, and long titles wra
   expect(metadata.due_date).not.toBe(metadata.planned_date);
   await expect(page.locator('.capture-date')).toHaveCount(2);
   await expect(page.locator('input[type=date]')).toHaveCount(0);
+  const plannedBounds = await page
+    .locator('.capture-date[data-date-kind=planned]')
+    .boundingBox();
+  const dueBounds = await page.locator('.capture-date[data-date-kind=due]').boundingBox();
+  expect(dueBounds.y).toBeGreaterThanOrEqual(plannedBounds.y + plannedBounds.height);
+  expect(
+    Math.abs(dueBounds.x + dueBounds.width - plannedBounds.x - plannedBounds.width),
+  ).toBeLessThan(1);
   await expect(page.locator('.capture-date[data-date-kind=due]')).toHaveCSS(
     'color',
     'rgb(255, 59, 59)',

@@ -11035,6 +11035,7 @@ form[data-load-failed],
   overflow-wrap: anywhere;
 }
 .capture-date {
+  flex: 0 0 100%;
   color: var(--muted);
   font: 12px/1.5 var(--font-sans);
   text-align: right;
