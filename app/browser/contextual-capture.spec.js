@@ -258,6 +258,16 @@ test('contextual dates parse separately, shortcuts navigate, and long titles wra
   expect(metadata.planned_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   expect(metadata.due_date).not.toBe(metadata.planned_date);
   await expect(page.locator('.capture-date')).toHaveCount(2);
+  await expect(page.locator('input[type=date]')).toHaveCount(0);
+  await expect(page.locator('.capture-date[data-date-kind=due]')).toHaveCSS(
+    'color',
+    'rgb(255, 59, 59)',
+  );
+  expect(
+    await page
+      .locator('.capture-date[data-date-kind=planned]')
+      .evaluate((el) => getComputedStyle(el).color),
+  ).not.toBe('rgb(255, 59, 59)');
   await page.getByRole('button', { name: 'Shortcuts', exact: true }).click();
   await page.getByRole('button', { name: 'Planned date →', exact: true }).click();
   await page.getByRole('button', { name: 'Everyday →', exact: true }).click();

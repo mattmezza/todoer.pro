@@ -90,7 +90,6 @@ export function mountSmartCapture(form) {
   const info = document.createElement('div');
   info.className = 'capture-result';
   info.setAttribute('aria-live', 'polite');
-  const controls = document.createElement('div');
   const help = mountCaptureHelp({
     scoped,
     allowSection,
@@ -109,7 +108,7 @@ export function mountSmartCapture(form) {
   });
   const literalControl = document.createElement('span');
   if (scoped) help.append(literalControl);
-  block.append(info, controls);
+  block.append(info);
   (form.querySelector('.inline-actions, .composer-actions') || block).prepend(help);
   entry.insertAdjacentElement('afterend', block);
   let optionsLoaded = false;
@@ -117,7 +116,6 @@ export function mountSmartCapture(form) {
   let data = null,
     literal = false,
     parsed = null,
-    changes = {},
     choices = [],
     active = 0,
     completion = null;
@@ -129,7 +127,6 @@ export function mountSmartCapture(form) {
     title.value = title.value.slice(0, start) + inserted + title.value.slice(end);
     title.focus();
     title.setSelectionRange(start + inserted.length, start + inserted.length);
-    changes = {};
     choices = [];
     completion = null;
     active = 0;
@@ -230,7 +227,7 @@ export function mountSmartCapture(form) {
       info.append(message);
     }
     info.hidden = !info.childNodes.length;
-    block.hidden = scoped && info.hidden && !controls.childNodes.length;
+    block.hidden = scoped && info.hidden;
 
     if (parsed.spans.length || literal) {
       const toggle = document.createElement('button');
@@ -242,7 +239,6 @@ export function mountSmartCapture(form) {
         : 'Keep every word and shortcut in the task title';
       toggle.onclick = () => {
         literal = !literal;
-        changes = {};
         setup();
       };
       (scoped ? literalControl : info).append(toggle);
@@ -270,26 +266,10 @@ export function mountSmartCapture(form) {
             spans: [],
             warnings: [],
           };
-    const v = { ...parsed, ...changes };
+    const v = parsed;
     renderPreview(v);
     resizeTitle();
-    controls.replaceChildren();
-    for (const kind of ['planned', 'due'])
-      if (parsed[kind]) {
-        const label = document.createElement('label');
-        label.textContent = kind === 'planned' ? 'Planned' : 'Due';
-        const date = document.createElement('input');
-        date.type = 'date';
-        date.setAttribute('aria-label', kind === 'planned' ? 'Planned date' : 'Due date');
-        date.value = v[kind] || '';
-        date.onchange = () => {
-          changes[kind] = date.value || null;
-          renderPreview({ ...parsed, ...changes });
-        };
-        label.append(date);
-        controls.append(label);
-      }
-    block.hidden = scoped && info.hidden && !controls.childNodes.length;
+    block.hidden = scoped && info.hidden;
     suggestions.replaceChildren();
     choices = [];
     completion = null;
@@ -389,7 +369,6 @@ export function mountSmartCapture(form) {
     }
   });
   title.addEventListener('input', () => {
-    changes = {};
     literal = false;
     active = 0;
     setup();
@@ -408,7 +387,7 @@ export function mountSmartCapture(form) {
     help,
     ready,
     get() {
-      const v = { ...parsed, ...changes };
+      const v = parsed;
       return {
         title: v.title.trim(),
         list_id: v.destination?.list_id,
@@ -426,7 +405,6 @@ export function mountSmartCapture(form) {
     },
     reset() {
       literal = false;
-      changes = {};
       setup();
     },
   };
