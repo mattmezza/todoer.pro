@@ -75,6 +75,17 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
   const child = panel.locator('[data-child-composer] > summary');
   const comment = panel.locator('[data-comment-composer] > summary');
   await expect(comment).toBeVisible();
+  const titleBox = await panel
+    .getByRole('button', { name: 'Edited panel task' })
+    .boundingBox();
+  const checkboxBox = await panel
+    .getByRole('button', { name: 'Complete task' })
+    .boundingBox();
+  const descriptionBox = await panel.locator('[data-saved-description]').boundingBox();
+  expect(titleBox.x - (checkboxBox.x + checkboxBox.width)).toBeGreaterThanOrEqual(6);
+  expect(
+    (await child.boundingBox()).y - (descriptionBox.y + descriptionBox.height),
+  ).toBeGreaterThanOrEqual(20);
   expect(
     Math.abs((await child.boundingBox()).height - (await comment.boundingBox()).height),
   ).toBeLessThan(2);

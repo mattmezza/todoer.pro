@@ -11515,6 +11515,7 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
 }
 .inbox-task {
   position: relative;
+  cursor: pointer;
   align-items: flex-start;
   gap: 14px;
   padding: 17px 14px;
@@ -11750,10 +11751,10 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   box-shadow: inset 0 0 0 1px currentColor;
 }
 .planning-detail-content .task-page {
-  padding: 12px 0 0 38px;
+  padding: 12px 0 0 44px;
 }
 .planning-detail-content .task-page .task-page-heading > .task-page-complete {
-  left: -38px;
+  left: -50px;
 }
 .planning-detail-content .task-page-heading {
   align-items: flex-start;
@@ -11763,16 +11764,29 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   overflow-wrap: anywhere;
 }
 .planning-detail-content .task-page-checklist {
-  margin: 12px 0 0;
+  margin: 0 0 4px;
 }
 .planning-detail-content .task-page .task-page-brief {
-  margin: 12px 0 18px;
+  margin: 16px 0 30px;
+}
+.planning-detail-content .panel-task-tags:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -14px 0 28px;
+}
+.planning-detail-content .panel-task-tags .inbox-tag {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--hover);
+  font-size: 12px;
+  line-height: 1.5;
 }
 .planning-detail-content .task-page [data-discussion-fragment] {
-  margin-top: 0;
+  margin-top: 4px;
 }
 .planning-detail-content .comment-composer {
-  margin-top: 4px;
+  margin-top: 8px;
 }
 .planning-detail-open:has(main[data-workbench='inbox']) .notification-bell {
   top: var(--inbox-bell-top, 20px);

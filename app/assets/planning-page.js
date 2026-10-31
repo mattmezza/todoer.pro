@@ -9,7 +9,8 @@ if (main) {
     selected,
     generation = 0,
     loading = false,
-    rowsGeneration = 0;
+    rowsGeneration = 0,
+    refreshPanelTags = () => {};
   const csrf = document.querySelector('meta[name=csrf-token]').content;
   const rows = main.querySelector('[data-planning-rows]');
   async function refreshRows() {
@@ -42,6 +43,7 @@ if (main) {
     generation++;
     stop();
     stop = () => {};
+    refreshPanelTags = () => {};
     const closingPanel = panel;
     if (closingPanel && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
       closingPanel.style.pointerEvents = 'none';
@@ -153,6 +155,36 @@ if (main) {
       }
       content.replaceChildren(reprio, task);
       stop = mountTaskPage(task, { embedded: true });
+      const tags = document.createElement('div');
+      tags.className = 'panel-task-tags';
+      tags.setAttribute('aria-label', 'Task tags');
+      tags.hidden = true;
+      task.querySelector('.task-page-brief').after(tags);
+      let tagsVersion = 0;
+      refreshPanelTags = async () => {
+        const requestVersion = ++tagsVersion;
+        try {
+          const response = await fetch(
+            `/api/v1/tasks/${encodeURIComponent(task.dataset.taskId)}/tags`,
+            { cache: 'no-store' },
+          );
+          if (!response.ok) return;
+          const savedTags = await response.json();
+          if (version !== generation || requestVersion !== tagsVersion) return;
+          tags.replaceChildren(
+            ...savedTags.map((tag) => {
+              const item = document.createElement('span');
+              item.className = 'inbox-tag';
+              item.textContent = `+${tag.name}`;
+              return item;
+            }),
+          );
+          tags.hidden = !savedTags.length;
+        } catch {
+          // Keep the last successfully loaded tags during a transient failure.
+        }
+      };
+      refreshPanelTags();
       const initialPriorityVersion = priorityVersion;
       fetch(`/api/v1/tasks/${encodeURIComponent(task.dataset.taskId)}/schedule`, {
         cache: 'no-store',
@@ -209,7 +241,10 @@ if (main) {
       const change = JSON.parse(event.data);
       if (change.resync || change.count > 0) {
         clearTimeout(timer);
-        timer = setTimeout(refreshRows, 250);
+        timer = setTimeout(() => {
+          refreshRows();
+          refreshPanelTags();
+        }, 250);
       }
     } catch {}
   });
