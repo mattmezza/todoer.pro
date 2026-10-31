@@ -45,7 +45,7 @@ async fn session(
 }
 // Recheck the persisted session after waiting for the application-store lock.
 // This prevents a queued key/admin change from surviving a completed logout.
-async fn change<T: Send + 'static>(
+pub(super) async fn change<T: Send + 'static>(
     s: &AppState,
     h: &HeaderMap,
     actor: String,

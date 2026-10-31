@@ -538,6 +538,19 @@ impl Notifications {
     ) -> Result<(), Error> {
         self.send(id,Delivery{to:self.test_recipient.as_deref().unwrap_or(email).to_owned(),subject:"Invitation to Todoer".into(),body:format!("You have been invited to a private Todoer workspace or list.\nSign in with the invited Google email to review your access.\n\n{link}\n\nThis invitation expires after seven days. If you did not expect it, you can ignore this message.")}).await
     }
+    #[cfg(test)]
+    pub(crate) fn synthetic_smtp(port: u16) -> Self {
+        Self {
+            smtp: AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous("127.0.0.1")
+                .port(port)
+                .build(),
+            from: "sender@synthetic.invalid".parse().unwrap(),
+            test_recipient: None,
+        }
+    }
+    pub(crate) fn sender_address(&self) -> String {
+        self.from.email.to_string()
+    }
     pub(crate) async fn send_account(
         &self,
         email: &str,

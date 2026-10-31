@@ -1,0 +1,33 @@
+<script src="/assets/admin-email.js" type="module"></script>
+<section class="settings-preference-card" data-admin-screen="email">
+  <h2>Email</h2>
+  <p>{{ status }}</p>
+  {% if !sender.is_empty() %}
+  <p>Sender: {{ sender }}</p>
+  {% endif %} {% if recipient.is_empty() %}
+  <p>
+    Your account has no valid verified email address. Verify your account email before
+    sending a test.
+  </p>
+  {% else %}
+  <p>Test recipient: {{ recipient }}</p>
+  {% endif %}
+  <p>
+    SMTP acceptance does not guarantee inbox delivery. Check your inbox and spam folder.
+    You can send one test every 15 minutes, including failed attempts.
+  </p>
+  <button
+    class="primary"
+    data-email-test
+    type="button"
+    {%
+    if
+    !enabled
+    %}disabled{%
+    endif
+    %}
+  >
+    Send test email
+  </button>
+  <p data-email-notice role="status" aria-live="polite"></p>
+</section>

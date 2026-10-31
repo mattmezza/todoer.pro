@@ -1,5 +1,7 @@
 #[path = "activity_web.rs"]
 mod activity_http;
+#[path = "admin_email_web.rs"]
+mod admin_email;
 #[path = "ai_billing_ui.rs"]
 mod ai_billing_ui;
 #[path = "ai_policy_web.rs"]
@@ -344,6 +346,7 @@ pub fn router(state: AppState) -> Router {
         .merge(ai_usage_http::routes())
         .merge(billing_http::routes())
         .merge(ai_billing_ui::routes())
+        .merge(admin_email::routes())
         .merge(jobs_http::routes())
         .merge(notification_http::routes())
         .merge(task_page::routes())
