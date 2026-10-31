@@ -106,6 +106,7 @@ impl Store {
     pub fn cli_login_request(&self, id: &str) -> Result<LoginRequest, Error> {
         self.conn.query_row("SELECT id,redirect_uri,state,requested_rank FROM cli_login_requests WHERE id=?1 AND consumed=0 AND code_hash IS NULL AND expires_at>unixepoch()",[id],|r|Ok(LoginRequest{id:r.get(0)?,redirect_uri:r.get(1)?,state:r.get(2)?,requested_rank:r.get(3)?})).optional()?.ok_or(Error::NotFound)
     }
+    #[allow(clippy::too_many_arguments)] // Mirrors the explicit choices on the approval form.
     pub fn approve_cli_login(
         &mut self,
         actor: &str,
