@@ -371,7 +371,35 @@ function taskCard(entry, intake = false) {
     );
   row.append(check, text);
   if (intake) {
+    row.classList.add('inbox-task');
+    if (t.description) text.append(node('p', t.description, 'inbox-description'));
+    const meta = node('div', null, 'inbox-meta');
+    if (t.list_id !== inboxId)
+      meta.append(
+        node('span', `${entry.space ? '@' + entry.space + ' / ' : ''}#${entry.list}`),
+      );
+    if (entry.schedule.planned)
+      meta.append(
+        node(
+          'span',
+          'Planned · ' +
+            (entry.schedule.planned.date || entry.schedule.planned.local?.slice(0, 10)),
+        ),
+      );
+    if (entry.schedule.due)
+      meta.append(
+        node(
+          'span',
+          'Due · ' + (entry.schedule.due.date || entry.schedule.due.local?.slice(0, 10)),
+        ),
+      );
+    if (entry.schedule.priority != null)
+      meta.append(node('span', 'P' + entry.schedule.priority));
+    if (meta.childNodes.length) text.append(meta);
     const actions = node('div', null, 'inbox-quick-actions');
+    const plan = node('details', null, 'inbox-plan-menu');
+    plan.append(node('summary', 'Plan…'));
+    const choices = node('div', null, 'inbox-plan-choices');
     for (const [label, date] of [
       ['Today', today],
       ['Tomorrow', add(today, 1)],
@@ -379,10 +407,13 @@ function taskCard(entry, intake = false) {
       ['In 2 weeks', add(today, 14)],
       ['Next month', nextMonth()],
     ])
-      actions.append(button(label, (b) => placement(entry, b, date)));
+      choices.append(button(label, (b) => placement(entry, b, date)));
+    choices.append(button('Choose date…', () => planDialog(entry)));
+    plan.append(choices);
     actions.append(
-      button('Choose date…', () => planDialog(entry)),
-      button('Move to list…', () => organize(entry)),
+      plan,
+      button('Move…', () => organize(entry)),
+      button('Settle', (b) => settle(entry, row, b), 'inbox-settle'),
     );
     row.append(actions);
   } else {
@@ -392,6 +423,89 @@ function taskCard(entry, intake = false) {
   }
   return row;
 }
+async function settle(entry, row, b) {
+  b.disabled = true;
+  try {
+    await api(`tasks/${encodeURIComponent(entry.task.id)}/inbox`, 'PUT', {
+      settled: true,
+    });
+    entries = entries.filter((item) => item.task.id !== entry.task.id);
+    row.classList.add('is-settling');
+    const undo = node('div', null, 'inbox-undo');
+    undo.setAttribute('role', 'status');
+    undo.append(node('span', 'Settled · ' + entry.task.title));
+    const restore = button('Undo', async () => {
+      restore.disabled = true;
+      try {
+        await api(`tasks/${encodeURIComponent(entry.task.id)}/inbox`, 'PUT', {
+          settled: false,
+        });
+        undo.remove();
+        await load();
+        const restored = [...content.querySelectorAll('[data-task-id]')].find(
+          (item) => item.dataset.taskId === entry.task.id,
+        );
+        restored?.classList.add('is-restored');
+        restored?.querySelector('.inbox-settle')?.focus();
+      } catch (error) {
+        restore.disabled = false;
+        fail(error);
+      }
+    });
+    undo.append(restore);
+    main.append(undo);
+    setTimeout(() => {
+      row.remove();
+      if (!entries.length) renderInbox();
+    }, 260);
+    setTimeout(() => undo.remove(), 10000);
+  } catch (error) {
+    b.disabled = false;
+    fail(error);
+  }
+}
+function inboxGroup(timestamp) {
+  if (!timestamp) return 'Earlier';
+  const date = new Date(timestamp * 1000);
+  const local = new Intl.DateTimeFormat('en-CA', {
+    timeZone: zone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+  const days = Math.round(
+    (Date.parse(today + 'T12:00:00Z') - Date.parse(local + 'T12:00:00Z')) / 86400000,
+  );
+  if (days <= 0) {
+    if (Date.now() - date.getTime() < 3600000) return 'Just now';
+    const hour = Number(
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: zone,
+        hour: '2-digit',
+        hourCycle: 'h23',
+      }).format(date),
+    );
+    return hour < 12 ? 'This morning' : 'Earlier today';
+  }
+  if (days === 1) return 'Yesterday';
+  if (days === 2) return 'Two days ago';
+  const weekday = new Date(today + 'T12:00:00Z').getUTCDay() || 7;
+  const weekOffset = (weekday - Number(main.dataset.weekStart) + 7) % 7;
+  if (days <= weekOffset) return 'Earlier this week';
+  if (days < weekOffset + 7)
+    return (
+      'Last ' +
+      new Intl.DateTimeFormat('en', { weekday: 'long', timeZone: 'UTC' }).format(
+        new Date(local + 'T12:00:00Z'),
+      )
+    );
+  if (local.slice(0, 7) === today.slice(0, 7)) return 'Earlier this month';
+  return new Intl.DateTimeFormat('en', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(local + 'T12:00:00Z'));
+}
 function renderInbox() {
   if (!toolbar.querySelector('.inbox-capture')) {
     const trigger = node('a', 'Capture a task…', 'inbox-capture');
@@ -400,16 +514,25 @@ function renderInbox() {
     trigger.dataset.captureList = inboxId;
     toolbar.append(trigger);
   }
-  content.replaceChildren(...entries.map((e) => taskCard(e, true)));
+  content.replaceChildren();
+  let group;
+  for (const entry of entries) {
+    const label = inboxGroup(entry.created_at);
+    if (label !== group) {
+      group = label;
+      content.append(node('h2', label, 'inbox-group-heading'));
+    }
+    content.append(taskCard(entry, true));
+  }
   if (!entries.length) {
     const empty = node('div', null, 'planning-empty');
     empty.innerHTML =
       '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#inbox"/></svg>';
     empty.append(
-      node('h2', 'A clear place to start.'),
+      node('h2', 'Inbox zero.'),
       node(
         'p',
-        'New ideas land here. Plan a day or move them to a list when you’re ready.',
+        'Everything here is settled. Capture your next thought whenever you’re ready.',
       ),
     );
     content.append(empty);
