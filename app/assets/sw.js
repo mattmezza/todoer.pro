@@ -20,6 +20,7 @@ const STATIC = [
   '/assets/entity-name.js',
   '/assets/loading.js',
   '/assets/request.js',
+  '/assets/reauth.js',
   '/assets/notification-center.js',
   '/assets/task-play.js',
   '/assets/planning-page.js',
