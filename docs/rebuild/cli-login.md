@@ -21,7 +21,9 @@ All resources requires explicit approval.
 
 Login uses a loopback callback, state and S256 PKCE. Requests expire after ten
 minutes; approval codes expire after two minutes and are single use. Tokens expire after 30 days by default. You can instead choose “Never expires”
-at approval and revoke access later in Settings → Connected tools. Run login
+at approval and revoke access later in Settings → Connected tools. The
+“Never expires” option requires a CLI version that supports permanent logins.
+Run login
 again to renew an expired token. HTTPS is required except for
 local development. This handshake is separate from MCP OAuth; CLI credentials
 have the REST audience and cannot authenticate to MCP.
