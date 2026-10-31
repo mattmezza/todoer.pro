@@ -68,7 +68,7 @@ impl StripeService {
             .map_err(|_| invalid("Stripe is not configured"))?;
         let webhook_secret = std::env::var("TODOER_STRIPE_WEBHOOK_SECRET")
             .map_err(|_| invalid("Stripe webhook is not configured"))?;
-        if !secret.starts_with("sk_") || !webhook_secret.starts_with("whsec_") {
+        if stripe_key_livemode(&secret).is_none() || !webhook_secret.starts_with("whsec_") {
             return Err(invalid("Invalid Stripe configuration"));
         }
         let mut rates = BTreeMap::from([("eur".to_string(), 1_000_000)]);
@@ -376,10 +376,21 @@ impl StripeService {
         }
         let event: Value =
             serde_json::from_slice(body).map_err(|_| invalid("Invalid payment event"))?;
-        if event["livemode"].as_bool() != Some(self.secret.starts_with("sk_live_")) {
+        let livemode = stripe_key_livemode(&self.secret)
+            .ok_or_else(|| invalid("Invalid Stripe configuration"))?;
+        if event["livemode"].as_bool() != Some(livemode) {
             return Err(invalid("Payment environment mismatch"));
         }
         Ok(event)
+    }
+}
+fn stripe_key_livemode(secret: &str) -> Option<bool> {
+    if secret.starts_with("sk_live_") || secret.starts_with("rk_live_") {
+        Some(true)
+    } else if secret.starts_with("sk_test_") || secret.starts_with("rk_test_") {
+        Some(false)
+    } else {
+        None
     }
 }
 fn id(value: &Value, key: &str, prefix: &str) -> Result<String, Error> {
@@ -1408,6 +1419,28 @@ mod tests {
         let mut live = service.clone();
         live.secret = "sk_live_synthetic".into();
         assert!(live.verify(body, &signature, timestamp).is_err());
+        live.secret = "rk_live_synthetic".into();
+        assert!(live.verify(body, &signature, timestamp).is_err());
+        live.secret = "rk_test_synthetic".into();
+        assert!(live.verify(body, &signature, timestamp).is_ok());
+        let live_body = br#"{"id":"evt_live","livemode":true,"type":"other","data":{"object":{}}}"#;
+        let mut mac = Hmac::<Sha256>::new_from_slice(service.webhook_secret.as_bytes()).unwrap();
+        mac.update(b"12345.");
+        mac.update(live_body);
+        let live_hash = mac
+            .finalize()
+            .into_bytes()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>();
+        let live_signature = format!("t=12345,v1={live_hash}");
+        live.secret = "rk_live_synthetic".into();
+        assert!(live.verify(live_body, &live_signature, timestamp).is_ok());
+        live.secret = "rk_test_synthetic".into();
+        assert!(live.verify(live_body, &live_signature, timestamp).is_err());
+        assert_eq!(stripe_key_livemode("sk_test_synthetic"), Some(false));
+        assert_eq!(stripe_key_livemode("rk_live_synthetic"), Some(true));
+        assert_eq!(stripe_key_livemode("sk_unknown_synthetic"), None);
     }
     #[test]
     fn payment_credit_is_once_and_mismatch_rolls_back_event_receipt() {
