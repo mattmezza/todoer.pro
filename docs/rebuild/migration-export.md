@@ -47,6 +47,14 @@ mapping before first apply, or repeat into a fresh independent destination.
 Changing a mapping on an existing imported source is a conflict, not an implicit
 permission grant. Existing Rust edits are never overwritten by a reconciliation.
 
+If the dry-run reports missing task sections, pass `--recovery-owner OLD-USER-UUID`
+to preview recovery into a private workspace for that explicitly chosen legacy
+user. The report counts missing sections and affected root tasks. Applying recovery
+also requires that user to be explicitly mapped to an existing Rust account and
+`--ack-unsupported` after reviewing every reported category. The original section
+identifiers are retained; the original list and ownership cannot be inferred.
+Use the same recovery owner and mapping on subsequent runs.
+
 ## Preserved data
 
 Workspaces, lists, sections, task IDs, short references, sibling positions,

@@ -20,6 +20,8 @@ enum Command {
         #[arg(long)]
         identity_map: Option<PathBuf>,
         #[arg(long)]
+        recovery_owner: Option<String>,
+        #[arg(long)]
         apply: bool,
         #[arg(long)]
         ack_unsupported: bool,
@@ -114,18 +116,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             source,
             destination: target,
             identity_map,
+            recovery_owner,
             apply,
             ack_unsupported,
         } => {
             independent(&source, &target)?;
             let snapshot = transfer::read_legacy(&source)?;
             let mut db = destination(&target, apply)?;
-            let report = transfer::import_legacy(
+            let report = transfer::import_legacy_with_recovery(
                 &mut db,
                 &snapshot,
                 &mapping(identity_map)?,
                 apply,
                 ack_unsupported,
+                recovery_owner.as_deref(),
             )?;
             println!("{}", serde_json::to_string(&report)?);
         }

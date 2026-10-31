@@ -1105,6 +1105,17 @@ pub fn import_legacy(
     apply: bool,
     ack_unsupported: bool,
 ) -> Result<TransferReport> {
+    import_legacy_with_recovery(store, source, mapping, apply, ack_unsupported, None)
+}
+
+pub fn import_legacy_with_recovery(
+    store: &mut Store,
+    source: &LegacySnapshot,
+    mapping: &IdentityMap,
+    apply: bool,
+    ack_unsupported: bool,
+    recovery_owner: Option<&str>,
+) -> Result<TransferReport> {
     let mut report = TransferReport {
         unsupported: source.unsupported.clone(),
         excluded_credentials: source.excluded_credentials,
@@ -1131,7 +1142,11 @@ pub fn import_legacy(
             return Err(invalid("identity mapping target must already exist"));
         }
     }
-    let policy_hash = hash(&json!([source.schema_hash, mapping]));
+    let policy_hash = if let Some(owner) = recovery_owner {
+        hash(&json!([source.schema_hash, mapping, owner]))
+    } else {
+        hash(&json!([source.schema_hash, mapping]))
+    };
     let previous: Option<String> = tx
         .query_row(
             "SELECT schema_hash FROM transfer_sources WHERE id=?1",
@@ -1256,6 +1271,48 @@ pub fn import_legacy(
             && !sections.iter().any(|s| s["uuid"] == row["uuid"])
         {
             sections.push(row);
+        }
+    }
+    let missing_sections: Vec<_> = required_sections
+        .iter()
+        .filter(|id| !sections.iter().any(|row| row["uuid"] == **id))
+        .cloned()
+        .collect();
+    if !missing_sections.is_empty() {
+        let owner = recovery_owner
+            .ok_or_else(|| invalid("missing legacy sections require an explicit recovery owner"))?;
+        if !users.iter().any(|row| row["uuid"] == owner) {
+            return Err(invalid("recovery owner must be an existing legacy user"));
+        }
+        if apply && !mapping.users.contains_key(owner) {
+            return Err(invalid(
+                "recovery owner must be explicitly mapped to an existing account",
+            ));
+        }
+        if apply && !ack_unsupported {
+            return Err(invalid(
+                "missing section recovery requires --ack-unsupported after review",
+            ));
+        }
+        report
+            .counts
+            .insert("recovered_missing_sections".into(), missing_sections.len());
+        report.counts.insert(
+            "recovered_missing_section_tasks".into(),
+            table("tasks")
+                .iter()
+                .filter(|row| {
+                    row["section"]
+                        .as_str()
+                        .is_some_and(|id| missing_sections.iter().any(|missing| missing == id))
+                })
+                .count(),
+        );
+        report
+            .unsupported
+            .push("Missing sections recovered under the explicitly selected owner".into());
+        for id in missing_sections {
+            sections.push(json!({"uuid":id,"title":"Recovered legacy section","creator":owner,"list":format!("legacy-missing-list-{}", hash(&json!([source.source_id, owner])))}));
         }
     }
     let required_lists = sections
@@ -2202,6 +2259,84 @@ mod tests {
             db.export_bundle("dev", ExportScope::List("private".into()))
                 .is_err()
         );
+    }
+    #[test]
+    fn missing_section_requires_explicit_mapped_owner_and_preserves_tasks() {
+        let (path, _) = fixture();
+        let legacy = Connection::open(&path).unwrap();
+        legacy.execute("DELETE FROM sections", []).unwrap();
+        legacy
+            .execute(
+                "INSERT INTO attachments VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                params![
+                    "00000000-0000-4000-8000-000000000009",
+                    "file001",
+                    "text/plain",
+                    "synthetic.txt",
+                    3,
+                    "2026-01-01 10:00:00",
+                    TASK
+                ],
+            )
+            .unwrap();
+        drop(legacy);
+        let source = read_legacy(&path).unwrap();
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        assert!(
+            import_legacy_with_recovery(
+                &mut db,
+                &source,
+                &IdentityMap::default(),
+                false,
+                false,
+                None
+            )
+            .is_err()
+        );
+        let report = import_legacy_with_recovery(
+            &mut db,
+            &source,
+            &IdentityMap::default(),
+            false,
+            false,
+            Some(USER),
+        )
+        .unwrap();
+        assert_eq!(report.counts["recovered_missing_sections"], 1);
+        assert_eq!(report.counts["recovered_missing_section_tasks"], 1);
+        assert!(
+            import_legacy_with_recovery(
+                &mut db,
+                &source,
+                &IdentityMap::default(),
+                true,
+                true,
+                Some(USER)
+            )
+            .is_err()
+        );
+        let mut map = IdentityMap::default();
+        map.users.insert(USER.into(), "dev".into());
+        assert!(
+            import_legacy_with_recovery(&mut db, &source, &map, true, false, Some(USER)).is_err()
+        );
+        import_legacy_with_recovery(&mut db, &source, &map, true, true, Some(USER)).unwrap();
+        assert_eq!(db.subtree("dev", TASK).unwrap().len(), 3);
+        for table in ["comments", "legacy_attachment_refs"] {
+            assert_eq!(
+                db.conn
+                    .query_row(
+                        &format!("SELECT COUNT(*) FROM {table} WHERE task_id=?1"),
+                        [TASK],
+                        |row| row.get::<_, i64>(0)
+                    )
+                    .unwrap(),
+                1
+            );
+        }
+        import_legacy_with_recovery(&mut db, &source, &map, true, true, Some(USER)).unwrap();
+        std::fs::remove_file(path).unwrap();
     }
     #[test]
     fn orphan_recovery_is_private_explicit_and_repeatable() {
