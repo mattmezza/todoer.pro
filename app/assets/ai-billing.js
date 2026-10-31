@@ -973,8 +973,8 @@ function renderUsers(users, requests) {
     const review = element('fieldset', undefined, { class: 'ai-model-group' });
     review.append(element('legend', 'Access decision'));
     const reviewFields = element('div', undefined, { class: 'ai-model-fields' });
-    reviewFields.append(decision, field(form, 'reason').closest('label'));
     field(form, 'reason').placeholder = 'Reason for this change';
+    reviewFields.append(decision, field(form, 'reason').closest('label'));
     review.append(reviewFields);
     const save = form.querySelector('button[type="submit"]');
     save.className = 'primary';
