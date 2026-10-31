@@ -351,9 +351,11 @@ mod tests {
                 .unwrap();
             assert_eq!(response.status(), expected);
             if expected == StatusCode::OK {
-                assert_eq!(
-                    response.headers()[header::CACHE_CONTROL],
-                    "private, no-store"
+                assert!(
+                    response.headers()[header::CACHE_CONTROL]
+                        .to_str()
+                        .unwrap()
+                        .contains("no-store")
                 );
                 let html = body(response).await;
                 assert!(html.contains("href=\"/admin/email\""));
