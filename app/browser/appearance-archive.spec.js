@@ -54,6 +54,7 @@ test('archived lists are separate, show provenance, and can be restored', async 
     data: {
       workspace_id: space.id,
       title: 'Archived example',
+      color: '#ff1234',
       description: 'Keep these notes',
       restricted: false,
     },
@@ -80,6 +81,19 @@ test('archived lists are separate, show provenance, and can be restored', async 
     data: { kind: 'list', id: list.id, favorite: true },
   });
   expect(favorite.ok()).toBeTruthy();
+  const noScripts = await page
+    .context()
+    .browser()
+    .newContext({ javaScriptEnabled: false });
+  await noScripts.addCookies(await page.context().cookies());
+  const initialPage = await noScripts.newPage();
+  await initialPage.goto(new URL('/today', page.url()).href);
+  const dot = initialPage.locator(
+    `nav[aria-label=Favorites] a[href="/lists/${list.id}"] .list-dot`,
+  );
+  await expect(dot.locator('circle')).toHaveAttribute('fill', '#ff1234');
+  await expect(dot).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await noScripts.close();
   const archived = await page.request.patch(`/api/v1/lists/${list.id}`, {
     headers,
     data: { revision: list.revision, archived: true },
