@@ -132,6 +132,7 @@ export function mountPushSettings(root) {
         keys: serialized.keys,
         label: label.value.trim() || 'This browser',
       });
+      subscriptionPending = null;
       deviceId = device.id;
       optIn.checked = true;
       disable.hidden = false;

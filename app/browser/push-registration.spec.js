@@ -12,6 +12,7 @@ async function fixture(page, mode = 'abort') {
       });
     if (path === '/api/v1/push/key')
       return route.fulfill({ json: { available: true, public_key: 'BA' } });
+    if (path === '/api/v1/push/devices/synthetic') return route.fulfill({ status: 204 });
     if (path === '/api/v1/push/devices')
       return route.fulfill({
         json: route.request().method() === 'POST' ? { id: 'synthetic' } : { devices: [] },
@@ -26,6 +27,7 @@ async function fixture(page, mode = 'abort') {
     window.Notification = { permission: 'granted' };
     window.subscribeCalls = 0;
     const subscription = {
+      unsubscribe: async () => true,
       toJSON: () => ({ endpoint: 'https://synthetic.invalid/push', keys: {} }),
     };
     let resolve;
@@ -154,4 +156,21 @@ test('late subscription after timeout waits for explicit retry before saving', a
     'Notifications are enabled in this browser.',
   );
   expect(posts).toBe(1);
+});
+
+test('enable after disabling creates a fresh browser subscription', async ({ page }) => {
+  await fixture(page, 'success');
+  await page.locator('[data-push-enable]').click();
+  await expect(page.locator('[data-push-status]')).toHaveText(
+    'Notifications are enabled in this browser.',
+  );
+  await page.locator('[data-push-disable]').click();
+  await expect(page.locator('[data-push-status]')).toHaveText(
+    'Notifications are off in this browser.',
+  );
+  await page.locator('[data-push-enable]').click();
+  await expect(page.locator('[data-push-status]')).toHaveText(
+    'Notifications are enabled in this browser.',
+  );
+  expect(await page.evaluate(() => window.subscribeCalls)).toBe(2);
 });
