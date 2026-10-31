@@ -462,6 +462,84 @@ function taskCard(entry, intake = false) {
   }
   return row;
 }
+const undoNotices = [];
+let displayedUndo = null,
+  leavingUndo = null,
+  undoSequence = 0;
+const undoDuration = 10000;
+function pauseUndo(notice) {
+  if (!notice.timer) return;
+  clearTimeout(notice.timer);
+  notice.timer = null;
+  notice.remaining = Math.max(0, notice.remaining - (performance.now() - notice.started));
+}
+function startUndoTimer(notice) {
+  notice.started = performance.now();
+  notice.timer = setTimeout(() => dismissUndo(notice), notice.remaining);
+}
+function dismissUndo(notice) {
+  const index = undoNotices.indexOf(notice);
+  if (index < 0) return;
+  undoNotices.splice(index, 1);
+  if (displayedUndo === notice) showLatestUndo();
+}
+function showLatestUndo() {
+  const sequence = ++undoSequence;
+  if (leavingUndo) {
+    leavingUndo.animation?.cancel();
+    leavingUndo.element.remove();
+    leavingUndo = null;
+  }
+  const previous = displayedUndo;
+  displayedUndo = null;
+  const show = () => {
+    if (sequence !== undoSequence) return;
+    const next = undoNotices.at(-1);
+    if (!next) return;
+    displayedUndo = next;
+    next.element.inert = false;
+    next.element.removeAttribute('aria-hidden');
+    main.append(next.element);
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches)
+      next.element.animate(
+        [
+          { opacity: 0, transform: 'translate(-50%, 20px)' },
+          { opacity: 1, transform: 'translate(-50%, 0)' },
+        ],
+        { duration: 180, easing: 'ease-out' },
+      );
+    if (!next.pending) startUndoTimer(next);
+  };
+  if (!previous) {
+    show();
+    return;
+  }
+  pauseUndo(previous);
+  previous.element.inert = true;
+  previous.element.setAttribute('aria-hidden', 'true');
+  const currentStyle = getComputedStyle(previous.element);
+  const startOpacity = currentStyle.opacity;
+  const startTransform = currentStyle.transform;
+  for (const running of previous.element.getAnimations()) running.cancel();
+  const animation = !matchMedia('(prefers-reduced-motion: reduce)').matches
+    ? previous.element.animate(
+        [
+          { opacity: startOpacity, transform: startTransform },
+          { opacity: 0, transform: 'translate(-50%, 20px)' },
+        ],
+        { duration: 140, easing: 'ease-in', fill: 'forwards' },
+      )
+    : null;
+  leavingUndo = { element: previous.element, animation };
+  const finish = () => {
+    previous.element.remove();
+    if (sequence !== undoSequence) return;
+    leavingUndo = null;
+    show();
+  };
+  if (animation) animation.finished.then(finish).catch(() => {});
+  else finish();
+}
 async function settle(entry, row, b) {
   b.disabled = true;
   try {
@@ -496,8 +574,16 @@ async function settle(entry, row, b) {
     const undo = node('div', null, 'inbox-undo');
     undo.setAttribute('role', 'status');
     undo.append(node('span', 'Settled · ' + entry.task.title));
+    const notice = {
+      element: undo,
+      remaining: undoDuration,
+      timer: null,
+      pending: false,
+    };
     const restore = button('Undo', async () => {
       restore.disabled = true;
+      notice.pending = true;
+      pauseUndo(notice);
       try {
         await api(`tasks/${encodeURIComponent(entry.task.id)}/inbox`, 'PUT', {
           settled: false,
@@ -562,15 +648,18 @@ async function settle(entry, row, b) {
         restoredRow.querySelector('.inbox-settle').disabled = false;
         decorateInbox();
         restoredRow.querySelector('.inbox-settle').focus();
-        undo.remove();
+        dismissUndo(notice);
         resumeRefresh();
       } catch (error) {
         restore.disabled = false;
+        notice.pending = false;
+        if (displayedUndo === notice) startUndoTimer(notice);
         fail(error);
       }
     });
     undo.append(restore);
-    main.append(undo);
+    undoNotices.push(notice);
+    showLatestUndo();
     const finish = () => {
       if (restored) return;
       row.remove();
@@ -587,7 +676,6 @@ async function settle(entry, row, b) {
     };
     if (animation) animation.finished.then(finish).catch(() => {});
     else finish();
-    setTimeout(() => undo.remove(), 10000);
   } catch (error) {
     b.disabled = false;
     fail(error);
