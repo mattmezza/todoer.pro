@@ -50,11 +50,12 @@ the VPS with a read:packages token through `docker login ghcr.io`.
 
 For a standalone Certbot webroot setup, see `nginx-app.conf.example`. Keep its
 HTTP challenge location available for renewal. The optional
-`certbot-reload-nginx.sh` deploy hook validates and reloads nginx after any
-successful certificate renewal; install it executable under
+`certbot-reload-nginx.sh` deploy hook validates and reloads nginx after renewal
+of the `app.todoer.pro` certificate; adjust its lineage for another name and install it under
 `/etc/letsencrypt/renewal-hooks/deploy/`, check that the Certbot timer is enabled,
-and test both the hook and `certbot renew --dry-run --cert-name app.todoer.pro`.
-The deploy hook runs for renewals of other certificates on the host as well.
+and test both the hook (setting `RENEWED_LINEAGE` to the certificate lineage)
+and `certbot renew --dry-run --cert-name app.todoer.pro`. Certbot invokes the
+hook for other renewals too, but the lineage check makes it exit without action.
 
 ## Updates and rollback
 
