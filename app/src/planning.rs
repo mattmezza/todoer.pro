@@ -84,6 +84,51 @@ impl Store {
         let user = actor_identity(&self.conn, actor)?.0;
         self.entries(actor, None, None, None, Some(&user))
     }
+    pub fn inbox_page(
+        &self,
+        actor: &str,
+        before: Option<(i64, i64)>,
+        limit: usize,
+    ) -> Result<(Vec<PlanEntry>, Option<String>), Error> {
+        if !(1..=100).contains(&limit) {
+            return Err(Error::Invalid(
+                "Inbox page size must be between 1 and 100".into(),
+            ));
+        }
+        let user = actor_identity(&self.conn, actor)?.0;
+        let mut query = self.conn.prepare("SELECT t.id,t.reference,t.list_id,t.parent_id,t.title,t.description,t.complete,t.revision,t.position FROM inbox_entries i JOIN tasks t ON t.id=i.task_id JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?1 JOIN lists l ON l.id=t.list_id WHERE i.user_id=?2 AND i.settled_at IS NULL AND t.deleted_at IS NULL AND l.archived=0 AND (?3 IS NULL OR i.created_at<?3 OR (i.created_at=?3 AND i.rowid<?4)) ORDER BY i.created_at DESC,i.rowid DESC LIMIT ?5")?;
+        let mut tasks = query
+            .query_map(
+                params![
+                    actor,
+                    user,
+                    before.map(|v| v.0),
+                    before.map(|v| v.1),
+                    limit as i64 + 1
+                ],
+                task_row,
+            )?
+            .collect::<Result<Vec<_>, _>>()?;
+        let has_more = tasks.len() > limit;
+        if has_more {
+            tasks.pop();
+        }
+        let next = if has_more {
+            let last = tasks.last().expect("nonzero inbox page size");
+            let (created, row): (i64, i64) = self.conn.query_row(
+                "SELECT created_at,rowid FROM inbox_entries WHERE user_id=?1 AND task_id=?2",
+                params![user, last.id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )?;
+            Some(format!("{created}:{row}"))
+        } else {
+            None
+        };
+        Ok((
+            self.decorate_entries(actor, tasks, None, None, Some(&user))?,
+            next,
+        ))
+    }
     pub fn set_inbox_settled(&mut self, actor: &str, id: &str, settled: bool) -> Result<(), Error> {
         let user = actor_identity(&self.conn, actor)?.0;
         let t = task(&self.conn, id)?;
@@ -117,11 +162,6 @@ impl Store {
         if let Some(id) = list {
             access_rank(&self.conn, actor, id, 1)?;
         }
-        let zone: chrono_tz::Tz = self
-            .notification_preferences(&actor_identity(&self.conn, actor)?.0)?
-            .timezone
-            .parse()
-            .map_err(|_| Error::Invalid("Invalid timezone".into()))?;
         let mut query = self.conn.prepare("SELECT t.id,t.reference,t.list_id,t.parent_id,t.title,t.description,t.complete,t.revision,t.position FROM tasks t JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?1 JOIN lists l ON l.id=t.list_id WHERE t.deleted_at IS NULL AND l.archived=0 AND (?2 IS NULL OR t.list_id=?2) AND (?5 IS NULL OR EXISTS(SELECT 1 FROM inbox_entries i WHERE i.user_id=?5 AND i.task_id=t.id AND i.settled_at IS NULL)) AND (?3 IS NULL OR (json_extract((SELECT document FROM task_schedule WHERE task_id=t.id),'$.planned.date') BETWEEN date(?3,'-1 day') AND date(?4,'+1 day'))) ORDER BY CASE WHEN ?5 IS NOT NULL THEN (SELECT created_at FROM inbox_entries WHERE user_id=?5 AND task_id=t.id) END DESC,CASE WHEN ?5 IS NOT NULL THEN (SELECT rowid FROM inbox_entries WHERE user_id=?5 AND task_id=t.id) END DESC,t.position,t.id LIMIT 10001")?;
         let tasks = query
             .query_map(params![actor, list, from, to, inbox_user], task_row)?
@@ -131,6 +171,21 @@ impl Store {
                 "More than 10,000 tasks. Choose a narrower range or scope.".into(),
             ));
         }
+        self.decorate_entries(actor, tasks, from, to, inbox_user)
+    }
+    fn decorate_entries(
+        &self,
+        actor: &str,
+        tasks: Vec<Task>,
+        from: Option<&str>,
+        to: Option<&str>,
+        inbox_user: Option<&str>,
+    ) -> Result<Vec<PlanEntry>, Error> {
+        let zone: chrono_tz::Tz = self
+            .notification_preferences(&actor_identity(&self.conn, actor)?.0)?
+            .timezone
+            .parse()
+            .map_err(|_| Error::Invalid("Invalid timezone".into()))?;
         let mut result = Vec::new();
         for t in tasks {
             let (name,workspace,space): (String,Option<String>,Option<String>) = self.conn.query_row("SELECT l.title,CASE WHEN EXISTS(SELECT 1 FROM actor_workspace_access WHERE actor_id=?1 AND workspace_id=l.workspace_id) THEN l.workspace_id ELSE NULL END,CASE WHEN EXISTS(SELECT 1 FROM actor_workspace_access WHERE actor_id=?1 AND workspace_id=l.workspace_id) THEN w.title ELSE NULL END FROM lists l LEFT JOIN workspaces w ON w.id=l.workspace_id WHERE l.id=?2",params![actor,t.list_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?)))?;
@@ -284,6 +339,66 @@ mod tests {
         )
         .unwrap()
         .remove(0)
+    }
+    #[test]
+    fn inbox_pages_are_stable_for_shared_timestamps_and_live_changes() {
+        let mut s = setup();
+        let list = s.personal_inbox("dev").unwrap();
+        let created = s
+            .capture(
+                "dev",
+                "paged",
+                Capture {
+                    list_id: list,
+                    tasks: (0..6)
+                        .map(|n| NewTask {
+                            title: format!("Task {n}"),
+                            description: String::new(),
+                            parent_id: None,
+                        })
+                        .collect(),
+                },
+            )
+            .unwrap();
+        s.conn
+            .execute(
+                "UPDATE inbox_entries SET created_at=100 WHERE user_id='dev'",
+                [],
+            )
+            .unwrap();
+        let (first, next) = s.inbox_page("dev", None, 2).unwrap();
+        assert_eq!(
+            first.iter().map(|e| &e.task.id).collect::<Vec<_>>(),
+            vec![&created[5].id, &created[4].id]
+        );
+        let cursor = next.unwrap();
+        let (seconds, row) = cursor.split_once(':').unwrap();
+        s.set_inbox_settled("dev", &created[3].id, true).unwrap();
+        let (second, next) = s
+            .inbox_page(
+                "dev",
+                Some((seconds.parse().unwrap(), row.parse().unwrap())),
+                2,
+            )
+            .unwrap();
+        assert_eq!(
+            second.iter().map(|e| &e.task.id).collect::<Vec<_>>(),
+            vec![&created[2].id, &created[1].id]
+        );
+        let cursor = next.unwrap();
+        let (seconds, row) = cursor.split_once(':').unwrap();
+        let (last, next) = s
+            .inbox_page(
+                "dev",
+                Some((seconds.parse().unwrap(), row.parse().unwrap())),
+                2,
+            )
+            .unwrap();
+        assert_eq!(last.len(), 1);
+        assert_eq!(last[0].task.id, created[0].id);
+        assert!(next.is_none());
+        assert!(s.inbox_page("other", None, 2).unwrap().0.is_empty());
+        assert!(s.inbox_page("dev", None, 0).is_err());
     }
     #[test]
     fn personal_intake_is_isolated_and_requires_explicit_settling() {

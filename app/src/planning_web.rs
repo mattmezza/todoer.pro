@@ -63,11 +63,48 @@ async fn inbox_page(State(s): State<AppState>, h: HeaderMap) -> Result<Response,
 async fn plan_page(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
     page(s, h, "plan").await
 }
-async fn intake(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Value>, ApiError> {
+#[derive(Deserialize, Default)]
+struct InboxPageQuery {
+    limit: Option<usize>,
+    before: Option<String>,
+}
+async fn intake(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Query(q): Query<InboxPageQuery>,
+) -> Result<Json<Value>, ApiError> {
     let a = s.auth(&h, false)?;
+    let before = q
+        .before
+        .as_deref()
+        .map(|value| {
+            let (created, row) = value
+                .split_once(':')
+                .ok_or_else(|| Error::Invalid("Invalid inbox cursor".into()))?;
+            let created = created
+                .parse::<i64>()
+                .map_err(|_| Error::Invalid("Invalid inbox cursor".into()))?;
+            let row = row
+                .parse::<i64>()
+                .map_err(|_| Error::Invalid("Invalid inbox cursor".into()))?;
+            if row <= 0 {
+                return Err(Error::Invalid("Invalid inbox cursor".into()));
+            }
+            Ok((created, row))
+        })
+        .transpose()?;
+    if before.is_some() && q.limit.is_none() {
+        return Err(Error::Invalid("Inbox cursor requires a page size".into()).into());
+    }
     Ok(Json(
         s.run(move |db| {
-            Ok(json!({"list_id":db.personal_inbox(&a)?,"entries":db.intake_tasks(&a)?}))
+            let list_id = db.personal_inbox(&a)?;
+            if let Some(limit) = q.limit {
+                let (entries, next) = db.inbox_page(&a, before, limit)?;
+                Ok(json!({"list_id":list_id,"entries":entries,"next":next}))
+            } else {
+                Ok(json!({"list_id":list_id,"entries":db.intake_tasks(&a)?}))
+            }
         })
         .await?,
     ))
