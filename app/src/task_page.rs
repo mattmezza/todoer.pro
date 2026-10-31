@@ -107,10 +107,22 @@ async fn page(
                 .into_iter()
                 .find(|l| l.id == task.list_id)
                 .ok_or(Error::NotFound)?;
-            crumbs.push(Crumb {
-                label: format!("#{}", slugs.lists.get(&list.id).unwrap_or(&list.title)),
-                url: format!("/lists/{}", list.id),
-            });
+            let is_personal_inbox: bool = db.conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM user_inboxes WHERE user_id=?1 AND list_id=?2)",
+                rusqlite::params![account_id, list.id],
+                |row| row.get(0),
+            )?;
+            if is_personal_inbox {
+                crumbs.push(Crumb {
+                    label: "Inbox".into(),
+                    url: "/inbox".into(),
+                });
+            } else {
+                crumbs.push(Crumb {
+                    label: format!("#{}", slugs.lists.get(&list.id).unwrap_or(&list.title)),
+                    url: format!("/lists/{}", list.id),
+                });
+            }
             let mut section_root = task.clone();
             while let Some(parent) = &section_root.parent_id {
                 section_root = crate::core::task(&db.conn, parent)?;
@@ -215,6 +227,98 @@ mod tests {
     use axum::{body::Body, http::Request};
     use http_body_util::BodyExt;
     use tower::ServiceExt;
+    #[tokio::test]
+    async fn personal_inbox_tasks_link_to_inbox_instead_of_a_list() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let inbox = crate::planning::ensure_personal_inbox(&db.conn, "dev").unwrap();
+        let parent = db
+            .capture(
+                "dev",
+                "breadcrumb-parent",
+                Capture {
+                    list_id: inbox.clone(),
+                    tasks: vec![crate::core::NewTask {
+                        title: "Inbox parent".into(),
+                        description: String::new(),
+                        parent_id: None,
+                    }],
+                },
+            )
+            .unwrap()
+            .remove(0);
+        let child = db
+            .capture(
+                "dev",
+                "breadcrumb-child",
+                Capture {
+                    list_id: inbox.clone(),
+                    tasks: vec![crate::core::NewTask {
+                        title: "Inbox child".into(),
+                        description: String::new(),
+                        parent_id: Some(parent.id.clone()),
+                    }],
+                },
+            )
+            .unwrap()
+            .remove(0);
+        let regular = db
+            .capture(
+                "dev",
+                "breadcrumb-list",
+                Capture {
+                    list_id: "inbox".into(),
+                    tasks: vec![crate::core::NewTask {
+                        title: "A task in a list".into(),
+                        description: String::new(),
+                        parent_id: None,
+                    }],
+                },
+            )
+            .unwrap()
+            .remove(0);
+        let urls: Vec<_> = [parent, child, regular]
+            .iter()
+            .map(|task| crate::defaults::public_id(&db.conn, "task", &task.id).unwrap())
+            .collect();
+        let app = router(AppState::new(
+            Arc::new(Mutex::new(db)),
+            "task-page-synthetic-token-24plus".into(),
+            "http://127.0.0.1:8092".into(),
+        ));
+        for (index, url) in urls.iter().enumerate() {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri(format!("/tasks/{url}"))
+                        .header("authorization", "Bearer task-page-synthetic-token-24plus")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let body = response.into_body().collect().await.unwrap().to_bytes();
+            let html = String::from_utf8(body.to_vec()).unwrap();
+            let breadcrumbs = html
+                .split("aria-label=\"Task location\"")
+                .nth(1)
+                .unwrap()
+                .split("</nav>")
+                .next()
+                .unwrap();
+            if index < 2 {
+                assert!(breadcrumbs.contains("href=\"/inbox\">Inbox</a>"));
+                assert!(!breadcrumbs.contains("/lists/intake:"));
+                if index == 1 {
+                    assert!(breadcrumbs.contains(&format!("/tasks/{}", urls[0])));
+                }
+            } else {
+                assert!(breadcrumbs.contains("href=\"/lists/inbox\">#"));
+            }
+        }
+    }
     #[tokio::test]
     async fn dedicated_task_page_is_authorized_sanitized_and_hides_guest_workspace_context() {
         let mut db = Store::memory().unwrap();
