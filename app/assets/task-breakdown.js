@@ -19,12 +19,13 @@ export function mountBreakdown(root) {
   close.setAttribute('aria-label', 'Close breakdown');
   close.onclick = () => dialog.close();
   let applying = false,
-    generation = 0;
+    generation = 0,
+    pending = false;
   dialog.addEventListener('cancel', (event) => {
     if (applying) event.preventDefault();
   });
   dialog.addEventListener('close', () => {
-    generation++;
+    // Keep in-flight results available when the dialog is reopened.
   });
   const button = document.createElement('button');
   button.type = 'button';
@@ -71,48 +72,58 @@ export function mountBreakdown(root) {
       const legend = document.createElement('legend');
       legend.textContent = `Suggestion ${index + 1}`;
       row.append(legend);
-      const selected = document.createElement('input');
-      selected.type = 'checkbox';
-      selected.checked = entry.selected;
-      selected.setAttribute('aria-label', 'Include suggestion');
-      selected.onchange = () => {
-        entry.selected = selected.checked;
-        applyKey = null;
+      row.className = 'breakdown-row';
+      row.classList.toggle('is-excluded', !entry.selected);
+      const summary = document.createElement('div');
+      summary.className = 'breakdown-summary';
+      const title = document.createElement('strong');
+      title.textContent = entry.title;
+      const description = document.createElement('p');
+      description.textContent = entry.description;
+      summary.append(title, description);
+      const controls = document.createElement('div');
+      controls.className = 'breakdown-controls';
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.textContent = entry.editing ? 'Done' : 'Edit';
+      edit.setAttribute('aria-expanded', String(!!entry.editing));
+      edit.onclick = () => {
+        entry.editing = !entry.editing;
+        draw();
       };
-      row.append(selected);
-      for (const [key, labelText] of [
-        ['title', 'Title'],
-        ['description', 'Description'],
-      ]) {
-        const label = document.createElement('label');
-        label.textContent = labelText;
-        const field = document.createElement(key === 'title' ? 'input' : 'textarea');
-        field.value = entry[key];
-        field.maxLength = key === 'title' ? 500 : 2000;
-        field.oninput = () => {
-          entry[key] = field.value;
-          applyKey = null;
-        };
-        label.append(field);
-        row.append(label);
-      }
-      for (const [label, delta] of [
-        ['Move up', -1],
-        ['Move down', 1],
-      ]) {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.textContent = label;
-        b.disabled = index + delta < 0 || index + delta >= entries.length;
-        b.onclick = () => {
-          [entries[index], entries[index + delta]] = [
-            entries[index + delta],
-            entries[index],
-          ];
-          applyKey = null;
-          draw();
-        };
-        row.append(b);
+      const exclude = document.createElement('button');
+      exclude.type = 'button';
+      exclude.textContent = entry.selected ? 'Exclude' : 'Include';
+      exclude.setAttribute('aria-pressed', String(!entry.selected));
+      exclude.onclick = () => {
+        entry.selected = !entry.selected;
+        applyKey = null;
+        draw();
+      };
+      controls.append(edit, exclude);
+      row.append(summary, controls);
+      if (entry.editing) {
+        const editor = document.createElement('div');
+        editor.className = 'breakdown-editor';
+        for (const [key, labelText] of [
+          ['title', 'Title'],
+          ['description', 'Description'],
+        ]) {
+          const label = document.createElement('label');
+          label.textContent = labelText;
+          const field = document.createElement(key === 'title' ? 'input' : 'textarea');
+          field.value = entry[key];
+          field.maxLength = key === 'title' ? 500 : 2000;
+          field.oninput = () => {
+            entry[key] = field.value;
+            title.textContent = entry.title;
+            description.textContent = entry.description;
+            applyKey = null;
+          };
+          label.append(field);
+          editor.append(label);
+        }
+        row.append(editor);
       }
       box.append(row);
     });
@@ -170,10 +181,21 @@ export function mountBreakdown(root) {
   };
   button.onclick = async () => {
     menu.open = false;
-    box.replaceChildren();
-    status.textContent = '';
-    const skeleton = beginLoading(box, { variant: 'form' });
     dialog.showModal();
+    if (pending || entries) return;
+    pending = true;
+    box.replaceChildren();
+    status.textContent = 'Finding a practical first step…';
+    const messages = [
+      'Turning your task into manageable steps…',
+      'Still working. Longer tasks can take a little while…',
+      'Your suggestions will appear here when they are ready.',
+    ];
+    let messageIndex = 0;
+    const progress = setInterval(() => {
+      status.textContent = messages[Math.min(messageIndex++, messages.length - 1)];
+    }, 10000);
+    const skeleton = beginLoading(box, { variant: 'form' });
     const requestGeneration = ++generation;
     try {
       const result = await call('drafts', {
@@ -181,7 +203,7 @@ export function mountBreakdown(root) {
         brief: 'Task breakdown',
         target: { kind: 'existing_task', task_id: root.dataset.taskId },
       });
-      if (!dialog.open || requestGeneration !== generation) return;
+      if (requestGeneration !== generation) return;
       if (result.status !== 'draft')
         throw Error(
           'AI assistance is unavailable. You can still add sub-tasks manually.',
@@ -196,9 +218,10 @@ export function mountBreakdown(root) {
       draw();
       status.textContent = '';
     } catch (error) {
-      if (dialog.open && requestGeneration === generation)
-        status.textContent = error.message;
+      if (requestGeneration === generation) status.textContent = error.message;
     } finally {
+      clearInterval(progress);
+      pending = false;
       skeleton.finish();
     }
   };

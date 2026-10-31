@@ -7,6 +7,7 @@ export async function inference(path, payload, csrf) {
   const send = async (quote) => {
     const response = await request('/api/v1/assist/' + path, {
       method: 'POST',
+      timeoutMs: 300000,
       headers: {
         'Content-Type': 'application/json',
         'X-CSRF-Token': csrf,

@@ -138,7 +138,7 @@ test('offline queue retains interpreted metadata for retry', async ({ page }) =>
   await expect(page.getByRole('link', { name: title, exact: true })).toBeVisible();
 });
 
-test('breakdown review sends only selected edited steps in the chosen order', async ({
+test('breakdown review sends only selected edited steps in suggestion order', async ({
   page,
 }) => {
   await page.goto('/signin');
@@ -190,17 +190,15 @@ test('breakdown review sends only selected edited steps in the chosen order', as
   await expect(modal).toBeVisible();
   await expect(modal.getByText('Generating suggestions…')).toBeVisible();
   const first = modal.getByRole('group', { name: 'Suggestion 1' });
+  await first.getByRole('button', { name: 'Edit', exact: true }).click();
   await first.getByLabel('Title').fill('Edited first');
   const third = page.getByRole('group', { name: 'Suggestion 3' });
-  await third.getByLabel('Include suggestion').uncheck();
-  await page
-    .getByRole('group', { name: 'Suggestion 2' })
-    .getByRole('button', { name: 'Move up' })
-    .click();
+  await third.getByRole('button', { name: 'Exclude' }).click();
+  await expect(third).toHaveClass(/is-excluded/);
   await page.getByRole('button', { name: 'Add selected sub-tasks' }).click();
   await expect
     .poll(() => reviewed?.payload.tasks.map((t) => t.title))
-    .toEqual(['Second', 'Edited first']);
+    .toEqual(['Edited first', 'Second']);
 });
 
 test('capture settings persist and can disable parsing', async ({ page }) => {

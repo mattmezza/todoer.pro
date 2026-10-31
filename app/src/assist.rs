@@ -159,7 +159,7 @@ impl AssistService {
             .timeout(Duration::from_secs(if plan.kind == "classify" {
                 2
             } else {
-                8
+                240
             }))
             .send()
             .await

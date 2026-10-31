@@ -3,7 +3,9 @@ export async function request(input, options = {}) {
   const method = (options.method || 'GET').toUpperCase();
   const writing = !['GET', 'HEAD', 'OPTIONS'].includes(method);
   const uploading = options.body instanceof Blob || options.body instanceof FormData;
-  const deadline = AbortSignal.timeout(uploading ? 300000 : writing ? 45000 : 20000);
+  const deadline = AbortSignal.timeout(
+    options.timeoutMs ?? (uploading ? 300000 : writing ? 45000 : 20000),
+  );
   const signal = options.signal ? AbortSignal.any([options.signal, deadline]) : deadline;
   try {
     const response = await globalThis.fetch(input, { ...options, signal });
