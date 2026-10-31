@@ -42,9 +42,11 @@ test('long Inbox loads as you scroll and settles without replacing neighboring r
     .toBe(1);
   await expect
     .poll(() =>
-      rows.nth(1).evaluate((element) =>
-        Number(element.style.getPropertyValue('--inbox-roll-scale')),
-      ),
+      rows
+        .nth(1)
+        .evaluate((element) =>
+          Number(element.style.getPropertyValue('--inbox-roll-scale')),
+        ),
     )
     .toBe(1);
   await expect(page.locator('.inbox-gap').first()).toContainText(
