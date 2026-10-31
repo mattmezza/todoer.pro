@@ -400,6 +400,34 @@ mod tests {
         assert_eq!(s.tasks("dev", "inbox").unwrap().len(), 2);
     }
     #[test]
+    fn migration_preserves_only_previous_intake_items() {
+        let mut s = setup();
+        let old_inbox_task = capture(&mut s);
+        let filed = s
+            .capture(
+                "dev",
+                "old-filed",
+                Capture {
+                    list_id: "inbox".into(),
+                    tasks: vec![NewTask {
+                        title: "Already filed".into(),
+                        description: String::new(),
+                        parent_id: None,
+                    }],
+                },
+            )
+            .unwrap()
+            .remove(0);
+        s.conn.execute_batch("DROP TABLE inbox_entries").unwrap();
+        s.conn
+            .execute_batch(include_str!("../migrations/049_inbox_stream.sql"))
+            .unwrap();
+        let entries = s.intake_tasks("dev").unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].task.id, old_inbox_task.id);
+        assert_ne!(entries[0].task.id, filed.id);
+    }
+    #[test]
     fn nonexistent_or_ambiguous_clock_time_does_not_change_task() {
         let mut s = setup();
         let t = capture(&mut s);
