@@ -1,85 +1,185 @@
-<link href="/assets/ai-billing.css" rel="stylesheet"/>
+<link href="/assets/ai-billing.css" rel="stylesheet" />
 <script src="/assets/ai-billing.js" type="module"></script>
 <section aria-busy="true" class="ai-billing-panel" data-ai-billing="billing">
-<p aria-live="polite" data-ai-notice="" role="status">Loading billing…</p>
-<div class="ai-page-toolbar">
-<p class="muted">Your wallet, payments and automatic top-ups.</p>
-<button class="secondary ai-refresh" data-ai-reload="" title="Fetch your latest wallet balance and payment status" type="button">
+  <p aria-live="polite" data-ai-notice="" role="status">Loading billing…</p>
+  <div class="ai-page-toolbar">
+    <p class="muted">Your wallet, payments and automatic top-ups.</p>
+    <button
+      class="secondary ai-refresh"
+      data-ai-reload=""
+      title="Fetch your latest wallet balance and payment status"
+      type="button"
+    >
       Refresh balance &amp; payments
     </button>
-</div>
-<section class="settings-preference-card">
-<h2>Your AI credits</h2>
-<dl class="ai-metrics" data-wallet=""></dl><p class="muted" data-wallet-pending="" hidden=""></p><details class="ai-wallet-details"><summary>Balance details</summary><dl class="ai-metrics" data-wallet-details=""></dl><p class="muted">Free credits are used first. You only spend credits when you use built-in AI. Tasks and external AI agents remain free.</p></details>
+  </div>
+  <section class="settings-preference-card">
+    <h2>Your AI credits</h2>
+    <dl class="ai-metrics" data-wallet=""></dl>
+    <p class="muted" data-wallet-pending="" hidden=""></p>
+    <details class="ai-wallet-details">
+      <summary>Balance details</summary>
+      <dl class="ai-metrics" data-wallet-details=""></dl>
+      <p class="muted">
+        Free credits are used first. You only spend credits when you use built-in AI.
+        Tasks and external AI agents remain free.
+      </p>
+    </details>
 
-<form data-credit-topup="">
-<fieldset class="topup-checkout">
-<legend>Add AI credits</legend>
-<p>
+    <form data-credit-topup="">
+      <fieldset class="topup-checkout">
+        <legend>Add AI credits</legend>
+        <p>
           Choose how much to pay. Review the exact EUR credits before continuing to
           Stripe.
         </p>
-<div class="topup-inputs">
-<label>Pay in<select name="currency">
-<option value="EUR">EUR · Euro</option>
-</select></label>
-<label>Payment amount<input inputmode="decimal" max="1000" min="5" name="amount" required="" step="0.01" type="number" value="10.00"/></label>
-</div>
-<div aria-label="Suggested payment amounts" class="ai-preset-row">
-<button class="secondary" data-topup-preset="5" type="button">5</button><button class="secondary" data-topup-preset="10" type="button">10</button><button class="secondary" data-topup-preset="25" type="button">25</button><button class="secondary" data-topup-preset="50" type="button">50</button>
-</div>
-<p class="muted" data-topup-equivalent="">
+        <div class="topup-inputs">
+          <label
+            >Pay in<select name="currency">
+              <option value="EUR">EUR · Euro</option>
+            </select></label
+          >
+          <label
+            >Payment amount<input
+              inputmode="decimal"
+              max="1000"
+              min="5"
+              name="amount"
+              required=""
+              step="0.01"
+              type="number"
+              value="10.00"
+          /></label>
+        </div>
+        <div aria-label="Suggested payment amounts" class="ai-preset-row">
+          <button class="secondary" data-topup-preset="5" type="button">5</button
+          ><button class="secondary" data-topup-preset="10" type="button">10</button
+          ><button class="secondary" data-topup-preset="25" type="button">25</button
+          ><button class="secondary" data-topup-preset="50" type="button">50</button>
+        </div>
+        <p class="muted" data-topup-equivalent="">
           Payments start at €5 before conversion deductions.
         </p>
-<dl aria-live="polite" class="topup-conversion" data-topup-conversion=""></dl>
-<p class="muted">
+        <dl aria-live="polite" class="topup-conversion" data-topup-conversion=""></dl>
+        <p class="muted">
           Payment processing is deducted before credits are added. Payments outside EUR
           also include a 1% currency conversion fee. The breakdown above shows exactly
           what you’ll receive.
         </p>
-<label class="settings-check"><input name="save_for_auto_topup" type="checkbox"/><span>Save my payment method<small>Optional. Auto-top-up stays off until you enable it below.</small></span></label>
-<button class="primary" type="submit">Continue to secure checkout</button>
-</fieldset>
-</form>
-</section>
-<section class="settings-preference-card">
-<h2>Auto-top-up</h2>
-<p data-auto-state=""></p>
-<p>
-      Choose the EUR payment to make when your balance drops below the threshold.
-      Processing deductions apply to the credits received; the preview below shows the
-      result.
-    </p>
-<form data-auto-topup="">
-<label class="settings-check"><input name="enabled" type="checkbox"/><span>Enable auto-top-up</span></label>
-<label>Payment amount (€)<input max="1000" min="5" name="amount" required="" step="0.01" type="number" value="10"/></label>
-<p aria-live="polite" class="muted" data-auto-conversion=""></p>
-<label>Balance threshold (€)<input max="1000" min="0" name="threshold" required="" step="0.01" type="number" value="2"/></label>
-<label>Monthly payment cap (€)<input max="10000" min="5" name="monthly_cap" required="" step="0.01" type="number" value="50"/></label>
-<label>Minimum hours between payments<input max="720" min="1" name="cooldown_hours" required="" step="1" type="number" value="1"/></label>
-<label class="settings-check"><input name="consent" type="checkbox"/><span>I authorize these off-session Stripe payments within the amount, threshold,
-          monthly cap and timing above.<small>Disable this setting any time to stop new automatic payments. A payment
-            already dispatched may still complete.</small></span></label>
-<button class="primary" type="submit">Save auto-top-up settings</button>
-</form>
-</section>
-<section class="settings-preference-card">
-<h2>Top-up history</h2>
-<div class="ai-table-scroll">
-<table>
-<thead>
-<tr>
-<th>Time</th>
-<th>Amount</th>
-<th>Credits</th>
-<th>Status</th>
-</tr>
-</thead>
-<tbody data-purchases=""></tbody>
-</table>
-</div>
-</section>
-<nav aria-label="Related settings" class="ai-related-links">
-<a href="/settings/ai/usage"><strong>AI usage <span aria-hidden="true">→</span></strong><small>See tokens and charges for every transaction.</small></a><a href="/settings/ai"><strong>AI settings <span aria-hidden="true">→</span></strong><small>Choose your model, use your own key or turn AI off.</small></a>
-</nav>
+        <label class="settings-check"
+          ><input name="save_for_auto_topup" type="checkbox" /><span
+            >Save my payment method<small
+              >Optional. Automatic top-ups stay off until you enable them in
+              Manage.</small
+            ></span
+          ></label
+        >
+        <button class="primary" type="submit">Continue to secure checkout</button>
+      </fieldset>
+    </form>
+    <details class="billing-auto-topup">
+      <summary>
+        <span
+          ><strong>Automatic top-ups</strong
+          ><small
+            >Keep your AI balance topped up with a saved payment method.</small
+          ></span
+        ><span class="billing-auto-action">Manage</span>
+      </summary>
+      <div class="billing-auto-content">
+        <p class="billing-auto-state" data-auto-state=""></p>
+        <form data-auto-topup="">
+          <label class="settings-check"
+            ><input name="enabled" type="checkbox" /><span
+              >Enable automatic top-ups</span
+            ></label
+          >
+          <div class="billing-auto-grid">
+            <label
+              >When balance falls below (€)<input
+                max="1000"
+                min="0"
+                name="threshold"
+                required=""
+                step="0.01"
+                type="number"
+                value="2"
+            /></label>
+            <label
+              >Pay this amount (€)<input
+                max="1000"
+                min="5"
+                name="amount"
+                required=""
+                step="0.01"
+                type="number"
+                value="10"
+            /></label>
+          </div>
+          <p aria-live="polite" class="billing-auto-preview" data-auto-conversion=""></p>
+          <fieldset class="ai-model-group">
+            <legend>Spending limits</legend>
+            <div class="billing-auto-grid">
+              <label
+                >Monthly payment cap (€)<input
+                  max="10000"
+                  min="5"
+                  name="monthly_cap"
+                  required=""
+                  step="0.01"
+                  type="number"
+                  value="50"
+              /></label>
+              <label
+                >Hours between payments<input
+                  max="720"
+                  min="1"
+                  name="cooldown_hours"
+                  required=""
+                  step="1"
+                  type="number"
+                  value="1"
+              /></label>
+            </div>
+          </fieldset>
+          <label class="settings-check billing-auto-consent"
+            ><input name="consent" type="checkbox" /><span
+              >I authorize automatic Stripe payments within these limits.<small
+                >Turn off any time to stop new payments. A payment already in progress may
+                still complete.</small
+              ></span
+            ></label
+          >
+          <div class="billing-auto-footer">
+            <button class="primary" type="submit">Save automatic top-ups</button>
+          </div>
+        </form>
+      </div>
+    </details>
+  </section>
+  <section class="settings-preference-card">
+    <h2>Top-up history</h2>
+    <div class="ai-table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Amount</th>
+            <th>Credits</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody data-purchases=""></tbody>
+      </table>
+    </div>
+  </section>
+  <nav aria-label="Related settings" class="ai-related-links">
+    <a href="/settings/ai/usage"
+      ><strong>AI usage <span aria-hidden="true">→</span></strong
+      ><small>See tokens and charges for every transaction.</small></a
+    ><a href="/settings/ai"
+      ><strong>AI settings <span aria-hidden="true">→</span></strong
+      ><small>Choose your model, use your own key or turn AI off.</small></a
+    >
+  </nav>
 </section>
