@@ -11416,3 +11416,18 @@ body:has(> .list-archive-banner) .notification-bell {
 .reauth-dialog .confirmation-actions > button {
   margin: 0;
 }
+
+.purchase-return {
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--hover);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.purchase-return.is-success {
+  border-color: #22c55e;
+  border-inline-start-width: 4px;
+}

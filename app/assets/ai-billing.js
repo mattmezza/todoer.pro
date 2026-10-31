@@ -493,7 +493,7 @@ function showTopupEquivalent() {
     detail.append(element('p', 'Enter a payment amount to preview your credits.'));
   }
 }
-function renderBilling() {
+function renderWallet() {
   const wallet = root.querySelector('[data-wallet]');
   wallet.replaceChildren();
   metric(wallet, 'Available to spend', money(billing.wallet.available_micro));
@@ -510,6 +510,9 @@ function renderBilling() {
     pending.hidden = !(billing.wallet.held_micro > 0);
     pending.textContent = `${money(billing.wallet.held_micro)} is temporarily set aside for AI requests in progress. Unused credits return automatically when they finish.`;
   }
+}
+function renderBilling() {
+  renderWallet();
   const topup = root.querySelector('[data-credit-topup]');
   const currency = field(topup, 'currency');
   const selected = currency.value;
@@ -572,10 +575,75 @@ function renderBilling() {
   }
   if (!billing.purchases.length) emptyRow(rows, 4, 'No top-ups yet.');
 }
+const returnedPurchase = new URLSearchParams(location.search).get('purchase');
+let purchaseReturnFinished = false;
+let purchaseReturnTimer;
+let purchaseReturnChecks = 0;
+function checkPurchaseReturn() {
+  if (!returnedPurchase || purchaseReturnFinished) return;
+  let banner = root.querySelector('[data-purchase-return]');
+  if (!banner) {
+    banner = element('div', undefined, {
+      'data-purchase-return': '',
+      role: 'status',
+      class: 'purchase-return',
+    });
+    root.prepend(banner);
+  }
+  const purchase = billing.purchases.find((item) => item.id === returnedPurchase);
+  if (purchase?.status === 'paid') {
+    const message = `Purchase successful. ${money(purchase.credit_micro)} in credits has been added to your account.`;
+    banner.textContent = message;
+    banner.classList.add('is-success');
+    toast(message);
+    purchaseReturnFinished = true;
+    clearTimeout(purchaseReturnTimer);
+    const url = new URL(location.href);
+    url.searchParams.delete('purchase');
+    history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+    purchaseAttempt = undefined;
+    try {
+      sessionStorage.removeItem(purchaseStorageKey);
+    } catch {
+      /* Storage may be disabled. */
+    }
+    return;
+  }
+  if (
+    purchase &&
+    ['failed', 'refunded', 'disputed', 'requires_action'].includes(purchase.status)
+  ) {
+    banner.textContent =
+      'This purchase is not confirmed. Check its status in your top-up history below before trying again.';
+    purchaseReturnFinished = true;
+    return;
+  }
+  banner.textContent =
+    'Welcome back. We’re confirming your payment and updating your credits…';
+  if (purchaseReturnTimer) return;
+  if (purchaseReturnChecks >= 12) {
+    banner.textContent =
+      'Your payment is still being confirmed. You don’t need to pay again. Refresh billing shortly to check your credits.';
+    return;
+  }
+  purchaseReturnTimer = setTimeout(async () => {
+    purchaseReturnTimer = undefined;
+    purchaseReturnChecks++;
+    try {
+      billing = await api('/api/account/billing');
+      renderWallet();
+      checkPurchaseReturn();
+    } catch {
+      banner.textContent =
+        'We couldn’t check your payment yet. Refresh billing to check again. You don’t need to pay again.';
+    }
+  }, 5000);
+}
 async function loadBilling() {
   billing = await api('/api/account/billing');
   billing.currencies ||= [{ code: 'EUR', eur_rate_micros: 1000000 }];
   renderBilling();
+  checkPurchaseReturn();
   notice(
     billing.enabled
       ? 'Billing loaded.'
