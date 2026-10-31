@@ -68,7 +68,8 @@ export function mountSmartCapture(form) {
   entry.append(badges);
   const description = form.querySelector('[name=description]');
   if (description) {
-    const descriptionField = description.closest('details') || description;
+    const details = description.closest('details');
+    const descriptionField = details && form.contains(details) ? details : description;
     const label = descriptionField.previousElementSibling;
     if (label?.matches('label.sr-only')) entry.append(label);
     descriptionField.classList.add('capture-entry-description');
