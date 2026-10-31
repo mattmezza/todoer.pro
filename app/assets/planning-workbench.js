@@ -713,6 +713,12 @@ async function loadMore() {
     }
   } finally {
     if (version === generation) morePending = false;
+    else if (trigger?.isConnected) {
+      trigger.disabled = false;
+      trigger.textContent = 'Load more tasks';
+      moreObserver?.unobserve(trigger);
+      moreObserver?.observe(trigger);
+    }
   }
 }
 function renderInbox() {
