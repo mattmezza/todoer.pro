@@ -466,17 +466,6 @@ const undoNotices = [];
 let displayedUndo = null,
   leavingUndo = null,
   undoSequence = 0;
-const undoDuration = 10000;
-function pauseUndo(notice) {
-  if (!notice.timer) return;
-  clearTimeout(notice.timer);
-  notice.timer = null;
-  notice.remaining = Math.max(0, notice.remaining - (performance.now() - notice.started));
-}
-function startUndoTimer(notice) {
-  notice.started = performance.now();
-  notice.timer = setTimeout(() => dismissUndo(notice), notice.remaining);
-}
 function dismissUndo(notice) {
   const index = undoNotices.indexOf(notice);
   if (index < 0) return;
@@ -508,13 +497,11 @@ function showLatestUndo() {
         ],
         { duration: 180, easing: 'ease-out' },
       );
-    if (!next.pending) startUndoTimer(next);
   };
   if (!previous) {
     show();
     return;
   }
-  pauseUndo(previous);
   previous.element.inert = true;
   previous.element.setAttribute('aria-hidden', 'true');
   const currentStyle = getComputedStyle(previous.element);
@@ -574,16 +561,9 @@ async function settle(entry, row, b) {
     const undo = node('div', null, 'inbox-undo');
     undo.setAttribute('role', 'status');
     undo.append(node('span', 'Settled · ' + entry.task.title));
-    const notice = {
-      element: undo,
-      remaining: undoDuration,
-      timer: null,
-      pending: false,
-    };
+    const notice = { element: undo };
     const restore = button('Undo', async () => {
       restore.disabled = true;
-      notice.pending = true;
-      pauseUndo(notice);
       try {
         await api(`tasks/${encodeURIComponent(entry.task.id)}/inbox`, 'PUT', {
           settled: false,
@@ -652,8 +632,6 @@ async function settle(entry, row, b) {
         resumeRefresh();
       } catch (error) {
         restore.disabled = false;
-        notice.pending = false;
-        if (displayedUndo === notice) startUndoTimer(notice);
         fail(error);
       }
     });

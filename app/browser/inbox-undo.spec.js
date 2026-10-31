@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 test('settling several tasks shows one Undo notice at a time, newest first', async ({
   page,
 }) => {
+  test.setTimeout(45000);
   await page.goto('/signin');
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
   await page.goto('/inbox');
@@ -36,9 +37,11 @@ test('settling several tasks shows one Undo notice at a time, newest first', asy
   await expect(page.locator('.inbox-undo:not([aria-hidden])')).toContainText(titles[0]);
   await row(titles[1]).getByRole('button', { name: 'Settle' }).click();
   await expect(page.locator('.inbox-undo:not([aria-hidden])')).toContainText(titles[1]);
-  await expect(page.locator('.inbox-undo:not([aria-hidden])')).toContainText(titles[0], {
-    timeout: 15000,
-  });
+  await page.waitForTimeout(10500);
+  await expect(page.locator('.inbox-undo:not([aria-hidden])')).toContainText(titles[1]);
+  await page.locator('.inbox-undo:not([aria-hidden]) button').click();
+  await expect(row(titles[1])).toBeVisible();
+  await expect(page.locator('.inbox-undo:not([aria-hidden])')).toContainText(titles[0]);
   await page.locator('.inbox-undo:not([aria-hidden]) button').click();
   await expect(row(titles[0])).toBeVisible();
 });
