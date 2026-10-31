@@ -191,6 +191,14 @@ async function openSettings(listId, selected, kind, taskRoot) {
       );
       return;
     }
+    if (document.querySelector('.list-archive-banner')) {
+      const placeholder = document.createElement('p');
+      placeholder.className = 'muted';
+      placeholder.textContent =
+        'This list is archived. These settings are read-only. Restore the list using the banner above to make changes.';
+      content.append(placeholder);
+      return;
+    }
     if (task && tab === 'structure') {
       stopActivity = mountStructure(content, listId);
       return;

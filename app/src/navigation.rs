@@ -55,7 +55,7 @@ impl Store {
     }
     pub fn favorites(&self, actor: &str) -> Result<Vec<Favorite>, Error> {
         let (user, _) = actor_identity(&self.conn, actor)?;
-        let mut statement=self.conn.prepare("SELECT f.target_kind,f.target_id,CASE f.target_kind WHEN 'list' THEN l.title ELSE w.title END FROM favorites f LEFT JOIN lists l ON f.target_kind='list' AND l.id=f.target_id LEFT JOIN workspaces w ON f.target_kind='workspace' AND w.id=f.target_id WHERE f.user_id=?1 AND (f.target_kind='list' AND EXISTS(SELECT 1 FROM actor_list_access a WHERE a.actor_id=?2 AND a.list_id=f.target_id AND a.rank>=1) OR f.target_kind='workspace' AND EXISTS(SELECT 1 FROM actor_workspace_access a WHERE a.actor_id=?2 AND a.workspace_id=f.target_id AND a.rank>=1)) ORDER BY f.created_at,f.target_kind,f.target_id")?;
+        let mut statement=self.conn.prepare("SELECT f.target_kind,f.target_id,CASE f.target_kind WHEN 'list' THEN l.title ELSE w.title END FROM favorites f LEFT JOIN lists l ON f.target_kind='list' AND l.id=f.target_id LEFT JOIN workspaces w ON f.target_kind='workspace' AND w.id=f.target_id WHERE f.user_id=?1 AND (f.target_kind='list' AND l.archived=0 AND EXISTS(SELECT 1 FROM actor_list_access a WHERE a.actor_id=?2 AND a.list_id=f.target_id AND a.rank>=1) OR f.target_kind='workspace' AND EXISTS(SELECT 1 FROM actor_workspace_access a WHERE a.actor_id=?2 AND a.workspace_id=f.target_id AND a.rank>=1)) ORDER BY f.created_at,f.target_kind,f.target_id")?;
         Ok(statement
             .query_map(params![user, actor], |r| {
                 let kind: String = r.get(0)?;
@@ -166,6 +166,14 @@ mod tests {
         .unwrap();
         assert_eq!(db.favorites("dev").unwrap().len(), 1);
         assert!(db.favorites("other").unwrap().is_empty());
+        db.conn
+            .execute("UPDATE lists SET archived=1 WHERE id='groceries'", [])
+            .unwrap();
+        assert!(db.favorites("dev").unwrap().is_empty());
+        db.conn
+            .execute("UPDATE lists SET archived=0 WHERE id='groceries'", [])
+            .unwrap();
+        assert_eq!(db.favorites("dev").unwrap().len(), 1);
         assert!(
             db.set_favorite(
                 "dev",

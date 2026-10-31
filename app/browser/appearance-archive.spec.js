@@ -101,7 +101,21 @@ test('archived lists are separate, show provenance, and can be restored', async 
     'data-can-write',
     'false',
   );
-  await page.goto(`/tasks/${child.id}`);
+  for (const current of [task, child]) {
+    await page.goto(`/tasks/${current.id}`);
+    await page.locator('.task-context-menu > summary').click();
+    await page.locator('[data-open-advanced]').click();
+    const panel = page.getByRole('dialog', { name: 'Task details', exact: true });
+    for (const name of current === child
+      ? ['Planning', 'Tags', 'Structure']
+      : ['Planning', 'Tags']) {
+      await panel.getByRole('tab', { name, exact: true }).click();
+      await expect(panel.locator('.settings-content')).toContainText(
+        'This list is archived. These settings are read-only.',
+      );
+    }
+    await panel.getByRole('button', { name: '← Back', exact: true }).click();
+  }
   await expect(banner).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileBounds = await banner.boundingBox();
