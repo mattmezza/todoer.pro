@@ -114,13 +114,16 @@ if (bell) {
     if (!append) root.replaceChildren();
     if (!items.length && !append) {
       const empty = document.createElement('div');
-      empty.className = 'notification-empty';
-      const p = document.createElement('p');
+      const fullPage = root.matches('[data-notification-items]');
+      empty.className = fullPage
+        ? 'notification-empty planning-empty'
+        : 'notification-empty';
+      const p = document.createElement(fullPage ? 'h2' : 'p');
       p.textContent =
         unreadOnly && root.matches('[data-notification-items]')
           ? 'You’re all caught up.'
           : 'No notifications yet.';
-      const small = document.createElement('small');
+      const small = document.createElement(fullPage ? 'p' : 'small');
       small.textContent = 'Your reminders and shared updates will appear here.';
       empty.append(icon('bell'), p, small);
       root.append(empty);
