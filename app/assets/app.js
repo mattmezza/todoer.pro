@@ -183,8 +183,32 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 document.body.addEventListener('htmx:responseError', () =>
   notice('Could not refresh tasks. Try again.', true),
 );
-$('#show-completed').onchange = (e) =>
-  $('#task-list').classList.toggle('hide-completed', !e.target.checked);
+// One preference per account, shared by every list in this browser.
+const completedPreferenceKey = `todoer:${account}:hide-completed`;
+const completedFilter = $('#show-completed');
+function applyCompletedPreference(hidden) {
+  completedFilter.checked = !hidden;
+  $('#task-list').classList.toggle('hide-completed', hidden);
+}
+try {
+  applyCompletedPreference(localStorage.getItem(completedPreferenceKey) === 'true');
+} catch {
+  applyCompletedPreference(false);
+}
+completedFilter.onchange = () => {
+  const hidden = !completedFilter.checked;
+  applyCompletedPreference(hidden);
+  try {
+    localStorage.setItem(completedPreferenceKey, String(hidden));
+  } catch {
+    // Keep filtering usable when browser storage is unavailable.
+  }
+};
+window.addEventListener('storage', (event) => {
+  if (event.key !== completedPreferenceKey && event.key !== null) return;
+  applyCompletedPreference(event.newValue === 'true');
+  completedFilter.dispatchEvent(new Event('change'));
+});
 
 $('#quick-add').onclick = () => {
   $('#capture-form').hidden = false;
