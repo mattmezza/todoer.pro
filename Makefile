@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup assets dev format check test build e2e release cli-release www-build www-dev www-publish www-deploy docs-build deploy backup restore migrate image
+.PHONY: help setup assets dev format check test build e2e release cli-release app-deploy www-build www-dev www-publish www-deploy docs-build deploy backup restore migrate image
 help: ## List commands
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 setup: ## Install locked frontend dependencies and fetch Rust crates
@@ -23,6 +23,7 @@ check: assets ## Check formatting, Clippy, unit/integration tests and build
 	cargo fmt --all -- --check
 	cargo clippy --locked --all-targets -- -D warnings
 	node scripts/rebuild-sw-check.mjs
+	python3 -m unittest discover -s deploy -p 'test_gha_deploy.py'
 	cargo test --locked --workspace
 	cargo build --locked --workspace
 test: ## Run Rust and service-worker tests
@@ -36,6 +37,9 @@ release: ## Publish app GitHub release; CI builds image (name=vX.Y.Z)
 	python3 scripts/release.py app "$(name)"
 cli-release: ## Publish CLI GitHub release; CI attaches binaries (name=vX.Y.Z)
 	python3 scripts/release.py cli "$(name)"
+app-deploy: ## Manually deploy a published app release to the VPS (name=vX.Y.Z)
+	@printf '%s\n' "$(name)" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$$' || (echo 'Expected name=vX.Y.Z' >&2; exit 2)
+	gh workflow run deploy-app.yml --ref main -f version="$(name)"
 www-build: ## Generate deployable public website into www/_site
 	python3 www/tools/build.py
 	npx tailwindcss -i www/source.css -o www/style.css --minify

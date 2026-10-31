@@ -3,6 +3,11 @@
 logging:
   type: json
   stderr: true
+# Private to the replication container; used for a confirmed pre-deploy sync.
+socket:
+  enabled: true
+  path: /tmp/litestream.sock
+  permissions: 0600
 shutdown-sync-timeout: 25s
 retention:
   enabled: true

@@ -1,7 +1,8 @@
 # VPS deployment
 
 Production runs only the Rust app. The public site and docs use separate hosts.
-Nothing in CI deploys to the VPS. Requires Docker Engine, Compose v2, host nginx
+Production deployment can be run manually from GitHub Actions; it is never triggered
+automatically by a release or push. Requires Docker Engine, Compose v2, host nginx
 with existing TLS, Git and outbound HTTPS. No `--wait`, env-file objects, profiles
 or external proxy network are required. The image currently targets amd64 Linux.
 
@@ -85,6 +86,35 @@ with glibc, OpenSSL and CA roots required by the Rust binaries. Build tooling st
 in build stages. There is no runtime shell, package manager or curl; a small Rust
 probe checks `/ready`. Compose runs UID 10001, read-only, with capabilities dropped.
 Smaller images still need reviewed base-image updates and vulnerability scanning.
+
+## Manual GitHub Actions deployment
+
+After publishing an app release and waiting for its image workflow to complete,
+run `make app-deploy name=v1.0.3`. The manually dispatched workflow checks that
+the release is published and resolves its image digest, then connects to the VPS
+with a dedicated forced-command SSH key. It pulls that digest, stops the app,
+waits for Litestream to confirm replication of the stopped database, checks out
+the release tag, starts the image and checks container and public readiness. It
+persists the image and digest in `deploy/.env` after container health succeeds. It does not
+perform automatic database rollback on failure. Concurrent GitHub deployments are
+serialized and the VPS takes a separate lock.
+
+The one-time setup requires the GitHub `production` environment with variables
+`TODOER_DEPLOY_HOST` and `TODOER_DEPLOY_USER`, and secrets
+`TODOER_DEPLOY_SSH_KEY` (dedicated private key) and
+`TODOER_DEPLOY_KNOWN_HOSTS` (independently verified host key line). Limit the
+corresponding VPS authorized key with `restrict` and a forced command such as
+`command="/usr/bin/python3 /home/matteo/apps/app.todoer.pro/deploy/gha-deploy.py"`.
+The deployment account needs Docker and checkout access; Docker group access is
+effectively host-root access even when an SSH key has a forced command. Protect
+the repository, its production environment and the key accordingly. The initial
+VPS checkout must contain this script and the Litestream socket configuration;
+recreate the replication container once after installing that configuration.
+
+The sync is a confirmed replication position, not an independent backup or a
+guarantee against losing the replica. Attachments and encryption keys are outside
+Litestream. The workflow requires the replication overlay and the socket; it
+fails closed and restarts the existing app if the pre-deploy sync fails.
 
 ## Optional continuous backups
 
