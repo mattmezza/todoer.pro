@@ -609,3 +609,42 @@
     flex-wrap: wrap;
   }
 }
+
+.ai-billing-panel form.ai-admin-user {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+  padding-top: 20px;
+  margin-top: 20px;
+}
+.ai-admin-user > h3 {
+  margin: 0;
+  font-size: 17px;
+}
+.ai-admin-user > .ai-model-help {
+  margin: -10px 0 0;
+  overflow-wrap: anywhere;
+}
+.ai-access-state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+.ai-access-state > span {
+  padding: 3px 9px;
+  border-radius: 5px;
+  background: var(--hover);
+  color: var(--muted);
+  font-size: 12px;
+}
+.ai-admin-user .ai-model-check {
+  min-height: 32px;
+}
+.ai-admin-user .ai-model-check input {
+  margin: 0;
+}
+.ai-admin-user > div:empty {
+  display: none;
+}

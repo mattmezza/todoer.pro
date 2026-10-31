@@ -940,10 +940,51 @@ function renderUsers(users, requests) {
         notice('User access updated.');
       });
     });
+    const identity = form.querySelector('h3');
+    identity.textContent = user.name || user.email || user.user_id;
+    const accountDetails = element(
+      'p',
+      [user.email, user.user_id].filter(Boolean).join(' · '),
+      { class: 'ai-model-help' },
+    );
+    identity.after(accountDetails);
+    const state = accountDetails.nextElementSibling;
+    state.className = 'ai-access-state';
+    state.replaceChildren();
+    for (const text of [
+      `AI ${user.user_ai_enabled ? 'on' : 'off'}`,
+      `Funding: ${user.funding || 'none'}`,
+      `Request: ${user.access_request || 'none'}`,
+    ])
+      state.append(element('span', text));
+    const permissions = element('fieldset', undefined, { class: 'ai-model-group' });
+    permissions.append(element('legend', 'Permissions & limits'));
+    const permissionFields = element('div', undefined, { class: 'ai-model-fields' });
+    for (const name of ['managed_ai_allowed', 'byok_allowed', 'daily_limit_micro']) {
+      const input = field(form, name);
+      const label = input.closest('label');
+      if (input.type === 'checkbox') {
+        label.className = 'ai-model-check';
+        label.prepend(input);
+      }
+      permissionFields.append(label);
+    }
+    permissions.append(permissionFields);
+    const review = element('fieldset', undefined, { class: 'ai-model-group' });
+    review.append(element('legend', 'Access decision'));
+    const reviewFields = element('div', undefined, { class: 'ai-model-fields' });
+    reviewFields.append(decision, field(form, 'reason').closest('label'));
+    field(form, 'reason').placeholder = 'Reason for this change';
+    review.append(reviewFields);
+    const save = form.querySelector('button[type="submit"]');
+    save.className = 'primary';
+    const actions = element('div', undefined, { class: 'ai-model-actions' });
+    actions.append(spend, save);
+    form.append(permissions, review, actions, spendMetrics);
     container.append(form);
     const billingForm = element('form', undefined, { class: 'ai-admin-billing' });
     billingForm.append(
-      element('h4', `Billing restrictions · ${user.user_id}`),
+      element('h4', 'Billing restrictions'),
       element(
         'p',
         `Billing ${user.billing_blocked ? 'blocked' : 'not blocked'} · Unpaid debt ${money(user.debt_micro)}.`,
