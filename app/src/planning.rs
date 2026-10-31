@@ -380,10 +380,24 @@ mod tests {
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].task.id, task.id);
         assert!(entries[0].created_at.is_some());
+        s.capture(
+            "dev",
+            "child-capture",
+            Capture {
+                list_id: "inbox".into(),
+                tasks: vec![NewTask {
+                    title: "A subtask".into(),
+                    description: String::new(),
+                    parent_id: Some(task.id.clone()),
+                }],
+            },
+        )
+        .unwrap();
+        assert_eq!(s.intake_tasks("dev").unwrap().len(), 2);
         assert!(s.intake_tasks("other").unwrap().is_empty());
         s.set_inbox_settled("dev", &task.id, true).unwrap();
-        assert!(s.intake_tasks("dev").unwrap().is_empty());
-        assert_eq!(s.tasks("dev", "inbox").unwrap().len(), 1);
+        assert_eq!(s.intake_tasks("dev").unwrap().len(), 1);
+        assert_eq!(s.tasks("dev", "inbox").unwrap().len(), 2);
     }
     #[test]
     fn nonexistent_or_ambiguous_clock_time_does_not_change_task() {
