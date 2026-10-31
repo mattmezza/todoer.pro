@@ -688,12 +688,14 @@ function scheduleInboxRoll() {
   rollFrame = requestAnimationFrame(() => {
     rollFrame = null;
     const top = Math.max(0, toolbar.getBoundingClientRect().bottom - 8);
+    const topRoll = Math.min(1, Math.max(0, window.scrollY / 80));
     for (const row of visibleInboxRows) {
       const bounds = row.getBoundingClientRect();
       const center = bounds.top + bounds.height / 2;
+      const topProximity = Math.max(0, Math.min(1, (center - top) / 220));
       const proximity = Math.max(
         0,
-        Math.min(1, (center - top) / 220, (innerHeight - center) / 220),
+        Math.min(1, 1 - topRoll * (1 - topProximity), (innerHeight - center) / 220),
       );
       row.style.setProperty('--inbox-roll-scale', String(0.96 + 0.04 * proximity));
     }

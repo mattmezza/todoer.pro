@@ -31,6 +31,22 @@ test('long Inbox loads as you scroll and settles without replacing neighboring r
   await page.reload();
   const rows = page.locator('.inbox-task').filter({ hasText: prefix });
   await expect(rows).toHaveCount(40);
+  await expect
+    .poll(() =>
+      rows
+        .first()
+        .evaluate((element) =>
+          Number(element.style.getPropertyValue('--inbox-roll-scale')),
+        ),
+    )
+    .toBe(1);
+  await expect
+    .poll(() =>
+      rows.nth(1).evaluate((element) =>
+        Number(element.style.getPropertyValue('--inbox-roll-scale')),
+      ),
+    )
+    .toBe(1);
   await expect(page.locator('.inbox-gap').first()).toContainText(
     '1 day between captures',
   );
@@ -44,6 +60,22 @@ test('long Inbox loads as you scroll and settles without replacing neighboring r
   await page.locator('[data-inbox-more]').scrollIntoViewIfNeeded();
   await expect(rows).toHaveCount(80, { timeout: 30000 });
   expect((await page.locator('.inbox-capture').boundingBox()).y).toBeLessThan(32);
+  const topRow = rows.nth(65);
+  await topRow.scrollIntoViewIfNeeded();
+  await topRow.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    const toolbar = document
+      .querySelector('[data-workbench-toolbar]')
+      .getBoundingClientRect();
+    window.scrollBy(0, bounds.top + bounds.height / 2 - toolbar.bottom - 35);
+  });
+  await expect
+    .poll(() =>
+      topRow.evaluate((element) =>
+        Number(element.style.getPropertyValue('--inbox-roll-scale')),
+      ),
+    )
+    .toBeLessThan(0.99);
   const edgeRow = rows.nth(75);
   await edgeRow.scrollIntoViewIfNeeded();
   await edgeRow.evaluate((element) => {
