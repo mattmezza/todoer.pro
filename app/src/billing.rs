@@ -248,7 +248,6 @@ impl StripeService {
                 ),
             ),
             ("line_items[0][quantity]".into(), "1".into()),
-            ("payment_method_types[0]".into(), "card".into()),
         ];
         if p.save_method {
             f.push((
@@ -1822,6 +1821,7 @@ mod tests {
         assert_eq!(h["idempotency-key"], format!("todoer-checkout-{}", p.id));
         assert_eq!(f["line_items[0][price_data][unit_amount]"], "1000");
         assert_eq!(f["line_items[0][price_data][currency]"], "eur");
+        assert!(!f.contains_key("payment_method_types[0]"));
         assert_eq!(
             f["success_url"],
             format!("https://todoer.example/settings/billing?purchase={}", p.id)
