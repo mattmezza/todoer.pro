@@ -71,6 +71,7 @@ if (main) {
   filters.className = 'planning-secondary-filters';
   spaces.before(filters);
   filters.append(spaces, bar);
+  main.querySelector('.planning-tabs')?.before(filters);
   const empty = document.createElement('p');
   empty.className = 'planning-priority-empty muted';
   empty.textContent = 'No tasks match these priorities.';
