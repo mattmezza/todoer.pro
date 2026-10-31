@@ -47,7 +47,7 @@ async function action(fn) {
     notice.classList.add('error');
     if (error.code === 'mfa_expired') {
       const link = document.createElement('a');
-      link.href = '/signin?next=' + encodeURIComponent(params.get('next') || '/today');
+      link.href = '/signin?next=' + encodeURIComponent(params.get('next') || '/inbox');
       link.textContent = 'Sign in again';
       notice.append(document.createElement('br'), link);
     }
@@ -60,7 +60,7 @@ form?.addEventListener('submit', (event) => {
   event.preventDefault();
   action(async () => {
     const values = Object.fromEntries(new FormData(form));
-    values.next = params.get('next') || '/today';
+    values.next = params.get('next') || '/inbox';
     if (['verify', 'reset'].includes(form.dataset.authForm)) {
       if (!token)
         throw Error('Open the complete link from your email. It may have expired.');
@@ -103,7 +103,7 @@ keyButton?.addEventListener('click', () =>
     if (loginEmail && !loginEmail.validity.valid) return;
     const start = await post('/auth/passkey/start', {
       email,
-      next: params.get('next') || '/today',
+      next: params.get('next') || '/inbox',
       ...(reset ? { reset_token: token } : {}),
     });
     const credential = await passkey(start.options);

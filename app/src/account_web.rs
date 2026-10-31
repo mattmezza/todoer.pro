@@ -728,7 +728,7 @@ async fn key_authenticate(
         Flow {
             user,
             epoch,
-            next: browser_auth::safe_next(Some(input.next.as_deref().unwrap_or("/today"))),
+            next: browser_auth::safe_next(Some(input.next.as_deref().unwrap_or("/inbox"))),
             reset: None,
             verified: false,
             expires: crate::auth::now() + 300,
