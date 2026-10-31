@@ -19,7 +19,10 @@ test('installation metadata and service worker work outside list pages', async (
   const manifest = await (await page.request.get('/assets/manifest.webmanifest')).json();
   expect(manifest.display).toBe('standalone');
   expect(manifest.scope).toBe('/');
-  expect(manifest.icons.some((icon) => icon.sizes === '192x192')).toBeTruthy();
+  expect(manifest.icons.find((icon) => icon.sizes === '192x192').src).toBe(
+    '/assets/icon192-v2.png',
+  );
+  expect(manifest.icons.every((icon) => icon.src.startsWith('/assets/'))).toBeTruthy();
   expect(manifest.icons.some((icon) => icon.purpose === 'maskable')).toBeTruthy();
   for (const path of ['/today', '/notifications', '/settings/notifications', '/signin']) {
     await page.goto(path);
@@ -47,6 +50,7 @@ test.describe('mobile first-use installation suggestion', () => {
     await page.getByRole('button', { name: 'Enter development workspace' }).click();
     const notice = page.locator('.pwa-install-notice');
     await expect(notice).toBeVisible();
+    await expect(notice.locator('img')).toHaveAttribute('src', '/assets/icon192-v2.png');
     await expect(notice).toContainText('Share → Add to Home Screen');
     await page.evaluate(() => {
       const event = new Event('beforeinstallprompt', { cancelable: true });

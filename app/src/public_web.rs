@@ -160,7 +160,7 @@ pub(super) async fn show(
             page.clamp(1, 10000) + 1
         ));
     }
-    Ok(Html(format!("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>{} · Todoer</title>{meta}<link rel=\"stylesheet\" href=\"/assets/app.css\"></head><body class=\"public-page\"><header class=\"public-header\"><a class=\"brand\" href=\"/\">todoer<span>pro</span></a><span>Shared · Read only</span><a href=\"/signin\">Sign in</a></header><main><h1>{}</h1><div class=\"markdown public-description\">{}</div><section>{body}</section></main></body></html>",esc(&doc.title),esc(&doc.title),crate::markdown::render(&doc.description))).into_response())
+    Ok(Html(format!("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>{} · Todoer</title>{meta}<link rel=\"stylesheet\" href=\"/assets/app.css\"></head><body class=\"public-page\"><header class=\"public-header\"><a class=\"brand todoer-logo\" href=\"/\" aria-label=\"Todoer Pro\"><span class=\"todoer-logo-word\"><span class=\"logo-expanded\">todoer</span><span class=\"logo-collapsed\">t</span></span><span class=\"todoer-logo-pro\">pro</span></a><span>Shared · Read only</span><a href=\"/signin\">Sign in</a></header><main><h1>{}</h1><div class=\"markdown public-description\">{}</div><section>{body}</section></main></body></html>",esc(&doc.title),esc(&doc.title),crate::markdown::render(&doc.description))).into_response())
 }
 async fn image(
     State(s): State<AppState>,

@@ -56,10 +56,11 @@ const STATIC = [
   '/assets/welcome.js',
   '/assets/welcome-chase.js',
   '/assets/manifest.webmanifest',
-  '/assets/icon192.png',
-  '/assets/apple-touch-icon.png',
-  '/legacy-assets/icon512_rounded.png',
-  '/legacy-assets/icon512_maskable.png',
+  '/assets/icon192-v2.png',
+  '/assets/notification-badge-v2.png',
+  '/assets/apple-touch-icon-v2.png',
+  '/assets/icon512-v2.png',
+  '/assets/icon512-maskable-v2.png',
   '/assets/htmx.min.js',
   '/assets/favicon.svg?v=2',
   '/favicon.ico?v=2',
@@ -252,8 +253,8 @@ self.addEventListener('push', (event) => {
             : summary
               ? 'Open Todoer for your review.'
               : 'Open Todoer to review your reminder.',
-          icon: '/legacy-assets/favicon.png',
-          badge: '/legacy-assets/favicon.png',
+          icon: '/assets/icon192-v2.png',
+          badge: '/assets/notification-badge-v2.png',
           tag:
             typeof payload.intent_id === 'string'
               ? payload.intent_id.slice(0, 150)

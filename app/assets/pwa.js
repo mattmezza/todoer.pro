@@ -122,7 +122,7 @@ function suggestInstall() {
   installNotice.setAttribute('role', 'status');
   installNotice.setAttribute('aria-label', 'Install Todoer');
   const logo = document.createElement('img');
-  logo.src = '/assets/icon192.png';
+  logo.src = '/assets/icon192-v2.png';
   logo.alt = '';
   logo.width = logo.height = 40;
   const text = document.createElement('div');

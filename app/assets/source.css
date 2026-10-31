@@ -4828,7 +4828,7 @@ dialog:is(
   width: min(664px, calc(100vw - 32px));
   margin: 0 auto;
   padding: 58px 32px 32px;
-  background: #18181b;
+  background: linear-gradient(145deg, #1b2739, #121b2b 70%);
   color: #e5e7eb;
   border: 1px solid #24242b;
   border-radius: 8px;
@@ -8702,8 +8702,8 @@ main.auth-shell {
   max-width: 440px;
   margin-inline: auto;
 }
-.auth-brand {
-  display: block;
+.auth-brand.todoer-logo {
+  display: flex;
   width: fit-content;
   margin: 0 auto 36px;
 }
