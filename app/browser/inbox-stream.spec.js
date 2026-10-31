@@ -51,7 +51,14 @@ test('Inbox keeps planned tasks until settled and can undo, with working details
   await expect(row).toContainText('Planned');
   await row.getByRole('button', { name: 'Move…' }).click();
   const move = page.getByRole('dialog', { name: 'Move to a list' });
-  await move.getByRole('searchbox').fill(listName);
+  const search = move.getByRole('searchbox');
+  await search.fill(listName);
+  await expect(move.getByRole('button', { name: new RegExp(listName) })).toBeVisible();
+  const height = (await move.boundingBox()).height;
+  await search.fill('no-matching-list-' + randomUUID());
+  await expect(move.getByRole('status')).toContainText('No lists found');
+  expect(Math.abs((await move.boundingBox()).height - height)).toBeLessThan(2);
+  await search.fill(listName);
   await move.getByRole('button', { name: new RegExp(listName) }).click();
   await expect(row).toContainText('#' + listName);
   await row.getByRole('link', { name: title }).click();

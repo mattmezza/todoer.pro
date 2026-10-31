@@ -8483,7 +8483,25 @@ dialog.destination-dialog label.destination-search-label {
   color: var(--text);
 }
 .destination-dialog .destination-results {
+  height: min(320px, 45dvh);
   margin: 16px 0 0;
+}
+.destination-empty {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  min-height: 100%;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+}
+.destination-empty strong {
+  color: var(--text);
+  font-size: 14px;
+}
+.destination-empty p {
+  margin: 6px 0 0;
+  font-size: 13px;
 }
 .destination-dialog .destination-choice {
   padding: 12px 10px;

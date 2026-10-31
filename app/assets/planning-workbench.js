@@ -291,7 +291,15 @@ async function organize(entry) {
           ),
         );
       }
-      if (!r.choices.length) results.append(node('p', 'No matching lists.', 'muted'));
+      if (!r.choices.length) {
+        const empty = node('div', null, 'destination-empty');
+        empty.setAttribute('role', 'status');
+        empty.append(
+          node('strong', 'No lists found'),
+          node('p', 'Try a different list or space name.'),
+        );
+        results.append(empty);
+      }
     } catch (e) {
       if (v === version) skeleton.fail(e.message, search);
       fail(e);
