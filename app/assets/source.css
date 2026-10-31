@@ -4479,7 +4479,14 @@ form[data-list-edit] input.list-edit-color {
 
 /* Shared dialog reading size; actions retain the compact app button scale. */
 dialog:not(.list-settings-panel):not(.search-omnibar)
-  :is(p, label, input:not(#capture-new-title), select, textarea, li) {
+  :is(
+    p,
+    label,
+    input:not(#capture-new-title),
+    select,
+    textarea:not(#capture-new-title),
+    li
+  ) {
   font-size: 16px !important;
   line-height: 1.5;
 }
