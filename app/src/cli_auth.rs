@@ -114,6 +114,7 @@ impl Store {
         spaces: Vec<String>,
         lists: Vec<String>,
         all: bool,
+        never_expires: bool,
     ) -> Result<String, Error> {
         if actor.starts_with("credential:") {
             return Err(Error::Forbidden);
@@ -157,7 +158,7 @@ impl Store {
         resolved_lists.sort();
         resolved_lists.dedup();
         let code = secret();
-        let changed=self.conn.execute("UPDATE cli_login_requests SET actor=?2,permission=?3,list_ids=?4,workspace_ids=?5,code_hash=?6,expires_at=unixepoch()+120 WHERE id=?1 AND consumed=0 AND code_hash IS NULL AND expires_at>unixepoch()",params![id,actor,permission,if all{None}else{Some(serde_json::to_string(&resolved_lists).unwrap())},if all{None}else{Some(serde_json::to_string(&resolved_spaces).unwrap())},hash(&code)])?;
+        let changed=self.conn.execute("UPDATE cli_login_requests SET actor=?2,permission=?3,list_ids=?4,workspace_ids=?5,code_hash=?6,grant_ttl=?7,expires_at=unixepoch()+120 WHERE id=?1 AND consumed=0 AND code_hash IS NULL AND expires_at>unixepoch()",params![id,actor,permission,if all{None}else{Some(serde_json::to_string(&resolved_lists).unwrap())},if all{None}else{Some(serde_json::to_string(&resolved_spaces).unwrap())},hash(&code),if never_expires {-1} else {2_592_000}])?;
         if changed != 1 {
             return Err(Error::Conflict("Login request changed".into()));
         }
@@ -187,14 +188,18 @@ impl Store {
         let tx = self
             .conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        let row:(String,String,String,Option<String>,Option<String>)=tx.query_row("SELECT actor,permission,challenge,list_ids,workspace_ids FROM cli_login_requests WHERE id=?1 AND code_hash=?2 AND consumed=0 AND expires_at>unixepoch()",params![id,hash(code)],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional()?.ok_or(Error::Forbidden)?;
+        let row:(String,String,String,Option<String>,Option<String>,i64)=tx.query_row("SELECT actor,permission,challenge,list_ids,workspace_ids,grant_ttl FROM cli_login_requests WHERE id=?1 AND code_hash=?2 AND consumed=0 AND expires_at>unixepoch()",params![id,hash(code)],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?))).optional()?.ok_or(Error::Forbidden)?;
         if URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes())) != row.2 {
             return Err(Error::Forbidden);
         }
         let grant = LoginGrant {
             token: secret(),
             credential_id: uuid::Uuid::new_v4().to_string(),
-            expires_at: chrono::Utc::now().timestamp() + 2_592_000,
+            expires_at: if row.5 == -1 {
+                -1
+            } else {
+                chrono::Utc::now().timestamp() + row.5
+            },
             permission: row.1.clone(),
             spaces: row
                 .4
@@ -293,6 +298,7 @@ mod tests {
                 vec![a.clone()],
                 vec![second.id.clone()],
                 false,
+                false,
             )
             .unwrap();
         assert!(
@@ -377,11 +383,19 @@ mod tests {
         let a = space(&mut db, "A");
         let pending = request(&mut db, "read");
         assert!(
-            db.approve_cli_login("dev", &pending.id, "admin", vec![a.clone()], vec![], false)
-                .is_err()
+            db.approve_cli_login(
+                "dev",
+                &pending.id,
+                "admin",
+                vec![a.clone()],
+                vec![],
+                false,
+                false
+            )
+            .is_err()
         );
         assert!(
-            db.approve_cli_login("dev", &pending.id, "read", vec![], vec![], false)
+            db.approve_cli_login("dev", &pending.id, "read", vec![], vec![], false, false)
                 .is_err()
         );
         assert!(
@@ -391,13 +405,22 @@ mod tests {
                 "read",
                 vec![a.clone()],
                 vec![],
+                false,
                 false
             )
             .is_err()
         );
         assert!(
-            db.approve_cli_login("dev", &pending.id, "read", vec![a.clone()], vec![], true)
-                .is_err()
+            db.approve_cli_login(
+                "dev",
+                &pending.id,
+                "read",
+                vec![a.clone()],
+                vec![],
+                true,
+                false
+            )
+            .is_err()
         );
         let pending = request(&mut db, "admin");
         assert!(
@@ -407,12 +430,21 @@ mod tests {
                 "admin",
                 vec![],
                 vec!["groceries".into()],
+                false,
                 false
             )
             .is_err()
         );
         let code = db
-            .approve_cli_login("dev", &pending.id, "admin", vec![a.clone()], vec![], false)
+            .approve_cli_login(
+                "dev",
+                &pending.id,
+                "admin",
+                vec![a.clone()],
+                vec![],
+                false,
+                false,
+            )
             .unwrap();
         let grant = db
             .exchange_cli_login(
@@ -436,6 +468,46 @@ mod tests {
             db.cli_bearer(&grant.token, "https://todoer.example/api/v1", true)
                 .is_err()
         );
+    }
+    #[test]
+    fn never_expiring_write_grant_retains_scoped_access_until_revoked() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let workspace = space(&mut db, "Permanent");
+        let item = list(&mut db, &workspace, "Tasks");
+        let pending = request(&mut db, "write");
+        let code = db
+            .approve_cli_login(
+                "dev",
+                &pending.id,
+                "write",
+                vec![workspace.clone()],
+                vec![],
+                false,
+                true,
+            )
+            .unwrap();
+        let grant = db
+            .exchange_cli_login(
+                &pending.id,
+                &code,
+                VERIFIER,
+                "https://todoer.example/api/v1",
+            )
+            .unwrap();
+        assert_eq!(grant.expires_at, -1);
+        let actor = db
+            .cli_bearer(&grant.token, "https://todoer.example/api/v1", true)
+            .unwrap();
+        assert_eq!(db.workspace_permission(&actor, &workspace).unwrap(), 2);
+        assert_eq!(db.list_permission(&actor, &item.id).unwrap(), 2);
+        db.revoke_cli_token(&grant.token, "https://todoer.example/api/v1")
+            .unwrap();
+        assert!(
+            db.cli_bearer(&grant.token, "https://todoer.example/api/v1", false)
+                .is_err()
+        );
+        assert!(db.lists(&actor).unwrap().is_empty());
     }
     #[test]
     fn callback_and_denial_cannot_be_replayed() {
@@ -467,6 +539,7 @@ mod tests {
                 "read",
                 vec![],
                 vec!["inbox".into()],
+                false,
                 false
             )
             .is_err()

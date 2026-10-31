@@ -56,7 +56,7 @@ enum Command {
     AuthInfo,
     /// Sign in using your browser; approve permissions and selected spaces/lists.
     Login {
-        #[arg(long, default_value="read", value_parser=["read","write","admin"])]
+        #[arg(long, default_value="write", value_parser=["read","write","admin"])]
         permission: String,
         #[arg(long)]
         no_browser: bool,

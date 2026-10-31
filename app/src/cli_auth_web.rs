@@ -60,36 +60,43 @@ async fn consent(
     let choices=s.run(move|db|{
   let mut spaces=String::new();let mut lists=String::new();
   for space in db.workspaces(&actor)? {
-   spaces.push_str(&format!("<label><input type=\"checkbox\" name=\"space_{}\" value=\"yes\"> @{}</label>",esc(&space.id),esc(&space.title)));
+   spaces.push_str(&format!("<label class=\"cli-choice\"><input type=\"checkbox\" name=\"space_{}\" value=\"yes\"><span>@{}</span></label>",esc(&space.id),esc(&space.title)));
   }
   for list in db.lists(&actor)? {
    let info=db.list_info(&actor,&list.id)?;
    let space=match info.workspace_id {Some(id) if db.workspace_permission(&actor,&id).unwrap_or(0)>=1=>db.workspace(&actor,&id)?.title,_=>"Shared with you".into()};
-   lists.push_str(&format!("<label><input type=\"checkbox\" name=\"list_{}\" value=\"yes\"> #{} <small>{}</small></label>",esc(&list.id),esc(&list.title),esc(&space)));
+   lists.push_str(&format!("<label class=\"cli-choice\"><input type=\"checkbox\" name=\"list_{}\" value=\"yes\"><span>#{}</span><small>{}</small></label>",esc(&list.id),esc(&list.title),esc(&space)));
   } Ok((spaces,lists))
  }).await?;
     let mut permissions = String::new();
-    for (value, label) in [
-        ("read", "Read"),
-        ("write", "Write (includes read)"),
-        ("admin", "Admin (includes write)"),
+    for (value, label, description) in [
+        ("read", "Read", "View your selected spaces and lists"),
+        ("write", "Read and write", "View and make changes"),
+        (
+            "admin",
+            "Admin",
+            "Manage selected resources; requires ownership",
+        ),
     ] {
         if rank(value)? <= request.requested_rank {
-            permissions.push_str(&format!("<label><input type=\"radio\" name=\"permission\" value=\"{value}\" {} required>{label}</label>",if rank(value)?==request.requested_rank{"checked"}else{""}));
+            permissions.push_str(&format!("<label class=\"cli-permission\"><input type=\"radio\" name=\"permission\" value=\"{value}\" {}><span><strong>{label}</strong><small>{description}</small></span></label>", if value == "read" { "checked" } else { "" }));
         }
     }
+    let permission_hint = if request.requested_rank == 1 {
+        r#"<p class="cli-note">This CLI requested read-only access. To enable changes, run <code>todoer login --permission write</code>.</p>"#
+    } else {
+        ""
+    };
     let body = format!(
-        "<p>Allow the CLI running on your device to access Todoer? Choose exactly what it can access. Access expires in 30 days and can be revoked in Settings.</p><form method=\"post\" action=\"/cli/authorize\" class=\"cli-consent\"><input type=\"hidden\" name=\"id\" value=\"{}\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><fieldset><legend>Permissions</legend>{}</fieldset><p>Selected spaces include their current and future lists. Selected lists stay limited to those lists. Permissions never exceed your current access.</p><fieldset><legend>Spaces</legend>{}</fieldset><fieldset><legend>Individual lists</legend>{}</fieldset><label><input type=\"checkbox\" name=\"all_resources\" value=\"yes\">All current and future accessible spaces and lists</label><p class=\"muted\">Choose selected resources or all resources. Admin access requires ownership of the selected resources.</p><div class=\"inline-actions\"><button name=\"action\" value=\"deny\">Deny</button><button class=\"primary\" name=\"action\" value=\"allow\">Approve CLI access</button></div></form>",
+        r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>Connect Todoer CLI</title><link rel="stylesheet" href="/assets/app.css"><script type="module" src="/assets/cli-consent.js"></script></head><body class="cli-approval-page"><main class="cli-approval"><div class="cli-brand">todoer<span> pro</span></div><div class="cli-app-icon" aria-hidden="true">&gt;_</div><h1>Connect Todoer CLI</h1><p class="cli-intro">Allow the CLI on your device to access your Todoer account.</p><form method="post" action="/cli/authorize" class="cli-consent"><input type="hidden" name="id" value="{}"><input type="hidden" name="csrf" value="{}"><fieldset><legend>Permissions</legend><div class="cli-permissions">{}</div>{}</fieldset><fieldset><legend>Access to</legend><label class="cli-choice cli-all"><input type="checkbox" name="all_resources" value="yes" data-cli-all><span>All current and future spaces and lists</span></label><details class="cli-resources" open><summary>Or select spaces and lists</summary><div class="cli-resource-groups"><div><h2>Spaces</h2><p>Includes current and future lists.</p>{}</div><div><h2>Individual lists</h2>{}</div></div></details></fieldset><label class="cli-expiry">Access expires<select name="expiration"><option value="30">After 30 days</option><option value="never">Never expires</option></select></label><p class="cli-note">Access is limited to your own permissions. You can revoke it anytime in Settings → Connected tools.</p><div class="cli-actions"><button name="action" value="deny" formnovalidate>Cancel</button><button class="primary" name="action" value="allow">Authorize CLI</button></div></form></main></body></html>"#,
         esc(&request.id),
         esc(&s.csrf_for(&h)),
         permissions,
+        permission_hint,
         choices.0,
         choices.1
     );
-    let response =
-        super::scheduling_http::render_settings(&s, &h, "Connect Todoer CLI", body, "agents")
-            .await?;
-    Ok(private(response))
+    Ok(private(Html(body).into_response()))
 }
 fn urlencoding(value: &str) -> String {
     reqwest::Url::parse_with_params("http://local/", [("next", value)])
@@ -151,6 +158,11 @@ async fn approve(
                     collect("space_"),
                     collect("list_"),
                     form.get("all_resources").is_some_and(|v| v == "yes"),
+                    match form.get("expiration").map(String::as_str) {
+                        Some("never") => true,
+                        Some("30") | None => false,
+                        _ => return Err(Error::Invalid("Invalid expiration".into())),
+                    },
                 )?;
                 redirect.query_pairs_mut().append_pair("code", &code);
             } else {

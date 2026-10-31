@@ -118,7 +118,7 @@ pub fn token(url: &str) -> Result<String, Failure> {
     let grant = values
         .remove(&key)
         .ok_or_else(|| failure("Not logged in. Run todoer login, or set TODOER_TOKEN."))?;
-    if grant.expires_at <= chrono::Utc::now().timestamp() {
+    if grant.expires_at != -1 && grant.expires_at <= chrono::Utc::now().timestamp() {
         return Err(failure("CLI login expired. Run todoer login again."));
     }
     Ok(grant.token)
@@ -324,7 +324,7 @@ pub fn status(url: &str) -> Result<serde_json::Value, Failure> {
     let values = read()?;
     Ok(match values.get(&base) {
         Some(grant) => {
-            serde_json::json!({"server":base,"source":"saved_login","logged_in":grant.expires_at>chrono::Utc::now().timestamp(),"expires_at":grant.expires_at,"permission":grant.permission,"spaces":grant.spaces,"lists":grant.lists,"all_resources":grant.all_resources})
+            serde_json::json!({"server":base,"source":"saved_login","logged_in":(grant.expires_at == -1 || grant.expires_at>chrono::Utc::now().timestamp()),"expires_at":grant.expires_at,"permission":grant.permission,"spaces":grant.spaces,"lists":grant.lists,"all_resources":grant.all_resources})
         }
         None => serde_json::json!({"server":base,"logged_in":false}),
     })
