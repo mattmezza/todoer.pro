@@ -11644,13 +11644,13 @@ body:has(> .list-archive-banner) .notification-bell {
   color: #ff3b3b;
 }
 .inbox-priority[data-priority='1'] {
-  color: #f59e0b;
+  color: #d99a32;
 }
 .inbox-priority[data-priority='2'] {
-  color: #60a5fa;
+  color: #78aaff;
 }
 .inbox-priority[data-priority='3'] {
-  color: var(--muted);
+  color: var(--text);
 }
 
 .inbox-location {

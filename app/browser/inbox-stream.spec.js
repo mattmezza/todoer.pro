@@ -45,7 +45,7 @@ test('Inbox keeps planned tasks until settled and can undo, with working details
   await expect(row.locator('.inbox-location')).toHaveText('Inbox');
   await expect(row.locator('.inbox-tag')).toHaveText('+errands');
   await expect(row.locator('.inbox-priority')).toHaveText('P1');
-  await expect(row.locator('.inbox-priority')).toHaveCSS('color', 'rgb(245, 158, 11)');
+  await expect(row.locator('.inbox-priority')).toHaveCSS('color', 'rgb(217, 154, 50)');
   await row.getByText('Plan…').click();
   await row.getByRole('button', { name: 'Tomorrow' }).click();
   await expect(row).toContainText('Planned');
