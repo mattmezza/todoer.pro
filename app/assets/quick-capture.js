@@ -167,9 +167,6 @@ export async function openCapture(listId) {
           null,
           interpreted.metadata,
         );
-        if (interpreted.repeat && interpreted.list_id) {
-          form.elements.list_id.value = interpreted.list_id;
-        }
         form.elements.title.value = '';
         form.elements.description.value = '';
         description.style.height = '';
