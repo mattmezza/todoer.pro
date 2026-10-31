@@ -11750,7 +11750,10 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   box-shadow: inset 0 0 0 1px currentColor;
 }
 .planning-detail-content .task-page {
-  padding: 12px 0 0;
+  padding: 12px 0 0 38px;
+}
+.planning-detail-content .task-page .task-page-heading > .task-page-complete {
+  left: -38px;
 }
 .planning-detail-content .task-page-heading {
   align-items: flex-start;
@@ -11760,13 +11763,19 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   overflow-wrap: anywhere;
 }
 .planning-detail-content .task-page-checklist {
-  margin: 22px 0 8px;
+  margin: 12px 0 0;
+}
+.planning-detail-content .task-page .task-page-brief {
+  margin: 12px 0 18px;
 }
 .planning-detail-content .task-page [data-discussion-fragment] {
-  margin-top: 18px;
+  margin-top: 0;
 }
 .planning-detail-content .comment-composer {
-  margin-top: 12px;
+  margin-top: 4px;
+}
+.planning-detail-open:has(main[data-workbench='inbox']) .notification-bell {
+  top: var(--inbox-bell-top, 20px);
 }
 .planning-detail-content
   :is(

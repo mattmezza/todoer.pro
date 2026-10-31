@@ -40,6 +40,28 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
   await row.locator('.inbox-location').click();
   const panel = page.getByLabel('Task details', { exact: true });
   await expect(panel.locator('[data-task-page]')).toBeVisible();
+  await expect
+    .poll(async () => {
+      const bell = await page
+        .getByRole('button', { name: 'Notifications' })
+        .boundingBox();
+      const exportButton = await page
+        .getByRole('button', { name: 'Export Inbox' })
+        .boundingBox();
+      return Math.abs(
+        bell.y + bell.height / 2 - exportButton.y - exportButton.height / 2,
+      );
+    })
+    .toBeLessThan(2);
+  expect(
+    (await page.getByRole('button', { name: 'Notifications' }).boundingBox()).x,
+  ).toBeGreaterThan(
+    (await page.getByRole('button', { name: 'Export Inbox' }).boundingBox()).x,
+  );
+  const checkbox = await panel
+    .getByRole('button', { name: 'Complete task' })
+    .boundingBox();
+  expect(checkbox.x - (await panel.boundingBox()).x).toBeGreaterThanOrEqual(12);
   await expect(panel.getByText('Replan', { exact: true })).toHaveCount(0);
   const task = panel.locator('[data-task-page]');
   await panel.getByRole('button', { name: title, exact: true }).click();

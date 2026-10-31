@@ -40,6 +40,16 @@ if (bell) {
       '--notification-panel-offset',
       `${Math.max(0, innerWidth - edge)}px`,
     );
+    const exportButton = document.querySelector(
+      '.planning-detail-open main[data-workbench="inbox"] [data-export-workbench]',
+    );
+    if (exportButton) {
+      const box = exportButton.getBoundingClientRect();
+      bell.style.setProperty(
+        '--inbox-bell-top',
+        `${Math.max(8, box.top + box.height / 2 - 21)}px`,
+      );
+    } else bell.style.removeProperty('--inbox-bell-top');
     bell.hidden = edge < 90;
   }
   function queueDock() {
