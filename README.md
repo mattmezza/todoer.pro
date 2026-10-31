@@ -53,15 +53,31 @@ Agents can use the [connection skill](skills/todoer.pro/SKILL.md) and
 instance at `https://app.todoer.pro` or your self-hosted HTTPS origin.
 
 For a compatible remote MCP client, connect to **`https://app.todoer.pro/mcp`** and
-complete browser authorization. Client support varies; the CLI is another option:
+complete browser authorization. Client support varies; the CLI is another option.
+Install it on Linux or macOS with:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mattmezza/todoer.pro/main/scripts/install-cli.sh | bash
+```
+
+The installer verifies the release checksum and places `todoer` in `~/.local/bin`.
+Make sure that directory is on your `PATH`. It installs CLI v1.0.0 by default;
+to choose another release, set `TODOER_CLI_VERSION`, for example:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/mattmezza/todoer.pro/main/scripts/install-cli.sh | TODOER_CLI_VERSION=v1.0.0 bash
+```
+
+Then sign in and list your tasks:
 
 ```sh
 todoer --url https://app.todoer.pro login --permission read
 todoer --url https://app.todoer.pro --json list
 ```
 
-Download the CLI for your platform from [Releases](https://github.com/mattmezza/todoer.pro/releases)
-and verify its SHA-256 sidecar. See [CLI sign-in](https://docs.todoer.pro/rebuild/cli-login.html)
+Windows users can download the executable and SHA-256 checksum from
+[Releases](https://github.com/mattmezza/todoer.pro/releases). Linux binaries require
+glibc 2.35 or newer on x86-64, or 2.39 or newer on ARM64. See [CLI sign-in](https://docs.todoer.pro/rebuild/cli-login.html)
 and the [agent skill](skills/todoer.pro/SKILL.md) for setup, permissions and safe writes.
 Agents can read the [docs index](https://docs.todoer.pro/llms.txt),
 [complete docs](https://docs.todoer.pro/llms-full.txt), or individual Markdown pages.
