@@ -1008,13 +1008,19 @@ function renderAdminModels(items) {
   const addOpen = root.querySelector('[data-admin-model-add-open]');
   if (addOpen)
     addOpen.onclick = () => {
+      selectedAdminModel = '';
+      renderAdminModels(items);
       create.hidden = false;
+      container.hidden = true;
+      addOpen.hidden = true;
       field(create, 'id').focus();
     };
   const addCancel = root.querySelector('[data-admin-model-add-cancel]');
   if (addCancel)
     addCancel.onclick = () => {
       create.hidden = true;
+      container.hidden = false;
+      addOpen.hidden = false;
     };
   if (create)
     create.onsubmit = (event) => {
@@ -1032,6 +1038,8 @@ function renderAdminModels(items) {
         notice('Model added. Review its settings before enabling it.');
       });
     };
+  container.hidden = false;
+  if (addOpen) addOpen.hidden = Boolean(selectedAdminModel);
   const table = element('table', undefined, { class: 'ai-model-list' });
   const thead = element('thead');
   const labels = element('tr');
@@ -1183,7 +1191,60 @@ function renderAdminModels(items) {
     const actions = element('div', undefined, { class: 'ai-preset-row' });
     actions.append(close, remove);
     form.append(actions);
+    scroll.hidden = true;
+    const heading = form.querySelector('h3');
+    heading.textContent = 'Edit model';
+    form.querySelector('p').className = 'ai-model-id';
+    const group = (title, names, help) => {
+      const section = element('fieldset', undefined, { class: 'ai-model-group' });
+      section.append(element('legend', title));
+      if (help) section.append(element('p', help, { class: 'ai-model-help' }));
+      const grid = element('div', undefined, { class: 'ai-model-fields' });
+      for (const name of names) {
+        const input = field(form, name);
+        const label = input.closest('label');
+        if (input.type === 'checkbox') {
+          label.className = 'ai-model-check';
+          label.prepend(input);
+        }
+        grid.append(label);
+      }
+      section.append(grid);
+      form.insertBefore(section, actions);
+    };
+    group('Availability', ['name', 'enabled', 'classify', 'draft']);
+    group(
+      'Provider costs',
+      ['input_micro_per_million', 'output_micro_per_million', 'cached_micro_per_million'],
+      'EUR per 1 million tokens. Enter the provider’s costs before enabling this model.',
+    );
+    group('Pricing & limits', ['margin_bps', 'daily_limit_micro']);
+    const shortLabels = {
+      input_micro_per_million: 'Input',
+      output_micro_per_million: 'Output',
+      cached_micro_per_million: 'Cached input',
+      margin_bps: 'Gross margin (%)',
+      daily_limit_micro: 'Daily spend limit (€)',
+      classify: 'Classification',
+      draft: 'Drafting',
+    };
+    for (const [name, text] of Object.entries(shortLabels)) {
+      const input = field(form, name);
+      const label = input.closest('label');
+      for (const node of [...label.childNodes])
+        if (node.nodeType === Node.TEXT_NODE) node.textContent = text;
+    }
+    field(form, 'margin_bps').placeholder = 'Provider default';
+    field(form, 'margin_bps').max = '95';
+    field(form, 'name').required = true;
+    const save = form.querySelector('button[type="submit"]');
+    save.className = 'primary';
+    save.textContent = 'Save changes';
+    close.textContent = 'Cancel';
+    actions.className = 'ai-model-actions';
+    actions.replaceChildren(remove, close, save);
     container.append(form);
+    field(form, 'name').focus();
   }
   if (!items.length) container.append(element('p', 'No models configured.'));
 }

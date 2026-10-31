@@ -528,3 +528,84 @@
   align-items: center;
   min-height: 44px;
 }
+
+.ai-billing-panel form.ai-admin-model {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border: 0;
+  padding: 0;
+  gap: 16px;
+}
+.ai-admin-model > h3 {
+  margin: 0;
+  font-size: 18px;
+}
+.ai-admin-model > .ai-model-id {
+  margin: -10px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.ai-model-group {
+  min-width: 0;
+  border: 1px solid var(--line, #334155);
+  border-radius: 8px;
+  padding: 12px 16px 16px;
+  margin: 0;
+}
+.ai-model-group legend {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ai-model-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  align-items: end;
+}
+.ai-billing-panel .ai-model-fields label {
+  margin: 0;
+  font-size: 13px;
+}
+.ai-model-help {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.ai-billing-panel .ai-model-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+.ai-model-check input {
+  margin: 0;
+}
+.ai-model-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+.ai-model-actions > :first-child {
+  margin-right: auto;
+}
+.ai-model-actions button {
+  margin: 0;
+}
+@media (min-width: 700px) {
+  .ai-model-group:nth-of-type(2) .ai-model-fields {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .ai-model-fields {
+    grid-template-columns: 1fr;
+  }
+  .ai-model-actions {
+    flex-wrap: wrap;
+  }
+}

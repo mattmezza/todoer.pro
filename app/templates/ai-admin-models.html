@@ -23,7 +23,7 @@
       pricing and spend limit.
     </p>
     <form data-admin-model-create hidden>
-      <h3>Add an OpenRouter model</h3>
+      <h3>Add model</h3>
       <label
         >OpenRouter model ID<input
           name="id"
@@ -31,10 +31,7 @@
           maxlength="150"
           placeholder="provider/model-name"
           autocomplete="off"
-        /><small
-          >Copy the exact model ID from OpenRouter. This does not verify model quality or
-          compatibility.</small
-        ></label
+        /><small>Use the exact provider/model ID from OpenRouter.</small></label
       ><label
         >Display name<input
           name="name"
@@ -43,11 +40,11 @@
           placeholder="Name shown to users"
       /></label>
       <p class="muted">
-        New models start disabled. Verify structured-output support, review the costs and
-        enable only the features you have tested.
+        Next, configure capabilities and pricing. New models stay disabled until you
+        enable them.
       </p>
       <div class="ai-preset-row">
-        <button type="submit" class="primary">Add model</button
+        <button type="submit" class="primary">Continue to settings</button
         ><button type="button" class="secondary" data-admin-model-add-cancel>
           Cancel
         </button>
