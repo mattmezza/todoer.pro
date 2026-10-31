@@ -56,6 +56,10 @@ Settings creates opaque credentials once, separately for REST (`/api/v1`) or MCP
 membership and optional selected-list bounds on every operation. A credential
 cannot manufacture another credential by calling the browser-only issuer.
 Revocation is persistent and applies to existing MCP sessions and SSE requests.
+Manual REST and MCP credentials can optionally be created without an expiry;
+they remain active until revoked. In the credential-creation API, set `ttl_secs`
+to `0` for no expiry. Responses show `expires_at: null` for these credentials;
+omitting `ttl_secs` keeps the 30-day default.
 
 MCP publishes protected-resource and authorization-server metadata and a 401
 `WWW-Authenticate` metadata challenge. Public clients use dynamic registration,

@@ -516,9 +516,9 @@ async fn mint_credential(
         ));
     }
     let ttl = input.ttl_secs.unwrap_or(2_592_000);
-    if !(1..=7_776_000).contains(&ttl) {
+    if !(0..=7_776_000).contains(&ttl) {
         return Err(bad(
-            "Credential lifetime must be between 1 second and 90 days",
+            "Credential lifetime must be zero (never) or between 1 second and 90 days",
         ));
     }
     let audience = match input.audience.as_str() {
@@ -656,10 +656,13 @@ async fn issue_form(
                 .map(str::to_owned)
         })
         .collect();
-    let ttl_secs = form
-        .get("ttl_days")
-        .and_then(|v| v.parse::<i64>().ok().and_then(|v| v.checked_mul(86_400)))
-        .ok_or_else(|| bad("Choose a valid number of days"))?;
+    let ttl_secs = if form.get("never_expires").map(String::as_str) == Some("yes") {
+        0
+    } else {
+        form.get("ttl_days")
+            .and_then(|v| v.parse::<i64>().ok().and_then(|v| v.checked_mul(86_400)))
+            .ok_or_else(|| bad("Choose a valid number of days"))?
+    };
     let grant = mint_credential(
         &s,
         &h,
@@ -737,12 +740,14 @@ async fn tools_settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult 
             .collect::<Vec<_>>()
             .join(", ");
         existing.push_str(&format!(
-            "<li><code>{}</code> — {} — {} — {} — expires <time data-unix-time=\"{}\"></time> {}",
+            "<li><code>{}</code> — {} — {} — {} — {} {}",
             escaped(&row.id),
             escaped(&row.audience),
             escaped(&permissions),
             escaped(&scopes),
-            row.expires_at,
+            row.expires_at
+                .map(|at| format!("expires <time data-unix-time=\"{at}\"></time>"))
+                .unwrap_or_else(|| "never expires".into()),
             if row.revoked { "(revoked)" } else { "" }
         ));
         if !row.revoked {
@@ -754,7 +759,7 @@ async fn tools_settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult 
         existing.push_str("<li class=\"muted\">No connected tools yet.</li>");
     }
     let html = format!(
-        r#"<section class="settings-preference-card" aria-labelledby="connected-tools-heading"><h2 id="connected-tools-heading">Connected tools</h2><p class="muted">Give an AI agent or script access to the lists you choose.</p><details class="credential-create"><summary>Create a credential…</summary><form method="post" action="/settings/credentials"><input type="hidden" name="csrf" value="{}"><label>Connection type<select name="audience"><option value="mcp">AI agent (MCP)</option><option value="rest">Script (REST API)</option></select></label><fieldset><legend>Permissions</legend><label class="settings-check"><input type="checkbox" name="read" value="yes" checked>Read</label><label class="settings-check"><input type="checkbox" name="write" value="yes">Write (includes read)</label><label class="settings-check"><input type="checkbox" name="admin" value="yes">Admin (requires ownership)</label></fieldset><fieldset><legend>List access</legend><label class="settings-check"><input type="checkbox" name="allow_all" value="yes" data-credential-all>All current and future accessible lists</label><div data-credential-lists>{}</div></fieldset><label>Expires after (days)<input name="ttl_days" type="number" min="1" max="90" value="30" required></label><button class="primary">Create credential</button></form></details><details class="credential-history"><summary>Manage connected tools</summary><ul>{}</ul></details></section>"#,
+        r#"<section class="settings-preference-card" aria-labelledby="connected-tools-heading"><h2 id="connected-tools-heading">Connected tools</h2><p class="muted">Give an AI agent or script access to the lists you choose.</p><details class="credential-create"><summary>Create a credential…</summary><form method="post" action="/settings/credentials"><input type="hidden" name="csrf" value="{}"><label>Connection type<select name="audience"><option value="mcp">AI agent (MCP)</option><option value="rest">Script (REST API)</option></select></label><fieldset><legend>Permissions</legend><label class="settings-check"><input type="checkbox" name="read" value="yes" checked>Read</label><label class="settings-check"><input type="checkbox" name="write" value="yes">Write (includes read)</label><label class="settings-check"><input type="checkbox" name="admin" value="yes">Admin (requires ownership)</label></fieldset><fieldset><legend>List access</legend><label class="settings-check"><input type="checkbox" name="allow_all" value="yes" data-credential-all>All current and future accessible lists</label><div data-credential-lists>{}</div></fieldset><label>Expires after (days)<input name="ttl_days" type="number" min="1" max="90" value="30" required></label><label class="settings-check"><input type="checkbox" name="never_expires" value="yes">Never expires (until revoked)</label><button class="primary">Create credential</button></form></details><details class="credential-history"><summary>Manage connected tools</summary><ul>{}</ul></details></section>"#,
         csrf, options, existing
     );
     super::scheduling_http::render_settings(&s, &h, "Connected tools", html, "tools")
@@ -822,8 +827,7 @@ mod tests {
         use http_body_util::BodyExt;
         let (state, token, csrf, path) = production_state();
         let app = routes().with_state(state.clone());
-        let payload =
-            r#"{"audience":"mcp","permissions":["read"],"list_ids":["inbox"],"all_lists":false}"#;
+        let payload = r#"{"audience":"mcp","permissions":["read"],"list_ids":["inbox"],"all_lists":false,"ttl_secs":0}"#;
         let make = |csrf_value: &str| {
             axum::http::Request::builder()
                 .uri("/api/v1/credentials")
@@ -872,6 +876,7 @@ mod tests {
         let value: Value =
             serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes())
                 .unwrap();
+        assert!(value["expires_at"].is_null());
         let secret = value["token"].as_str().unwrap();
         let id = value["id"].as_str().unwrap();
         let principal = state
@@ -912,6 +917,7 @@ mod tests {
         )
         .unwrap();
         assert!(metadata.contains(id));
+        assert!(metadata.contains("\"expires_at\":null"));
         assert!(!metadata.contains(secret));
         assert!(!metadata.contains("token_hash"));
         let response = app

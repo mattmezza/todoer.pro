@@ -45,14 +45,14 @@ pub struct AgentMetadata {
     pub permissions: Vec<Permission>,
     pub list_ids: Option<Vec<String>>,
     pub workspace: Option<String>,
-    pub expires_at: i64,
+    pub expires_at: Option<i64>,
     pub revoked: bool,
 }
 #[derive(Debug, Serialize)]
 pub struct AgentGrant {
     pub id: String,
     pub token: String,
-    pub expires_at: i64,
+    pub expires_at: Option<i64>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -250,9 +250,13 @@ impl AuthStore {
         let grant = AgentGrant {
             id: Uuid::new_v4().to_string(),
             token: secret(),
-            expires_at: expiry(ttl_secs)?,
+            expires_at: if ttl_secs == 0 {
+                None
+            } else {
+                Some(expiry(ttl_secs)?)
+            },
         };
-        self.conn.execute("INSERT INTO auth_agents(id,user_id,token_hash,audience,permissions,list_ids,workspace,expires_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",params![grant.id,actor,hash(&grant.token),audience,serde_json::to_string(&permissions).unwrap(),list_ids.map(|v|serde_json::to_string(&v).unwrap()),workspace,grant.expires_at])?;
+        self.conn.execute("INSERT INTO auth_agents(id,user_id,token_hash,audience,permissions,list_ids,workspace,expires_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",params![grant.id,actor,hash(&grant.token),audience,serde_json::to_string(&permissions).unwrap(),list_ids.map(|v|serde_json::to_string(&v).unwrap()),workspace,grant.expires_at.unwrap_or(-1)])?;
         Ok(grant)
     }
     pub fn authenticate_agent(
@@ -263,7 +267,7 @@ impl AuthStore {
         list: Option<&str>,
         workspace: Option<&str>,
     ) -> Result<Principal, AuthError> {
-        let (mut principal,expected,permissions,lists,scope):(Principal,String,String,Option<String>,Option<String>)=self.conn.query_row("SELECT user_id,id,audience,permissions,list_ids,workspace FROM auth_agents WHERE token_hash=?1 AND revoked=0 AND expires_at>?2",params![hash(token),now()],|r|Ok((Principal{actor:r.get(0)?,credential_id:Some(r.get(1)?),permissions:vec![Permission::Admin],list_ids:None,workspace:None},r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?))).optional()?.ok_or(AuthError::Unauthorized)?;
+        let (mut principal,expected,permissions,lists,scope):(Principal,String,String,Option<String>,Option<String>)=self.conn.query_row("SELECT user_id,id,audience,permissions,list_ids,workspace FROM auth_agents WHERE token_hash=?1 AND revoked=0 AND (expires_at=-1 OR expires_at>?2)",params![hash(token),now()],|r|Ok((Principal{actor:r.get(0)?,credential_id:Some(r.get(1)?),permissions:vec![Permission::Admin],list_ids:None,workspace:None},r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?))).optional()?.ok_or(AuthError::Unauthorized)?;
         if expected != audience {
             return Err(AuthError::Unauthorized);
         }
@@ -321,7 +325,7 @@ impl AuthStore {
                 permissions: parse_json(&permissions)?,
                 list_ids: lists.map(|v| parse_json(&v)).transpose()?,
                 workspace,
-                expires_at,
+                expires_at: (expires_at != -1).then_some(expires_at),
                 revoked,
             })
         })
@@ -455,6 +459,51 @@ mod tests {
             .execute("UPDATE auth_sessions SET expires_at=0", [])
             .unwrap();
         assert!(s.authenticate_session(&grant.token, None, false).is_err());
+    }
+    #[test]
+    fn permanent_agent_is_scoped_and_revocable() {
+        let s = store();
+        let grant = s
+            .issue_agent(
+                "alice",
+                "todoer",
+                vec![Permission::Read],
+                Some(vec!["inbox".into()]),
+                None,
+                0,
+            )
+            .unwrap();
+        assert_eq!(grant.expires_at, None);
+        assert_eq!(s.list_agents("alice").unwrap()[0].expires_at, None);
+        assert!(
+            s.authenticate_agent(
+                &grant.token,
+                "todoer",
+                Permission::Read,
+                Some("inbox"),
+                None
+            )
+            .is_ok()
+        );
+        assert!(
+            s.authenticate_agent(&grant.token, "todoer", Permission::Write, None, None)
+                .is_err()
+        );
+        assert!(
+            s.authenticate_agent(
+                &grant.token,
+                "todoer",
+                Permission::Read,
+                Some("other"),
+                None
+            )
+            .is_err()
+        );
+        s.revoke_agent("alice", &grant.id).unwrap();
+        assert!(
+            s.authenticate_agent(&grant.token, "todoer", Permission::Read, None, None)
+                .is_err()
+        );
     }
     #[test]
     fn agent_scopes_and_permissions_survive_authentication() {

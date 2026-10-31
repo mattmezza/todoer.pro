@@ -230,7 +230,7 @@ impl Store {
         audience: &str,
         write: bool,
     ) -> Result<String, Error> {
-        let id:Option<String>=self.conn.query_row("SELECT id FROM auth_agents WHERE token_hash=?1 AND audience=?2 AND revoked=0 AND expires_at>unixepoch() AND EXISTS(SELECT 1 FROM json_each(permissions) WHERE value='admin' OR value='write' OR (?3=0 AND value='read'))",params![hash(token),audience,write],|r|r.get(0)).optional()?;
+        let id:Option<String>=self.conn.query_row("SELECT id FROM auth_agents WHERE token_hash=?1 AND audience=?2 AND revoked=0 AND (expires_at=-1 OR expires_at>unixepoch()) AND EXISTS(SELECT 1 FROM json_each(permissions) WHERE value='admin' OR value='write' OR (?3=0 AND value='read'))",params![hash(token),audience,write],|r|r.get(0)).optional()?;
         id.map(|id| format!("credential:{id}"))
             .ok_or(Error::Forbidden)
     }
