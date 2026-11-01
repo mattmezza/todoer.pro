@@ -67,7 +67,7 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
   await panel.getByRole('button', { name: title, exact: true }).click();
   await panel.getByLabel('Task title', { exact: true }).fill('Edited panel task');
   await panel.getByLabel('Description, Markdown supported').fill('Edited description');
-  await panel.getByRole('button', { name: 'Save', exact: true }).click();
+  await panel.getByLabel('Task title', { exact: true }).press('Enter');
   await expect(panel.getByRole('button', { name: 'Edited panel task' })).toBeVisible();
   await expect(panel.locator('[data-saved-description]')).toContainText(
     'Edited description',

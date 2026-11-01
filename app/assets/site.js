@@ -90,7 +90,15 @@ document.addEventListener('keydown', (event) => {
     }
   }
   const form = event.target.closest?.('form');
-  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && form) {
+  if (
+    event.key === 'Enter' &&
+    !event.isComposing &&
+    form &&
+    event.target.matches('textarea[name="title"]')
+  ) {
+    event.preventDefault();
+    if (!form.querySelector('button[type="submit"]:disabled')) form.requestSubmit();
+  } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && form) {
     event.preventDefault();
     if (!form.querySelector('button[type="submit"]:disabled')) form.requestSubmit();
   } else if (event.key === 'Escape') {
@@ -507,3 +515,20 @@ document.addEventListener('click', async (event) => {
 
 const pwaAccount = document.querySelector('meta[name="account-id"]')?.content;
 if (pwaAccount) setupPwa(pwaAccount);
+
+// Titles are single-line even when pasted into an auto-growing title editor.
+document.addEventListener(
+  'input',
+  (event) => {
+    const field = event.target;
+    if (event.isComposing || !field.matches?.('textarea[name="title"]')) return;
+    if (/\r|\n/.test(field.value)) {
+      const position = field.value
+        .slice(0, field.selectionStart)
+        .replace(/[\r\n]+/g, ' ').length;
+      field.value = field.value.replace(/[\r\n]+/g, ' ');
+      field.setSelectionRange(position, position);
+    }
+  },
+  true,
+);

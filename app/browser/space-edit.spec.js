@@ -34,7 +34,7 @@ test('space name and description share an inline editor and retain drafts on err
   await expect(form).toBeHidden();
   await page.unroute('**/api/v1/workspaces/*');
   await page.locator('[data-space-edit="title"]').click();
-  await form.locator('[name="title"]').press('Control+Enter');
+  await form.locator('[name="title"]').press('Enter');
   await expect(page.locator('[data-space-edit="title"]')).toHaveText('@Edited space');
   await expect(page.locator('[data-space-edit="description"]')).toHaveText(
     'Draft description',
