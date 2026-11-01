@@ -6,7 +6,7 @@ if (bell) {
   const mobile = matchMedia('(max-width: 640px)');
   function placeBell() {
     const action = document.querySelector(
-      '.workbench-export, .page-heading > .entity-menu, .task-page-heading > .task-context-menu',
+      '.workbench-export, .page-heading > .entity-menu, .task-page-heading > .task-context-menu, .workspace-header > .workspace-menu',
     );
     if (mobile.matches && action) {
       if (bell.previousElementSibling !== action) action.after(bell);

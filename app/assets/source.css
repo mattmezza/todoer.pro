@@ -12235,3 +12235,13 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
 .trash-space-filters {
   margin: 0 0 24px;
 }
+@media (max-width: 640px) {
+  .workspace-header > .workspace-menu {
+    right: 40px;
+  }
+  .workspace-header > .notification-bell-inline {
+    position: absolute;
+    top: 32px;
+    right: 0;
+  }
+}
