@@ -13076,28 +13076,58 @@ body > .planning-detail-dismiss {
 .plan-task-dialog .plan-duration-field {
   min-width: 0;
 }
+.plan-task-dialog .workbench-date-fields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+}
+.plan-task-dialog .workbench-date-fields > label {
+  align-content: start;
+}
+.plan-task-dialog .workbench-date-fields label {
+  min-width: 0;
+}
+.plan-task-dialog .workbench-date-fields input {
+  min-width: 0;
+}
 .plan-task-dialog :is(.plan-time-shortcuts, .plan-duration-shortcuts) {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
+  gap: 2px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+  margin-top: 4px;
+  --shortcut-left: transparent 0%, #000 0%;
+  --shortcut-right: #000 100%, transparent 100%;
+  mask-image: linear-gradient(to right, var(--shortcut-left), var(--shortcut-right));
+}
+.plan-task-dialog :is(.plan-time-shortcuts, .plan-duration-shortcuts)::-webkit-scrollbar {
+  display: none;
+}
+.plan-task-dialog :is(.plan-time-shortcuts, .plan-duration-shortcuts).can-scroll-left {
+  --shortcut-left: transparent 0%, #000 12px;
+}
+.plan-task-dialog :is(.plan-time-shortcuts, .plan-duration-shortcuts).can-scroll-right {
+  --shortcut-right: #000 calc(100% - 12px), transparent 100%;
 }
 .plan-task-dialog :is(.plan-time-shortcuts, .plan-duration-shortcuts) button {
-  min-height: 44px;
-  padding: 6px 9px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 6px;
+  border: 0;
+  border-radius: 4px;
   color: var(--muted);
   font-size: 13px;
 }
 .plan-task-dialog :is(.plan-time-shortcuts, .plan-duration-shortcuts) button:hover,
 .plan-task-dialog .plan-duration-shortcuts button[aria-pressed='true'] {
-  border-color: var(--accent);
   background: var(--hover);
   color: var(--text);
 }
-.plan-task-dialog .plan-duration-field > label {
-  max-width: 180px;
+@media (max-width: 600px) {
+  .plan-task-dialog .workbench-date-fields {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
 }
 .calendar-timed-event.workbench-task {
   overflow: hidden;

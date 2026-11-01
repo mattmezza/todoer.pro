@@ -236,6 +236,10 @@ async function placement(entry, b, date, time = null, durationMinutes) {
 function planDialog(entry, initial) {
   const d = modal('Plan this task');
   d.classList.add('plan-task-dialog');
+  d.querySelector('h2').insertAdjacentHTML(
+    'afterbegin',
+    '<span class="modal-heading-icon" aria-hidden="true"><svg class="ui-icon" width="20" height="20"><use href="/assets/icons.svg#clock"></use></svg></span>',
+  );
   d.append(node('h3', entry.task.title, 'plan-task-title'));
   const form = node('form');
   const date = dateInput(initial || entry.schedule.planned?.date || today);
@@ -292,8 +296,9 @@ function planDialog(entry, initial) {
       }),
     );
   }
-  const durationLabel = node('label', 'Duration (minutes, optional)');
+  const durationLabel = node('label', 'Duration (min)');
   const duration = node('input');
+  duration.setAttribute('aria-label', 'Duration (minutes, optional)');
   duration.type = 'number';
   duration.min = '0';
   duration.max = '5256000';
@@ -312,11 +317,18 @@ function planDialog(entry, initial) {
   durationShortcuts.setAttribute('role', 'group');
   durationShortcuts.setAttribute('aria-label', 'Duration shortcuts');
   for (const [label, minutes] of [
+    ['0m', 0],
+    ['15m', 15],
     ['30m', 30],
+    ['45m', 45],
     ['1h', 60],
+    ['1h 30m', 90],
     ['2h', 120],
+    ['3h', 180],
     ['4h', 240],
+    ['6h', 360],
     ['8h', 480],
+    ['1d', 1440],
   ]) {
     const choice = button(label, () => {
       duration.value = String(minutes);
@@ -349,6 +361,20 @@ function planDialog(entry, initial) {
   fields.append(dateLabel, timeField);
   const durationField = node('div', null, 'plan-duration-field');
   durationField.append(durationLabel, durationShortcuts, overflowHint);
+  fields.append(durationField);
+  for (const shortcuts of [timeShortcuts, durationShortcuts]) {
+    const updateEdges = () => {
+      shortcuts.classList.toggle('can-scroll-left', shortcuts.scrollLeft > 1);
+      shortcuts.classList.toggle(
+        'can-scroll-right',
+        shortcuts.scrollLeft + shortcuts.clientWidth < shortcuts.scrollWidth - 1,
+      );
+    };
+    shortcuts.addEventListener('scroll', updateEdges, { passive: true });
+    const observer = new ResizeObserver(updateEdges);
+    observer.observe(shortcuts);
+    d.addEventListener('close', () => observer.disconnect(), { once: true });
+  }
   const actions = node('div', null, 'workbench-form-actions');
   actions.append(
     button('Remove from plan', async (b) => {
@@ -356,7 +382,7 @@ function planDialog(entry, initial) {
     }),
     submit,
   );
-  form.append(fields, durationField, actions);
+  form.append(fields, actions);
   form.onsubmit = async (e) => {
     e.preventDefault();
     if (

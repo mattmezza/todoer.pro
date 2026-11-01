@@ -24,6 +24,20 @@ test('task duration is shared between the planning dialog and task settings', as
   await row.getByText('Choose date…').click();
   const dialog = page.getByRole('dialog', { name: 'Plan this task' });
   await expect(dialog.getByRole('heading', { name: title })).toBeVisible();
+  await expect(dialog.locator('h2 use')).toHaveAttribute(
+    'href',
+    '/assets/icons.svg#clock',
+  );
+  const desktopFields = await dialog
+    .locator('.workbench-date-fields input')
+    .evaluateAll((inputs) =>
+      inputs.map((input) => input.getBoundingClientRect().toJSON()),
+    );
+  expect(desktopFields).toHaveLength(3);
+  expect(
+    Math.max(...desktopFields.map((rect) => rect.top)) -
+      Math.min(...desktopFields.map((rect) => rect.top)),
+  ).toBeLessThan(2);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(dialog.getByRole('group', { name: 'Time shortcuts' })).toBeVisible();
   expect(
@@ -54,6 +68,11 @@ test('task duration is shared between the planning dialog and task settings', as
   const date = await dialog.getByLabel('Day').inputValue();
   expect(date).toBe(expected.date);
   await expect(dialog.getByLabel('Time (optional)')).toHaveValue(expected.time);
+  const durationShortcuts = dialog.getByRole('group', { name: 'Duration shortcuts' });
+  await durationShortcuts.getByRole('button', { name: '1d' }).click();
+  await expect(dialog.getByLabel('Duration (minutes, optional)')).toHaveValue('1440');
+  await durationShortcuts.getByRole('button', { name: '0m', exact: true }).click();
+  await expect(dialog.getByLabel('Duration (minutes, optional)')).toHaveValue('0');
   await dialog
     .getByRole('group', { name: 'Duration shortcuts' })
     .getByRole('button', { name: '2h' })
