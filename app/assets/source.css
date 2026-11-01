@@ -11051,6 +11051,15 @@ form[data-load-failed],
   font-size: 18px;
   font-weight: 600;
 }
+.reference-list-page [data-section-create] textarea[name='description'] {
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  font-size: 16px;
+}
 .reference-list-page [data-section-create] .inline-actions {
   border: 0;
 }
@@ -12406,24 +12415,33 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   }
 }
 @media (max-width: 640px) {
+  body[data-list] main > .breadcrumbs {
+    display: none;
+  }
   .reference-list-page .task-section:not([data-section-id='']) {
     margin-top: 40px;
   }
   .reference-list-page .section-heading {
     min-height: 56px;
     padding: 8px 0;
-    gap: 8px;
+    gap: 2px;
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+  .reference-list-page .section-heading > .section-drag,
+  .reference-list-page .section-heading-copy .section-description {
+    display: none;
   }
   .reference-list-page .section-heading > .section-collapse {
     position: static;
     transform: none;
-    width: 44px;
-    flex: 0 0 44px;
+    width: 36px;
+    flex: 0 0 36px;
   }
   .reference-list-page .section-collapse > summary {
     display: grid;
     place-items: center;
-    width: 44px;
+    width: 36px;
     height: 44px;
     min-height: 44px;
     padding: 0;
@@ -12447,6 +12465,12 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   }
   .reference-list-page .section-heading-copy {
     min-width: 0;
+  }
+  .reference-list-page .section-heading-copy > h2 {
+    max-width: 100%;
+  }
+  .reference-list-page .section-heading > .entity-menu {
+    margin-left: 0;
   }
   .reference-list-page .section-tasks > .task > .task-drag-grip {
     display: none;

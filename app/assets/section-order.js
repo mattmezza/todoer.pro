@@ -16,6 +16,14 @@ export function mountSectionOrdering({
     [...container.querySelectorAll(':scope > .task-section[data-section-id]')].filter(
       (node) => node.dataset.sectionId,
     );
+  function afterTarget(target, y) {
+    const heading = target.querySelector(':scope > .section-heading');
+    const headerBox = heading?.getBoundingClientRect();
+    if (headerBox && y <= headerBox.bottom)
+      return y > headerBox.top + headerBox.height / 2;
+    const box = target.getBoundingClientRect();
+    return y > box.top + box.height / 2;
+  }
   async function move(source, target, after = false) {
     if (busy || !target || source === target) return;
     if (blocked()) {
@@ -83,11 +91,7 @@ export function mountSectionOrdering({
     event.preventDefault();
     const target = event.target.closest('.task-section[data-section-id]');
     if (target?.dataset.sectionId)
-      move(
-        gesture.source,
-        target,
-        event.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2,
-      );
+      move(gesture.source, target, afterTarget(target, event.clientY));
     gesture.source.removeAttribute('data-section-dragging');
     gesture = null;
   });
@@ -98,8 +102,12 @@ export function mountSectionOrdering({
   container.addEventListener(
     'touchstart',
     (event) => {
-      const handle = event.target.closest('[data-section-drag]');
+      const handle = matchMedia('(max-width: 640px)').matches
+        ? !event.target.closest('.entity-menu, .entity-reference') &&
+          event.target.closest('.section-heading')
+        : event.target.closest('[data-section-drag]');
       if (!handle || event.touches.length !== 1) return;
+      if (!handle.closest('.task-section')?.dataset.sectionId) return;
       const touch = event.touches[0];
       gesture = {
         source: handle.closest('.task-section'),
@@ -138,8 +146,7 @@ export function mountSectionOrdering({
       for (const node of sections()) node.removeAttribute('data-section-drop');
       if (target?.dataset.sectionId && target !== gesture.source) {
         gesture.target = target;
-        gesture.after =
-          touch.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2;
+        gesture.after = afterTarget(target, touch.clientY);
         target.dataset.sectionDrop = gesture.after ? 'after' : 'before';
       } else gesture.target = null;
     },

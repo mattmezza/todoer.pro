@@ -259,9 +259,10 @@ export function mountListUi({ api, notice, listId }) {
     const button = sectionCreate.querySelector('[type="submit"]');
     button.disabled = true;
     try {
+      const data = new FormData(sectionCreate);
       await api(`/lists/${listId}/sections`, 'POST', {
-        title: new FormData(sectionCreate).get('title'),
-        description: '',
+        title: data.get('title'),
+        description: data.get('description'),
       });
       location.reload();
     } catch (error) {

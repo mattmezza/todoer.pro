@@ -26,6 +26,7 @@ test('list preference filters the response and sections can be reordered and sea
   await post('/api/v1/lists', { workspace_id: space.id, title: destinationTitle });
   const first = await post(`/api/v1/lists/${list.id}/sections`, {
     title: 'First section',
+    description: 'A description hidden on mobile',
   });
   const second = await post(`/api/v1/lists/${list.id}/sections`, {
     title: 'Second section',
@@ -41,6 +42,13 @@ test('list preference filters the response and sections can be reordered and sea
   expect(complete.ok()).toBeTruthy();
   await page.goto(`/lists/${list.id}`);
   await page.waitForFunction(() => document.body.dataset.ready === 'true');
+  await expect(page.locator('main > .breadcrumbs')).toBeHidden();
+  await expect(
+    page.locator(`[data-section-id="${first.id}"] .section-description`),
+  ).toBeHidden();
+  await expect(
+    page.locator(`[data-section-id="${first.id}"] [data-section-drag]`),
+  ).toBeHidden();
   const account = await page.locator('meta[name="account-id"]').getAttribute('content');
   await page.evaluate(
     (id) => localStorage.setItem(`todoer:${id}:hide-completed`, 'true'),
@@ -73,7 +81,7 @@ test('list preference filters the response and sections can be reordered and sea
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true });
     const source = await page
-      .locator(`[data-section-id="${second.id}"] [data-section-drag]`)
+      .locator(`[data-section-id="${second.id}"] .section-heading h2`)
       .boundingBox();
     const target = await page
       .locator(`[data-section-id="${first.id}"] .section-heading`)
@@ -92,4 +100,18 @@ test('list preference filters the response and sections can be reordered and sea
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await expect.poll(ids).toEqual([first.id, second.id]);
   }
+  await page.locator('[data-section-add-open]').click();
+  await page.locator('#new-section-title').fill('New section');
+  await page.locator('#new-section-description').fill('Section context');
+  await page.locator('[data-section-create] button[type="submit"]').click();
+  await expect(
+    page.locator('.section-heading-copy h2').filter({ hasText: 'new-section' }),
+  ).toBeVisible();
+  const response = await page.request.get(`/api/v1/lists/${list.id}/sections`);
+  expect(response.ok()).toBeTruthy();
+  expect(await response.json()).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ title: 'New section', description: 'Section context' }),
+    ]),
+  );
 });
