@@ -13,6 +13,14 @@ if (main) {
     refreshPanelTags = () => {};
   const csrf = document.querySelector('meta[name=csrf-token]').content;
   const rows = main.querySelector('[data-planning-rows]');
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.className = 'planning-detail-dismiss';
+  dismiss.setAttribute('aria-label', 'Close task details');
+  dismiss.title = 'Close task details';
+  dismiss.innerHTML =
+    '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M14 3v18"/></svg>';
+  dismiss.onclick = close;
   async function refreshRows() {
     if (main.dataset.workbench) {
       document.dispatchEvent(new Event('todoer:workbench-refresh'));
@@ -56,6 +64,7 @@ if (main) {
         .finished.then(() => closingPanel.remove());
     } else closingPanel?.remove();
     panel = null;
+    dismiss.remove();
     selected = null;
     document.body.classList.remove('planning-detail-open');
     highlight();
@@ -72,15 +81,11 @@ if (main) {
     }
     panel.replaceChildren();
     document.body.classList.add('planning-detail-open');
+    const exportButton = main.querySelector('[data-export-workbench]');
+    if (exportButton) exportButton.after(dismiss);
+    else document.body.append(dismiss);
     const header = document.createElement('header');
     header.className = 'planning-detail-toolbar';
-    const dismiss = document.createElement('button');
-    dismiss.type = 'button';
-    dismiss.setAttribute('aria-label', 'Close task details');
-    dismiss.innerHTML =
-      '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M14 3v18"/></svg>';
-    dismiss.onclick = close;
-    header.append(dismiss);
     const content = document.createElement('div');
     content.className = 'planning-detail-content';
     const skeleton = beginLoading(content, { variant: 'task' });
@@ -102,12 +107,7 @@ if (main) {
         '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#open"/></svg>';
       const tools = document.createElement('div');
       tools.className = 'panel-heading-tools';
-      tools.append(
-        task.querySelector('[data-copy-task-reference]'),
-        openPage,
-        task.querySelector('.task-context-menu'),
-      );
-      header.prepend(tools);
+      header.append(task.querySelector('[data-copy-task-reference]'), tools);
       task.prepend(header);
       selected = task.dataset.taskId;
       highlight();
@@ -126,11 +126,11 @@ if (main) {
       choices.className = 'panel-priority-options';
       picker.append(choices);
       reprio.append(picker);
+      tools.append(reprio, openPage, task.querySelector('.task-context-menu'));
       function selectPriority(priority) {
         const labels = ['Highest', 'High', 'Medium', 'Low'];
-        priorityCaption.innerHTML =
-          '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#flag"/></svg>';
-        priorityCaption.append(`P${priority} · ${labels[priority]} priority`);
+        priorityCaption.textContent = `P${priority}`;
+        priorityCaption.title = `${labels[priority]} priority`;
         priorityCaption.dataset.priority = priority;
         for (const b of choices.querySelectorAll('button'))
           b.setAttribute('aria-pressed', String(Number(b.dataset.priority) === priority));
@@ -185,7 +185,6 @@ if (main) {
       }
       if (task.dataset.canWrite !== 'true')
         priorityCaption.setAttribute('aria-disabled', 'true');
-      task.querySelector('.task-page-heading').after(reprio);
       content.replaceChildren(task);
       stop = mountTaskPage(task, { embedded: true });
       const tags = document.createElement('div');

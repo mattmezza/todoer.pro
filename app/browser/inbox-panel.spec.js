@@ -73,9 +73,40 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
   ).toBe(true);
   await expect(toolbar.getByRole('link', { name: 'Open task page' })).toBeVisible();
   await expect(toolbar.getByLabel('Task actions')).toBeVisible();
-  await expect(toolbar.getByLabel('Close task details')).toBeVisible();
-  await expect(panel.getByLabel('Task location')).toBeVisible();
-  await expect(panel.getByLabel('Change priority')).toHaveText('P3 · Low priority');
+  const dismiss = page.getByLabel('Close task details');
+  await expect(dismiss).toBeVisible();
+  await expect(panel.getByLabel('Close task details')).toHaveCount(0);
+  const exportBox = await page
+    .getByRole('button', { name: 'Export Inbox' })
+    .boundingBox();
+  const closeBox = await dismiss.boundingBox();
+  const bellBox = await page.getByRole('button', { name: 'Notifications' }).boundingBox();
+  expect(closeBox.x).toBeGreaterThan(exportBox.x);
+  expect(closeBox.x).toBeLessThan(bellBox.x);
+  expect(
+    Math.abs(closeBox.y + closeBox.height / 2 - bellBox.y - bellBox.height / 2),
+  ).toBeLessThan(2);
+  await expect(panel.getByLabel('Task location')).toBeHidden();
+  await expect(panel.getByLabel('Change priority')).toHaveText('P3');
+  const referenceBox = await toolbar.locator('[data-copy-task-reference]').boundingBox();
+  const priorityBox = await panel.getByLabel('Change priority').boundingBox();
+  const openBox = await toolbar
+    .getByRole('link', { name: 'Open task page' })
+    .boundingBox();
+  expect(referenceBox.x).toBeLessThan(priorityBox.x);
+  expect(priorityBox.x).toBeLessThan(openBox.x);
+  const menuBox = await toolbar.getByLabel('Task actions').boundingBox();
+  const centerY = (box) => box.y + box.height / 2;
+  expect(Math.abs(centerY(referenceBox) - centerY(openBox))).toBeLessThan(2);
+  expect(Math.abs(centerY(priorityBox) - centerY(openBox))).toBeLessThan(2);
+  expect(Math.abs(centerY(menuBox) - centerY(openBox))).toBeLessThan(2);
+  const initialTitleBox = await panel
+    .getByRole('button', { name: title, exact: true })
+    .boundingBox();
+  const toolbarBox = await toolbar.boundingBox();
+  expect(initialTitleBox.y - (toolbarBox.y + toolbarBox.height)).toBeGreaterThanOrEqual(
+    12,
+  );
   await panel.getByRole('button', { name: title, exact: true }).click();
   await panel.getByLabel('Task title', { exact: true }).fill('Edited panel task');
   await panel.getByLabel('Description, Markdown supported').fill('Edited description');
@@ -120,6 +151,7 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
   await expect(panel.getByRole('dialog', { name: 'Break down task' })).toBeVisible();
   await panel.getByRole('button', { name: 'Close breakdown' }).click();
   const chooser = page.waitForEvent('filechooser');
+  await expect(panel.locator('.task-files-heading')).toBeHidden();
   await panel.getByRole('button', { name: 'Attach file' }).click();
   await chooser;
   await panel.getByRole('button', { name: 'Complete task' }).click();
@@ -142,7 +174,7 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
     'rgb(231, 169, 63)',
   );
   await panel.locator('.panel-priority-options [data-priority="1"]').click();
-  await expect(panel.getByLabel('Change priority')).toHaveText('P1 · High priority');
+  await expect(panel.getByLabel('Change priority')).toHaveText('P1');
   await panel.getByRole('link', { name: 'Open task page' }).click();
   await expect(page).toHaveURL(/\/tasks\//);
   await expect(page.locator('main[data-task-page]')).toBeVisible();
@@ -179,14 +211,38 @@ test('Today uses the same task-page panel', async ({ page }) => {
   await page.reload();
   await page.getByRole('link', { name: title }).click();
   const panel = page.getByLabel('Task details', { exact: true });
-  await expect(panel.getByLabel('Task location')).toBeVisible();
+  await expect(panel.getByLabel('Task location')).toBeHidden();
   await expect(
     panel.locator('.planning-detail-toolbar [data-copy-task-reference]'),
   ).toBeVisible();
-  await expect(panel.getByLabel('Change priority')).toHaveText('P3 · Low priority');
+  await expect(panel.getByLabel('Change priority')).toHaveText('P3');
   await expect(panel.locator('.task-date-summary')).toContainText('Planned for');
   await expect(panel.locator('.task-date-summary')).toBeVisible();
   await expect(panel.getByRole('button', { name: title })).toBeVisible();
-  await panel.getByLabel('Close task details').click();
+  const closeBox = await page.getByLabel('Close task details').boundingBox();
+  await expect
+    .poll(async () => {
+      const bell = await page
+        .getByRole('button', { name: 'Notifications' })
+        .boundingBox();
+      return Math.abs(closeBox.y + closeBox.height / 2 - bell.y - bell.height / 2);
+    })
+    .toBeLessThan(2);
+  const bellBox = await page.getByRole('button', { name: 'Notifications' }).boundingBox();
+  expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(bellBox.x);
+  await page.setViewportSize({ width: 1050, height: 720 });
+  await expect
+    .poll(async () => {
+      const close = await page.getByLabel('Close task details').boundingBox();
+      const bell = await page
+        .getByRole('button', { name: 'Notifications' })
+        .boundingBox();
+      return (
+        close.x + close.width <= bell.x &&
+        Math.abs(close.y + close.height / 2 - bell.y - bell.height / 2) < 2
+      );
+    })
+    .toBe(true);
+  await page.getByLabel('Close task details').click();
   await expect(panel).toHaveCount(0);
 });

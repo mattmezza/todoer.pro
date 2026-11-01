@@ -9,7 +9,10 @@ if (bell) {
       '.workbench-export, .page-heading > .entity-menu, .task-page-heading > .task-context-menu, .workspace-header > .workspace-menu',
     );
     if (mobile.matches && action) {
-      if (bell.previousElementSibling !== action) action.after(bell);
+      const anchor = action.nextElementSibling?.matches('.planning-detail-dismiss')
+        ? action.nextElementSibling
+        : action;
+      if (bell.previousElementSibling !== anchor) anchor.after(bell);
       bell.classList.add('notification-bell-inline');
     } else {
       if (bell.parentElement !== document.body) document.body.append(bell);
@@ -56,7 +59,7 @@ if (bell) {
       `${Math.max(0, innerWidth - edge)}px`,
     );
     const exportButton = document.querySelector(
-      '.planning-detail-open main[data-workbench="inbox"] [data-export-workbench]',
+      '.planning-detail-open main[data-planning-today] [data-export-workbench], .planning-detail-open > .planning-detail-dismiss',
     );
     if (exportButton) {
       const box = exportButton.getBoundingClientRect();

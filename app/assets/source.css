@@ -5522,12 +5522,6 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
   color: #8192a8;
   font-size: 13px;
 }
-.planning-detail-toolbar > button {
-  border-radius: 50%;
-  width: 32px;
-  height: 32px;
-  padding: 6px;
-}
 .planning-detail-content {
   padding: 4px 20px 32px;
 }
@@ -11815,7 +11809,7 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
 .planning-detail-content .comment-composer {
   margin-top: 8px;
 }
-.planning-detail-open:has(main[data-workbench='inbox']) .notification-bell {
+.planning-detail-open:has(main[data-planning-today]) .notification-bell {
   top: var(--inbox-bell-top, 20px);
 }
 .planning-detail-content
@@ -12257,9 +12251,6 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
 /* The task preview uses the same actions and editor as the full task page. */
 .planning-detail-toolbar {
   justify-content: flex-start;
-}
-.planning-detail-toolbar > button {
-  border-radius: 8px;
 }
 .planning-detail-content .task-page {
   padding-top: 0;
@@ -12793,14 +12784,6 @@ form[data-list-edit] .list-color-custom .list-edit-color {
   justify-content: flex-end;
   margin: 0;
 }
-.planning-detail-content .breadcrumbs {
-  display: flex !important;
-  gap: 8px;
-  margin: 0 0 24px;
-}
-.planning-detail-content .breadcrumbs .live-indicator {
-  display: none;
-}
 .planning-detail-content .planning-reprio {
   justify-content: flex-end;
   margin: 0;
@@ -12845,9 +12828,6 @@ form[data-list-edit] .list-color-custom .list-edit-color {
 .planning-detail-content .task-page [data-discussion-fragment] {
   margin-top: 28px;
 }
-.planning-detail-content .task-files-heading {
-  display: flex;
-}
 .planning-detail-content .task-files {
   margin-bottom: 36px;
 }
@@ -12866,4 +12846,85 @@ form[data-list-edit] .list-color-custom .list-edit-color {
 }
 .planning-detail-content .task-due-summary .task-priority-line {
   display: none;
+}
+
+/* The compact panel keeps its reference and actions on one row. */
+.planning-detail-content .planning-detail-toolbar {
+  justify-content: space-between;
+  margin-left: -44px;
+  margin-bottom: 16px;
+}
+.planning-detail-content .planning-detail-toolbar > .entity-reference {
+  display: block !important;
+}
+.planning-detail-content .panel-heading-tools {
+  flex: none;
+  align-items: center;
+}
+.planning-detail-content .panel-heading-tools .task-context-menu {
+  margin: 0;
+}
+.planning-detail-content .panel-heading-tools .planning-reprio {
+  margin: 0;
+}
+.planning-detail-content .panel-priority-picker summary {
+  min-width: 34px;
+  min-height: 32px;
+  justify-content: center;
+  padding: 4px 8px;
+  background: var(--hover);
+  border-radius: 8px;
+}
+.planning-detail-content .panel-priority-picker summary[data-priority='0'] {
+  color: #ff6b6b;
+  background: rgb(239 68 68 / 0.14);
+}
+.planning-detail-content .panel-priority-picker summary[data-priority='1'] {
+  color: #e7a93f;
+  background: rgb(245 158 11 / 0.14);
+}
+.planning-detail-content .panel-priority-picker summary[data-priority='2'] {
+  color: #78aaff;
+  background: rgb(96 165 250 / 0.14);
+}
+.planning-detail-content .panel-priority-picker summary[data-priority='3'] {
+  color: var(--muted);
+}
+.planning-detail-dismiss {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  padding: 8px;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.planning-detail-dismiss:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.planning-detail-dismiss .ui-icon {
+  width: 20px;
+  height: 20px;
+}
+.workbench-heading:has(.planning-detail-dismiss) {
+  gap: 8px;
+}
+.workbench-heading:has(.planning-detail-dismiss) > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+body > .planning-detail-dismiss {
+  position: fixed;
+  right: calc(var(--notification-panel-offset, 0px) + 72px + env(safe-area-inset-right));
+  top: calc(20px + env(safe-area-inset-top));
+  z-index: 65;
+}
+.planning-detail-content .task-due-summary:has(.task-date-summary):not([hidden]) {
+  margin-top: 8px;
+}
+.planning-detail-content .task-page .task-page-brief {
+  margin-top: 20px;
 }
