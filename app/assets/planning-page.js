@@ -107,7 +107,8 @@ if (main) {
         openPage,
         task.querySelector('.task-context-menu'),
       );
-      task.prepend(tools);
+      header.prepend(tools);
+      task.prepend(header);
       selected = task.dataset.taskId;
       highlight();
       task.removeAttribute('id');
@@ -126,7 +127,10 @@ if (main) {
       picker.append(choices);
       reprio.append(picker);
       function selectPriority(priority) {
-        priorityCaption.textContent = `P${priority}`;
+        const labels = ['Highest', 'High', 'Medium', 'Low'];
+        priorityCaption.innerHTML =
+          '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#flag"/></svg>';
+        priorityCaption.append(`P${priority} · ${labels[priority]} priority`);
         priorityCaption.dataset.priority = priority;
         for (const b of choices.querySelectorAll('button'))
           b.setAttribute('aria-pressed', String(Number(b.dataset.priority) === priority));
@@ -134,7 +138,7 @@ if (main) {
       for (let priority = 0; priority <= 3; priority++) {
         const button = document.createElement('button');
         button.type = 'button';
-        button.textContent = 'P' + priority;
+        button.textContent = `P${priority} · ${['Highest', 'High', 'Medium', 'Low'][priority]} priority`;
         button.dataset.priority = priority;
         button.disabled = task.dataset.canWrite !== 'true';
         button.onclick = async () => {
@@ -181,7 +185,7 @@ if (main) {
       }
       if (task.dataset.canWrite !== 'true')
         priorityCaption.setAttribute('aria-disabled', 'true');
-      task.querySelector('.panel-heading-tools').after(reprio);
+      task.querySelector('.task-page-heading').after(reprio);
       content.replaceChildren(task);
       stop = mountTaskPage(task, { embedded: true });
       const tags = document.createElement('div');

@@ -64,6 +64,18 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
   expect(checkbox.x - (await panel.boundingBox()).x).toBeGreaterThanOrEqual(12);
   await expect(panel.getByText('Replan', { exact: true })).toHaveCount(0);
   const task = panel.locator('[data-task-page]');
+  const toolbar = panel.locator('.planning-detail-toolbar');
+  await expect(toolbar.locator('[data-copy-task-reference]')).toBeVisible();
+  expect(
+    await toolbar
+      .locator('[data-copy-task-reference]')
+      .evaluate((button) => button.scrollWidth <= button.clientWidth),
+  ).toBe(true);
+  await expect(toolbar.getByRole('link', { name: 'Open task page' })).toBeVisible();
+  await expect(toolbar.getByLabel('Task actions')).toBeVisible();
+  await expect(toolbar.getByLabel('Close task details')).toBeVisible();
+  await expect(panel.getByLabel('Task location')).toBeVisible();
+  await expect(panel.getByLabel('Change priority')).toHaveText('P3 · Low priority');
   await panel.getByRole('button', { name: title, exact: true }).click();
   await panel.getByLabel('Task title', { exact: true }).fill('Edited panel task');
   await panel.getByLabel('Description, Markdown supported').fill('Edited description');
@@ -130,8 +142,51 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
     'rgb(231, 169, 63)',
   );
   await panel.locator('.panel-priority-options [data-priority="1"]').click();
-  await expect(panel.getByLabel('Change priority')).toHaveText('P1');
+  await expect(panel.getByLabel('Change priority')).toHaveText('P1 · High priority');
   await panel.getByRole('link', { name: 'Open task page' }).click();
   await expect(page).toHaveURL(/\/tasks\//);
   await expect(page.locator('main[data-task-page]')).toBeVisible();
+});
+
+test('Today uses the same task-page panel', async ({ page }) => {
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  await page.goto('/inbox');
+  const csrf = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+  const inbox = await (await page.request.get('/api/v1/inbox')).json();
+  const title = `Today panel ${randomUUID()}`;
+  const created = await page.request.post('/api/v1/capture', {
+    headers: { 'x-csrf-token': csrf, 'Idempotency-Key': randomUUID() },
+    data: { list_id: inbox.list_id, tasks: [{ title }] },
+  });
+  expect(created.ok()).toBeTruthy();
+  const [task] = await created.json();
+  const schedule = await (
+    await page.request.get(`/api/v1/tasks/${task.id}/schedule`)
+  ).json();
+  await page.goto('/today');
+  const date = await page
+    .locator('main[data-planning-today]')
+    .getAttribute('data-planning-today');
+  const saved = await page.request.put(`/api/v1/tasks/${task.id}/schedule`, {
+    headers: { 'x-csrf-token': csrf },
+    data: {
+      revision: schedule.task_revision,
+      schedule: { ...schedule.schedule, planned: { kind: 'date', date } },
+    },
+  });
+  expect(saved.ok()).toBeTruthy();
+  await page.reload();
+  await page.getByRole('link', { name: title }).click();
+  const panel = page.getByLabel('Task details', { exact: true });
+  await expect(panel.getByLabel('Task location')).toBeVisible();
+  await expect(
+    panel.locator('.planning-detail-toolbar [data-copy-task-reference]'),
+  ).toBeVisible();
+  await expect(panel.getByLabel('Change priority')).toHaveText('P3 · Low priority');
+  await expect(panel.locator('.task-date-summary')).toContainText('Planned for');
+  await expect(panel.locator('.task-date-summary')).toBeVisible();
+  await expect(panel.getByRole('button', { name: title })).toBeVisible();
+  await panel.getByLabel('Close task details').click();
+  await expect(panel).toHaveCount(0);
 });

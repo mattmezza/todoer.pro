@@ -5522,7 +5522,7 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
   color: #8192a8;
   font-size: 13px;
 }
-.planning-detail-toolbar button {
+.planning-detail-toolbar > button {
   border-radius: 50%;
   width: 32px;
   height: 32px;
@@ -12258,7 +12258,7 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
 .planning-detail-toolbar {
   justify-content: flex-start;
 }
-.planning-detail-toolbar button {
+.planning-detail-toolbar > button {
   border-radius: 8px;
 }
 .planning-detail-content .task-page {
@@ -12778,4 +12778,92 @@ form[data-list-edit] .list-color-custom .list-edit-color {
 .space-add-list-card:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
+}
+
+/* Keep the embedded task page aligned with its full-page counterpart. */
+.planning-detail-content .task-page {
+  padding: 0 0 0 44px;
+}
+.planning-detail-content .planning-detail-toolbar {
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 8px 0 8px;
+}
+.planning-detail-content .panel-heading-tools {
+  justify-content: flex-end;
+  margin: 0;
+}
+.planning-detail-content .breadcrumbs {
+  display: flex !important;
+  gap: 8px;
+  margin: 0 0 24px;
+}
+.planning-detail-content .breadcrumbs .live-indicator {
+  display: none;
+}
+.planning-detail-content .planning-reprio {
+  justify-content: flex-end;
+  margin: 0;
+}
+.planning-detail-content .panel-priority-picker summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.planning-detail-content .panel-priority-picker summary:hover {
+  background: var(--hover);
+}
+.planning-detail-content .panel-priority-picker summary .ui-icon {
+  width: 16px;
+  height: 16px;
+}
+.planning-detail-content .panel-priority-options {
+  left: auto;
+  right: 0;
+  min-width: 190px;
+  flex-direction: column;
+}
+.planning-detail-content .panel-priority-options button {
+  padding: 8px 10px;
+  text-align: left;
+  border-radius: 6px;
+}
+.planning-detail-content .panel-priority-options button:hover {
+  background: var(--hover);
+}
+.planning-detail-content .task-page .task-page-brief {
+  margin: 12px 0 40px;
+}
+.planning-detail-content .task-page-checklist {
+  margin: 0 0 28px;
+}
+.planning-detail-content .task-page [data-discussion-fragment] {
+  margin-top: 28px;
+}
+.planning-detail-content .task-files-heading {
+  display: flex;
+}
+.planning-detail-content .task-files {
+  margin-bottom: 36px;
+}
+.planning-detail-content .attachment-drop-hint {
+  display: none;
+}
+
+.planning-detail-content .task-page-heading h1 {
+  font-size: clamp(24px, 2.2vw, 32px);
+}
+.planning-detail-content .task-due-summary:has(.task-date-summary):not([hidden]) {
+  display: flex !important;
+  float: none;
+  max-width: none;
+  margin: 0;
+}
+.planning-detail-content .task-due-summary .task-priority-line {
+  display: none;
 }
