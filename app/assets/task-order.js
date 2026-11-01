@@ -284,7 +284,8 @@ export function mountTaskOrdering({
   function resetTouch() {
     if (!touchGesture) return;
     clearTimeout(touchGesture.timer);
-    touchGesture.row.style.transform = '';
+    touchGesture.row.removeAttribute('data-swipe-action');
+    touchGesture.row.style.removeProperty('--swipe-distance');
     touchGesture = null;
     if (!busy) clearMarkers();
   }
@@ -336,8 +337,10 @@ export function mountTaskOrdering({
     }
     if (current.mode === 'swipe') {
       if (event.cancelable) event.preventDefault();
-      current.dx = dx;
-      current.row.style.transform = `translateX(${Math.max(-100, Math.min(100, dx))}px)`;
+      current.dx = current.row.dataset.complete === 'true' ? Math.min(0, dx) : dx;
+      const distance = Math.max(-120, Math.min(120, current.dx));
+      current.row.dataset.swipeAction = distance >= 0 ? 'done' : 'trash';
+      current.row.style.setProperty('--swipe-distance', `${distance}px`);
     } else if (current.mode === 'drag') {
       if (event.cancelable) event.preventDefault();
       const target = document

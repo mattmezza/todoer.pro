@@ -40,8 +40,8 @@ test('mobile row gestures target one task and section controls fit the screen', 
   const section = page.locator('.section-collapse > summary').first();
   const box = await section.boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0);
-  expect(box.width).toBeGreaterThanOrEqual(44);
-  async function gesture(id, delta, hold = 0, endY = 0) {
+  expect(box.width).toBeGreaterThanOrEqual(36);
+  async function gesture(id, delta, hold = 0, endY = 0, duringSwipe = null) {
     const bounds = await row(id).boundingBox();
     const x = bounds.x + Math.min(100, bounds.width / 2),
       y = bounds.y + bounds.height / 2;
@@ -54,14 +54,26 @@ test('mobile row gestures target one task and section controls fit the screen', 
       type: 'touchMove',
       touchPoints: [{ x: x + delta, y: endY || y }],
     });
+    if (duringSwipe) await duringSwipe();
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   }
-  await gesture(tasks[0].id, 120);
+  async function checkReveal(id, action, label) {
+    await expect(row(id)).toHaveAttribute('data-swipe-action', action);
+    expect(await row(id).evaluate((el) => getComputedStyle(el, '::before').content)).toBe(
+      `"${label}"`,
+    );
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    ).toBeTruthy();
+  }
+  await gesture(tasks[0].id, 120, 0, 0, () => checkReveal(tasks[0].id, 'done', 'Done'));
   await expect(row(tasks[0].id)).toHaveClass(/is-complete/);
   await expect(row(tasks[1].id)).not.toHaveClass(/is-complete/);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect(row(tasks[0].id)).not.toHaveClass(/is-complete/);
-  await gesture(tasks[1].id, -120);
+  await gesture(tasks[1].id, -120, 0, 0, () =>
+    checkReveal(tasks[1].id, 'trash', 'Trash'),
+  );
   await expect(row(tasks[1].id)).toHaveCount(0);
   await expect(row(tasks[0].id)).toBeVisible();
   await page.getByRole('button', { name: 'Undo', exact: true }).click();

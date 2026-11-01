@@ -1328,6 +1328,39 @@ input[type='checkbox'] {
   min-height: 62px;
   gap: 4px;
 }
+/* Clip the moving content and reveal the action within the row's own bounds. */
+.reference-list-page .task[data-swipe-action] {
+  overflow: hidden;
+}
+.reference-list-page .task[data-swipe-action]::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  width: min(120px, 100%);
+  padding: 0 16px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  pointer-events: none;
+}
+.reference-list-page .task[data-swipe-action='done']::before {
+  content: 'Done';
+  left: 0;
+  background: #22a55a;
+  clip-path: inset(0 calc(100% - var(--swipe-distance)) 0 0);
+}
+.reference-list-page .task[data-swipe-action='trash']::before {
+  content: 'Trash';
+  right: 0;
+  justify-content: flex-end;
+  background: #3b9ed5;
+  clip-path: inset(0 0 0 calc(100% + var(--swipe-distance)));
+}
+.reference-list-page .task[data-swipe-action] > * {
+  transform: translateX(var(--swipe-distance));
+}
 .reference-list-page .task-title {
   font-size: 17px;
   font-weight: 600;
