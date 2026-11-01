@@ -1361,6 +1361,9 @@ input[type='checkbox'] {
 .reference-list-page .task[data-swipe-action] > * {
   transform: translateX(var(--swipe-distance));
 }
+.reference-list-page .task[data-swipe-action='done'] > * {
+  transform: translateX(calc(var(--swipe-distance) + 10px));
+}
 .reference-list-page .task-title {
   font-size: 17px;
   font-weight: 600;

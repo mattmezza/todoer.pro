@@ -65,6 +65,17 @@ test('mobile row gestures target one task and section controls fit the screen', 
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     ).toBeTruthy();
+    if (action === 'done') {
+      const gap = await row(id).evaluate((el) => {
+        const rowBounds = el.getBoundingClientRect();
+        const control = el.querySelector('.completion').getBoundingClientRect();
+        const circleWidth = parseFloat(
+          getComputedStyle(el.querySelector('.completion'), '::before').width,
+        );
+        return control.left + (control.width - circleWidth) / 2 - (rowBounds.left + 120);
+      });
+      expect(gap).toBeGreaterThanOrEqual(8);
+    }
   }
   await gesture(tasks[0].id, 120, 0, 0, () => checkReveal(tasks[0].id, 'done', 'Done'));
   await expect(row(tasks[0].id)).toHaveClass(/is-complete/);
