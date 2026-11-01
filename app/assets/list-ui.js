@@ -299,6 +299,13 @@ export function mountListUi({ api, notice, listId }) {
       : null;
     const dialog = modal(`Move ${kind}`);
     const form = document.createElement('form');
+    const search = document.createElement('input');
+    if (kind === 'section') {
+      search.type = 'search';
+      search.placeholder = 'Search lists…';
+      search.autocomplete = 'off';
+      field(form, 'Search destination lists', search);
+    }
     const select = document.createElement('select');
     select.required = true;
     field(form, kind === 'list' ? 'Destination space' : 'Destination list', select);
@@ -337,8 +344,9 @@ export function mountListUi({ api, notice, listId }) {
     let reviewed = null,
       preview = null,
       key = crypto.randomUUID();
+    let choices = [];
     try {
-      const choices = await api(kind === 'list' ? '/workspaces' : '/lists');
+      choices = await api(kind === 'list' ? '/workspaces' : '/lists');
       for (const value of choices) {
         if (kind === 'section' && value.id === listId) continue;
         select.append(new Option(value.title, value.id));
@@ -383,6 +391,20 @@ export function mountListUi({ api, notice, listId }) {
       }
     }
     select.onchange = changed;
+    search.oninput = () => {
+      const previous = select.value;
+      const query = search.value.trim().toLocaleLowerCase();
+      const matches = choices.filter(
+        (value) => value.id !== listId && value.title.toLocaleLowerCase().includes(query),
+      );
+      select.replaceChildren(
+        ...matches.map((value) => new Option(value.title, value.id)),
+      );
+      if (matches.some((value) => value.id === previous)) select.value = previous;
+      submit.disabled = !matches.length;
+      changed();
+      if (!matches.length) status.textContent = 'No matching lists.';
+    };
     sections.onchange = () => {
       reviewed = null;
       preview = null;
@@ -390,7 +412,7 @@ export function mountListUi({ api, notice, listId }) {
     };
     await changed();
     skeleton.finish();
-    select.focus();
+    (kind === 'section' ? search : select).focus();
     form.onsubmit = async (event) => {
       event.preventDefault();
       if (submit.disabled) return;
