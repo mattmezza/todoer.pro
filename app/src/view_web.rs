@@ -20,7 +20,7 @@ fn task_children(
     parent: Option<&str>,
     section: Option<&str>,
 ) -> Result<Vec<Task>, Error> {
-    let mut stmt = db.conn.prepare("SELECT t.id,t.reference,t.list_id,t.parent_id,t.title,t.description,t.complete,t.revision,t.position FROM tasks t LEFT JOIN task_locations loc ON loc.task_id=t.id LEFT JOIN list_defaults d ON d.section_id=loc.section_id WHERE t.list_id=?1 AND t.deleted_at IS NULL AND ((?2 IS NOT NULL AND t.parent_id=?2) OR (?2 IS NULL AND t.parent_id IS NULL AND ((?3 IS NOT NULL AND loc.section_id=?3) OR (?3 IS NULL AND (loc.section_id IS NULL OR d.section_id IS NOT NULL))))) ORDER BY t.position,t.id")?;
+    let mut stmt = db.conn.prepare("SELECT t.id,t.reference,t.list_id,t.parent_id,t.title,'' AS description,t.complete,t.revision,t.position FROM tasks t LEFT JOIN task_locations loc ON loc.task_id=t.id LEFT JOIN list_defaults d ON d.section_id=loc.section_id WHERE t.list_id=?1 AND t.deleted_at IS NULL AND ((?2 IS NOT NULL AND t.parent_id=?2) OR (?2 IS NULL AND t.parent_id IS NULL AND ((?3 IS NOT NULL AND loc.section_id=?3) OR (?3 IS NULL AND (loc.section_id IS NULL OR d.section_id IS NOT NULL))))) ORDER BY t.position,t.id")?;
     Ok(stmt
         .query_map(params![list, parent, section], crate::core::task_row)?
         .collect::<Result<Vec<_>, _>>()?)
