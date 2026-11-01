@@ -631,6 +631,7 @@ async fn logout(
 #[derive(Template)]
 #[template(path = "list.html")]
 struct ListPage {
+    hide_completed: bool,
     change_cursor: i64,
     reference: String,
     sidebar: Sidebar,
@@ -728,7 +729,12 @@ struct TaskGroup {
     revision: i64,
     tasks: Vec<RenderedTask>,
 }
-fn grouped_rows(db: &Store, actor: &str, list: &str) -> Result<(Vec<TaskGroup>, usize), Error> {
+fn grouped_rows(
+    db: &Store,
+    actor: &str,
+    list: &str,
+    hide_completed: bool,
+) -> Result<(Vec<TaskGroup>, usize), Error> {
     let tasks = rendered_tasks(db, actor, list)?;
     let count = tasks.iter().filter(|task| task.parent_id.is_none()).count();
     let slugs = db.entity_slugs(actor)?;
@@ -809,9 +815,28 @@ fn grouped_rows(db: &Store, actor: &str, list: &str) -> Result<(Vec<TaskGroup>, 
             .checked_div(group.total)
             .unwrap_or(0);
         // Descendants contribute to leaf progress, but belong on the task page.
-        group.tasks.retain(|task| task.parent_id.is_none());
+        group
+            .tasks
+            .retain(|task| task.parent_id.is_none() && (!hide_completed || !task.complete));
     }
     Ok((groups, count))
+}
+// An unknown preference defaults to hiding completed tasks until the browser
+// migrates its existing per-account local preference into this cookie.
+fn hide_completed(h: &HeaderMap, actor: &str) -> bool {
+    let account = actor
+        .as_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    let expected = format!("{account}.0");
+    !h.get(header::COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|cookies| {
+            cookies.split(';').any(|cookie| {
+                cookie.trim().strip_prefix("todoer_completed=") == Some(expected.as_str())
+            })
+        })
 }
 #[derive(Deserialize, Default)]
 pub(super) struct ListQuery {
@@ -866,6 +891,7 @@ pub(super) async fn page(
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
     };
+    let hide_completed = hide_completed(&h, &actor);
     let alias = id.clone();
     let id = s
         .run(move |db| crate::defaults::resolve(&db.conn, "list", &alias))
@@ -915,7 +941,7 @@ pub(super) async fn page(
         .unwrap_or_else(|| list.title.clone());
     let (groups, task_count, can_write, color, change_cursor) = s
         .run(move |db| {
-            let (groups, count) = grouped_rows(db, &actor, &id)?;
+            let (groups, count) = grouped_rows(db, &actor, &id, hide_completed)?;
             Ok((
                 groups,
                 count,
@@ -934,6 +960,7 @@ pub(super) async fn page(
         })
         .await?;
     let html = ListPage {
+        hide_completed,
         can_write,
         change_cursor,
         reference,
@@ -998,10 +1025,11 @@ async fn task_fragment(
     Path(id): Path<String>,
 ) -> Result<Html<String>, ApiError> {
     let actor = s.auth(&h, false)?;
+    let hide_completed = hide_completed(&h, &actor);
     let (groups, can_write) = s
         .run(move |db| {
             Ok((
-                grouped_rows(db, &actor, &id)?.0,
+                grouped_rows(db, &actor, &id, hide_completed)?.0,
                 db.list_permission(&actor, &id)? >= 2
                     && db.list_archive_note(&actor, &id)?.is_none(),
             ))
@@ -2030,7 +2058,7 @@ mod list_rows_tests {
             },
         )
         .unwrap();
-        let (groups, count) = grouped_rows(&db, "dev", "inbox").unwrap();
+        let (groups, count) = grouped_rows(&db, "dev", "inbox", false).unwrap();
         assert_eq!(count, 2);
         assert_eq!(groups[0].tasks.len(), 1);
         assert_eq!(groups[0].tasks[0].id, other.id);
@@ -2059,5 +2087,33 @@ mod list_rows_tests {
                 .as_deref(),
             Some(root.id.as_str())
         );
+    }
+
+    #[test]
+    fn completed_preference_filters_rows_without_changing_progress() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let completed = capture(&mut db, "Finished item", None);
+        capture(&mut db, "Open item", None);
+        db.update(
+            "dev",
+            &completed.id,
+            Change {
+                revision: completed.revision,
+                complete: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let (hidden, _) = grouped_rows(&db, "dev", "inbox", true).unwrap();
+        let (shown, _) = grouped_rows(&db, "dev", "inbox", false).unwrap();
+        assert_eq!(hidden[0].tasks.len(), 1);
+        assert_eq!(shown[0].tasks.len(), 2);
+        assert_eq!((hidden[0].completed, hidden[0].total), (1, 2));
+        let mut headers = HeaderMap::new();
+        assert!(hide_completed(&headers, "dev"));
+        headers.insert(header::COOKIE, "todoer_completed=646576.0".parse().unwrap());
+        assert!(!hide_completed(&headers, "dev"));
+        assert!(hide_completed(&headers, "another account"));
     }
 }

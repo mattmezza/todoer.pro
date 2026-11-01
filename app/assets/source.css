@@ -12393,3 +12393,42 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
     border-radius: 8px;
   }
 }
+
+/* Section ordering remains available to touch and keyboard users. */
+.section-drag {
+  cursor: grab;
+  touch-action: none;
+  min-width: 32px;
+  min-height: 44px;
+  color: var(--muted);
+}
+.section-drag:active {
+  cursor: grabbing;
+}
+.task-section[data-section-dragging] {
+  opacity: 0.5;
+}
+.task-section[data-section-drop='before'] {
+  box-shadow: 0 -3px var(--accent);
+}
+.task-section[data-section-drop='after'] {
+  box-shadow: 0 3px var(--accent);
+}
+
+.reference-list-page .page-heading > .entity-reference {
+  background: var(--field);
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+.reference-list-page .page-heading > .entity-reference:is(:hover, :focus-visible) {
+  background: #202b3c;
+}
+.task-actions .menu-items :is([data-order-up], [data-order-down]) {
+  min-height: 44px;
+}
+.task-page [data-children] .child-reference {
+  flex: 0 0 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 6px 8px;
+}

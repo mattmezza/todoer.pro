@@ -51,6 +51,7 @@ const STATIC = [
   '/assets/scheduling.js',
   '/assets/task-metadata.js',
   '/assets/task-order.js',
+  '/assets/section-order.js',
   '/assets/offline.js',
   '/assets/pwa.js',
   '/assets/welcome.js',

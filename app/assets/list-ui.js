@@ -220,6 +220,7 @@ export function mountListUi({ api, notice, listId }) {
   function modal(title) {
     const dialog = document.createElement('dialog');
     dialog.className = 'quick-dialog';
+    dialog.setAttribute('aria-label', title);
     const heading = document.createElement('h2');
     heading.textContent = title;
     const close = document.createElement('button');

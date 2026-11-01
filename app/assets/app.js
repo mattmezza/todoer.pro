@@ -10,6 +10,7 @@ import { mountDiscussion } from './discussion.js';
 import { mountScheduling } from './scheduling.js';
 import { mountTaskMetadata } from './task-metadata.js';
 import { mountTaskOrdering } from './task-order.js';
+import { mountSectionOrdering } from './section-order.js';
 import { replayCaptures, listPending, clearAccount, discardCapture } from './offline.js';
 import { clearPwa } from './pwa.js';
 const $ = (s) => document.querySelector(s);
@@ -104,9 +105,9 @@ async function api(path, method = 'GET', body, extra = {}) {
   }
   return data;
 }
-function draftActive() {
+function draftActive(ignorePointer = false) {
   return (
-    taskPointerDown ||
+    (!ignorePointer && taskPointerDown) ||
     editorOpening ||
     inlineEditors.size > 0 ||
     Boolean($('#task-list .task-actions[open]')) ||
@@ -186,23 +187,35 @@ document.body.addEventListener('htmx:responseError', () =>
 // One preference per account, shared by every list in this browser.
 const completedPreferenceKey = `todoer:${account}:hide-completed`;
 const completedFilter = $('#show-completed');
+const completedCookieAccount = [...new TextEncoder().encode(account)]
+  .map((byte) => byte.toString(16).padStart(2, '0'))
+  .join('');
+function syncCompletedCookie(hidden) {
+  document.cookie = `todoer_completed=${completedCookieAccount}.${hidden ? '1' : '0'}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
+}
 function applyCompletedPreference(hidden) {
   completedFilter.checked = !hidden;
   $('#task-list').classList.toggle('hide-completed', hidden);
 }
+let initiallyHidden = false;
 try {
-  applyCompletedPreference(localStorage.getItem(completedPreferenceKey) === 'true');
+  initiallyHidden = localStorage.getItem(completedPreferenceKey) === 'true';
+  applyCompletedPreference(initiallyHidden);
 } catch {
   applyCompletedPreference(false);
 }
+syncCompletedCookie(initiallyHidden);
+if ($('#task-list').dataset.hideCompleted === 'true' && !initiallyHidden) refresh();
 completedFilter.onchange = () => {
   const hidden = !completedFilter.checked;
   applyCompletedPreference(hidden);
+  syncCompletedCookie(hidden);
   try {
     localStorage.setItem(completedPreferenceKey, String(hidden));
   } catch {
     // Keep filtering usable when browser storage is unavailable.
   }
+  refresh();
 };
 window.addEventListener('storage', (event) => {
   if (event.key !== completedPreferenceKey && event.key !== null) return;
@@ -882,6 +895,16 @@ async function swipeTask(row, action) {
     swipingTasks.delete(id);
   }
 }
+
+mountSectionOrdering({
+  container: $('#task-list'),
+  listId: list,
+  canWrite,
+  request: api,
+  changed: () => refresh(),
+  error: (message) => notice(message, true),
+  blocked: () => draftActive(true),
+});
 
 mountTaskOrdering({
   container: $('#task-list'),
