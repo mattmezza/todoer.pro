@@ -142,8 +142,10 @@ pub(crate) fn actor_identity(
     }
 }
 fn title(s: &str) -> Result<(), Error> {
-    if s.trim().is_empty() || s.chars().count() > 500 {
-        Err(Error::Invalid("title must contain 1–500 characters".into()))
+    if s.trim().is_empty() || s.chars().count() > 500 || s.contains(['\r', '\n']) {
+        Err(Error::Invalid(
+            "title must be a single line of 1–500 characters".into(),
+        ))
     } else {
         Ok(())
     }
@@ -890,6 +892,12 @@ mod tests {
         )
         .unwrap()
         .remove(0)
+    }
+    #[test]
+    fn task_titles_reject_line_breaks() {
+        assert!(title("first\nsecond").is_err());
+        assert!(title("first\rsecond").is_err());
+        assert!(title("single line").is_ok());
     }
     #[test]
     fn new_tasks_and_subtasks_default_to_low_priority() {

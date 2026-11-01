@@ -118,8 +118,10 @@ pub struct SectionChange {
 }
 
 fn validate(title: &str, description: &str) -> Result<(), Error> {
-    if title.trim().is_empty() || title.chars().count() > 500 {
-        return Err(Error::Invalid("title must contain 1–500 characters".into()));
+    if title.trim().is_empty() || title.chars().count() > 500 || title.contains(['\r', '\n']) {
+        return Err(Error::Invalid(
+            "title must be a single line of 1–500 characters".into(),
+        ));
     }
     if description.len() > 100_000 {
         return Err(Error::Invalid(
@@ -127,6 +129,22 @@ fn validate(title: &str, description: &str) -> Result<(), Error> {
         ));
     }
     Ok(())
+}
+fn validate_existing_title(title: &str, description: &str, previous: &str) -> Result<(), Error> {
+    if title == previous && title.contains(['\r', '\n']) {
+        return validate(&title.replace(['\r', '\n'], " "), description);
+    }
+    validate(title, description)
+}
+
+#[cfg(test)]
+#[test]
+fn entity_titles_reject_line_breaks() {
+    assert!(validate("first\nsecond", "").is_err());
+    assert!(validate("first\rsecond", "").is_err());
+    assert!(validate("single line", "line one\nline two").is_ok());
+    assert!(validate_existing_title("old\ntitle", "changed description", "old\ntitle").is_ok());
+    assert!(validate_existing_title("new\ntitle", "", "old\ntitle").is_err());
 }
 fn user_exists(c: &Connection, user: &str) -> Result<(), Error> {
     if c.query_row(
@@ -409,9 +427,9 @@ impl Store {
         require_workspace(&tx, actor, id, 3)?;
         let old = workspace_raw(&tx, id)?;
         check_revision(old.revision, change.revision)?;
-        let title = change.title.unwrap_or(old.title);
+        let title = change.title.unwrap_or_else(|| old.title.clone());
         let description = change.description.unwrap_or(old.description);
-        validate(&title, &description)?;
+        validate_existing_title(&title, &description, &old.title)?;
         tx.execute(
             "UPDATE workspaces SET title=?2,description=?3 WHERE id=?1",
             params![id, title.trim(), description],
@@ -571,9 +589,9 @@ impl Store {
             tx.execute("UPDATE lists SET archived_by=CASE WHEN ?2 THEN ?3 ELSE NULL END,archived_at=CASE WHEN ?2 THEN datetime('now') ELSE NULL END WHERE id=?1 AND archived!=?2",params![id,archived,user])?;
         }
         crate::navigation::validate_list_color(&change.color)?;
-        let title = change.title.unwrap_or(old.title);
+        let title = change.title.unwrap_or_else(|| old.title.clone());
         let description = change.description.unwrap_or(old.description);
-        validate(&title, &description)?;
+        validate_existing_title(&title, &description, &old.title)?;
         tx.execute(
             "UPDATE lists SET title=?2,description=?3,archived=COALESCE(?4,archived) WHERE id=?1",
             params![id, title.trim(), description, change.archived],
@@ -709,9 +727,9 @@ impl Store {
         let old = section_raw(&tx, id)?;
         require_list(&tx, actor, &old.list_id, 2)?;
         check_revision(old.revision, change.revision)?;
-        let title = change.title.unwrap_or(old.title);
+        let title = change.title.unwrap_or_else(|| old.title.clone());
         let description = change.description.unwrap_or(old.description);
-        validate(&title, &description)?;
+        validate_existing_title(&title, &description, &old.title)?;
         tx.execute(
             "UPDATE sections SET title=?2,description=?3,revision=revision+1 WHERE id=?1",
             params![id, title.trim(), description],
