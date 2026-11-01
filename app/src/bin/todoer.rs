@@ -1029,6 +1029,12 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
     {
         return transfer_file(&args, command).await;
     }
+    let compact_lists = matches!(
+        &args.command,
+        Command::Lists {
+            command: ListCommand::All
+        }
+    );
     let mut query_pairs: Vec<(String, String)> = Vec::new();
     let (method, path, body, key) = match args.command {
         Command::Review {
@@ -1276,6 +1282,8 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         println!("{raw}");
     } else if raw.is_empty() {
         println!("OK");
+    } else if compact_lists && value.is_array() {
+        print!("{}", format_lists(&value));
     } else {
         print_human(&value);
     }
@@ -1503,6 +1511,21 @@ async fn transfer_file(args: &Args, command: &FileCommand) -> Result<(), (i32, S
     Ok(())
 }
 
+fn format_lists(value: &Value) -> String {
+    let rows = value.as_array().expect("list response is an array");
+    if rows.is_empty() {
+        return "No lists.\n".into();
+    }
+    rows.iter()
+        .map(|row| {
+            let title = row["title"].as_str().unwrap_or("");
+            let title = title.split_whitespace().collect::<Vec<_>>().join(" ");
+            let id = row["id"].as_str().unwrap_or("?");
+            format!("{title}  {id}\n")
+        })
+        .collect()
+}
+
 fn print_human(value: &Value) {
     if let Some(rows) = value.as_array() {
         if rows.is_empty() {
@@ -1536,5 +1559,23 @@ fn print_human(value: &Value) {
             "{}",
             serde_json::to_string_pretty(value).expect("JSON value serializes")
         );
+    }
+}
+
+#[cfg(test)]
+mod list_output_tests {
+    use super::*;
+
+    #[test]
+    fn lists_are_compact_and_keep_full_ids() {
+        let lists = json!([
+            {"id":"036cf2d9-5258-4411-89fc-edab0cedf4fe", "title":"groceries", "revision":1, "description":"Groceries.\n\n[Card](https://example.com)"},
+            {"id":"second-id", "title":"travel\nplans", "description":""}
+        ]);
+        assert_eq!(
+            format_lists(&lists),
+            "groceries  036cf2d9-5258-4411-89fc-edab0cedf4fe\ntravel plans  second-id\n"
+        );
+        assert_eq!(format_lists(&json!([])), "No lists.\n");
     }
 }
