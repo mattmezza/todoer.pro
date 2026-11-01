@@ -240,7 +240,9 @@ function planDialog(entry, initial) {
     'afterbegin',
     '<span class="modal-heading-icon" aria-hidden="true"><svg class="ui-icon" width="20" height="20"><use href="/assets/icons.svg#clock"></use></svg></span>',
   );
-  d.append(node('h3', entry.task.title, 'plan-task-title'));
+  const prompt = node('h3', null, 'plan-task-title');
+  prompt.append('When will you get “', node('strong', entry.task.title), '” done?');
+  d.append(prompt);
   const form = node('form');
   const date = dateInput(initial || entry.schedule.planned?.date || today);
   date.required = true;

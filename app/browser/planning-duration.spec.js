@@ -11,7 +11,7 @@ test('task duration is shared between the planning dialog and task settings', as
   await page.goto('/inbox');
   const csrf = await page.locator('meta[name="csrf-token"]').getAttribute('content');
   const inbox = await (await page.request.get('/api/v1/inbox')).json();
-  const title = `Duration ${randomUUID()}`;
+  const title = `Duration ${randomUUID()} ${'longtasktitle'.repeat(8)}`;
   const response = await page.request.post('/api/v1/capture', {
     headers: { 'x-csrf-token': csrf, 'Idempotency-Key': randomUUID() },
     data: { list_id: inbox.list_id, tasks: [{ title }] },
@@ -23,7 +23,9 @@ test('task duration is shared between the planning dialog and task settings', as
   await row.getByText('Plan…').click();
   await row.getByText('Choose date…').click();
   const dialog = page.getByRole('dialog', { name: 'Plan this task' });
-  await expect(dialog.getByRole('heading', { name: title })).toBeVisible();
+  await expect(
+    dialog.getByRole('heading', { name: `When will you get “${title}” done?` }),
+  ).toBeVisible();
   await expect(dialog.locator('h2 use')).toHaveAttribute(
     'href',
     '/assets/icons.svg#clock',

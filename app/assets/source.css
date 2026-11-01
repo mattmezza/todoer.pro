@@ -13066,11 +13066,16 @@ body > .planning-detail-dismiss {
 }
 
 .plan-task-dialog .plan-task-title {
-  margin: 20px 0 0;
+  margin: 30px 0 0;
   font-size: 19px;
+  font-weight: 400;
   line-height: 1.4;
   overflow-wrap: anywhere;
+  color: var(--muted);
+}
+.plan-task-dialog .plan-task-title strong {
   color: var(--text);
+  font-weight: 650;
 }
 .plan-task-dialog .plan-date-field,
 .plan-task-dialog .plan-time-field,
