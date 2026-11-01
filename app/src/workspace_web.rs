@@ -1518,6 +1518,15 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::OK);
+        let (status, _) = json_request(
+            &app,
+            "POST",
+            "/api/v1/workspaces",
+            json!({"title":"Test space"}),
+            true,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
         let (status, spaces) =
             json_request(&app, "GET", "/api/v1/workspaces", json!({}), true).await;
         assert_eq!(status, StatusCode::OK);
