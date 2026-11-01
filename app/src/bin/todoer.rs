@@ -36,7 +36,7 @@ enum Command {
         #[arg(long = "space", visible_alias = "workspace")]
         workspace: Option<String>,
     },
-    /// Space administration. JSON write bodies require current revisions.
+    /// Space administration.
     #[command(name = "spaces", visible_aliases = ["space", "workspace"])]
     Workspace {
         #[command(subcommand)]
@@ -182,7 +182,7 @@ enum Command {
     },
     Edit {
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
         #[arg(long)]
         title: Option<String>,
@@ -191,14 +191,14 @@ enum Command {
     },
     Complete {
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
         #[arg(long)]
         subtree: bool,
     },
     Reopen {
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
     },
     /// Bounded projected subtree page (default50/max100); opt into description.
@@ -228,7 +228,7 @@ enum Command {
     TrashList,
     Trash {
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
     },
     Restore {
@@ -248,8 +248,6 @@ enum Command {
     },
 }
 
-/// --body is a JSON object matching the REST schema; revision and explicit
-/// access-change acknowledgement remain visible in every write request.
 #[derive(Subcommand)]
 enum WorkspaceCommand {
     All,
@@ -258,12 +256,20 @@ enum WorkspaceCommand {
     },
     Create {
         #[arg(long)]
-        body: String,
+        body: Option<String>,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        description: Option<String>,
     },
     Edit {
         id: String,
         #[arg(long)]
-        body: String,
+        body: Option<String>,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        description: Option<String>,
     },
     Members {
         id: String,
@@ -304,12 +310,22 @@ enum ListCommand {
     },
     Create {
         #[arg(long)]
-        body: String,
+        body: Option<String>,
+        #[arg(long)]
+        space: Option<String>,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        description: Option<String>,
     },
     Edit {
         id: String,
         #[arg(long)]
-        body: String,
+        body: Option<String>,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        description: Option<String>,
     },
     Sharing {
         id: String,
@@ -338,12 +354,20 @@ enum SectionCommand {
     Create {
         list: String,
         #[arg(long)]
-        body: String,
+        body: Option<String>,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        description: Option<String>,
     },
     Edit {
         id: String,
         #[arg(long)]
-        body: String,
+        body: Option<String>,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        description: Option<String>,
     },
     Reorder {
         list: String,
@@ -902,16 +926,55 @@ fn write_request(method: Method, path: String, body: String) -> Result<RequestSp
     }
     Ok((method, path, Some(value), None))
 }
+fn edit_body(
+    body: Option<String>,
+    title: Option<String>,
+    description: Option<String>,
+) -> Result<Value, (i32, String)> {
+    let mut value = json!({});
+    if let Some(title) = title {
+        value["title"] = json!(title);
+    }
+    if let Some(description) = description {
+        value["description"] = json!(description);
+    }
+    if let Some(body) = body {
+        let supplied = object_body(&body)?;
+        for (key, field) in supplied.as_object().expect("object_body validates object") {
+            value[key] = field.clone();
+        }
+    }
+    if value.as_object().is_none_or(|fields| fields.is_empty()) {
+        return Err((2, "provide --body, --title, or --description".into()));
+    }
+    Ok(value)
+}
 fn workspace_request(command: WorkspaceCommand) -> Result<RequestSpec, (i32, String)> {
     Ok(match command {
         WorkspaceCommand::All => read_request("/workspaces".into()),
         WorkspaceCommand::Get { id } => read_request(format!("/workspaces/{}", segment(&id))),
-        WorkspaceCommand::Create { body } => {
-            write_request(Method::POST, "/workspaces".into(), body)?
+        WorkspaceCommand::Create {
+            body,
+            title,
+            description,
+        } => {
+            let mut value = edit_body(body, title, description)?;
+            if value.get("description").is_none() {
+                value["description"] = json!("");
+            }
+            (Method::POST, "/workspaces".into(), Some(value), None)
         }
-        WorkspaceCommand::Edit { id, body } => {
-            write_request(Method::PATCH, format!("/workspaces/{}", segment(&id)), body)?
-        }
+        WorkspaceCommand::Edit {
+            id,
+            body,
+            title,
+            description,
+        } => (
+            Method::PATCH,
+            format!("/workspaces/{}", segment(&id)),
+            Some(edit_body(body, title, description)?),
+            None,
+        ),
         WorkspaceCommand::Members { id } => {
             read_request(format!("/workspaces/{}/members", segment(&id)))
         }
@@ -950,10 +1013,29 @@ fn list_request(command: ListCommand) -> Result<RequestSpec, (i32, String)> {
             body,
         )?,
         ListCommand::Get { id } => read_request(format!("/lists/{}", segment(&id))),
-        ListCommand::Create { body } => write_request(Method::POST, "/lists".into(), body)?,
-        ListCommand::Edit { id, body } => {
-            write_request(Method::PATCH, format!("/lists/{}", segment(&id)), body)?
+        ListCommand::Create {
+            body,
+            space,
+            title,
+            description,
+        } => {
+            let mut value = edit_body(body, title, description)?;
+            if let Some(space) = space.filter(|_| value.get("workspace_id").is_none()) {
+                value["workspace_id"] = json!(space);
+            }
+            (Method::POST, "/lists".into(), Some(value), None)
         }
+        ListCommand::Edit {
+            id,
+            body,
+            title,
+            description,
+        } => (
+            Method::PATCH,
+            format!("/lists/{}", segment(&id)),
+            Some(edit_body(body, title, description)?),
+            None,
+        ),
         ListCommand::Sharing { id } => read_request(format!("/lists/{}/sharing", segment(&id))),
         ListCommand::Access { id, body } => write_request(
             Method::POST,
@@ -975,14 +1057,28 @@ fn list_request(command: ListCommand) -> Result<RequestSpec, (i32, String)> {
 fn section_request(command: SectionCommand) -> Result<RequestSpec, (i32, String)> {
     Ok(match command {
         SectionCommand::All { list } => read_request(format!("/lists/{}/sections", segment(&list))),
-        SectionCommand::Create { list, body } => write_request(
+        SectionCommand::Create {
+            list,
+            body,
+            title,
+            description,
+        } => (
             Method::POST,
             format!("/lists/{}/sections", segment(&list)),
+            Some(edit_body(body, title, description)?),
+            None,
+        ),
+        SectionCommand::Edit {
+            id,
             body,
-        )?,
-        SectionCommand::Edit { id, body } => {
-            write_request(Method::PATCH, format!("/sections/{}", segment(&id)), body)?
-        }
+            title,
+            description,
+        } => (
+            Method::PATCH,
+            format!("/sections/{}", segment(&id)),
+            Some(edit_body(body, title, description)?),
+            None,
+        ),
         SectionCommand::Reorder { list, body } => write_request(
             Method::POST,
             format!("/lists/{}/sections/reorder", segment(&list)),
@@ -1098,7 +1194,7 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         _ => None,
     };
     let mut query_pairs: Vec<(String, String)> = Vec::new();
-    let (method, path, body, key) = match args.command {
+    let (method, path, mut body, key) = match args.command {
         Command::Review {
             from,
             to,
@@ -1359,6 +1455,9 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         url.query_pairs_mut().extend_pairs(query_pairs);
     }
     let token = cli_login::token(&args.url)?;
+    if let Some(payload) = body.as_mut() {
+        prepare_entity_write(&client, &args.url, &token, &method, &path, payload).await?;
+    }
     let mut request = client.request(method, url).bearer_auth(token);
     if let Some(body) = body {
         request = request.json(&body);
@@ -1424,6 +1523,57 @@ async fn response_json(response: reqwest::Response) -> Result<(String, Value), (
         serde_json::from_str(&raw).map_err(|_| (1, "server returned invalid JSON".into()))?
     };
     Ok((raw, value))
+}
+
+async fn prepare_entity_write(
+    client: &Client,
+    base: &str,
+    token: &str,
+    method: &Method,
+    path: &str,
+    body: &mut Value,
+) -> Result<(), (i32, String)> {
+    if *method == Method::POST && path == "/lists" {
+        if let Some(space) = body["workspace_id"].as_str() {
+            let url = api_url(base, &format!("/view/space/{}", segment(space)))?;
+            let response = client
+                .get(url)
+                .bearer_auth(token)
+                .send()
+                .await
+                .map_err(|_| (1, "could not resolve space reference".into()))?;
+            let value = response_json(response).await?.1;
+            body["workspace_id"] = value["entity"]["id"].clone();
+        }
+    }
+    let parts: Vec<_> = path.trim_start_matches('/').split('/').collect();
+    let needs_revision = body.get("revision").and_then(Value::as_i64).unwrap_or(0) == 0;
+    if needs_revision {
+        let fetch = match (method, parts.as_slice()) {
+            (&Method::PATCH, ["tasks", id]) => Some(format!("/tasks/{id}")),
+            (&Method::POST, ["tasks", id, "trash"]) => Some(format!("/tasks/{id}")),
+            (&Method::PATCH, ["workspaces", id]) => Some(format!("/view/space/{id}")),
+            (&Method::PATCH, ["lists", id]) => Some(format!("/view/list/{id}")),
+            (&Method::PATCH, ["sections", id]) => Some(format!("/view/section/{id}")),
+            _ => None,
+        };
+        if let Some(fetch) = fetch {
+            let response = client
+                .get(api_url(base, &fetch)?)
+                .bearer_auth(token)
+                .send()
+                .await
+                .map_err(|_| (1, "could not read current entity".into()))?;
+            let value = response_json(response).await?.1;
+            let revision = value
+                .get("revision")
+                .or_else(|| value.pointer("/entity/revision"))
+                .and_then(Value::as_i64)
+                .ok_or((1, "server omitted current version".into()))?;
+            body["revision"] = json!(revision);
+        }
+    }
+    Ok(())
 }
 fn api_url(base: &str, path: &str) -> Result<reqwest::Url, (i32, String)> {
     reqwest::Url::parse(&format!("{}/api/v1{path}", base.trim_end_matches('/')))
@@ -1930,5 +2080,29 @@ mod list_output_tests {
             "#groceries  #listref  s1 o2 d1\n\nList for groceries.\n\n$veggies  $sectionref  o1 d1\n  [ ] %Tomatoes  %taskref\n    [ ] ^Check ripeness  ^subref\n  [x] %Carrots  %done\n\n[ ] %Milk  %milk\n"
         );
         assert!(!format_view(&value, false).contains("s1 o2 d1"));
+    }
+
+    #[test]
+    fn entity_edit_flags_and_json_can_be_used_without_versions() {
+        for args in [
+            vec!["todoer", "spaces", "create", "--title", "Personal"],
+            vec![
+                "todoer", "lists", "create", "--space", "@abc", "--title", "Shopping",
+            ],
+            vec!["todoer", "sections", "edit", "$abc", "--title", "Produce"],
+            vec!["todoer", "edit", "%abc", "--title", "Milk"],
+            vec!["todoer", "complete", "%abc"],
+        ] {
+            assert!(Args::try_parse_from(args).is_ok());
+        }
+        assert_eq!(
+            edit_body(
+                Some("{\"title\":\"JSON\"}".into()),
+                Some("flag".into()),
+                None
+            )
+            .unwrap(),
+            json!({"title":"JSON"})
+        );
     }
 }
