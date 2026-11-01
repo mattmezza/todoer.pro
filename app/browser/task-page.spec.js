@@ -494,6 +494,13 @@ test('mobile task toolbar and settings drawer fit the screen', async ({ page }) 
   expect(positions.priority.bottom).toBeLessThan(positions.title.top);
   expect(positions.menu.bottom).toBeLessThan(positions.title.top);
   expect(positions.menu.right).toBeLessThanOrEqual(positions.bell.left);
+  expect(
+    Math.abs(
+      (positions.menu.top + positions.menu.bottom) / 2 -
+        (positions.bell.top + positions.bell.bottom) / 2,
+    ),
+  ).toBeLessThan(2);
+  expect(positions.title.top - positions.menu.bottom).toBeGreaterThanOrEqual(20);
   expect(positions.description.top).toBeGreaterThan(positions.title.bottom);
   await page.locator('.task-context-menu > summary').click();
   await page.locator('[data-open-advanced]').click();

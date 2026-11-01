@@ -12968,15 +12968,20 @@ body > .planning-detail-dismiss {
 @media (max-width: 640px) {
   .dedicated-task-page main.task-page {
     position: relative;
-    padding-top: calc(80px + env(safe-area-inset-top));
+    padding-top: calc(92px + env(safe-area-inset-top));
   }
   .dedicated-task-page .task-page > .breadcrumbs {
     display: none;
   }
   .dedicated-task-page .task-page-heading > .task-context-menu {
     position: absolute;
-    top: calc(-60px - env(safe-area-inset-top));
+    top: calc(-72px - env(safe-area-inset-top));
     right: 40px;
+  }
+  .dedicated-task-page .task-page-heading > .notification-bell-inline {
+    position: absolute;
+    top: calc(-68px - env(safe-area-inset-top));
+    right: 0;
   }
   .dedicated-task-page .task-page > .task-due-summary:not([hidden]) {
     position: absolute;
@@ -12990,6 +12995,7 @@ body > .planning-detail-dismiss {
     display: none;
   }
   .dedicated-task-page .task-priority-summary {
+    gap: 0;
     border-radius: 8px;
     font-size: 0;
   }
