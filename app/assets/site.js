@@ -279,8 +279,8 @@ function applyMenuIcons() {
   const names = [
     [/settings/i, 'settings'],
     [/^open$/i, 'open'],
-    [/^move up$/i, 'arrow-up'],
-    [/^move down$/i, 'arrow-down'],
+    [/^move (?:section )?up$/i, 'arrow-up'],
+    [/^move (?:section )?down$/i, 'arrow-down'],
     [/rename|edit/i, 'edit'],
     [/copy|permalink/i, 'link'],
     [/move|drag/i, 'move'],
