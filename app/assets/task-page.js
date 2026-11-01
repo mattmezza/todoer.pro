@@ -848,7 +848,11 @@ export function mountTaskPage(root, { embedded = false } = {}) {
       await api(`/tasks/${encodeURIComponent(id)}/trash`, 'POST', {
         revision: task.revision,
       });
-      location.assign(`/lists/${encodeURIComponent(task.list_id)}`);
+      if (embedded)
+        root.dispatchEvent(
+          new CustomEvent('todoer:task-trashed', { bubbles: true, detail: { id } }),
+        );
+      else location.assign(`/lists/${encodeURIComponent(task.list_id)}`);
     } catch (error) {
       conflict(error.message);
       pending = true;

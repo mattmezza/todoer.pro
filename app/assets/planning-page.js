@@ -359,6 +359,13 @@ if (main) {
       skeleton.finish();
     }
   }
+  document.addEventListener('todoer:task-trashed', (event) => {
+    if (!panel?.contains(event.target)) return;
+    for (const row of rows.querySelectorAll('[data-planning-task]'))
+      if (row.dataset.planningTask === event.detail.id) row.remove();
+    close();
+    refreshRows();
+  });
   document.addEventListener('click', (event) => {
     let link = event.target.closest(
       '[data-planning-rows] a[href^="/tasks/"],.planning-detail-content a[href^="/tasks/"]',

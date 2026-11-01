@@ -258,3 +258,54 @@ test('Today uses the same task-page panel', async ({ page }) => {
   await page.getByLabel('Close task details').click();
   await expect(panel).toHaveCount(0);
 });
+
+for (const view of ['inbox', 'today']) {
+  test(`trashing a task from the ${view} panel stays on the current view`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/signin');
+    await page.getByRole('button', { name: 'Enter development workspace' }).click();
+    await page.goto('/inbox');
+    const csrf = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+    const inbox = await (await page.request.get('/api/v1/inbox')).json();
+    const title = `Trash panel ${randomUUID()}`;
+    const created = await page.request.post('/api/v1/capture', {
+      headers: { 'x-csrf-token': csrf, 'Idempotency-Key': randomUUID() },
+      data: { list_id: inbox.list_id, tasks: [{ title }] },
+    });
+    expect(created.ok()).toBeTruthy();
+    const [task] = await created.json();
+    if (view === 'today') {
+      await page.goto('/today');
+      const date = await page
+        .locator('[data-planning-today]')
+        .getAttribute('data-planning-today');
+      const schedule = await (
+        await page.request.get(`/api/v1/tasks/${task.id}/schedule`)
+      ).json();
+      const saved = await page.request.put(`/api/v1/tasks/${task.id}/schedule`, {
+        headers: { 'x-csrf-token': csrf },
+        data: {
+          revision: schedule.task_revision,
+          schedule: { ...schedule.schedule, planned: { kind: 'date', date } },
+        },
+      });
+      expect(saved.ok()).toBeTruthy();
+    }
+    await page.goto(`/${view}`);
+    const row = page.locator('[data-planning-task]').filter({ hasText: title });
+    await expect(row).toBeVisible();
+    await row.locator('a[href^="/tasks/"]').first().click();
+    const panel = page.getByLabel('Task details', { exact: true });
+    await panel.getByLabel('Task actions').click();
+    await panel.getByRole('button', { name: 'Move to trash…' }).click();
+    await page
+      .getByRole('dialog', { name: 'Confirm change' })
+      .getByRole('button', { name: 'Move to trash' })
+      .click();
+    await expect(row).toHaveCount(0);
+    await expect(panel).toHaveCount(0);
+    await expect(page).toHaveURL(new RegExp(`/${view}(?:\\?.*)?$`));
+  });
+}
