@@ -10,6 +10,7 @@ export function mountTaskOrdering({
   onChanged,
   onError,
   hasActiveDraft,
+  onSwipe,
 }) {
   if (!container || !listId || typeof request !== 'function')
     throw new Error('Ordering requires a list, container and request function');
@@ -276,6 +277,124 @@ export function mountTaskOrdering({
     pointerDrag = null;
     clearMarkers();
   }
+  // A short horizontal gesture triggers a swipe action. A stationary long press
+  // enters reorder mode; ordinary vertical movement remains native scrolling.
+  let touchGesture = null;
+  let suppressClickUntil = 0;
+  function resetTouch() {
+    if (!touchGesture) return;
+    clearTimeout(touchGesture.timer);
+    touchGesture.row.style.transform = '';
+    touchGesture = null;
+    if (!busy) clearMarkers();
+  }
+  function touchStart(event) {
+    if (event.touches.length !== 1) {
+      resetTouch();
+      return;
+    }
+    if (desktop.matches || !canWrite || busy) return;
+    const row = event.target.closest('.task[data-id]');
+    if (
+      !row ||
+      !container.contains(row) ||
+      event.target.closest('button,summary,input,textarea,select,details')
+    )
+      return;
+    const point = event.touches[0];
+    const gesture = {
+      row,
+      x: point.clientX,
+      y: point.clientY,
+      mode: 'pending',
+      target: null,
+      after: false,
+    };
+    touchGesture = gesture;
+    gesture.timer = setTimeout(() => {
+      if (touchGesture !== gesture || blocked()) return;
+      gesture.mode = 'drag';
+      gesture.pending = snapshot();
+      gesture.pending.catch(() => {});
+      row.dataset.orderDragging = 'true';
+      navigator.vibrate?.(15);
+    }, 400);
+  }
+  function touchMove(event) {
+    const current = touchGesture;
+    if (!current || event.touches.length !== 1) return;
+    const point = event.touches[0],
+      dx = point.clientX - current.x,
+      dy = point.clientY - current.y;
+    if (current.mode === 'pending' && Math.max(Math.abs(dx), Math.abs(dy)) > 10) {
+      clearTimeout(current.timer);
+      if (Math.abs(dx) > Math.abs(dy) * 1.3) current.mode = 'swipe';
+      else {
+        resetTouch();
+        return;
+      }
+    }
+    if (current.mode === 'swipe') {
+      if (event.cancelable) event.preventDefault();
+      current.dx = dx;
+      current.row.style.transform = `translateX(${Math.max(-100, Math.min(100, dx))}px)`;
+    } else if (current.mode === 'drag') {
+      if (event.cancelable) event.preventDefault();
+      const target = document
+        .elementFromPoint(point.clientX, point.clientY)
+        ?.closest('.task[data-id]');
+      if (
+        !target ||
+        target === current.row ||
+        !container.contains(target) ||
+        target.dataset.parentId !== current.row.dataset.parentId ||
+        target.closest('.task-section') !== current.row.closest('.task-section')
+      )
+        return;
+      clearMarkers();
+      current.row.dataset.orderDragging = 'true';
+      const rect = target.getBoundingClientRect();
+      current.after = point.clientY > rect.top + rect.height / 2;
+      current.target = target;
+      target.dataset.orderDrop = current.after ? 'after' : 'before';
+      if (point.clientY < 80) window.scrollBy(0, -14);
+      else if (point.clientY > innerHeight - 100) window.scrollBy(0, 14);
+    }
+  }
+  function touchEnd() {
+    const current = touchGesture;
+    if (!current) return;
+    if (current.mode !== 'pending') suppressClickUntil = Date.now() + 700;
+    resetTouch();
+    if (current.mode === 'swipe' && Math.abs(current.dx || 0) >= 80) {
+      if (!blocked()) onSwipe?.(current.row, current.dx > 0 ? 'complete' : 'trash');
+    } else if (current.mode === 'drag' && current.target) {
+      run(async () => {
+        const state = await current.pending;
+        const { task, ids } = siblings(state, current.row.dataset.id, current.row);
+        const order = ids.filter((id) => id !== task.id),
+          index = order.indexOf(current.target.dataset.id);
+        if (index < 0) throw Error('The destination changed. Reload and try again.');
+        order.splice(index + (current.after ? 1 : 0), 0, task.id);
+        await commit(state, task, order);
+      });
+    }
+  }
+  function suppressTouchClick(event) {
+    if (Date.now() < suppressClickUntil) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }
+  function suppressTouchMenu(event) {
+    if (touchGesture?.mode === 'drag') event.preventDefault();
+  }
+  container.addEventListener('touchstart', touchStart, { passive: true });
+  container.addEventListener('touchmove', touchMove, { passive: false });
+  container.addEventListener('touchend', touchEnd);
+  container.addEventListener('touchcancel', resetTouch);
+  container.addEventListener('click', suppressTouchClick, true);
+  container.addEventListener('contextmenu', suppressTouchMenu);
   container.addEventListener('pointerdown', pointerDown);
   container.addEventListener('pointermove', pointerMove);
   container.addEventListener('pointerup', pointerUp);
@@ -291,6 +410,13 @@ export function mountTaskOrdering({
   desktop.addEventListener('change', configure);
   return () => {
     active = false;
+    resetTouch();
+    container.removeEventListener('touchstart', touchStart);
+    container.removeEventListener('touchmove', touchMove);
+    container.removeEventListener('touchend', touchEnd);
+    container.removeEventListener('touchcancel', resetTouch);
+    container.removeEventListener('click', suppressTouchClick, true);
+    container.removeEventListener('contextmenu', suppressTouchMenu);
     drag = null;
     clearMarkers();
     observer.disconnect();

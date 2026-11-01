@@ -815,6 +815,74 @@ $('#move-task').onclick = async () => {
   }
 };
 
+const swipeUndo = [];
+const swipingTasks = new Set();
+function showSwipeUndo() {
+  for (const item of swipeUndo) item.element.remove();
+  const latest = swipeUndo.at(-1);
+  if (latest) document.body.append(latest.element);
+}
+async function swipeTask(row, action) {
+  const id = row.dataset.id;
+  if (
+    !canWrite ||
+    swipingTasks.has(id) ||
+    (action === 'complete' && row.dataset.complete === 'true')
+  )
+    return;
+  swipingTasks.add(id);
+  row.setAttribute('aria-busy', 'true');
+  try {
+    const result = await api(
+      `/tasks/${encodeURIComponent(id)}${action === 'trash' ? '/trash' : ''}`,
+      action === 'trash' ? 'POST' : 'PATCH',
+      {
+        revision: Number(row.dataset.revision),
+        ...(action === 'complete' ? { complete: true } : {}),
+      },
+    );
+    const element = document.createElement('div');
+    element.className = 'inbox-undo';
+    element.setAttribute('role', 'status');
+    const text = document.createElement('span');
+    text.textContent = `${action === 'trash' ? 'Moved to trash' : 'Completed'} · ${result.title}`;
+    const undo = document.createElement('button');
+    undo.type = 'button';
+    undo.textContent = 'Undo';
+    const item = { element };
+    undo.onclick = async () => {
+      undo.disabled = true;
+      try {
+        await api(
+          `/tasks/${encodeURIComponent(id)}${action === 'trash' ? '/restore' : ''}`,
+          action === 'trash' ? 'POST' : 'PATCH',
+          {
+            revision: result.revision,
+            ...(action === 'complete' ? { complete: false } : {}),
+          },
+        );
+        swipeUndo.splice(swipeUndo.indexOf(item), 1);
+        element.remove();
+        showSwipeUndo();
+        refresh();
+      } catch (error) {
+        notice(`${error.message} The task could not be restored.`, true);
+        undo.disabled = false;
+      }
+    };
+    element.append(text, undo);
+    swipeUndo.push(item);
+    showSwipeUndo();
+    refresh();
+  } catch (error) {
+    notice(`${error.message} The task was not changed.`, true);
+    if (error.status === 409 || error.status === 404 || error.status === 403) refresh();
+  } finally {
+    row.removeAttribute('aria-busy');
+    swipingTasks.delete(id);
+  }
+}
+
 mountTaskOrdering({
   container: $('#task-list'),
   listId: list,
@@ -822,6 +890,7 @@ mountTaskOrdering({
   request: api,
   onChanged: () => refresh(),
   onError: (message) => notice(message, true),
+  onSwipe: swipeTask,
   hasActiveDraft: () =>
     dialog.open ||
     editorOpening ||

@@ -12321,3 +12321,75 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
     display: none;
   }
 }
+@media (max-width: 640px) {
+  .reference-list-page .task-section:not([data-section-id='']) {
+    margin-top: 40px;
+  }
+  .reference-list-page .section-heading {
+    min-height: 56px;
+    padding: 8px 0;
+    gap: 8px;
+  }
+  .reference-list-page .section-heading > .section-collapse {
+    position: static;
+    transform: none;
+    width: 44px;
+    flex: 0 0 44px;
+  }
+  .reference-list-page .section-collapse > summary {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    list-style: none;
+  }
+  .reference-list-page .section-collapse > summary::-webkit-details-marker {
+    display: none;
+  }
+  .reference-list-page .section-collapse > summary::before {
+    content: '›';
+    display: block;
+    font-size: 24px;
+    line-height: 1;
+    transform: rotate(0deg);
+  }
+  .reference-list-page .section-collapse[open] > summary::before {
+    transform: rotate(90deg);
+  }
+  .reference-list-page .section-heading h2 {
+    font-size: 17px;
+  }
+  .reference-list-page .section-heading-copy {
+    min-width: 0;
+  }
+  .reference-list-page .section-tasks > .task > .task-drag-grip {
+    display: none;
+  }
+}
+@media (max-width: 640px) {
+  .reference-list-page .section-tasks > .task {
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+  .reference-list-page .section-tasks > .task[aria-busy='true'] {
+    opacity: 0.55;
+  }
+}
+@media (max-width: 640px) {
+  dialog:modal:not(.list-settings-panel):not(.search-omnibar) {
+    position: fixed;
+    inset: 0;
+    width: min(100% - 32px, 620px);
+    max-width: calc(100% - 32px);
+    height: fit-content;
+    max-height: calc(
+      100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+    );
+    margin: auto;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+}
