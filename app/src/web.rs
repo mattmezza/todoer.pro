@@ -65,6 +65,8 @@ mod structured_search;
 pub(crate) mod taxonomy_http;
 #[path = "transfer_web.rs"]
 mod transfer_http;
+#[path = "view_web.rs"]
+mod view_http;
 use crate::core::{Capture, Change, Error, List, Store, Task};
 use askama::Template;
 use axum::{
@@ -291,6 +293,7 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(|| async { Json(json!({"status":"ok"})) }))
         .route("/ready", get(ready))
         .route("/api/v1/lists", get(lists))
+        .route("/api/v1/view/{kind}/{reference}", get(view_http::view))
         .route("/api/v1/lists/{id}/tasks", get(tasks))
         .route("/api/v1/capture", post(capture))
         .route("/api/v1/capture/options", get(capture_options))

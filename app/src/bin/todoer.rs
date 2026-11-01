@@ -45,6 +45,9 @@ enum Command {
     /// View a space, list, section, task or subtask by its prefixed reference.
     View {
         reference: String,
+        /// Show descriptions and child counts.
+        #[arg(long)]
+        info: bool,
     },
     /// List details, creation, sharing and access administration.
     Lists {
@@ -1009,13 +1012,14 @@ fn view_request(reference: &str) -> Result<RequestSpec, (i32, String)> {
         return Err((2, "reference is missing its identifier".into()));
     }
     let path = match prefix {
-        "@" => "workspaces",
-        "#" => "lists",
-        "$" => "sections",
-        "%" | "^" => "tasks",
+        "@" => "space",
+        "#" => "list",
+        "$" => "section",
+        "%" => "task",
+        "^" => "subtask",
         _ => return Err((2, "expected a prefixed reference (@, #, $, % or ^)".into())),
     };
-    Ok(read_request(format!("/{path}/{}", segment(id))))
+    Ok(read_request(format!("/view/{path}/{}", segment(id))))
 }
 
 #[tokio::main]
@@ -1083,8 +1087,8 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
     };
     let compact_subtree =
         matches!(&args.command, Command::Subtree { fields, .. } if fields.is_empty());
-    let view_reference = match &args.command {
-        Command::View { reference } => Some(reference.clone()),
+    let view_info = match &args.command {
+        Command::View { info, .. } => Some(*info),
         _ => None,
     };
     let mut query_pairs: Vec<(String, String)> = Vec::new();
@@ -1115,7 +1119,7 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             read_request("/review".into())
         }
         Command::Workspace { command } => workspace_request(command)?,
-        Command::View { reference } => view_request(&reference)?,
+        Command::View { reference, .. } => view_request(&reference)?,
         Command::Lists { command } => list_request(command)?,
         Command::Sections { command } => section_request(command)?,
         Command::AuthInfo | Command::Login { .. } | Command::Logout | Command::AuthStatus => {
@@ -1347,14 +1351,6 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         )
     })?;
     let (raw, value) = response_json(response).await?;
-    if let Some(reference) = &view_reference {
-        let parent = value
-            .get("parent_id")
-            .is_some_and(|parent| !parent.is_null());
-        if (reference.starts_with('%') && parent) || (reference.starts_with('^') && !parent) {
-            return Err((2, "reference prefix does not match task type".into()));
-        }
-    }
     if args.json {
         println!("{raw}");
     } else if raw.is_empty() {
@@ -1363,8 +1359,8 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         print!("{}", format_lists(&value, prefix));
     } else if compact_subtree && value.get("items").and_then(Value::as_array).is_some() {
         print!("{}", format_subtree(&value));
-    } else if let Some(reference) = view_reference {
-        print!("{}", format_view(&value, &reference));
+    } else if let Some(info) = view_info {
+        print!("{}", format_view(&value, info));
     } else {
         print_human(&value);
     }
@@ -1641,19 +1637,71 @@ fn format_subtree(value: &Value) -> String {
     output
 }
 
-fn format_view(value: &Value, reference: &str) -> String {
-    let title = value["title"].as_str().unwrap_or("");
-    let marker = match value.get("complete").and_then(Value::as_bool) {
+fn view_prefix(kind: &str) -> char {
+    match kind {
+        "space" => '@',
+        "list" => '#',
+        "section" => '$',
+        "task" => '%',
+        "subtask" => '^',
+        _ => '?',
+    }
+}
+
+fn view_label(row: &Value) -> String {
+    let prefix = view_prefix(row["kind"].as_str().unwrap_or(""));
+    let title = row["title"]
+        .as_str()
+        .unwrap_or("")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let marker = match row.get("complete").and_then(Value::as_bool) {
         Some(true) => "[x] ",
         Some(false) => "[ ] ",
         None => "",
     };
-    let mut output = format!("{marker}{title}  {reference}\n");
-    if let Some(revision) = value["revision"].as_i64() {
-        output.push_str(&format!("Revision: {revision}\n"));
-    }
-    if let Some(description) = value["description"].as_str().filter(|s| !s.is_empty()) {
+    format!("{marker}{prefix}{title}")
+}
+
+fn format_view(value: &Value, info: bool) -> String {
+    let mut entity = value["entity"].clone();
+    entity["kind"] = value["kind"].clone();
+    let prefix = view_prefix(value["kind"].as_str().unwrap_or(""));
+    let reference = value["reference"].as_str().unwrap_or("?");
+    let mut output = format!("{}  {prefix}{reference}\n", view_label(&entity));
+    if info
+        && let Some(description) = entity["description"]
+            .as_str()
+            .filter(|s| !s.trim().is_empty())
+    {
         output.push_str(&format!("\n{description}\n"));
+    }
+    if let Some(children) = value["children"].as_array().filter(|rows| !rows.is_empty()) {
+        output.push('\n');
+        let labels: Vec<_> = children.iter().map(view_label).collect();
+        let width = labels.iter().map(|s| s.chars().count()).max().unwrap_or(0);
+        for (row, label) in children.iter().zip(labels) {
+            let prefix = view_prefix(row["kind"].as_str().unwrap_or(""));
+            let reference = row["reference"].as_str().unwrap_or("?");
+            output.push_str(&label);
+            output.push_str(&" ".repeat(width - label.chars().count() + 2));
+            output.push_str(&format!("{prefix}{reference}"));
+            if info && row["counts"].is_object() {
+                let counts = &row["counts"];
+                output.push_str("  ");
+                if let Some(sections) = counts["sections"].as_u64() {
+                    output.push_str(&format!("s{sections}"));
+                }
+                if let Some(open) = counts["open"].as_u64() {
+                    output.push_str(&format!("o{open}"));
+                }
+                if let Some(done) = counts["done"].as_u64() {
+                    output.push_str(&format!("d{done}"));
+                }
+            }
+            output.push('\n');
+        }
     }
     output
 }
@@ -1678,7 +1726,7 @@ fn print_human(value: &Value) {
             Some(false) => "[ ] ",
             None => "",
         };
-        println!("{marker}{id}  {title}  (revision {})", value["revision"]);
+        println!("{marker}{id}  {title}");
         if let Some(description) = value
             .get("description")
             .and_then(Value::as_str)
@@ -1687,10 +1735,29 @@ fn print_human(value: &Value) {
             println!("    {description}");
         }
     } else {
+        let mut readable = value.clone();
+        hide_revisions(&mut readable);
         println!(
             "{}",
-            serde_json::to_string_pretty(value).expect("JSON value serializes")
+            serde_json::to_string_pretty(&readable).expect("JSON value serializes")
         );
+    }
+}
+
+fn hide_revisions(value: &mut Value) {
+    match value {
+        Value::Object(fields) => {
+            fields.retain(|key, _| key != "revision" && !key.ends_with("_revision"));
+            for child in fields.values_mut() {
+                hide_revisions(child);
+            }
+        }
+        Value::Array(rows) => {
+            for row in rows {
+                hide_revisions(row);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -1723,23 +1790,34 @@ mod list_output_tests {
     #[test]
     fn view_routes_prefixed_references_and_rejects_invalid_input() {
         for (reference, expected) in [
-            ("@a", "/workspaces/a"),
-            ("#b", "/lists/b"),
-            ("$c", "/sections/c"),
-            ("%d", "/tasks/d"),
-            ("^e", "/tasks/e"),
+            ("@a", "/view/space/a"),
+            ("#b", "/view/list/b"),
+            ("$c", "/view/section/c"),
+            ("%d", "/view/task/d"),
+            ("^e", "/view/subtask/e"),
         ] {
             assert_eq!(view_request(reference).unwrap().1, expected);
         }
         assert!(view_request("unknown").is_err());
         assert!(view_request("#").is_err());
+        let space = json!({"kind":"space","reference":"k7m2p9c","entity":{"title":"personal","revision":2},"children":[{"kind":"list","title":"groceries","reference":"b7k3m9p","counts":{"sections":1,"open":11,"done":0}}]});
         assert_eq!(
-            format_view(
-                &json!({"title":"Milk","revision":2,"complete":false,"description":"Buy oat milk."}),
-                "%abc2345"
-            ),
-            "[ ] Milk  %abc2345\nRevision: 2\n\nBuy oat milk.\n"
+            format_view(&space, false),
+            "@personal  @k7m2p9c\n\n#groceries  #b7k3m9p\n"
         );
+        assert_eq!(
+            format_view(&space, true),
+            "@personal  @k7m2p9c\n\n#groceries  #b7k3m9p  s1o11d0\n"
+        );
+        let task = json!({"kind":"task","reference":"abc2345","entity":{"title":"Milk","complete":false,"description":"Buy oat milk.","revision":2},"children":[]});
+        assert_eq!(
+            format_view(&task, true),
+            "[ ] %Milk  %abc2345\n\nBuy oat milk.\n"
+        );
+        let mut raw = json!({"revision":2,"child":{"revision":3,"title":"Milk"}});
+        hide_revisions(&mut raw);
+        assert_eq!(raw, json!({"child":{"title":"Milk"}}));
+        assert!(Args::try_parse_from(["todoer", "view", "@abc2345", "--info"]).is_ok());
         assert!(Args::try_parse_from(["todoer", "space", "all"]).is_ok());
         assert!(Args::try_parse_from(["todoer", "workspace", "all"]).is_ok());
         assert!(Args::try_parse_from(["todoer", "review", "--space", "abc"]).is_ok());
