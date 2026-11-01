@@ -1689,15 +1689,19 @@ fn format_view(value: &Value, info: bool) -> String {
             output.push_str(&format!("{prefix}{reference}"));
             if info && row["counts"].is_object() {
                 let counts = &row["counts"];
-                output.push_str("  ");
+                let mut parts = Vec::new();
                 if let Some(sections) = counts["sections"].as_u64() {
-                    output.push_str(&format!("s{sections}"));
+                    parts.push(format!("s{sections}"));
                 }
                 if let Some(open) = counts["open"].as_u64() {
-                    output.push_str(&format!("o{open}"));
+                    parts.push(format!("o{open}"));
                 }
                 if let Some(done) = counts["done"].as_u64() {
-                    output.push_str(&format!("d{done}"));
+                    parts.push(format!("d{done}"));
+                }
+                if !parts.is_empty() {
+                    output.push_str("  ");
+                    output.push_str(&parts.join(" "));
                 }
             }
             output.push('\n');
@@ -1807,7 +1811,7 @@ mod list_output_tests {
         );
         assert_eq!(
             format_view(&space, true),
-            "@personal  @k7m2p9c\n\n#groceries  #b7k3m9p  s1o11d0\n"
+            "@personal  @k7m2p9c\n\n#groceries  #b7k3m9p  s1 o11 d0\n"
         );
         let task = json!({"kind":"task","reference":"abc2345","entity":{"title":"Milk","complete":false,"description":"Buy oat milk.","revision":2},"children":[]});
         assert_eq!(
