@@ -10,6 +10,53 @@ use todoer::{
 
 const TOKEN: &str = "synthetic-cli-entity-workflow-token";
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn file_upload_resolves_task_reference_before_creating_intent() {
+    use axum::{
+        Json,
+        routing::{get, post},
+    };
+    let seen = Arc::new(Mutex::new(None::<Value>));
+    let captured = seen.clone();
+    let app = axum::Router::new()
+        .route(
+            "/api/v1/view/task/abc2345",
+            get(|| async { Json(serde_json::json!({"entity":{"id":"synthetic-task"}})) }),
+        )
+        .route(
+            "/api/v1/agent/activity",
+            post(move |Json(body): Json<Value>| {
+                let captured = captured.clone();
+                async move {
+                    *captured.lock().unwrap() = Some(body);
+                    (
+                        axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                        "stop after intent request",
+                    )
+                }
+            }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let path = std::env::temp_dir().join(format!("todoer-upload-test-{}", uuid::Uuid::new_v4()));
+    std::fs::write(&path, b"synthetic").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_todoer"))
+        .env("TODOER_URL", url)
+        .env("TODOER_TOKEN", TOKEN)
+        .args(["files", "upload", "%abc2345", "--file"])
+        .arg(&path)
+        .output()
+        .unwrap();
+    std::fs::remove_file(path).unwrap();
+    assert!(!output.status.success());
+    assert_eq!(
+        seen.lock().unwrap().as_ref().unwrap()["task_id"],
+        "synthetic-task"
+    );
+    server.abort();
+}
+
 fn cli(url: &str, args: &[&str]) -> Value {
     let output = Command::new(env!("CARGO_BIN_EXE_todoer"))
         .env("TODOER_URL", url)

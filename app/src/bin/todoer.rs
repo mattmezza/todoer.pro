@@ -340,18 +340,6 @@ enum ListCommand {
         #[arg(long)]
         archived_only: bool,
     },
-    /// Review audience and tag changes before moving the entire list.
-    MovePreview {
-        id: String,
-        #[arg(long = "destination-space", visible_alias = "destination-workspace")]
-        destination_workspace: String,
-    },
-    /// Apply the exact reviewed revisions and policy hash (ListWorkspaceMoveInput JSON).
-    Move {
-        id: String,
-        #[arg(long)]
-        body: String,
-    },
     Get {
         id: String,
     },
@@ -1059,20 +1047,6 @@ fn list_request(command: ListCommand) -> Result<RequestSpec, (i32, String)> {
         } => read_request(format!(
             "/cli/overview/lists?archived={archived}&archived_only={archived_only}"
         )),
-        ListCommand::MovePreview {
-            id,
-            destination_workspace,
-        } => (
-            Method::POST,
-            format!("/lists/{}/workspace-move/preview", segment(&id)),
-            Some(json!({"destination_workspace_id":destination_workspace})),
-            None,
-        ),
-        ListCommand::Move { id, body } => write_request(
-            Method::POST,
-            format!("/lists/{}/workspace-move", segment(&id)),
-            body,
-        )?,
         ListCommand::Get { id } => read_request(format!("/lists/{}", segment(&id))),
         ListCommand::Create {
             body,
@@ -2751,10 +2725,36 @@ async fn transfer_file(args: &Args, command: &FileCommand) -> Result<(), (i32, S
         return Ok(());
     }
     let (bytes, hash) = prepared.expect("upload/resume prepared");
-    let plan=match command{
-        FileCommand::Upload{task,file,comment,..}=>transfer_json(&client,&args.url,&token,"/agent/activity",json!({"op":"upload_create","task_id":task,"input":{"comment_id":comment,"filename":file.file_name().unwrap_or_default().to_string_lossy(),"size":bytes.len(),"sha256":hash}})).await?,
-        FileCommand::Resume{id,..}=>transfer_json(&client,&args.url,&token,"/agent/activity",json!({"op":"upload_get","id":id})).await?,
-        _=>unreachable!("download already handled"),
+    let plan = match command {
+        FileCommand::Upload {
+            task,
+            file,
+            comment,
+            ..
+        } => {
+            let mut body = json!({"op":"upload_create","task_id":task,"input":{"comment_id":comment,"filename":file.file_name().unwrap_or_default().to_string_lossy(),"size":bytes.len(),"sha256":hash}});
+            prepare_entity_write(
+                &client,
+                &args.url,
+                &token,
+                &Method::POST,
+                "/agent/activity",
+                &mut body,
+            )
+            .await?;
+            transfer_json(&client, &args.url, &token, "/agent/activity", body).await?
+        }
+        FileCommand::Resume { id, .. } => {
+            transfer_json(
+                &client,
+                &args.url,
+                &token,
+                "/agent/activity",
+                json!({"op":"upload_get","id":id}),
+            )
+            .await?
+        }
+        _ => unreachable!("download already handled"),
     };
     let intent = &plan["intent"];
     let id = intent["id"]
