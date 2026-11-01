@@ -3766,11 +3766,9 @@ form[data-list-edit] input.list-edit-color {
 
 .planning-list-page:has(.planning-empty) main {
   min-height: calc(100dvh - 64px);
-  display: flex;
-  flex-direction: column;
 }
 .planning-list-page:has(.planning-empty) section[aria-label='Planned tasks'] {
-  flex: 1;
+  min-height: 40vh;
   display: grid;
   place-items: center;
 }

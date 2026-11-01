@@ -63,7 +63,10 @@ if (main) {
     main.querySelector('.planning-filter-error')?.remove();
     const skeleton = beginLoading(rows, { variant: 'planning-list' });
     try {
-      const response = await fetch(url, { cache: 'no-store' });
+      const response = await fetch(url, {
+        cache: 'no-store',
+        headers: { 'X-Todoer-Planning-Fragment': '1' },
+      });
       if (!response.ok) throw Error('Could not load planned tasks.');
       const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
       const next = doc.querySelector('[data-planning-rows]');

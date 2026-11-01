@@ -108,6 +108,34 @@ test('Today filters update tasks in place and support browser history', async ({
   await page.evaluate(() => {
     window.filterPageMarker = 'still here';
   });
+  await page
+    .locator('[data-planning-rows] .planning-empty')
+    .evaluateAll((items) => items.forEach((item) => item.remove()));
+  const dateBarTop = await page
+    .locator('.planning-tabs')
+    .evaluate((bar) => bar.getBoundingClientRect().top);
+  await page.locator('[data-planning-rows]').evaluate((rows) => {
+    const empty = document.createElement('div');
+    empty.className = 'planning-empty';
+    rows.append(empty);
+  });
+  expect(
+    await page
+      .locator('.planning-tabs')
+      .evaluate((bar) => bar.getBoundingClientRect().top),
+  ).toBe(dateBarTop);
+  await page
+    .locator('[data-planning-rows] .planning-empty')
+    .last()
+    .evaluate((empty) => empty.remove());
+  const fragment = await page.request.get('/today?range=tomorrow', {
+    headers: { 'X-Todoer-Planning-Fragment': '1' },
+  });
+  expect(fragment.ok()).toBeTruthy();
+  const markup = await fragment.text();
+  expect(markup).toContain('data-planning-rows');
+  expect(markup).not.toContain('<!doctype html>');
+  expect(markup).not.toContain('reference-sidebar');
   let release;
   const hold = new Promise((resolve) => {
     release = resolve;

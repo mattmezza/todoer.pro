@@ -236,6 +236,19 @@ struct PlanningPage {
     today: String,
     week_start: u32,
 }
+#[derive(Template)]
+#[template(path = "planning-fragment.html")]
+struct PlanningFragment<'a> {
+    title: &'a str,
+    timezone: &'a str,
+    account_timezone: &'a str,
+    range: &'a str,
+    body: &'a str,
+    tabs: &'a str,
+    space_filters: &'a str,
+    selected_spaces: &'a str,
+    today: String,
+}
 #[derive(Deserialize, Default)]
 struct CalendarQuery {
     range: Option<String>,
@@ -441,6 +454,33 @@ async fn calendar(
             esc(display_title)
         ));
     }
+    if h.get("x-todoer-planning-fragment")
+        .is_some_and(|value| value == "1")
+    {
+        let fragment = PlanningFragment {
+            title: label,
+            timezone: &timezone,
+            account_timezone: &prefs.timezone,
+            range: &key,
+            body: &body,
+            tabs: &tabs,
+            space_filters: &space_filters,
+            selected_spaces: &selected,
+            today: today.to_string(),
+        };
+        return Ok((
+            [
+                (header::CACHE_CONTROL, "private, no-store"),
+                (header::VARY, "X-Todoer-Planning-Fragment"),
+            ],
+            Html(
+                fragment
+                    .render()
+                    .map_err(|_| Error::Invalid("Could not render planning page".into()))?,
+            ),
+        )
+            .into_response());
+    }
     let csrf = s.csrf_for(&h);
     let sidebar = s
         .run(move |db| super::build_sidebar(db, &sidebar_actor, "", csrf))
@@ -461,7 +501,14 @@ async fn calendar(
     let rendered = template
         .render()
         .map_err(|_| Error::Invalid("Could not render planning page".into()))?;
-    Ok(Html(rendered).into_response())
+    Ok((
+        [
+            (header::CACHE_CONTROL, "private, no-store"),
+            (header::VARY, "X-Todoer-Planning-Fragment"),
+        ],
+        Html(rendered),
+    )
+        .into_response())
 }
 async fn today(
     State(s): State<AppState>,
