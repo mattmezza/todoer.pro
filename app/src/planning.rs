@@ -96,7 +96,7 @@ impl Store {
             ));
         }
         let user = actor_identity(&self.conn, actor)?.0;
-        let mut query = self.conn.prepare("SELECT t.id,t.reference,t.list_id,t.parent_id,t.title,t.description,t.complete,t.revision,t.position FROM inbox_entries i JOIN tasks t ON t.id=i.task_id JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?1 JOIN lists l ON l.id=t.list_id WHERE i.user_id=?2 AND i.settled_at IS NULL AND t.deleted_at IS NULL AND l.archived=0 AND (?3 IS NULL OR i.created_at<?3 OR (i.created_at=?3 AND i.rowid<?4)) ORDER BY i.created_at DESC,i.rowid DESC LIMIT ?5")?;
+        let mut query = self.conn.prepare("SELECT t.id,t.reference,t.list_id,t.parent_id,t.title,t.description,t.complete,t.revision,t.position FROM inbox_entries i JOIN tasks t ON t.id=i.task_id JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?1 JOIN lists l ON l.id=t.list_id WHERE i.user_id=?2 AND i.settled_at IS NULL AND t.parent_id IS NULL AND t.deleted_at IS NULL AND l.archived=0 AND (?3 IS NULL OR i.created_at<?3 OR (i.created_at=?3 AND i.rowid<?4)) ORDER BY i.created_at DESC,i.rowid DESC LIMIT ?5")?;
         let mut tasks = query
             .query_map(
                 params![
@@ -162,7 +162,7 @@ impl Store {
         if let Some(id) = list {
             access_rank(&self.conn, actor, id, 1)?;
         }
-        let mut query = self.conn.prepare("SELECT t.id,t.reference,t.list_id,t.parent_id,t.title,t.description,t.complete,t.revision,t.position FROM tasks t JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?1 JOIN lists l ON l.id=t.list_id WHERE t.deleted_at IS NULL AND l.archived=0 AND (?2 IS NULL OR t.list_id=?2) AND (?5 IS NULL OR EXISTS(SELECT 1 FROM inbox_entries i WHERE i.user_id=?5 AND i.task_id=t.id AND i.settled_at IS NULL)) AND (?3 IS NULL OR (json_extract((SELECT document FROM task_schedule WHERE task_id=t.id),'$.planned.date') BETWEEN date(?3,'-1 day') AND date(?4,'+1 day'))) ORDER BY CASE WHEN ?5 IS NOT NULL THEN (SELECT created_at FROM inbox_entries WHERE user_id=?5 AND task_id=t.id) END DESC,CASE WHEN ?5 IS NOT NULL THEN (SELECT rowid FROM inbox_entries WHERE user_id=?5 AND task_id=t.id) END DESC,t.position,t.id LIMIT 10001")?;
+        let mut query = self.conn.prepare("SELECT t.id,t.reference,t.list_id,t.parent_id,t.title,t.description,t.complete,t.revision,t.position FROM tasks t JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?1 JOIN lists l ON l.id=t.list_id WHERE t.deleted_at IS NULL AND l.archived=0 AND (?2 IS NULL OR t.list_id=?2) AND (?5 IS NULL OR (t.parent_id IS NULL AND EXISTS(SELECT 1 FROM inbox_entries i WHERE i.user_id=?5 AND i.task_id=t.id AND i.settled_at IS NULL))) AND (?3 IS NULL OR (json_extract((SELECT document FROM task_schedule WHERE task_id=t.id),'$.planned.date') BETWEEN date(?3,'-1 day') AND date(?4,'+1 day'))) ORDER BY CASE WHEN ?5 IS NOT NULL THEN (SELECT created_at FROM inbox_entries WHERE user_id=?5 AND task_id=t.id) END DESC,CASE WHEN ?5 IS NOT NULL THEN (SELECT rowid FROM inbox_entries WHERE user_id=?5 AND task_id=t.id) END DESC,t.position,t.id LIMIT 10001")?;
         let tasks = query
             .query_map(params![actor, list, from, to, inbox_user], task_row)?
             .collect::<Result<Vec<_>, _>>()?;
@@ -514,23 +514,32 @@ mod tests {
         assert_eq!(entries[0].tags, vec!["errands"]);
         assert_eq!(entries[0].task.id, task.id);
         assert!(entries[0].created_at.is_some());
-        s.capture(
-            "dev",
-            "child-capture",
-            Capture {
-                list_id: "inbox".into(),
-                tasks: vec![NewTask {
-                    title: "A subtask".into(),
-                    description: String::new(),
-                    parent_id: Some(task.id.clone()),
-                }],
-            },
-        )
-        .unwrap();
-        assert_eq!(s.intake_tasks("dev").unwrap().len(), 2);
+        let child = s
+            .capture(
+                "dev",
+                "child-capture",
+                Capture {
+                    list_id: "inbox".into(),
+                    tasks: vec![NewTask {
+                        title: "A subtask".into(),
+                        description: String::new(),
+                        parent_id: Some(task.id.clone()),
+                    }],
+                },
+            )
+            .unwrap()
+            .remove(0);
+        s.conn
+            .execute(
+                "INSERT INTO inbox_entries(user_id,task_id) VALUES(?1,?2)",
+                params!["dev", child.id],
+            )
+            .unwrap();
+        assert_eq!(s.intake_tasks("dev").unwrap().len(), 1);
+        assert_eq!(s.inbox_page("dev", None, 20).unwrap().0.len(), 1);
         assert!(s.intake_tasks("other").unwrap().is_empty());
         s.set_inbox_settled("dev", &task.id, true).unwrap();
-        assert_eq!(s.intake_tasks("dev").unwrap().len(), 1);
+        assert_eq!(s.intake_tasks("dev").unwrap().len(), 0);
         assert_eq!(s.tasks("dev", "inbox").unwrap().len(), 2);
     }
     #[test]

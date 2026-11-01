@@ -532,12 +532,12 @@ impl Store {
                     .map_err(|e| Error::Invalid(e.to_string()))?
                 ],
             )?;
-            let user = actor_identity(&tx, actor)?.0;
-            tx.execute(
-                "INSERT INTO inbox_entries(user_id,task_id) VALUES(?1,?2)",
-                params![user, id],
-            )?;
             if n.parent_id.is_none() {
+                let user = actor_identity(&tx, actor)?.0;
+                tx.execute(
+                    "INSERT INTO inbox_entries(user_id,task_id) VALUES(?1,?2)",
+                    params![user, id],
+                )?;
                 tx.execute("INSERT INTO task_locations(task_id,section_id) SELECT ?1,section_id FROM list_defaults WHERE list_id=?2",params![id,request.list_id])?;
             }
             crate::defaults::public_id(&tx, "task", &id)?;
