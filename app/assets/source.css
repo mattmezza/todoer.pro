@@ -12719,3 +12719,27 @@ form[data-list-edit] .list-color-custom .list-edit-color {
     }
   }
 }
+
+[data-list-order-enabled] [data-list-dragging] {
+  opacity: 0.45;
+  transform: scale(0.985);
+}
+[data-list-order-enabled] [data-list-drop] {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.list-order-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+@media (hover: none) {
+  [data-list-order-enabled] .space-list-card {
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+}

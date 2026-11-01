@@ -765,6 +765,45 @@ impl Store {
         tx.commit()?;
         Ok(result)
     }
+    pub fn reorder_visible_lists(
+        &mut self,
+        actor: &str,
+        workspace: &str,
+        revision: i64,
+        ids: &[String],
+    ) -> Result<Workspace, Error> {
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
+        require_workspace(&tx, actor, workspace, 3)?;
+        check_revision(workspace_raw(&tx, workspace)?.revision, revision)?;
+        let all = {
+            let mut stmt = tx.prepare("SELECT l.id, l.archived=0 AND EXISTS(SELECT 1 FROM actor_list_access a WHERE a.actor_id=?2 AND a.list_id=l.id AND a.rank>=1) FROM lists l WHERE l.workspace_id=?1 ORDER BY l.position,l.id")?;
+            let rows = stmt.query_map(params![workspace, actor], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, bool>(1)?))
+            })?;
+            rows.collect::<Result<Vec<_>, _>>()?
+        };
+        let visible: Vec<_> = all
+            .iter()
+            .filter(|(_, visible)| *visible)
+            .map(|(id, _)| id.clone())
+            .collect();
+        exact_order(&visible, ids)?;
+        let mut reordered = ids.iter();
+        for (position, (id, visible)) in all.iter().enumerate() {
+            let id = if *visible {
+                reordered.next().expect("validated order")
+            } else {
+                id
+            };
+            tx.execute(
+                "UPDATE lists SET position=?2,revision=revision+1 WHERE id=?1 AND position<>?2",
+                params![id, position as i64],
+            )?;
+        }
+        let result = bump_workspace(&tx, workspace)?;
+        tx.commit()?;
+        Ok(result)
+    }
     pub fn reorder_sections(
         &mut self,
         actor: &str,
@@ -1637,6 +1676,43 @@ mod tests {
             db.list_info("dev", &b.id).unwrap().position
                 < db.list_info("dev", &a.id).unwrap().position
         );
+    }
+    #[test]
+    fn visible_list_reordering_preserves_archived_slots_and_rejects_stale_input() {
+        let mut db = db();
+        let w = workspace(&mut db);
+        let a = list(&mut db, &w.id, false);
+        let archived = list(&mut db, &w.id, false);
+        let b = list(&mut db, &w.id, false);
+        db.conn
+            .execute("UPDATE lists SET archived=1 WHERE id=?1", [&archived.id])
+            .unwrap();
+        let revision = db.workspace("dev", &w.id).unwrap().revision;
+        assert!(
+            db.reorder_visible_lists("other", &w.id, revision, &[b.id.clone(), a.id.clone()])
+                .is_err()
+        );
+        assert!(
+            db.reorder_visible_lists("dev", &w.id, revision, std::slice::from_ref(&a.id))
+                .is_err()
+        );
+        db.reorder_visible_lists("dev", &w.id, revision, &[b.id.clone(), a.id.clone()])
+            .unwrap();
+        let order: Vec<String> = {
+            let mut stmt = db
+                .conn
+                .prepare("SELECT id FROM lists WHERE workspace_id=?1 ORDER BY position,id")
+                .unwrap();
+            stmt.query_map([&w.id], |r| r.get(0))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        };
+        assert_eq!(order, vec![b.id.clone(), archived.id, a.id.clone()]);
+        assert!(matches!(
+            db.reorder_visible_lists("dev", &w.id, revision, &[a.id, b.id]),
+            Err(Error::Conflict(_))
+        ));
     }
     #[test]
     fn role_changes_are_live_and_direct_grants_remain_independent() {

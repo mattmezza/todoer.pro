@@ -63,6 +63,10 @@ pub(super) fn routes() -> Router<AppState> {
             "/api/v1/workspaces/{id}/lists/reorder",
             post(api_reorder_lists),
         )
+        .route(
+            "/api/v1/workspaces/{id}/lists/reorder-visible",
+            post(api_reorder_visible_lists),
+        )
         .route("/api/v1/lists", post(api_create_list))
         .route("/api/v1/lists/{id}", get(api_list).patch(api_update_list))
         .route("/api/v1/lists/{id}/sharing", get(api_sharing))
@@ -419,6 +423,18 @@ async fn api_reorder_lists(
     let actor = s.auth(&h, true)?;
     Ok(Json(
         s.run(move |db| db.reorder_lists(&actor, &id, input.revision, &input.ids))
+            .await?,
+    ))
+}
+async fn api_reorder_visible_lists(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+    Input(input): Input<Reorder>,
+) -> Result<Json<Workspace>, ApiError> {
+    let actor = s.auth(&h, true)?;
+    Ok(Json(
+        s.run(move |db| db.reorder_visible_lists(&actor, &id, input.revision, &input.ids))
             .await?,
     ))
 }
