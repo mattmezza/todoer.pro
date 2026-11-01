@@ -460,3 +460,51 @@ test('task composers and contextual actions retain the reference layout', async 
   await expect(create.locator('.inline-actions')).toHaveCSS('border-top-width', '0px');
   await expect(create.locator('[name=title]')).toHaveCSS('font-size', '16px');
 });
+
+test('mobile task toolbar and settings drawer fit the screen', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { capture, api } = await setup(page);
+  const task = await capture('A mobile task', 'A useful description');
+  const schedule = await api(`/tasks/${task.id}/schedule`);
+  await api(`/tasks/${task.id}/schedule`, 'PUT', {
+    revision: schedule.task_revision,
+    schedule: {
+      ...schedule.schedule,
+      priority: 0,
+      planned: { kind: 'date', date: '2026-11-01' },
+    },
+  });
+  await page.goto(`/tasks/${task.id}`);
+  await expect(page.locator('[data-connection]')).toHaveText('Up to date');
+  await expect(page.locator('.breadcrumbs')).toBeHidden();
+  await expect(page.locator('.task-date-summary')).toBeHidden();
+  const priority = page.locator('.task-priority-summary');
+  await expect(priority).toHaveAttribute('data-priority', '0');
+  const positions = await page.evaluate(() => {
+    const box = (selector) =>
+      document.querySelector(selector).getBoundingClientRect().toJSON();
+    return {
+      priority: box('.task-priority-summary'),
+      title: box('.task-page-heading h1'),
+      menu: box('.task-context-menu > summary'),
+      bell: box('.notification-bell-toggle'),
+      description: box('.task-page-brief'),
+    };
+  });
+  expect(positions.priority.bottom).toBeLessThan(positions.title.top);
+  expect(positions.menu.bottom).toBeLessThan(positions.title.top);
+  expect(positions.menu.right).toBeLessThanOrEqual(positions.bell.left);
+  expect(positions.description.top).toBeGreaterThan(positions.title.bottom);
+  await page.locator('.task-context-menu > summary').click();
+  await page.locator('[data-open-advanced]').click();
+  const panel = page.getByRole('dialog', { name: 'Task details', exact: true });
+  await expect(panel.locator('.task-settings-pin')).toBeHidden();
+  const insets = await panel.evaluate((el) => {
+    const panelBox = el.getBoundingClientRect();
+    return ['.settings-tabs', '.settings-content'].map((selector) =>
+      Math.round(el.querySelector(selector).getBoundingClientRect().left - panelBox.left),
+    );
+  });
+  expect(insets).toEqual([20, 0]);
+  await expect(panel.getByText('Priority', { exact: true })).toBeVisible();
+});

@@ -12963,3 +12963,74 @@ body > .planning-detail-dismiss {
     align-self: center;
   }
 }
+
+/* Phone task pages reserve a compact toolbar above the task title. */
+@media (max-width: 640px) {
+  .dedicated-task-page main.task-page {
+    position: relative;
+    padding-top: calc(80px + env(safe-area-inset-top));
+  }
+  .dedicated-task-page .task-page > .breadcrumbs {
+    display: none;
+  }
+  .dedicated-task-page .task-page-heading > .task-context-menu {
+    position: absolute;
+    top: calc(-60px - env(safe-area-inset-top));
+    right: 40px;
+  }
+  .dedicated-task-page .task-page > .task-due-summary:not([hidden]) {
+    position: absolute;
+    top: calc(28px + env(safe-area-inset-top));
+    left: 20px;
+    margin: 0;
+    min-height: 36px;
+    justify-content: center;
+  }
+  .dedicated-task-page .task-date-summary {
+    display: none;
+  }
+  .dedicated-task-page .task-priority-summary {
+    border-radius: 8px;
+    font-size: 0;
+  }
+  .dedicated-task-page .task-priority-summary .ui-icon {
+    display: none;
+  }
+  .dedicated-task-page .task-priority-summary::after {
+    content: 'P' attr(data-priority);
+    font-size: 14px;
+  }
+  .dedicated-task-page .task-page .task-page-brief {
+    margin-top: 20px;
+  }
+
+  /* The task settings drawer uses one consistent inset for its content. */
+  .list-settings-panel[data-settings-kind='task'] {
+    padding: 0 0 max(24px, env(safe-area-inset-bottom));
+  }
+  .list-settings-panel[data-settings-kind='task'] > header {
+    padding: max(16px, env(safe-area-inset-top)) 20px 8px;
+    margin: 0;
+  }
+  .list-settings-panel[data-settings-kind='task'] > header > button:first-child {
+    min-height: 44px;
+  }
+  .list-settings-panel[data-settings-kind='task'] .task-settings-pin {
+    display: none;
+  }
+  .list-settings-panel[data-settings-kind='task'] .settings-tabs {
+    margin: 0 20px;
+  }
+  .list-settings-panel[data-settings-kind='task'] .settings-content {
+    padding: 18px 20px 24px;
+  }
+  .list-settings-panel[data-settings-kind='task'] .priority-selector {
+    margin: 16px 0 22px;
+  }
+  .list-settings-panel[data-settings-kind='task'] .priority-option > span {
+    min-height: 44px;
+  }
+  .list-settings-panel[data-settings-kind='task'] .planning-group {
+    padding: 10px 0;
+  }
+}
