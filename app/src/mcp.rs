@@ -177,7 +177,7 @@ struct ApplyChangesInput {
     idempotency_key: String,
 }
 fn subtree_fields_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
-    schemars::Schema::try_from(json!({"anyOf":[{"type":"array","items":{"enum":["reference","list_id","title","description","complete","revision","position"]}},{"type":"null"}]})).expect("subtree fields schema")
+    schemars::Schema::try_from(json!({"anyOf":[{"type":"array","items":{"enum":["reference","public_reference","list_id","title","description","complete","revision","position"]}},{"type":"null"}]})).expect("subtree fields schema")
 }
 fn subtree_limit() -> usize {
     50
