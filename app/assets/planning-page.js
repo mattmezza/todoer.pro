@@ -256,12 +256,20 @@ if (main) {
   });
   document.addEventListener('keydown', (event) => {
     if (
-      event.key === 'Escape' &&
-      !event.defaultPrevented &&
-      !document.querySelector('dialog[open]') &&
-      !event.target.closest('input,textarea,select')
+      event.key !== 'Escape' ||
+      event.defaultPrevented ||
+      document.querySelector('dialog[open]') ||
+      event.target.closest('input,textarea,select')
     )
-      close();
+      return;
+    const picker = panel?.querySelector('.panel-priority-picker[open]');
+    if (picker) {
+      event.preventDefault();
+      picker.open = false;
+      picker.querySelector('summary').focus();
+      return;
+    }
+    close();
   });
   let timer;
   const events = new EventSource('/api/v1/events');

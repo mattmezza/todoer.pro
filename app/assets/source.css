@@ -12316,3 +12316,8 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
 .panel-priority-picker summary[data-priority='2'] {
   color: #78aaff;
 }
+@media (max-width: 640px) {
+  .fun-task-stack {
+    display: none;
+  }
+}

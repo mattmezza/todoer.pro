@@ -120,6 +120,7 @@ document.addEventListener('keydown', (event) => {
         '.account-menu[open],.entity-menu[open],.task-actions[open],.workspace-menu[open]',
       )) {
         menu.open = false;
+        event.preventDefault();
         menu.querySelector('summary')?.focus();
       }
     }
