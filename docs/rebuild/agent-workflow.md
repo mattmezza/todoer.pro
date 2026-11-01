@@ -10,9 +10,9 @@ The development token adapter is restricted to explicit development mode. With c
 
 ```sh
 todoer list
-todoer --json tasks LIST_ID
-todoer search --query 'proposal' --list LIST_ID --complete false --limit 50
-todoer search --query 'proposal' --after LAST_TASK_ID
+todoer --json tasks '#abc2345'
+todoer search --query 'proposal' --list '#abc2345' --complete false --limit 50
+todoer search --query 'proposal' --after '%def2345'
 todoer task add 'Draft proposal #project .tomo :1h +work !!'
 todoer edit '%TASK_REFERENCE' --title 'Draft revised proposal'
 todoer complete '%TASK_REFERENCE'
@@ -27,15 +27,17 @@ Quote the task text so the shell passes it as one argument. `task add` uses the 
 
 For structured input, use `todoer task add --body '{"list_id":"#abc2345","title":"Buy milk","metadata":{"priority":1,"tags":["family"]}}'`. The API capture shape with a single `tasks` item is also accepted. Space, list and section creation and editing accept either `--body` JSON or quick `--title` and `--description` flags; list creation also accepts `--space`.
 
+For commands with structured bodies, repeated `--field KEY=VALUE` arguments are another way to supply fields. Dotted paths create nested objects and numeric components select array positions; values that are valid JSON are parsed as JSON, and other values are strings. For example, `--field 'input.title=Work'` sets a nested title, while `--field restricted=false` sets a Boolean. Use a JSON string such as `--field 'title="123"'` to force text that otherwise looks like a number. `--op` supplies an action name. If `--body` and arguments specify the same field, the JSON value takes precedence.
+
 The CLI reads the current version automatically before an edit. If another edit occurs in between, the server rejects the conflicting write; review the latest item before trying again. `complete --subtree` explicitly requests completion of the subtree. `--description ''` clears a description.
 
-Search defaults to an empty query and at most 50 results. Use `--list` to narrow the list, `--complete true` or `--complete false` to filter status, and `--after` with the last task ID to request the next page. Query parameters are URL encoded.
+Search defaults to an empty query and at most 50 results. Use `--list` to narrow the list, `--complete true` or `--complete false` to filter status, and `--after` with the last task reference to request the next page. Query parameters are URL encoded.
 
 `move` validates the operation before asking for confirmation and warns if access broadens. Pass `--yes` to confirm noninteractively. It supports moving a list to a space, a section to a list, and a task or subtask to a list, section, task, or subtask.
 
 Use `--json` for scripts: successful response bodies are printed unchanged to stdout. Human list views show titles and references, with completion status for tasks. Use `--json` for revisions. Errors go to stderr. Exit codes are 0 for success, 2 for invalid CLI arguments or HTTP validation errors, 3 for missing credentials or HTTP authentication/authorization errors, 4 for HTTP revision/conflict errors, and 1 for other failures. Network requests time out after 30 seconds and redirects are not followed.
 
-`todoer spaces all`, `todoer lists all`, and `todoer sections all LIST` show names and short references. Task listings show status and task references; `todoer subtree TASK` indents descendants and shows a continuation cursor when needed. References use `@` for spaces, `#` for lists, `$` for sections, `%` for tasks, and `^` for subtasks. Use `todoer view REFERENCE` to show an entity and its immediate children. Add `--info` for its description and child counts: `s` sections, `o` open top-level tasks, and `d` completed top-level tasks. List views include sections and unsectioned top-level tasks; section views show their top-level tasks, and task views show direct subtasks. Subtasks are excluded from the task counts. `todoer --json view REFERENCE` includes revisions and the structured children. Quote references in a shell, for example `todoer view '#abc2345'` or `todoer view '$abc2345'`. List references also work with `lists get/edit`, `tasks`, `capture --list`, and `sections all/create`; space references work with `spaces get/edit`, and section references with `sections edit`. Other commands may still require the full ID, available through `--json`; older servers also show the full ID in the overview. `space` and `workspace` remain aliases for `spaces`.
+`todoer spaces all`, `todoer lists all`, and `todoer sections all LIST` show names and short references. Task listings show status and task references; `todoer subtree TASK` indents descendants and shows a continuation cursor when needed. References use `@` for spaces, `#` for lists, `$` for sections, `%` for tasks, and `^` for subtasks. Use `todoer view REFERENCE` to show an entity and its immediate children. Add `--info` for its description and child counts: `s` sections, `o` open top-level tasks, and `d` completed top-level tasks. List views include sections and unsectioned top-level tasks; section views show their top-level tasks, and task views show direct subtasks. Subtasks are excluded from the task counts. `todoer --json view REFERENCE` includes revisions and the structured children. Quote references in a shell, for example `todoer view '#abc2345'` or `todoer view '$abc2345'`. List references also work with `lists get/edit`, `tasks`, `task add`, and `sections all/create`; space references work with `spaces get/edit`, and section references with `sections edit`. Comments, files, series and invitations use their own identifiers where no prefixed reference exists. `space` and `workspace` remain aliases for `spaces`.
 
 `todoer view '#abc2345' --full` shows a list's description, sections and top-level tasks, including unsectioned tasks. Add `--sub` to include nested subtasks, and `--info` to add the list's `s`, `o` and `d` counts and each section's `o` and `d` counts. These counts exclude subtasks. In JSON full views, each section's `children` contains its tasks in display order; subtasks have a `depth` greater than zero. Unsectioned tasks appear directly in the list's `children`.
 
@@ -59,7 +61,7 @@ production account.
 Saved destinations make repeated agent requests explicit without conversation state:
 
 ```sh
-todoer destination set capture LIST_ID
+todoer destination set capture '#abc2345'
 todoer destination resolve --preference-key capture
 todoer destination resolve --fallback-inbox
 todoer destination search --prefix Work --limit 20
@@ -71,9 +73,11 @@ An explicit destination takes precedence over preferences. Exact duplicate title
 Bulk writes use a server-stored preview with a ten-minute expiry. Review its before/after states and access changes, then apply its exact hash:
 
 ```sh
-todoer --json bulk preview --body '{"operations":[{"op":"update","id":"TASK_ID","revision":1,"title":"Reviewed title"}]}'
+todoer --json bulk preview --operation update --task '%def2345' --title 'Reviewed title'
 todoer --json bulk apply PREVIEW_ID --hash EXPECTED_HASH --key UNIQUE_RETRY_KEY
 ```
+
+For multiple operations, use `--body` or indexed arguments such as `--field 'operations.0.op=trash' --field 'operations.0.id=%def2345' --field 'operations.1.op=trash' --field 'operations.1.id=%xyz2345'`. The CLI looks up task versions before the preview. The single-operation shortcut also accepts `--to` for moves, section assignment and reparenting, and repeated `--tag` for tags.
 
 At most 50 operations and 500 affected task states fit one preview. Supported operations are title/description update, move, trash, restore, existing tags, section assignment, and same-list reparenting. Completion and entity creation use their individual APIs. Existing tag names must already exist in the task's destination scope. Preview runs the common operations and rolls them back; apply rechecks current revisions, permissions, and metadata and commits all operations together. Reuse the apply key only for the same preview and hash. A later failure rolls back earlier operations.
 
@@ -82,11 +86,11 @@ The compact MCP tools are `preview_changes`, `apply_changes`, `resolve_destinati
 Structured search and organization use the common domain operations:
 
 ```sh
-todoer --json query --text proposal --entity task --entity comment --status all --list LIST_ID --due-from 2026-10-26 --due-to 2026-10-30 --sort due --field title --field context
+todoer --json query --text proposal --entity task --entity comment --status all --list '#abc2345' --due-from 2026-10-26 --due-to 2026-10-30 --sort due --field title --field context
 todoer --json query --body '{"text":"proposal","entities":["task"],"fields":[],"limit":20}'
-todoer tags list LIST_ID --prefix urgent
-todoer tags create LIST_ID urgent
-todoer tags get TASK_ID
+todoer tags list '#abc2345' --prefix urgent
+todoer tags create '#abc2345' urgent
+todoer tags get '%def2345'
 todoer tags set '%TASK_REFERENCE' --tag urgent --tag-id EXISTING_TAG_UUID
 todoer tags rename TAG_UUID 'high priority'
 todoer task-section '%TASK_REFERENCE'
@@ -101,31 +105,33 @@ todoer reorder '#LIST_REFERENCE' '%FIRST_TASK' '%SECOND_TASK'
 ```sh
 todoer references resolve '#Inbox'
 todoer references autocomplete '%T-' --limit 20
-todoer references unresolved task TASK_ID
-todoer references bind task TASK_ID --revision TASK_REVISION --occurrence 0 --target-kind list --target-id CHOSEN_LIST_ID
-todoer references backlinks list LIST_ID
+todoer references unresolved task '%def2345'
+todoer references bind task '%def2345' --occurrence 0 --target-kind list --target-id '#abc2345'
+todoer references backlinks list '#abc2345'
 ```
 
-Resolve returns zero, one, or multiple accessible choices; choose explicitly when ambiguous. Occurrences come from the saved description/comment parser, excluding code and existing links. Binding requires the current source task/comment revision, increments it, and preserves other stable bindings. A target must still be an accessible exact candidate for the original token. Backlinks recheck both target and source access. These commands never expose another workspace's inaccessible candidates.
+Resolve returns zero, one, or multiple accessible choices; choose explicitly when ambiguous. Occurrences come from the saved description/comment parser, excluding code and existing links. Binding checks and increments the current source task/comment version, and preserves other stable bindings. A target must still be an accessible exact candidate for the original token. Backlinks recheck both target and source access. These commands never expose another workspace's inaccessible candidates.
 
 MCP adds three compact tools: `query` takes the canonical structured query, `organize_tasks` takes an `action` discriminated by `op`, and `references` takes a reference action. Their complete schemas are returned by `list_tools` and share the checked-in OpenAPI schemas. The original `search` tool remains available for its older task-only contract. Query cursors bind filters, actor, access and index state: on `resync_required`, restart without a cursor. See [structured search](search.md) and [references](references.md) for limits and exact semantics.
 
 Scheduling uses `schedule_tasks` in MCP and typed CLI commands:
 
 ```sh
-todoer schedule get TASK_ID
-todoer schedule set TASK_ID --revision TASK_REVISION --body '{"planned":{"kind":"date","date":"2026-10-26"},"due":{"kind":"timed","local":"2026-10-27T16:00:00","timezone":"Europe/Zurich"},"priority":2,"reminders":[]}'
-todoer schedule start ROOT_TASK_ID --revision TASK_REVISION --body '{"rule":{"kind":"daily","interval_days":1},"start_local":"2026-10-27T16:00:00","timezone":"Europe/Zurich","count":5}'
+todoer schedule get '%def2345'
+todoer schedule set '%def2345' --planned 2026-10-26 --due 2026-10-27T16:00:00 --timezone Europe/Zurich --priority 2
+todoer schedule start '%def2345' --rule daily --every 1 --start-local 2026-10-27T16:00:00 --timezone Europe/Zurich --count 5
 todoer schedule series SERIES_ID
-todoer schedule state SERIES_ID --revision SERIES_REVISION paused
-todoer schedule state SERIES_ID --revision SERIES_REVISION active
+todoer schedule state SERIES_ID paused
+todoer schedule state SERIES_ID active
 todoer schedule occurrences SERIES_ID
-todoer schedule skip TASK_ID --revision TASK_REVISION
+todoer schedule skip '%def2345'
 todoer schedule planning --from 2026-10-26 --to 2026-11-01
 todoer schedule statistics --from 2026-10-26
 ```
 
-Schedule set replaces the entire schedule: omitted planned/due/priority values clear them, and omitted reminders become empty. Task scheduling/start/skip use the task revision; series state changes use the series revision. Recurrence supports unfinished root tasks with bounded nested checklists of at
+`schedule set` replaces the full schedule, including when using the quick flags. To specify additional fields such as reminders, use `--body` or nested `--field` arguments. Recurrence rules include `daily`, `weekdays` (with `--weekdays 1,2,3`), and `completion_relative`.
+
+Schedule set replaces the entire schedule: omitted planned/due/priority values clear them, and omitted reminders become empty. The CLI obtains the current task or series version automatically. Recurrence supports unfinished root tasks with bounded nested checklists of at
 most 500 live tasks. The common operation enforces the bound, local-time validity,
 and live access. Recurring checklist completion requires explicit subtree
 completion, including when its children are already complete. Successors receive
@@ -136,24 +142,24 @@ for skip, pause/resume and historical reopening behavior. Planning returns `{tas
 Comments and files share the `task_activity` MCP tool and these CLI commands:
 
 ```sh
-todoer comments list TASK_ID --after 0 --limit 20
-todoer comments list TASK_ID --full
-todoer comments add TASK_ID --key UNIQUE_RETRY_KEY 'Review #Inbox'
+todoer comments list '%def2345' --after 0 --limit 20
+todoer comments list '%def2345' --full
+todoer comments add '%def2345' --key UNIQUE_RETRY_KEY 'Review #Inbox'
 todoer comments get COMMENT_ID
-todoer comments edit COMMENT_ID --revision COMMENT_REVISION 'Reviewed text'
-todoer comments delete COMMENT_ID --revision COMMENT_REVISION
-todoer files list TASK_ID
-todoer files upload TASK_ID --file ./report.pdf --dry-run
-todoer files upload TASK_ID --file ./report.pdf
+todoer comments edit COMMENT_ID 'Reviewed text'
+todoer comments delete COMMENT_ID
+todoer files list '%def2345'
+todoer files upload '%def2345' --file ./report.pdf --dry-run
+todoer files upload '%def2345' --file ./report.pdf
 todoer files resume INTENT_ID --file ./report.pdf
 todoer files info ATTACHMENT_ID
 todoer files download ATTACHMENT_ID --output ./verified-report.pdf
-todoer files delete ATTACHMENT_ID --revision ATTACHMENT_REVISION
+todoer files delete ATTACHMENT_ID
 ```
 
-Comment creation retries use the same key and exact body. Editing/deleting uses independent comment revisions and the common author-or-owner moderation rule. Compact comment lists return 300-character excerpts, cursor `next_after_seq`, and `page_limit`; full-body pages cap at 10 comments, while excerpt pages accept 1–50. An explicit comment get returns one full saved body. Attachment lists cap at 100 records with a `truncated` flag; structured filename queries can locate additional authorized IDs.
+Comment creation retries use the same key and exact body. Editing/deleting checks the current comment version and the common author-or-owner moderation rule. Compact comment lists return 300-character excerpts, cursor `next_after_seq`, and `page_limit`; full-body pages cap at 10 comments, while excerpt pages accept 1–50. An explicit comment get returns one full saved body. Attachment lists cap at 100 records with a `truncated` flag; structured filename queries can locate additional authorized IDs.
 
-File transfer accepts regular files up to 25 MiB, computes SHA-256 locally, creates an intent, sends the exact bytes through the authenticated REST proxy, and finalizes only after the shared storage verifier confirms size and digest. Dry-run reads/checks the local file and prints its size/hash without contacting the server. On interruption the error includes the intent ID; resume requires the same size/hash. `files intent TASK_ID --body '{"filename":"report.pdf","size":123,"sha256":"64_HEX_CHARACTERS"}'` exposes the bounded direct-upload plan for a separate uploader. `files finalize INTENT_ID --revision INTENT_REVISION` (alias `files confirm`) verifies and completes that upload; it never trusts a client assertion that bytes were uploaded. File bytes are not kept in a hidden CLI cache. Signed upload URLs are temporary credentials and must not be logged.
+File transfer accepts regular files up to 25 MiB, computes SHA-256 locally, creates an intent, sends the exact bytes through the authenticated REST proxy, and finalizes only after the shared storage verifier confirms size and digest. Dry-run reads/checks the local file and prints its size/hash without contacting the server. On interruption the error includes the intent ID; resume requires the same size/hash. `files intent '%def2345' --body '{"filename":"report.pdf","size":123,"sha256":"64_HEX_CHARACTERS"}'` exposes the bounded direct-upload plan for a separate uploader. `files finalize INTENT_ID` (alias `files confirm`) verifies and completes that upload; it never trusts a client assertion that bytes were uploaded. File bytes are not kept in a hidden CLI cache. Signed upload URLs are temporary credentials and must not be logged.
 
 Downloads verify the declared size and SHA-256 before writing and refuse an existing output path. Transfer requests time out after 60 seconds; ordinary single requests retain their 30-second timeout. Transfer JSON output is the final metadata/result; single API responses retain their original response body. Soft deletion removes attachment metadata from reads while retaining object bytes under the server's documented retention policy.
 
@@ -161,9 +167,11 @@ MCP attachment operations accept metadata/intents, not inline binary bodies. A c
 
 `manage_access` groups organization and sharing operations in MCP. The existing workspace/list/section CLI commands and `access --body` use the same authority checks. Access expansion requires explicit acknowledgement; missing acknowledgement or stale workspace/list revisions returns conflict. Invitations are email-bound grants and may queue email delivery:
 
+For example, `todoer access --op list_info --field 'list_id=#abc2345'` reads list access, and `todoer access --op space_members --field 'space_id=@ghi2345'` reads space members. Use `--body` for a JSON action or `--op` and `--field` for its arguments. The same pattern works with `organize`, `activity`, space/list access commands, and file intent creation.
+
 ```sh
-todoer invitations list space SPACE_ID
-todoer invitations create space SPACE_ID person@example.invalid --role viewer --key UNIQUE_RETRY_KEY --acknowledge-access-change
+todoer invitations list space '@ghi2345'
+todoer invitations create space '@ghi2345' person@example.invalid --role viewer --key UNIQUE_RETRY_KEY --acknowledge-access-change
 todoer invitations revoke INVITATION_ID
 ```
 
@@ -191,21 +199,21 @@ production-storage acceptance remain separate.
 
 ## Bounded subtree pages, review, and moving a whole list
 
-`todoer subtree TASK_ID` now calls `POST /api/v1/tasks/{id}/subtree/query`. It returns a page with `items`, `context`, `snapshot`, `has_more`, and `next_cursor`. The default is 50 items (maximum 100), with a 256-KiB response cap. IDs, parent IDs and depth are always present. Default optional fields are reference, title, completion, revision and position; descriptions require explicit projection. This changes the earlier CLI/MCP array response to a bounded page. Legacy REST `GET .../subtree` remains available for the existing browser flow.
+`todoer subtree '%def2345'` now calls `POST /api/v1/tasks/{id}/subtree/query`. It returns a page with `items`, `context`, `snapshot`, `has_more`, and `next_cursor`. The default is 50 items (maximum 100), with a 256-KiB response cap. IDs, parent IDs and depth are always present. Default optional fields are reference, title, completion, revision and position; descriptions require explicit projection. This changes the earlier CLI/MCP array response to a bounded page. Legacy REST `GET .../subtree` remains available for the existing browser flow.
 
 ```sh
-todoer --json subtree TASK_ID --limit 25 --fields title,revision,complete
-todoer --json subtree TASK_ID --limit 25 --fields title,revision,complete --cursor CURSOR
-todoer --json subtree TASK_ID --fields title,description,revision
-todoer --json review --from 2026-10-26 --to 2026-11-01 --list LIST_ID
-todoer --json lists move-preview LIST_ID --destination-space DESTINATION_WORKSPACE_ID
+todoer --json subtree '%def2345' --limit 25 --fields title,revision,complete
+todoer --json subtree '%def2345' --limit 25 --fields title,revision,complete --cursor CURSOR
+todoer --json subtree '%def2345' --fields title,description,revision
+todoer --json review --from 2026-10-26 --to 2026-11-01 --list '#abc2345'
+todoer move '#abc2345' --to '@ghi2345'
 ```
 
 `read_subtree` is the same bounded MCP page, with optional `limit`, `fields`, and `cursor`. Reuse the same root and projection when paging. Mutation makes a cursor stale (`resync_required`); restart rather than combining snapshots. Ancestor context is authorization checked and bounded, with explicit omitted/truncated markers. Extremely deep trees require reading a deeper root.
 
 `todoer review` calls the implemented weekly-review REST endpoint. Omitted dates default to the current local week; `--space` and `--list` restrict the scope. It retains counting and coverage notes: completion counts distinct recorded leaf work, older history can be incomplete, planned-versus-completed uses current leaf schedules, and overdue trends contain actual observations rather than invented historical zeroes. MCP `schedule_tasks` adds `{action:{op:"review",from:"YYYY-MM-DD",to:"YYYY-MM-DD",list_id:null|ID,workspace_id:null|ID}}`; explicit dates are required there. The compact MCP/agent response clears upcoming task descriptions and retains the notes.
 
-Whole-list moves use existing stable IDs and common authorization. Both workspaces require live owner access; a credential restricted to only one workspace/list cannot move the whole list. `manage_access` supports `list_move_preview` with `list_id` and `destination_workspace_id`, then `list_move` with `list_id` and an `input` object containing the preview's `destination_workspace_id`, `list_revision`, `source_workspace_revision`, `destination_workspace_revision`, and `policy_hash`. Expanded access additionally requires `acknowledge_access_change:true` after reviewing the full audience. The CLI apply command is `todoer lists move LIST_ID --body 'JSON'` with that same exact input. Never replace stale revisions blindly or infer acknowledgement from an old preview. List contents, sections, comments/files, reference IDs, and audit history remain under the common atomic move operation.
+Whole-list moves use existing stable IDs and common authorization. Both workspaces require live owner access; a credential restricted to only one workspace/list cannot move the whole list. `manage_access` supports `list_move_preview` with `list_id` and `destination_workspace_id`, then `list_move` with `list_id` and an `input` object containing the preview's `destination_workspace_id`, `list_revision`, `source_workspace_revision`, `destination_workspace_revision`, and `policy_hash`. Expanded access additionally requires `acknowledge_access_change:true` after reviewing the full audience. The CLI uses `todoer move '#abc2345' --to '@ghi2345'`; it obtains and applies the current preview after confirmation. Never replace stale revisions blindly or infer acknowledgement from an old preview. List contents, sections, comments/files, reference IDs, and audit history remain under the common atomic move operation.
 
 Optional assistance REST endpoints and their privacy/budget/review contract are documented in [assist.md](assist.md). Agent clients do not receive server provider keys or silently classify captures.
 
