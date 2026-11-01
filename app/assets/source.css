@@ -11043,6 +11043,25 @@ form[data-load-failed],
   gap: 6px 16px;
   align-items: start;
 }
+.reference-list-page .inline-capture {
+  border: 0;
+  padding: 16px;
+}
+.reference-list-page .inline-capture .capture-entry {
+  row-gap: 0;
+}
+.reference-list-page .inline-capture textarea {
+  min-height: 36px;
+  padding-block: 4px;
+}
+.reference-list-page .inline-capture textarea[name='description'] {
+  font-size: 16px;
+}
+.reference-list-page .inline-capture :is(#capture-cancel, [data-capture-cancel]) {
+  border-radius: 6px;
+  background: var(--hover);
+  color: var(--text);
+}
 .capture-entry.has-capture-badges {
   grid-template-columns: minmax(0, 1fr) minmax(0, 30%);
 }
@@ -13106,6 +13125,23 @@ body > .planning-detail-dismiss {
   }
   .task-page [data-child-form] .capture-help:has(.capture-literal) {
     flex-basis: 100%;
+  }
+  .reference-list-page .inline-capture .capture-help:not(:has(.capture-literal)) {
+    display: none;
+  }
+  .reference-list-page .inline-capture .capture-help:has(.capture-literal) {
+    flex-basis: 100%;
+  }
+  .reference-list-page .inline-capture .inline-actions {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+  .reference-list-page .inline-capture .inline-actions > button {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    text-align: center;
   }
   .task-page :is([data-child-form], [data-new-comment]) .composer-actions {
     display: flex;
