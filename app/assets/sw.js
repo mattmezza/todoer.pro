@@ -41,6 +41,7 @@ const STATIC = [
   '/assets/smart-capture-parser.mjs',
   '/assets/capture-dates.mjs',
   '/assets/list-ui.js',
+  '/assets/list-color-picker.js',
   '/assets/list-settings.js',
   '/assets/workspaces.js',
   '/assets/icons.svg',

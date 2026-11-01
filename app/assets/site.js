@@ -4,6 +4,7 @@ import './reference-copy.js';
 import { beginLoading } from './loading.js';
 import './notification-center.js';
 import { request as fetch } from './request.js';
+import { mountListColorPicker } from './list-color-picker.js';
 import './home-filters.js';
 import './settings-feedback.js';
 import './export-menu.js';
@@ -174,6 +175,35 @@ document
   });
 
 const listDialog = document.querySelector('#list-create-dialog');
+const createColorInput = listDialog?.querySelector('[name="color"]');
+const createColorContainer = createColorInput?.parentElement;
+let colorSuggestionRequest = 0;
+const createColorPicker =
+  createColorInput &&
+  mountListColorPicker(createColorInput, {
+    onChange: () => colorSuggestionRequest++,
+  });
+if (createColorPicker) createColorContainer.append(createColorPicker.element);
+async function suggestListColor(form) {
+  const sequence = ++colorSuggestionRequest;
+  const space = form.elements.workspace_id.value;
+  if (!space) return;
+  try {
+    const response = await fetch(
+      `/api/v1/workspaces/${encodeURIComponent(space)}/list-color-suggestion`,
+    );
+    if (!response.ok) throw Error('Could not choose a list color');
+    const result = await response.json();
+    if (sequence === colorSuggestionRequest && listDialog.open)
+      createColorPicker.setColor(result.color);
+  } catch {
+    // A selected color remains usable if the suggestion cannot be loaded.
+  }
+}
+createColorInput?.addEventListener('input', () => colorSuggestionRequest++);
+listDialog
+  ?.querySelector('[name="workspace_id"]')
+  ?.addEventListener('change', (event) => suggestListColor(event.target.form));
 document.addEventListener('click', (event) => {
   if (event.target.closest('[data-list-create-open]') && listDialog) {
     event.preventDefault();
@@ -184,6 +214,7 @@ document.addEventListener('click', (event) => {
       return;
     }
     listDialog.showModal();
+    suggestListColor(form);
     form.elements.title.focus();
   }
   if (event.target.closest('[data-list-create-close]')) listDialog?.close();

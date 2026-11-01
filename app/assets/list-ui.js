@@ -4,6 +4,7 @@ import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
 import { openListSettings, setupTaskSettingsDock } from './list-settings.js';
 import { previewTaskMove } from './task-page.js';
+import { mountListColorPicker } from './list-color-picker.js';
 export function mountListUi({ api, notice, listId }) {
   setupTaskSettingsDock(document.querySelector('main'), 'list', listId);
   const canWrite = document.body.dataset.canWrite === 'true';
@@ -41,7 +42,68 @@ export function mountListUi({ api, notice, listId }) {
         : '#3b82f6');
     const title = edit.querySelector('[name="title"]');
     title.before(heading);
-    heading.append(picker, title);
+    const palette = mountListColorPicker(picker);
+    heading.append(palette.element, title);
+  }
+  const swatch = document.querySelector('[data-list-display] .entity-color');
+  if (swatch && canWrite) {
+    const rgb = getComputedStyle(swatch).backgroundColor.match(/\d+/g);
+    const current = document.createElement('input');
+    current.type = 'color';
+    current.setAttribute('aria-label', 'Custom list color');
+    current.value =
+      rgb?.length >= 3
+        ? '#' +
+          rgb
+            .slice(0, 3)
+            .map((part) => Number(part).toString(16).padStart(2, '0'))
+            .join('')
+        : '#4e89f7';
+    let savingColor = false;
+    const palette = mountListColorPicker(current, {
+      label: 'Change list color',
+      onChange: async (color) => {
+        if (savingColor) {
+          palette.setColor(current.dataset.savedColor);
+          return;
+        }
+        savingColor = true;
+        try {
+          const list = await api(`/lists/${listId}`);
+          const updated = await api(`/lists/${listId}/color`, 'PUT', {
+            revision: list.revision,
+            color,
+          });
+          document.body.dataset.listColor = color;
+          document.body.style.setProperty('--list-color', color);
+          for (const dot of document.querySelectorAll(
+            `.list-navigation[href="/lists/${listId}"] .list-dot`,
+          )) {
+            dot.style.backgroundColor = color;
+            dot.dataset.entityColor = color;
+          }
+          if (edit) {
+            edit.dataset.revision = updated.revision;
+            const editColor = edit.querySelector('[name="color"]');
+            if (editColor) {
+              editColor.value = color;
+              editColor.dispatchEvent(new Event('input'));
+            }
+          }
+        } catch (error) {
+          palette.setColor(current.dataset.savedColor);
+          notice(error.message, true);
+          return;
+        } finally {
+          savingColor = false;
+        }
+        current.dataset.savedColor = color;
+        palette.setColor(color);
+      },
+    });
+    current.dataset.savedColor = current.value;
+    palette.element.classList.add('heading-list-color');
+    swatch.replaceWith(palette.element);
   }
   const completedCheck = document.querySelector('#show-completed');
   function updateCompletedLabel() {

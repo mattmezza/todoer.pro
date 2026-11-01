@@ -46,6 +46,10 @@ pub(super) fn routes() -> Router<AppState> {
             "/api/v1/workspaces/{id}",
             get(api_workspace).patch(api_update_workspace),
         )
+        .route(
+            "/api/v1/workspaces/{id}/list-color-suggestion",
+            get(list_color_suggestion),
+        )
         .route("/api/v1/workspaces/{id}/people", get(api_people))
         .route(
             "/api/v1/workspaces/{id}/members",
@@ -74,6 +78,58 @@ pub(super) fn routes() -> Router<AppState> {
             post(api_reorder_sections),
         )
         .route("/api/v1/sections/{id}", patch(api_update_section))
+}
+
+async fn list_color_suggestion(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, ApiError> {
+    let actor = s.auth(&h, false)?;
+    let color = s
+        .run(move |db| {
+            if db.workspace_permission(&actor, &id)? < 2 {
+                return Err(Error::Forbidden);
+            }
+            let palette = [
+                "#4e89f7", "#78b500", "#fbd919", "#ff1818", "#8b67f7", "#ec4899", "#e2e8f0",
+                "#14b8a6", "#f97316", "#06b6d4", "#a855f7", "#f43f5e",
+            ];
+            let mut statement = db.conn.prepare(
+                "SELECT lower(coalesce(color_hex,color,'blue')) FROM lists WHERE workspace_id=?1",
+            )?;
+            let used = statement
+                .query_map([id], |row| row.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?;
+            let used = used
+                .iter()
+                .map(|value| match value.as_str() {
+                    "blue" => "#4e89f7",
+                    "green" => "#78b500",
+                    "amber" => "#fbd919",
+                    "red" => "#ff1818",
+                    "violet" => "#8b67f7",
+                    "pink" => "#ec4899",
+                    "gray" => "#e2e8f0",
+                    other => other,
+                })
+                .collect::<std::collections::HashSet<_>>();
+            let available = palette
+                .iter()
+                .copied()
+                .filter(|color| !used.contains(color))
+                .collect::<Vec<_>>();
+            let choices = if available.is_empty() {
+                palette.to_vec()
+            } else {
+                available
+            };
+            let random =
+                u64::from_le_bytes(uuid::Uuid::new_v4().as_bytes()[..8].try_into().unwrap());
+            Ok(choices[random as usize % choices.len()].to_owned())
+        })
+        .await?;
+    Ok(Json(json!({"color":color})))
 }
 
 #[derive(Deserialize)]
