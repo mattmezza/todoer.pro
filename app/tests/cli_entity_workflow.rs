@@ -170,6 +170,38 @@ async fn quick_edits_and_reviewed_moves_use_public_references() {
     );
     let section = cli(&url, &["view", &section_ref]);
     assert_eq!(section["children"][0]["title"], "Ripe tomatoes");
+    cli(&url, &["archive", &task_ref]);
+    assert!(
+        cli(&url, &["tasks", &list_ref, "--archived-only"])
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["id"] == task["entity"]["id"])
+    );
+    assert!(
+        !cli(&url, &["trash-list"])
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["id"] == task["entity"]["id"])
+    );
+    cli(&url, &["restore", &task_ref]);
+    cli(&url, &["archive", &section_ref]);
+    assert!(
+        cli(&url, &["sections", "all", &list_ref, "--archived-only"])
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["id"] == section["entity"]["id"])
+    );
+    assert!(
+        cli(&url, &["tasks", &list_ref, "--archived"])
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["id"] == task["entity"]["id"] && row["archived"] == true)
+    );
+    cli(&url, &["restore", &section_ref]);
     cli(&url, &["trash", &task_ref]);
     cli(&url, &["restore", &task_ref]);
     cli(&url, &["archive", &list_ref]);

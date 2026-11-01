@@ -132,7 +132,7 @@ impl Store {
             ),
             (
                 "section",
-                "SELECT s.entity_id,s.slug FROM entity_slugs s JOIN sections x ON x.id=s.entity_id JOIN actor_list_access a ON a.list_id=x.list_id WHERE s.kind='section' AND a.actor_id=?1",
+                "SELECT s.entity_id,s.slug FROM entity_slugs s JOIN sections x ON x.id=s.entity_id JOIN actor_list_access a ON a.list_id=x.list_id WHERE s.kind='section' AND a.actor_id=?1 AND x.archived=0",
             ),
         ] {
             let mut q = tx.prepare(sql)?;

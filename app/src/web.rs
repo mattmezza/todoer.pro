@@ -8,6 +8,8 @@ mod ai_billing_ui;
 mod ai_policy_http;
 #[path = "ai_usage_web.rs"]
 mod ai_usage_http;
+#[path = "archive_web.rs"]
+mod archive_http;
 #[path = "billing_web.rs"]
 mod billing_http;
 #[path = "notification_web.rs"]
@@ -296,6 +298,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/view/{kind}/{reference}", get(view_http::view))
         .route("/api/v1/cli/overview/{kind}", get(view_http::overview))
         .route("/api/v1/cli/tags/{id}", get(view_http::tag))
+        .route(
+            "/api/v1/cli/lifecycle/{kind}/{reference}",
+            post(archive_http::change),
+        )
         .route("/api/v1/lists/{id}/tasks", get(tasks))
         .route("/api/v1/capture", post(capture))
         .route("/api/v1/capture/options", get(capture_options))

@@ -195,7 +195,7 @@ pub(crate) fn event(
     crate::notification_center::record_change(c, t, kind, &user, c.last_insert_rowid())?;
     Ok(())
 }
-fn reopen(c: &Connection, id: &str, actor: &str) -> Result<(), Error> {
+pub(crate) fn reopen(c: &Connection, id: &str, actor: &str) -> Result<(), Error> {
     let mut parent = task(c, id)?.parent_id;
     while let Some(id) = parent {
         let p = task(c, &id)?;
@@ -300,6 +300,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (51, include_str!("../migrations/051_favorite_order.sql")),
     (52, include_str!("../migrations/052_task_durations.sql")),
     (53, include_str!("../migrations/053_duration_range.sql")),
+    (54, include_str!("../migrations/054_entity_archive.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {
@@ -679,7 +680,7 @@ impl Store {
             .map(|col| format!("t.{col}"))
             .collect::<Vec<_>>()
             .join(",");
-        let mut q = self.conn.prepare(&format!("SELECT {cols} FROM tasks t JOIN actor_list_access m ON m.list_id=t.list_id WHERE m.actor_id=?1 AND t.deleted_at IS NOT NULL ORDER BY t.id"))?;
+        let mut q = self.conn.prepare(&format!("SELECT {cols} FROM tasks t JOIN actor_list_access m ON m.list_id=t.list_id WHERE m.actor_id=?1 AND t.deleted_at IS NOT NULL AND t.archive_group IS NULL ORDER BY t.id"))?;
         Ok(q.query_map([actor], task_row)?.collect::<Result<_, _>>()?)
     }
     /// Page deletion operations, not individual descendants. IDs break timestamp ties.

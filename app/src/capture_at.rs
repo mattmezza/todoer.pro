@@ -73,7 +73,7 @@ impl Store {
         }
         if let Some(ref section_id) = section {
             let valid: bool = tx.conn.query_row(
-                "SELECT EXISTS(SELECT 1 FROM sections WHERE id=?1 AND list_id=?2)",
+                "SELECT EXISTS(SELECT 1 FROM sections WHERE id=?1 AND list_id=?2 AND archived=0)",
                 params![section_id, input.list_id],
                 |r| r.get(0),
             )?;
@@ -180,7 +180,7 @@ impl Store {
         let mut tx = crate::agent_ops::StoreWrite::new(self)?;
         crate::core::access_rank(&tx.conn, actor, &input.list_id, 2)?;
         let destination_exists: bool = tx.conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM sections WHERE id=?1 AND list_id=?2)",
+            "SELECT EXISTS(SELECT 1 FROM sections WHERE id=?1 AND list_id=?2 AND archived=0)",
             params![section, input.list_id],
             |r| r.get(0),
         )?;

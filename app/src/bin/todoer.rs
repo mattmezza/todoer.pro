@@ -160,6 +160,10 @@ enum Command {
     },
     Tasks {
         list: String,
+        #[arg(long, conflicts_with = "archived_only")]
+        archived: bool,
+        #[arg(long)]
+        archived_only: bool,
     },
     /// Create a task using the same capture notation as the app.
     Task {
@@ -246,11 +250,11 @@ enum Command {
         #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
     },
-    /// Archive a space or list.
+    /// Archive a space, list, section, task or subtask.
     Archive {
         reference: String,
     },
-    /// Restore an archived space or list.
+    /// Restore an archived entity or a trashed task.
     Restore {
         reference: String,
     },
@@ -393,6 +397,10 @@ enum ListCommand {
 enum SectionCommand {
     All {
         list: String,
+        #[arg(long, conflicts_with = "archived_only")]
+        archived: bool,
+        #[arg(long)]
+        archived_only: bool,
     },
     Create {
         list: String,
@@ -1109,7 +1117,14 @@ fn list_request(command: ListCommand) -> Result<RequestSpec, (i32, String)> {
 }
 fn section_request(command: SectionCommand) -> Result<RequestSpec, (i32, String)> {
     Ok(match command {
-        SectionCommand::All { list } => read_request(format!("/lists/{}/sections", segment(&list))),
+        SectionCommand::All {
+            list,
+            archived,
+            archived_only,
+        } => read_request(format!(
+            "/cli/overview/sections?list={}&archived={archived}&archived_only={archived_only}",
+            segment(&list)
+        )),
         SectionCommand::Create {
             list,
             body,
@@ -1370,9 +1385,16 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         Command::References { command } => reference_request(command),
         Command::Destination { command } => destination_request(command, &mut query_pairs),
         Command::List => (Method::GET, "/cli/overview/lists".into(), None, None),
-        Command::Tasks { list } => (
+        Command::Tasks {
+            list,
+            archived,
+            archived_only,
+        } => (
             Method::GET,
-            format!("/lists/{}/tasks", segment(&list)),
+            format!(
+                "/cli/overview/tasks?list={}&archived={archived}&archived_only={archived_only}",
+                segment(&list)
+            ),
             None,
             None,
         ),
@@ -1410,10 +1432,10 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             } else {
                 json!({})
             };
-            if value.get("list_id").is_none() {
-                if let Some(list) = list {
-                    value["list_id"] = json!(unprefix(&list));
-                }
+            if value.get("list_id").is_none()
+                && let Some(list) = list
+            {
+                value["list_id"] = json!(unprefix(&list));
             }
             if value.get("section_id").is_none() && section.is_some() {
                 value["section_id"] = json!(section);
@@ -1530,6 +1552,20 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             let kind = match key.as_str() {
                 "list" => "list",
                 "workspace" => "space",
+                "after" if value.starts_with(['%', '^']) => {
+                    let entity = get_json(
+                        &client,
+                        &args.url,
+                        &token,
+                        &format!("/tasks/{}", segment(value)),
+                    )
+                    .await?;
+                    *value = entity["id"]
+                        .as_str()
+                        .ok_or((1, "server omitted task ID".into()))?
+                        .to_owned();
+                    continue;
+                }
                 _ => continue,
             };
             let entity = get_json(
@@ -1543,6 +1579,23 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
                 .as_str()
                 .ok_or((1, "server omitted entity ID".into()))?
                 .to_owned();
+        }
+    }
+    if path.starts_with("/tasks/") && path.ends_with("/move-preview") {
+        for (key, value) in &mut query_pairs {
+            if key == "destination" {
+                let entity = get_json(
+                    &client,
+                    &args.url,
+                    &token,
+                    &format!("/view/list/{}", segment(value)),
+                )
+                .await?;
+                *value = entity["entity"]["id"]
+                    .as_str()
+                    .ok_or((1, "server omitted list ID".into()))?
+                    .to_owned();
+            }
         }
     }
     let mut url = reqwest::Url::parse(&format!("{}/api/v1{path}", args.url.trim_end_matches('/')))
@@ -1709,42 +1762,66 @@ async fn prepare_entity_write(
             }
         }
     }
-    if path == "/bulk/preview" {
-        if let Some(operations) = body["operations"].as_array_mut() {
-            for operation in operations {
-                for key in ["id", "destination", "section_id", "parent_id"] {
-                    if let Some(reference) = operation.get(key).and_then(Value::as_str)
-                        && reference.starts_with(['@', '#', '$', '%', '^'])
-                    {
-                        let (_, target, _, _) = view_request(reference)?;
-                        let response = client
-                            .get(api_url(base, &target)?)
-                            .bearer_auth(token)
-                            .send()
-                            .await
-                            .map_err(|_| (1, "could not resolve entity reference".into()))?;
-                        let value = response_json(response).await?.1;
-                        operation[key] = value["entity"]["id"].clone();
-                    }
-                }
+    if path == "/bulk/preview"
+        && let Some(operations) = body["operations"].as_array_mut()
+    {
+        for operation in operations {
+            if operation["op"] == "restore" {
+                let reference = operation["id"]
+                    .as_str()
+                    .ok_or((2, "bulk operation requires an ID".into()))?;
+                let trash = get_json(client, base, token, "/trash").await?;
+                let row = trash
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .find(|row| {
+                        row["id"].as_str() == Some(unprefix(reference))
+                            || row["public_reference"].as_str() == Some(unprefix(reference))
+                    })
+                    .ok_or((2, "task was not found in trash".into()))?;
+                operation["id"] = row["id"].clone();
                 if operation
                     .get("revision")
                     .and_then(Value::as_i64)
                     .unwrap_or(0)
                     == 0
                 {
-                    let id = operation["id"]
-                        .as_str()
-                        .ok_or((2, "bulk operation requires an ID".into()))?;
+                    operation["revision"] = row["revision"].clone();
+                }
+            }
+            for key in ["id", "destination", "section_id", "parent_id"] {
+                if let Some(reference) = operation.get(key).and_then(Value::as_str)
+                    && reference.starts_with(['@', '#', '$', '%', '^'])
+                {
+                    let (_, target, _, _) = view_request(reference)?;
                     let response = client
-                        .get(api_url(base, &format!("/tasks/{}", segment(id)))?)
+                        .get(api_url(base, &target)?)
                         .bearer_auth(token)
                         .send()
                         .await
-                        .map_err(|_| (1, "could not read current task".into()))?;
+                        .map_err(|_| (1, "could not resolve entity reference".into()))?;
                     let value = response_json(response).await?.1;
-                    operation["revision"] = value["revision"].clone();
+                    operation[key] = value["entity"]["id"].clone();
                 }
+            }
+            if operation
+                .get("revision")
+                .and_then(Value::as_i64)
+                .unwrap_or(0)
+                == 0
+            {
+                let id = operation["id"]
+                    .as_str()
+                    .ok_or((2, "bulk operation requires an ID".into()))?;
+                let response = client
+                    .get(api_url(base, &format!("/tasks/{}", segment(id)))?)
+                    .bearer_auth(token)
+                    .send()
+                    .await
+                    .map_err(|_| (1, "could not read current task".into()))?;
+                let value = response_json(response).await?.1;
+                operation["revision"] = value["revision"].clone();
             }
         }
     }
@@ -1754,6 +1831,7 @@ async fn prepare_entity_write(
             "/organize"
                 | "/agent/schedule"
                 | "/agent/activity"
+                | "/agent/access"
                 | "/references"
                 | "/destinations/preferences"
         )
@@ -1802,19 +1880,37 @@ async fn prepare_entity_write(
                 }
             }
         }
-    }
-    if *method == Method::POST && path == "/lists" {
-        if let Some(space) = body["workspace_id"].as_str() {
-            let url = api_url(base, &format!("/view/space/{}", segment(space)))?;
-            let response = client
-                .get(url)
-                .bearer_auth(token)
-                .send()
-                .await
-                .map_err(|_| (1, "could not resolve space reference".into()))?;
-            let value = response_json(response).await?.1;
-            body["workspace_id"] = value["entity"]["id"].clone();
+        if let Some(input) = body.get_mut("input").and_then(Value::as_object_mut) {
+            for key in [
+                "target_id",
+                "list_id",
+                "workspace_id",
+                "task_id",
+                "section_id",
+            ] {
+                if let Some(reference) = input.get(key).and_then(Value::as_str)
+                    && reference.starts_with(['@', '#', '$', '%', '^'])
+                {
+                    let (_, target, _, _) = view_request(reference)?;
+                    let entity = get_json(client, base, token, &target).await?;
+                    input.insert(key.to_owned(), entity["entity"]["id"].clone());
+                }
+            }
         }
+    }
+    if *method == Method::POST
+        && path == "/lists"
+        && let Some(space) = body["workspace_id"].as_str()
+    {
+        let url = api_url(base, &format!("/view/space/{}", segment(space)))?;
+        let response = client
+            .get(url)
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|_| (1, "could not resolve space reference".into()))?;
+        let value = response_json(response).await?.1;
+        body["workspace_id"] = value["entity"]["id"].clone();
     }
     let parts: Vec<_> = path.trim_start_matches('/').split('/').collect();
     let needs_revision = body.get("revision").and_then(Value::as_i64).unwrap_or(0) == 0;
@@ -2432,11 +2528,8 @@ async fn move_entity(
 
 async fn archive_entity(args: &Args, reference: &str, archive: bool) -> Result<(), (i32, String)> {
     let kind = reference.chars().next().unwrap_or('?');
-    if !matches!(kind, '@' | '#') && (archive || !matches!(kind, '%' | '^')) {
-        return Err((
-            2,
-            "archiving is currently supported for spaces and lists".into(),
-        ));
+    if !matches!(kind, '@' | '#' | '$' | '%' | '^') {
+        return Err((2, "expected a prefixed entity reference".into()));
     }
     let client = Client::builder()
         .redirect(reqwest::redirect::Policy::none())
@@ -2446,34 +2539,56 @@ async fn archive_entity(args: &Args, reference: &str, archive: bool) -> Result<(
     let token = cli_login::token(&args.url)?;
     if !archive && matches!(kind, '%' | '^') {
         let trash = get_json(&client, &args.url, &token, "/trash").await?;
-        let row = trash
-            .as_array()
-            .into_iter()
-            .flatten()
-            .find(|row| {
-                (row["public_reference"].as_str() == Some(unprefix(reference))
-                    || row["id"].as_str() == Some(unprefix(reference)))
-                    && (kind == '^') == !row["parent_id"].is_null()
-            })
-            .ok_or((2, "task was not found in trash".into()))?;
-        let id = row["id"]
-            .as_str()
-            .ok_or((1, "server omitted task ID".into()))?;
-        let revision = row["revision"]
-            .as_i64()
-            .ok_or((1, "server omitted current version".into()))?;
+        let row = trash.as_array().into_iter().flatten().find(|row| {
+            (row["public_reference"].as_str() == Some(unprefix(reference))
+                || row["id"].as_str() == Some(unprefix(reference)))
+                && (kind == '^') == !row["parent_id"].is_null()
+        });
+        if let Some(row) = row {
+            let id = row["id"]
+                .as_str()
+                .ok_or((1, "server omitted task ID".into()))?;
+            let revision = row["revision"]
+                .as_i64()
+                .ok_or((1, "server omitted current version".into()))?;
+            let value = transfer_json(
+                &client,
+                &args.url,
+                &token,
+                &format!("/tasks/{}/restore", segment(id)),
+                json!({"revision":revision}),
+            )
+            .await?;
+            if args.json {
+                output_value(args, &value);
+            } else {
+                println!("Restored {reference}.");
+            }
+            return Ok(());
+        }
+    }
+    if matches!(kind, '$' | '%' | '^') {
+        let kind_name = match kind {
+            '$' => "section",
+            '%' => "task",
+            '^' => "subtask",
+            _ => unreachable!(),
+        };
         let value = transfer_json(
             &client,
             &args.url,
             &token,
-            &format!("/tasks/{}/restore", segment(id)),
-            json!({"revision":revision}),
+            &format!("/cli/lifecycle/{kind_name}/{}", segment(reference)),
+            json!({"archive":archive}),
         )
         .await?;
         if args.json {
             output_value(args, &value);
         } else {
-            println!("Restored {reference}.");
+            println!(
+                "{} {reference}.",
+                if archive { "Archived" } else { "Restored" }
+            );
         }
         return Ok(());
     }

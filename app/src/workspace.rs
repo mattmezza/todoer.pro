@@ -267,7 +267,7 @@ fn section_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Section> {
 }
 pub(crate) fn section_raw(c: &Connection, id: &str) -> Result<Section, Error> {
     c.query_row(
-        "SELECT id,list_id,title,description,position,revision FROM sections WHERE id=?1",
+        "SELECT id,list_id,title,description,position,revision FROM sections WHERE id=?1 AND archived=0",
         [id],
         section_row,
     )
@@ -694,7 +694,7 @@ impl Store {
     }
     pub fn sections(&self, actor: &str, list: &str) -> Result<Vec<Section>, Error> {
         require_list(&self.conn, actor, list, 1)?;
-        let mut stmt=self.conn.prepare("SELECT id,list_id,title,description,position,revision FROM sections WHERE list_id=?1 AND NOT EXISTS(SELECT 1 FROM list_defaults d WHERE d.section_id=sections.id) ORDER BY position,id")?;
+        let mut stmt=self.conn.prepare("SELECT id,list_id,title,description,position,revision FROM sections WHERE list_id=?1 AND archived=0 AND NOT EXISTS(SELECT 1 FROM list_defaults d WHERE d.section_id=sections.id) ORDER BY position,id")?;
         Ok(stmt
             .query_map([list], section_row)?
             .collect::<Result<_, _>>()?)
@@ -815,7 +815,7 @@ impl Store {
         require_list(&tx, actor, list, 2)?;
         check_revision(list_raw(&tx, list)?.revision, revision)?;
         let current = {
-            let mut stmt = tx.prepare("SELECT id FROM sections WHERE list_id=?1 AND NOT EXISTS(SELECT 1 FROM list_defaults d WHERE d.section_id=sections.id)")?;
+            let mut stmt = tx.prepare("SELECT id FROM sections WHERE list_id=?1 AND archived=0 AND NOT EXISTS(SELECT 1 FROM list_defaults d WHERE d.section_id=sections.id)")?;
             stmt.query_map([list], |r| r.get(0))?
                 .collect::<Result<Vec<String>, _>>()?
         };

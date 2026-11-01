@@ -17,6 +17,7 @@ pub(super) struct OverviewOptions {
     archived: bool,
     #[serde(default)]
     archived_only: bool,
+    list: Option<String>,
 }
 
 pub(super) async fn tag(
@@ -57,6 +58,32 @@ pub(super) async fn overview(
                     if (options.archived_only && !info.archived) || (!options.archived && !options.archived_only && info.archived) { continue; }
                     let mut row = serde_json::to_value(&info).map_err(|_| Error::Invalid("could not serialize list".into()))?;
                     row["public_reference"] = json!(crate::defaults::public_id(&db.conn, "list", &list.id)?);
+                    rows.push(row);
+                }
+            }
+            "sections" => {
+                let reference = options.list.as_deref().ok_or_else(|| Error::Invalid("list is required".into()))?;
+                let list = crate::defaults::resolve(&db.conn, "list", reference)?;
+                crate::core::access_rank(&db.conn, &actor, &list, 1)?;
+                let mut stmt = db.conn.prepare("SELECT id,title,description,revision,archived FROM sections WHERE list_id=?1 AND NOT EXISTS(SELECT 1 FROM list_defaults d WHERE d.section_id=sections.id) ORDER BY position,id")?;
+                let sections = stmt.query_map([&list], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,i64>(3)?,r.get::<_,bool>(4)?)))?.collect::<Result<Vec<_>,_>>()?;
+                for (id,title,description,revision,archived) in sections {
+                    if (options.archived_only && !archived) || (!options.archived && !options.archived_only && archived) { continue; }
+                    rows.push(json!({"id":id,"list_id":list,"title":title,"description":description,"revision":revision,"archived":archived,"public_reference":crate::defaults::public_id(&db.conn,"section",&id)?}));
+                }
+            }
+            "tasks" => {
+                let reference = options.list.as_deref().ok_or_else(|| Error::Invalid("list is required".into()))?;
+                let list = crate::defaults::resolve(&db.conn, "list", reference)?;
+                crate::core::access_rank(&db.conn, &actor, &list, 1)?;
+                let mut stmt = db.conn.prepare("SELECT id,archive_group IS NOT NULL FROM tasks WHERE list_id=?1 AND (deleted_at IS NULL OR archive_group IS NOT NULL) ORDER BY position,id")?;
+                let tasks = stmt.query_map([&list], |r| Ok((r.get::<_,String>(0)?,r.get::<_,bool>(1)?)))?.collect::<Result<Vec<_>,_>>()?;
+                for (id,archived) in tasks {
+                    if (options.archived_only && !archived) || (!options.archived && !options.archived_only && archived) { continue; }
+                    let task = crate::core::raw_task(&db.conn,&id)?;
+                    let mut row = json!(task);
+                    row["archived"] = json!(archived);
+                    row["public_reference"] = json!(crate::defaults::public_id(&db.conn,"task",&id)?);
                     rows.push(row);
                 }
             }

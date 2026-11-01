@@ -109,7 +109,11 @@ pub(crate) fn location(c: &Connection, id: &str) -> Result<Option<String>, Error
     )
     .optional()?)
 }
-fn assign_location(c: &Connection, ids: &[String], section: Option<&str>) -> Result<(), Error> {
+pub(crate) fn assign_location(
+    c: &Connection,
+    ids: &[String],
+    section: Option<&str>,
+) -> Result<(), Error> {
     for id in ids {
         if let Some(section) = section {
             c.execute("INSERT INTO task_locations(task_id,section_id) VALUES(?1,?2) ON CONFLICT(task_id) DO UPDATE SET section_id=excluded.section_id",params![id,section])?;
@@ -225,7 +229,7 @@ impl Store {
         }
         if let Some(section) = &section
             && !tx.query_row(
-                "SELECT EXISTS(SELECT 1 FROM sections WHERE id=?1 AND list_id=?2)",
+                "SELECT EXISTS(SELECT 1 FROM sections WHERE id=?1 AND list_id=?2 AND archived=0)",
                 params![section, old.list_id],
                 |r| r.get::<_, bool>(0),
             )?
@@ -727,7 +731,7 @@ fn candidates(c: &Connection, actor: &str, kind: &str) -> Result<Vec<ReferenceCh
             }
         }
         "section" => {
-            let mut stmt=c.prepare("SELECT s.id,s.title,l.title FROM sections s JOIN lists l ON l.id=s.list_id JOIN actor_list_access a ON a.list_id=l.id WHERE a.actor_id=?1 AND l.archived=0 ORDER BY s.id LIMIT 1000")?;
+            let mut stmt=c.prepare("SELECT s.id,s.title,l.title FROM sections s JOIN lists l ON l.id=s.list_id JOIN actor_list_access a ON a.list_id=l.id WHERE a.actor_id=?1 AND l.archived=0 AND s.archived=0 ORDER BY s.id LIMIT 1000")?;
             for row in stmt.query_map([actor], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))? {
                 let (id, label, context) = row?;
                 result.push(ReferenceChoice {
@@ -984,7 +988,7 @@ fn target(
             let id = resolved.as_str();
             let row: Option<(String, String)> = c
                 .query_row(
-                    "SELECT title,list_id FROM sections WHERE id=?1",
+                    "SELECT title,list_id FROM sections WHERE id=?1 AND archived=0",
                     [id],
                     |r| Ok((r.get(0)?, r.get(1)?)),
                 )
