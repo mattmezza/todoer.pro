@@ -11,6 +11,7 @@ struct Crumb {
 }
 struct Child {
     id: String,
+    public_reference: String,
     title: String,
     complete: bool,
     revision: i64,
@@ -171,14 +172,15 @@ async fn page(
                 .items
                 .into_iter()
                 .filter(|x| x["id"] != task.id)
-                .map(|x| Child {
-                    id: x["id"].as_str().unwrap_or_default().into(),
+                .map(|x| -> Result<Child, Error> { let id = x["id"].as_str().unwrap_or_default().to_owned(); Ok(Child {
+                    public_reference: crate::defaults::public_id(&db.conn, "task", &id)?,
+                    id,
                     title: x["title"].as_str().unwrap_or_default().into(),
                     complete: x["complete"].as_bool().unwrap_or(false),
                     revision: x["revision"].as_i64().unwrap_or(0),
                     depth: x["depth"].as_u64().unwrap_or(0) as usize,
-                })
-                .collect();
+                })})
+                .collect::<Result<Vec<_>, _>>()?;
             let destinations = db
                 .lists(&a)?
                 .into_iter()

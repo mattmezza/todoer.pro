@@ -15,6 +15,7 @@ const MAX_PATH_BYTES: usize = 64 * 1024;
 #[serde(rename_all = "snake_case")]
 pub enum TaskField {
     Reference,
+    PublicReference,
     ListId,
     Title,
     Description,
@@ -26,6 +27,7 @@ impl TaskField {
     fn column(self) -> &'static str {
         match self {
             Self::Reference => "reference",
+            Self::PublicReference => "public_reference",
             Self::ListId => "list_id",
             Self::Title => "title",
             Self::Description => "description",
@@ -306,6 +308,13 @@ impl Store {
         let mut sizes = String::from("octet_length(p.id)+coalesce(octet_length(p.parent_id),0)");
         for field in &read.fields {
             let col = field.column();
+            if *field == TaskField::PublicReference {
+                let expression =
+                    "coalesce((SELECT short_id FROM task_public_ids WHERE task_id=p.id),p.id)";
+                projection.push_str(&format!(",'public_reference',{expression}"));
+                sizes.push_str(&format!("+octet_length({expression})"));
+                continue;
+            }
             projection.push_str(&format!(
                 ",'{col}',{}",
                 if *field == TaskField::Complete {

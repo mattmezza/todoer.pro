@@ -448,7 +448,11 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     return value;
   }
   function projection(cursor = null) {
-    return { limit: 100, fields: ['title', 'complete', 'revision', 'position'], cursor };
+    return {
+      limit: 100,
+      fields: ['title', 'complete', 'revision', 'position', 'public_reference'],
+      cursor,
+    };
   }
   function renderChildren() {
     const container = get('[data-children]');
@@ -535,6 +539,21 @@ export function mountTaskPage(root, { embedded = false } = {}) {
           line.append(progress);
         }
         const childMenu = line.querySelector('.task-child-menu');
+        const reference = document.createElement('button');
+        reference.type = 'button';
+        reference.className = 'entity-reference child-reference';
+        reference.textContent = `^${child.public_reference}`;
+        reference.setAttribute('aria-label', `Copy reference for ${child.title}`);
+        reference.title = 'Copy sub-task reference';
+        reference.onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(reference.textContent);
+            toast('Reference copied.');
+          } catch {
+            notice('Could not copy reference.', true);
+          }
+        };
+        line.append(reference);
         if (childMenu) line.append(childMenu);
         row.append(line);
         if (nested.length) {
@@ -736,6 +755,16 @@ export function mountTaskPage(root, { embedded = false } = {}) {
   get('[data-copy-task-reference]')?.addEventListener('click', async (event) => {
     try {
       await navigator.clipboard.writeText(event.currentTarget.dataset.copyTaskReference);
+      toast('Reference copied.');
+    } catch {
+      notice('Could not copy reference.', true);
+    }
+  });
+  get('[data-children]')?.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-copy-child-reference]');
+    if (!button) return;
+    try {
+      await navigator.clipboard.writeText(button.dataset.copyChildReference);
       toast('Reference copied.');
     } catch {
       notice('Could not copy reference.', true);
