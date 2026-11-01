@@ -2,6 +2,7 @@
 const sidebar = document.querySelector('#navigation');
 if (sidebar) {
   const labels = new WeakSet();
+  let overflowSequence = 0;
   const observer = new ResizeObserver((entries) => {
     for (const { target } of entries) update(target);
   });
@@ -9,6 +10,9 @@ if (sidebar) {
     const text = label.firstElementChild;
     if (!text || !label.clientWidth) return;
     const distance = Math.max(0, text.scrollWidth - label.clientWidth);
+    if (distance > 2 && !label.style.getPropertyValue('--nav-scroll-delay')) {
+      label.style.setProperty('--nav-scroll-delay', `${2 + overflowSequence++ * 0.9}s`);
+    }
     label.toggleAttribute('data-overflowing', distance > 2);
     label.style.setProperty('--nav-scroll-distance', `${distance}px`);
     label.style.setProperty(
@@ -39,10 +43,6 @@ if (sidebar) {
       inner.append(...label.childNodes);
       label.append(inner);
       label.classList.add('nav-overflow-label');
-      const text = inner.textContent || '';
-      let hash = 0;
-      for (const character of text) hash = (hash * 31 + character.codePointAt(0)) >>> 0;
-      label.style.setProperty('--nav-scroll-delay', `${2 + (hash % 90) / 10}s`);
       observer.observe(label);
       update(label);
     }
