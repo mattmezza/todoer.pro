@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 use reqwest::{Client, Method};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::io::{Read, Write};
+use std::io::{IsTerminal, Read, Write};
 
 #[derive(Parser)]
 #[command(about = "Todoer REST client", version = env!("TODOER_BUILD_VERSION"))]
@@ -213,12 +213,10 @@ enum Command {
     },
     Move {
         id: String,
+        #[arg(long, visible_alias = "destination")]
+        to: String,
         #[arg(long)]
-        destination: String,
-        #[arg(long)]
-        revision: i64,
-        #[arg(long)]
-        acknowledge_access_change: bool,
+        yes: bool,
     },
     MovePreview {
         id: String,
@@ -1173,6 +1171,9 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
     {
         return transfer_file(&args, command).await;
     }
+    if let Command::Move { id, to, yes } = &args.command {
+        return move_entity(&args, id, to, *yes).await;
+    }
     let listing_prefix = match &args.command {
         Command::List
         | Command::Lists {
@@ -1399,19 +1400,7 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
                 None,
             )
         }
-        Command::Move {
-            id,
-            destination,
-            revision,
-            acknowledge_access_change,
-        } => (
-            Method::POST,
-            format!("/tasks/{}/move", segment(&id)),
-            Some(
-                json!({"destination": destination, "revision": revision, "acknowledge_access_change": acknowledge_access_change}),
-            ),
-            None,
-        ),
+        Command::Move { .. } => unreachable!("move handled before request construction"),
         Command::MovePreview { id, destination } => {
             query_pairs.push(("destination".into(), destination));
             (
@@ -1594,6 +1583,161 @@ async fn transfer_json(
         .await
         .map_err(|_| (1, "request failed; check server connectivity".into()))?;
     Ok(response_json(response).await?.1)
+}
+
+async fn move_entity(
+    args: &Args,
+    source: &str,
+    destination: &str,
+    yes: bool,
+) -> Result<(), (i32, String)> {
+    let source_type = source.chars().next().unwrap_or('?');
+    let destination_type = destination.chars().next().unwrap_or('?');
+    if !matches!(
+        (source_type, destination_type),
+        ('#', '@') | ('$', '#') | ('%' | '^', '#' | '$' | '%' | '^')
+    ) {
+        return Err((2, "unsupported move: use a list to space, section to list, or task to list, section, or task".into()));
+    }
+    let client = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|_| (1, "could not initialize HTTP client".into()))?;
+    let token = cli_login::token(&args.url)?;
+    let read = async |reference: &str| -> Result<Value, (i32, String)> {
+        let (_, path, _, _) = view_request(reference)?;
+        let response = client
+            .get(api_url(&args.url, &path)?)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|_| (1, "could not read move destination".into()))?;
+        Ok(response_json(response).await?.1)
+    };
+    let from = read(source).await?;
+    let to = read(destination).await?;
+    let source_id = from["entity"]["id"]
+        .as_str()
+        .ok_or((1, "server omitted source ID".into()))?;
+    let dest_id = to["entity"]["id"]
+        .as_str()
+        .ok_or((1, "server omitted destination ID".into()))?;
+    let revision = from["entity"]["revision"]
+        .as_i64()
+        .ok_or((1, "server omitted current version".into()))?;
+    let (apply_path, apply_body, broadens) = match (source_type, destination_type) {
+        ('#', '@') | ('$', '#') => {
+            let (prefix, field) = if source_type == '#' {
+                ("lists", "destination_workspace_id")
+            } else {
+                ("sections", "destination_list_id")
+            };
+            let path = if source_type == '#' {
+                format!("/{prefix}/{}/workspace-move", segment(source_id))
+            } else {
+                format!("/{prefix}/{}/move", segment(source_id))
+            };
+            let mut input = json!({});
+            input[field] = json!(dest_id);
+            let preview = transfer_json(
+                &client,
+                &args.url,
+                &token,
+                &format!("{path}/preview"),
+                input,
+            )
+            .await?;
+            let mut payload = json!({});
+            let fields: &[&str] = if source_type == '#' {
+                &[
+                    "destination_workspace_id",
+                    "list_revision",
+                    "source_workspace_revision",
+                    "destination_workspace_revision",
+                    "policy_hash",
+                ]
+            } else {
+                &[
+                    "destination_list_id",
+                    "section_revision",
+                    "source_list_revision",
+                    "destination_list_revision",
+                    "policy_hash",
+                ]
+            };
+            for field in fields {
+                payload[*field] = preview[*field].clone();
+            }
+            payload["acknowledge_access_change"] = json!(true);
+            (path, payload, preview["audience_broadens"] == true)
+        }
+        _ => {
+            let operation = match destination_type {
+                '#' => {
+                    json!({"op":"move","id":source_id,"revision":revision,"destination":dest_id,"acknowledge_access_change":true})
+                }
+                '$' => {
+                    json!({"op":"section","id":source_id,"revision":revision,"section_id":dest_id})
+                }
+                '%' | '^' => {
+                    json!({"op":"reparent","id":source_id,"revision":revision,"parent_id":dest_id})
+                }
+                _ => unreachable!(),
+            };
+            let preview = transfer_json(
+                &client,
+                &args.url,
+                &token,
+                "/bulk/preview",
+                json!({"operations":[operation]}),
+            )
+            .await?;
+            let broadens =
+                preview.pointer("/steps/0/access_change/audience_broadens") == Some(&json!(true));
+            (
+                "/bulk/apply".into(),
+                json!({"preview_id":preview["preview_id"],"expected_hash":preview["expected_hash"],"idempotency_key":uuid::Uuid::new_v4().to_string()}),
+                broadens,
+            )
+        }
+    };
+    if broadens {
+        eprintln!("This move gives additional people access to the moved content.");
+    }
+    if !yes {
+        if !std::io::stdin().is_terminal() {
+            return Err((
+                2,
+                "confirmation requires an interactive terminal; use --yes to confirm".into(),
+            ));
+        }
+        eprint!(
+            "Are you sure to move {} ({source}) to {} ({destination})? (Y/n) ",
+            from["entity"]["title"].as_str().unwrap_or(source),
+            to["entity"]["title"].as_str().unwrap_or(destination)
+        );
+        std::io::stderr()
+            .flush()
+            .map_err(|_| (1, "could not display confirmation".into()))?;
+        let mut answer = String::new();
+        std::io::stdin()
+            .read_line(&mut answer)
+            .map_err(|_| (1, "could not read confirmation".into()))?;
+        if !matches!(
+            answer.trim().to_ascii_lowercase().as_str(),
+            "" | "y" | "yes"
+        ) {
+            return Err((2, "move cancelled".into()));
+        }
+    }
+    let result = transfer_json(&client, &args.url, &token, &apply_path, apply_body).await?;
+    if args.json {
+        output_value(args, &result);
+    } else {
+        println!("Moved {source} to {destination}.");
+    }
+    Ok(())
 }
 fn local_file(path: &std::path::Path) -> Result<(Vec<u8>, String), (i32, String)> {
     let file = std::fs::File::open(path).map_err(|_| (2, "could not open selected file".into()))?;
