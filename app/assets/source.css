@@ -11903,7 +11903,7 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   padding: 6px 12px;
   font-size: 13px;
 }
-.planning-detail-content .task-files-heading {
+.task-page .task-files-heading {
   display: none;
 }
 .planning-detail-content .task-files {
