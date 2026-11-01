@@ -10,6 +10,19 @@ export function mountListUi({ api, notice, listId }) {
   const canWrite = document.body.dataset.canWrite === 'true';
   const edit = document.querySelector('[data-list-edit]');
   const sectionCreate = document.querySelector('[data-section-create]');
+  if (sectionCreate && !sectionCreate.querySelector('[name="description"]')) {
+    const label = document.createElement('label');
+    label.className = 'sr-only';
+    label.htmlFor = 'new-section-description';
+    label.textContent = 'Section description';
+    const description = document.createElement('textarea');
+    description.id = label.htmlFor;
+    description.name = 'description';
+    description.placeholder = 'Description';
+    description.rows = 2;
+    description.maxLength = 100000;
+    sectionCreate.querySelector('.inline-actions').before(label, description);
+  }
   const titleInput = edit?.querySelector('input[name="title"]');
   if (titleInput) {
     const titleArea = document.createElement('textarea');

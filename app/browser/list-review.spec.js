@@ -40,8 +40,20 @@ test('list preference filters the response and sections can be reordered and sea
     data: { revision: tasks[0].revision, complete: true },
   });
   expect(complete.ok()).toBeTruthy();
+  // An older running server may still render the form without a description field.
+  const legacyPage = `**/lists/${list.id}`;
+  await page.route(legacyPage, async (route) => {
+    const response = await route.fetch();
+    const body = (await response.text()).replace(
+      /<label class="sr-only" for="new-section-description">.*?<\/textarea>/,
+      '',
+    );
+    await route.fulfill({ response, body });
+  });
   await page.goto(`/lists/${list.id}`);
   await page.waitForFunction(() => document.body.dataset.ready === 'true');
+  await expect(page.locator('#new-section-description')).toHaveCount(1);
+  await page.unroute(legacyPage);
   await expect(page.locator('main > .breadcrumbs')).toBeHidden();
   await expect(
     page.locator(`[data-section-id="${first.id}"] .section-description`),
