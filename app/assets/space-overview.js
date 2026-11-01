@@ -1,18 +1,5 @@
 import { request as fetch } from './request.js';
 import { editorAnchor, alignEditorField } from './seamless-editor.js';
-import { toast } from './toast.js';
-document.addEventListener('click', async (event) => {
-  const copy = event.target.closest('[data-copy-space]');
-  if (copy) {
-    try {
-      await navigator.clipboard.writeText(copy.dataset.copySpace);
-      toast('Space reference copied.');
-    } catch {
-      toast(copy.dataset.copySpace);
-    }
-  }
-});
-
 const root = document.querySelector('[data-space-id]');
 const form = root?.querySelector('[data-space-edit-form]');
 const heading = root?.querySelector('[data-space-display]');

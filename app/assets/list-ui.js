@@ -133,15 +133,6 @@ export function mountListUi({ api, notice, listId }) {
         event.target.closest('[data-list-sharing-open]') ? 'sharing' : 'details',
       );
     }
-    const ref = event.target.closest('[data-copy-reference]');
-    if (ref) {
-      try {
-        await navigator.clipboard.writeText(ref.dataset.copyReference);
-        toast('Reference copied.');
-      } catch {
-        notice('Could not copy reference.', true);
-      }
-    }
     if (event.target.closest('[data-copy-link]')) {
       try {
         await navigator.clipboard.writeText(location.origin + `/lists/${listId}`);

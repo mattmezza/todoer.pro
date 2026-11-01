@@ -12539,3 +12539,19 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
+
+/* Shared presentation for copyable list, space, task, and subtask references. */
+button.entity-reference {
+  background: var(--field);
+  border: 0;
+  border-radius: 4px;
+  padding: 6px 8px;
+  color: var(--muted);
+  font:
+    12px ui-monospace,
+    monospace;
+}
+button.entity-reference:is(:hover, :focus-visible) {
+  background: #202b3c;
+  color: #f1f5f9;
+}

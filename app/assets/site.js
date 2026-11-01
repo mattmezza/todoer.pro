@@ -1,5 +1,6 @@
 import './list-archive.js';
 import './entity-name.js';
+import './reference-copy.js';
 import { beginLoading } from './loading.js';
 import './notification-center.js';
 import { request as fetch } from './request.js';

@@ -545,14 +545,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         reference.textContent = `^${child.public_reference}`;
         reference.setAttribute('aria-label', `Copy reference for ${child.title}`);
         reference.title = 'Copy sub-task reference';
-        reference.onclick = async () => {
-          try {
-            await navigator.clipboard.writeText(reference.textContent);
-            toast('Reference copied.');
-          } catch {
-            notice('Could not copy reference.', true);
-          }
-        };
+        reference.dataset.copyChildReference = reference.textContent;
         line.append(reference);
         if (childMenu) line.append(childMenu);
         row.append(line);
@@ -752,24 +745,6 @@ export function mountTaskPage(root, { embedded = false } = {}) {
   });
   for (const input of [title, description]) input.addEventListener('input', remember);
   get('[data-cancel-edit]').onclick = closeEditor;
-  get('[data-copy-task-reference]')?.addEventListener('click', async (event) => {
-    try {
-      await navigator.clipboard.writeText(event.currentTarget.dataset.copyTaskReference);
-      toast('Reference copied.');
-    } catch {
-      notice('Could not copy reference.', true);
-    }
-  });
-  get('[data-children]')?.addEventListener('click', async (event) => {
-    const button = event.target.closest('[data-copy-child-reference]');
-    if (!button) return;
-    try {
-      await navigator.clipboard.writeText(button.dataset.copyChildReference);
-      toast('Reference copied.');
-    } catch {
-      notice('Could not copy reference.', true);
-    }
-  });
   get('[data-open-advanced]').onclick = () => {
     get('.task-context-menu').open = false;
     openTaskSettings(root);
