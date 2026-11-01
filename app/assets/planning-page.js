@@ -247,6 +247,10 @@ if (main) {
     }
     if (link?.hasAttribute('data-full-task')) return;
     if (!link || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (matchMedia('(max-width: 640px)').matches) {
+      if (!event.target.closest('a')) location.assign(link.href);
+      return;
+    }
     event.preventDefault();
     open(link.href);
   });
