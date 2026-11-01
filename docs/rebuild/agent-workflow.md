@@ -52,10 +52,9 @@ The check requires the implemented tool subset, including bulk preview/apply and
 
 Implemented recovery commands: `todoer trash-list`, `todoer trash TASK_REFERENCE`,
 `todoer undo CHANGE_SEQ`, and
-`todoer capabilities`. `make rust-integration` exercises the Rust CLI over real
-HTTP and the official Python MCP client against an isolated running server. It
-creates synthetic tasks; never run verification scripts against a personal or
-production account.
+`todoer capabilities`. `make test` includes CLI integration tests over a synthetic local HTTP server.
+The optional MCP SDK check above also creates synthetic data; never run it
+against a personal or production account.
 
 
 Saved destinations make repeated agent requests explicit without conversation state:
@@ -104,7 +103,7 @@ todoer reorder '#LIST_REFERENCE' '%FIRST_TASK' '%SECOND_TASK'
 
 ```sh
 todoer references resolve '#Inbox'
-todoer references autocomplete '%T-' --limit 20
+todoer references autocomplete '%abc' --limit 20
 todoer references unresolved task '%def2345'
 todoer references bind task '%def2345' --occurrence 0 --target-kind list --target-id '#abc2345'
 todoer references backlinks list '#abc2345'
