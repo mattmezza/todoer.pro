@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-version="${TODOER_CLI_VERSION:-v1.0.0}"
+version="${TODOER_CLI_VERSION:-v1.2.0}"
 if [[ ! "$version" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
   echo "TODOER_CLI_VERSION must have the form vX.Y.Z" >&2
   exit 1

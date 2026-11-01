@@ -61,7 +61,7 @@ curl -fsSL https://raw.githubusercontent.com/mattmezza/todoer.pro/main/scripts/i
 ```
 
 The installer verifies the release checksum and places `todoer` in `~/.local/bin`.
-Make sure that directory is on your `PATH`. It installs CLI v1.0.0 by default;
+Make sure that directory is on your `PATH`. It installs CLI v1.2.0 by default;
 to choose another release, set `TODOER_CLI_VERSION`, for example:
 
 ```sh
