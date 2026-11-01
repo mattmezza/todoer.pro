@@ -12432,3 +12432,96 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   margin: 0;
   padding: 6px 8px;
 }
+
+/* Undocked space sharing: a comfortable full-height panel at phone widths. */
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked) {
+  padding: 0 0 max(28px, env(safe-area-inset-bottom));
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked) > header {
+  padding: max(18px, env(safe-area-inset-top)) 24px 10px;
+  margin: 0;
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked) > header button {
+  min-height: 44px;
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked) .settings-tabs {
+  margin: 0 24px;
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked) .settings-content {
+  padding: 24px;
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked) .sharing-panel > h2 {
+  margin: 0 0 10px;
+  font-size: 17px;
+  line-height: 1.4;
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked)
+  .sharing-panel
+  > .muted {
+  margin: 0 0 18px;
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked) .member-rows {
+  border-top: 1px solid var(--line);
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked) .member-row {
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked) .member-row select {
+  width: 100px;
+  min-height: 44px;
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked) .member-row button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked)
+  .settings-content
+  .member-add {
+  margin: 20px 0 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--field);
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked) .member-add > label {
+  margin: 0 0 2px;
+  font-weight: 600;
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked) .member-add-actions {
+  align-items: stretch;
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked)
+  .member-add-actions
+  button {
+  white-space: nowrap;
+  padding-inline: 14px;
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked)
+  .sharing-panel
+  > a[href^='/invitations/new'] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--accent);
+}
+.list-settings-panel[data-settings-kind='workspace']:not(.is-docked)
+  .public-sharing-control {
+  margin-top: 18px;
+  padding-top: 20px;
+}
+@media (max-width: 370px) {
+  .list-settings-panel[data-settings-kind='workspace']:not(.is-docked) .member-row {
+    flex-wrap: wrap;
+  }
+  .list-settings-panel[data-settings-kind='workspace']:not(.is-docked) .member-row > div {
+    flex-basis: 100%;
+  }
+  .list-settings-panel[data-settings-kind='workspace']:not(.is-docked)
+    .member-add-actions {
+    flex-direction: column;
+  }
+}

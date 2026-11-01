@@ -210,6 +210,10 @@ async function openSettings(listId, selected, kind, taskRoot) {
     if (section) {
       const mounted = task ? section : section.cloneNode(true);
       if (!task && tab === 'sharing') {
+        if (workspace) {
+          const membersHeading = mounted.querySelector('#members-heading');
+          if (membersHeading) membersHeading.textContent = 'Members';
+        }
         for (const link of mounted.querySelectorAll('a')) {
           if (
             /^Move list to another workspace$|^Open parent workspace$/.test(
@@ -529,7 +533,7 @@ function decorateSharing(section, reload) {
       note.remove();
   }
   for (const link of section.querySelectorAll('a[href^="/invitations/new"]')) {
-    link.append('…');
+    if (!/[….]$/.test(link.textContent.trim())) link.append('…');
     link.prepend(icon('plus-circle'));
     link.addEventListener('click', async (event) => {
       event.preventDefault();
