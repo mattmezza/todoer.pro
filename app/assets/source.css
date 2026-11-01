@@ -12743,3 +12743,30 @@ form[data-list-edit] .list-color-custom .list-edit-color {
     user-select: none;
   }
 }
+
+.space-add-list-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 142px;
+  padding: 20px;
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+.space-add-list-card:hover {
+  color: var(--text);
+  border-color: var(--muted);
+  background: var(--sidebar);
+}
+.space-add-list-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}

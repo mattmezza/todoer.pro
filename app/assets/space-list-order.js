@@ -36,6 +36,7 @@ function markTarget(target, x, y) {
 async function move(source, target, after) {
   if (busy || !target || source === target) return;
   const original = cards();
+  const originalChildren = [...grid.childNodes];
   if (after) target.after(source);
   else target.before(source);
   const ordered = cards();
@@ -65,7 +66,7 @@ async function move(source, target, after) {
     root.dataset.spaceRevision = workspace.revision;
     status.textContent = 'List order saved.';
   } catch (error) {
-    grid.replaceChildren(...original);
+    grid.replaceChildren(...originalChildren);
     toast(`${error.message} Refresh to check the saved order.`);
     status.textContent = 'List order could not be confirmed.';
   } finally {

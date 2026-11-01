@@ -72,4 +72,21 @@ test('space list cards reorder and persist', async ({ page, browserName }) => {
     'data-list-order-id',
     a.id,
   );
+  const add = grid.getByRole('button', { name: 'Add list' });
+  await add.click();
+  const dialog = page.locator('#list-create-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('[name="workspace_id"]')).toHaveValue(space.id);
+  await dialog.getByRole('button', { name: 'Close new list' }).click();
+  await page.route('**/lists/reorder-visible', (route) =>
+    route.fulfill({ status: 409, json: { error: { message: 'Stale order' } } }),
+  );
+  await first.locator('a').focus();
+  await page.keyboard.press('Alt+ArrowDown');
+  await expect(page.getByText('Stale order', { exact: false })).toBeVisible();
+  await expect(add).toBeVisible();
+  await expect(grid.locator('[data-list-order-id]').first()).toHaveAttribute(
+    'data-list-order-id',
+    a.id,
+  );
 });

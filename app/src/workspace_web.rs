@@ -740,6 +740,7 @@ struct SpaceOverview {
     planned_today: usize,
     planned_week: usize,
     can_edit: bool,
+    can_create: bool,
 }
 struct SpaceListCard {
     archive_note: String,
@@ -802,7 +803,7 @@ async fn space_page(
         let tasks = tasks.iter().filter(|row| lists.iter().any(|list| list.id == row.task.list_id)).collect::<Vec<_>>();
         let planned_today = tasks.iter().filter(|row| row.dates.iter().any(|date| date == &today.to_string())).count();
         let planned_week = tasks.len();
-        Ok(SpaceOverview { sidebar, workspace, reference, lists, archived_lists, open, completed, total:open+completed, planned_today, planned_week, can_edit:rank>=3 })
+        Ok(SpaceOverview { sidebar, workspace, reference, lists, archived_lists, open, completed, total:open+completed, planned_today, planned_week, can_edit:rank>=3, can_create:rank>=2 })
     }).await?;
     if requested != overview.reference {
         return Ok(Redirect::to(&format!("/space/{}", overview.reference)).into_response());
