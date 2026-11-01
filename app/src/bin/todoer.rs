@@ -37,7 +37,7 @@ enum Command {
         workspace: Option<String>,
     },
     /// Space administration. JSON write bodies require current revisions.
-    #[command(name = "space", visible_alias = "workspace")]
+    #[command(name = "spaces", visible_aliases = ["space", "workspace"])]
     Workspace {
         #[command(subcommand)]
         command: WorkspaceCommand,
@@ -1822,6 +1822,7 @@ mod list_output_tests {
         hide_revisions(&mut raw);
         assert_eq!(raw, json!({"child":{"title":"Milk"}}));
         assert!(Args::try_parse_from(["todoer", "view", "@abc2345", "--info"]).is_ok());
+        assert!(Args::try_parse_from(["todoer", "spaces", "all"]).is_ok());
         assert!(Args::try_parse_from(["todoer", "space", "all"]).is_ok());
         assert!(Args::try_parse_from(["todoer", "workspace", "all"]).is_ok());
         assert!(Args::try_parse_from(["todoer", "review", "--space", "abc"]).is_ok());
