@@ -10,6 +10,7 @@ import './home-filters.js';
 import './settings-feedback.js';
 import './export-menu.js';
 import './navigation.js';
+import './nav-overflow.js';
 import { hydratePreferredTimes } from './preferred-time.js';
 hydratePreferredTimes();
 import './task-play.js';

@@ -12645,7 +12645,6 @@ form[data-list-edit] .list-color-custom .list-edit-color {
   height: 36px;
   flex: 0 0 36px;
 }
-
 .favorite-entry {
   cursor: grab;
   touch-action: pan-y;
@@ -12670,4 +12669,53 @@ form[data-list-edit] .list-color-custom .list-edit-color {
   background: #34445f;
   color: #e2e8f0;
   font: 700 10px/1 var(--font-sans);
+}
+.reference-sidebar .nav-overflow-label {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 auto;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.reference-sidebar .nav-overflow-inner {
+  display: inline-block;
+  white-space: nowrap;
+  vertical-align: top;
+}
+.reference-sidebar .nav-overflow-label[data-overflowing] {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 6px,
+    #000 calc(100% - 12px),
+    transparent
+  );
+}
+@media (prefers-reduced-motion: no-preference) {
+  .reference-sidebar .nav-overflow-label[data-overflowing] .nav-overflow-inner {
+    animation: nav-label-scroll var(--nav-scroll-duration, 15s) ease-in-out
+      var(--nav-scroll-delay, 4s) infinite;
+  }
+  .reference-sidebar
+    :is(a, button):is(:hover, :focus-visible)
+    .nav-overflow-label[data-overflowing]
+    .nav-overflow-inner {
+    animation-play-state: paused;
+  }
+  @keyframes nav-label-scroll {
+    0%,
+    15% {
+      transform: translateX(0);
+    }
+    48%,
+    62% {
+      transform: translateX(calc(-1 * var(--nav-scroll-distance)));
+    }
+    95%,
+    100% {
+      transform: translateX(0);
+    }
+  }
 }
