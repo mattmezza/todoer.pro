@@ -679,19 +679,28 @@ impl Store {
     }
     /// Page deletion operations, not individual descendants. IDs break timestamp ties.
     pub fn trash_roots(&self, actor: &str, page: usize) -> Result<(Vec<Task>, bool), Error> {
+        self.trash_roots_in_spaces(actor, page, "")
+    }
+    pub fn trash_roots_in_spaces(
+        &self,
+        actor: &str,
+        page: usize,
+        spaces: &str,
+    ) -> Result<(Vec<Task>, bool), Error> {
         let cols = COLS
             .split(',')
             .map(|c| format!("t.{c}"))
             .collect::<Vec<_>>()
             .join(",");
-        let mut q = self.conn.prepare(&format!("SELECT {cols} FROM tasks t JOIN actor_list_access a ON a.list_id=t.list_id WHERE a.actor_id=?1 AND t.deleted_at IS NOT NULL AND t.delete_group=t.id ORDER BY t.deleted_at DESC,t.id LIMIT 26 OFFSET ?2"))?;
+        let mut q = self.conn.prepare(&format!("SELECT {cols} FROM tasks t JOIN actor_list_access a ON a.list_id=t.list_id JOIN lists l ON l.id=t.list_id WHERE a.actor_id=?1 AND t.deleted_at IS NOT NULL AND t.delete_group=t.id AND (?3='' OR instr(','||?3||',', ','||l.workspace_id||',')>0) ORDER BY t.deleted_at DESC,t.id LIMIT 26 OFFSET ?2"))?;
         let mut rows = q
             .query_map(
                 params![
                     actor,
                     page.saturating_sub(1)
                         .saturating_mul(25)
-                        .min(i64::MAX as usize) as i64
+                        .min(i64::MAX as usize) as i64,
+                    spaces
                 ],
                 task_row,
             )?
@@ -1354,6 +1363,32 @@ mod tests {
                 .unwrap()
                 .iter()
                 .any(|t| t.id == child.id)
+        );
+    }
+    #[test]
+    fn trash_space_filter_applies_before_pagination() {
+        let mut s = db();
+        s.conn.execute_batch("INSERT INTO workspaces(id,title) VALUES('space-a','A'),('space-b','B'); UPDATE lists SET workspace_id='space-a' WHERE id='inbox';").unwrap();
+        let root = capture(&mut s, "filtered-trash", None);
+        s.trash("dev", &root.id, root.revision).unwrap();
+        assert_eq!(
+            s.trash_roots_in_spaces("dev", 1, "space-a")
+                .unwrap()
+                .0
+                .len(),
+            1
+        );
+        assert!(
+            s.trash_roots_in_spaces("dev", 1, "space-b")
+                .unwrap()
+                .0
+                .is_empty()
+        );
+        assert!(
+            s.trash_roots_in_spaces("other", 1, "space-a")
+                .unwrap()
+                .0
+                .is_empty()
         );
     }
     #[test]

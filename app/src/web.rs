@@ -1568,6 +1568,7 @@ async fn search_page(
 #[derive(Deserialize, Default)]
 struct TrashQuery {
     page: Option<usize>,
+    spaces: Option<String>,
 }
 async fn trash_page(
     State(s): State<AppState>,
@@ -1578,10 +1579,22 @@ async fn trash_page(
         return Ok(Redirect::to("/signin").into_response());
     };
     let page = q.page.unwrap_or(1).clamp(1, 100_000);
+    let selected = q.spaces.unwrap_or_default();
     let body = s.run(move |db| {
-        let (roots, more) = db.trash_roots(&actor, page)?;
+        let spaces = db.workspaces(&actor)?;
+        let selected_ids: std::collections::BTreeSet<_> = selected.split(',').filter(|id| spaces.iter().any(|space| space.id == *id)).collect();
+        let selected = selected_ids.iter().copied().collect::<Vec<_>>().join(",");
+        let (roots, more) = db.trash_roots_in_spaces(&actor, page, &selected)?;
         let esc = scheduling_http::esc;
-        let mut body = String::from("<div id=\"notice\" role=\"status\" aria-live=\"polite\"></div>");
+        let mut body = format!("<nav class=\"planning-space-filters trash-space-filters\" aria-label=\"Filter by space\"><a href=\"/trash\" {}>All spaces</a>", if selected.is_empty() { "aria-current=\"true\"" } else { "" });
+        for space in spaces {
+            let active = selected_ids.contains(space.id.as_str());
+            let mut next = selected_ids.clone();
+            if active { next.remove(space.id.as_str()); } else { next.insert(&space.id); }
+            let next = next.into_iter().collect::<Vec<_>>().join(",");
+            body.push_str(&format!("<a href=\"/trash?spaces={}\" {}>@{}</a>", esc(&next), if active { "aria-current=\"true\"" } else { "" }, esc(space.title.trim_start_matches('@'))));
+        }
+        body.push_str("</nav><div id=\"notice\" role=\"status\" aria-live=\"polite\"></div>");
         if roots.is_empty() {
             body.push_str("<div class=\"planning-empty\"><svg class=\"ui-icon\" width=\"40\" height=\"40\" aria-hidden=\"true\"><use href=\"/assets/icons.svg#trash\"/></svg><h2>All clear.</h2><p>No deleted tasks on this page.</p></div>");
         }
@@ -1619,9 +1632,9 @@ async fn trash_page(
         }
         if page > 1 || more {
         body.push_str("<nav class=\"trash-pagination\" aria-label=\"Trash pages\">");
-        if page>1 { body.push_str(&format!("<a href=\"/trash?page={}\">← Previous</a>",page-1)); }
+        if page>1 { body.push_str(&format!("<a href=\"/trash?page={}&amp;spaces={}\">← Previous</a>",page-1,esc(&selected))); }
         body.push_str(&format!("<span>Page {page}</span>"));
-        if more { body.push_str(&format!("<a href=\"/trash?page={}\">Next →</a>",page+1)); }
+        if more { body.push_str(&format!("<a href=\"/trash?page={}&amp;spaces={}\">Next →</a>",page+1,esc(&selected))); }
         body.push_str("</nav>");
         }
         body.push_str("<script type=\"module\" src=\"/assets/review.js\"></script>");

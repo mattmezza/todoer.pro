@@ -12232,3 +12232,6 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
     min-width: 0;
   }
 }
+.trash-space-filters {
+  margin: 0 0 24px;
+}
