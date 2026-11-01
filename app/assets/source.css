@@ -13040,3 +13040,29 @@ body > .planning-detail-dismiss {
     padding: 10px 0;
   }
 }
+
+/* Today filter changes keep card-shaped placeholders in the task list. */
+[data-planning-rows][data-loading-pending='planning-list'] {
+  min-height: 250px;
+}
+[data-planning-rows][data-loading-pending='planning-list'] > :not(.loading-skeleton) {
+  display: none;
+}
+.skeleton-planning-list .skeleton-row {
+  min-height: 76px;
+  margin: 4px 0;
+  padding: 17px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.planning-filter-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  color: var(--text);
+}
+.planning-filter-error button {
+  color: var(--accent);
+  min-height: 44px;
+}

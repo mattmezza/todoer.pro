@@ -10,6 +10,8 @@ if (main) {
     generation = 0,
     loading = false,
     rowsGeneration = 0,
+    filterLoading = false,
+    pendingRowsRefresh = false,
     refreshPanelTags = () => {};
   const csrf = document.querySelector('meta[name=csrf-token]').content;
   const rows = main.querySelector('[data-planning-rows]');
@@ -22,6 +24,10 @@ if (main) {
     '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M14 3v18"/></svg>';
   dismiss.onclick = close;
   async function refreshRows() {
+    if (filterLoading) {
+      pendingRowsRefresh = true;
+      return;
+    }
     if (main.dataset.workbench) {
       document.dispatchEvent(new Event('todoer:workbench-refresh'));
       return;
@@ -42,6 +48,119 @@ if (main) {
       if (version === rowsGeneration)
         setSaveState('preview-refresh', 'error', error.message);
     }
+  }
+  function filterKey(url) {
+    const value = new URL(url, location.href);
+    value.searchParams.delete('prio');
+    value.searchParams.sort();
+    return value.pathname + value.search;
+  }
+  let loadedFilterKey = filterKey(location.href);
+  // Keep the page and the open task panel mounted while changing Today filters.
+  async function navigateFilters(url, push = true) {
+    const version = ++rowsGeneration;
+    filterLoading = true;
+    main.querySelector('.planning-filter-error')?.remove();
+    const skeleton = beginLoading(rows, { variant: 'planning-list' });
+    try {
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) throw Error('Could not load planned tasks.');
+      const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+      const next = doc.querySelector('[data-planning-rows]');
+      if (!next)
+        throw Error('Could not load planned tasks. Sign in again if your session ended.');
+      if (version !== rowsGeneration) return;
+      if (push) {
+        const destination = new URL(url, location.href);
+        const priority = new URLSearchParams(location.search).get('prio');
+        if (priority) destination.searchParams.set('prio', priority);
+        else destination.searchParams.delete('prio');
+        history.pushState(null, '', destination);
+      }
+      for (const selector of ['.planning-tabs', '.planning-space-filters']) {
+        const current = main.querySelector(selector);
+        const incoming = doc.querySelector(selector);
+        if (!current || !incoming) continue;
+        const left = current.scrollLeft;
+        current.replaceChildren(...incoming.childNodes);
+        current.scrollLeft = left;
+      }
+      for (const selector of ['.planning-welcome h1', '.planning-zone summary']) {
+        const current = main.querySelector(selector),
+          incoming = doc.querySelector(selector);
+        if (current && incoming) current.textContent = incoming.textContent;
+      }
+      for (const name of ['range', 'spaces', 'tz']) {
+        const current = main.querySelector(`.planning-zone form [name="${name}"]`);
+        const incoming = doc.querySelector(`.planning-zone form [name="${name}"]`);
+        if (current && incoming) current.value = incoming.value;
+      }
+      const accountZone = main.querySelector('.planning-zone form a');
+      const incomingZone = doc.querySelector('.planning-zone form a');
+      if (accountZone && incomingZone) accountZone.href = incomingZone.href;
+      main.dataset.planningToday = doc.querySelector(
+        '[data-planning-today]',
+      ).dataset.planningToday;
+      skeleton.finish();
+      rows.replaceChildren(...next.childNodes);
+      loadedFilterKey = filterKey(location.href);
+      main.dispatchEvent(new Event('todoer:planning-navigation'));
+      highlight();
+    } catch (error) {
+      if (version === rowsGeneration) {
+        skeleton.finish();
+        const notice = document.createElement('div');
+        notice.className = 'planning-filter-error';
+        notice.setAttribute('role', 'alert');
+        const message = document.createElement('span');
+        message.textContent = error.message;
+        const retry = document.createElement('button');
+        retry.type = 'button';
+        retry.textContent = 'Try again';
+        retry.onclick = () => navigateFilters(url, push);
+        notice.append(message, retry);
+        rows.before(notice);
+      }
+    } finally {
+      if (version === rowsGeneration) {
+        filterLoading = false;
+        skeleton.finish();
+        if (pendingRowsRefresh) {
+          pendingRowsRefresh = false;
+          refreshRows();
+        }
+      }
+    }
+  }
+  if (!main.dataset.workbench && !main.hasAttribute('data-search-preview')) {
+    main.addEventListener('click', (event) => {
+      const link = event.target.closest(
+        '.planning-tabs a, .planning-space-filters a, .planning-zone a',
+      );
+      if (
+        !link ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      )
+        return;
+      event.preventDefault();
+      navigateFilters(link.href);
+    });
+    main.querySelector('.planning-zone form')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const url = new URL('/today', location.origin);
+      for (const [name, value] of new FormData(event.currentTarget))
+        if (value) url.searchParams.set(name, value);
+      main.querySelector('.planning-zone').open = false;
+      navigateFilters(url.href);
+    });
+    addEventListener('popstate', () => {
+      if (filterKey(location.href) !== loadedFilterKey || filterLoading)
+        navigateFilters(location.href, false);
+    });
   }
   function highlight() {
     for (const row of rows.querySelectorAll('[data-planning-task]'))

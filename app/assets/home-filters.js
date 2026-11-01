@@ -7,10 +7,15 @@ if (main) {
   const bar = document.createElement('nav');
   bar.className = 'planning-priority-filters';
   bar.setAttribute('aria-label', 'Filter by priority');
-  const params = new URLSearchParams(location.search);
-  const selected = new Set(
-    (params.get('prio') || '').split(',').filter((x) => /^[0-3]$/.test(x)),
-  );
+  const selected = new Set();
+  function readSelection() {
+    selected.clear();
+    for (const value of (new URLSearchParams(location.search).get('prio') || '').split(
+      ',',
+    ))
+      if (/^[0-3]$/.test(value)) selected.add(value);
+  }
+  readSelection();
   let buttons = [];
   function apply() {
     for (const row of rows.querySelectorAll('[data-planning-task]')) {
@@ -22,10 +27,6 @@ if (main) {
         'aria-pressed',
         String(value === 'all' ? !selected.size : selected.has(value)),
       );
-    const q = new URLSearchParams(location.search);
-    if (selected.size) q.set('prio', [...selected].sort().join(','));
-    else q.delete('prio');
-    history.replaceState(null, '', location.pathname + '?' + q);
     for (const a of main.querySelectorAll(
       '.planning-tabs a,.planning-space-filters a,.planning-zone a',
     )) {
@@ -62,6 +63,10 @@ if (main) {
       else if (selected.has(value)) selected.delete(value);
       else selected.add(value);
       if (selected.size === 4) selected.clear();
+      const url = new URL(location.href);
+      if (selected.size) url.searchParams.set('prio', [...selected].sort().join(','));
+      else url.searchParams.delete('prio');
+      history.pushState(null, '', url);
       apply();
     };
     buttons.push([value, b]);
@@ -83,6 +88,14 @@ if (main) {
     empty.hidden = !all.length || all.some((row) => !row.hidden);
   }
   for (const [, b] of buttons) b.addEventListener('click', refresh);
+  addEventListener('popstate', () => {
+    readSelection();
+    refresh();
+  });
+  main.addEventListener('todoer:planning-navigation', () => {
+    readSelection();
+    refresh();
+  });
   new MutationObserver(refresh).observe(rows, { childList: true, subtree: true });
   refresh();
 }

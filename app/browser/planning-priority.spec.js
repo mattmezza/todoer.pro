@@ -98,3 +98,80 @@ test('Today and all-day calendar entries follow priority and keep actions aligne
     'P3',
   ]);
 });
+
+test('Today filters update tasks in place and support browser history', async ({
+  page,
+}) => {
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  await page.goto('/today');
+  await page.evaluate(() => {
+    window.filterPageMarker = 'still here';
+  });
+  let release;
+  const hold = new Promise((resolve) => {
+    release = resolve;
+  });
+  let captured;
+  const requested = new Promise((resolve) => {
+    captured = resolve;
+  });
+  await page.route('**/today?*', async (route) => {
+    if (new URL(route.request().url()).searchParams.get('range') === 'tomorrow') {
+      captured();
+      await hold;
+    }
+    await route.continue();
+  });
+  await page
+    .getByRole('navigation', { name: 'Planning' })
+    .getByRole('link', { name: 'Tomorrow' })
+    .click();
+  await requested;
+  await expect(
+    page.locator('[data-planning-rows] .skeleton-planning-list .skeleton-row'),
+  ).toHaveCount(3);
+  await expect(page.locator('[data-planning-rows]')).toHaveAttribute('aria-busy', 'true');
+  release();
+  await expect(page).toHaveURL(/range=tomorrow/);
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Planning' })
+      .getByRole('link', { name: 'Tomorrow' }),
+  ).toHaveAttribute('aria-current', 'page');
+  expect(await page.evaluate(() => window.filterPageMarker)).toBe('still here');
+  await page.getByRole('button', { name: 'P0', exact: true }).click();
+  await expect(page).toHaveURL(/prio=0/);
+  await page.goBack();
+  await expect(page.getByRole('button', { name: 'All priorities' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.goBack();
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Planning' })
+      .getByRole('link', { name: 'Today' }),
+  ).toHaveAttribute('aria-current', 'page');
+  expect(await page.evaluate(() => window.filterPageMarker)).toBe('still here');
+});
+
+test('Today filter failures preserve the list and offer a retry', async ({ page }) => {
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  await page.goto('/today');
+  await page.route('**/today?*', (route) => route.abort());
+  await page
+    .getByRole('navigation', { name: 'Planning' })
+    .getByRole('link', { name: 'Tomorrow' })
+    .click();
+  await expect(page.getByRole('alert')).toContainText('Could not load');
+  await expect(page.locator('[data-planning-rows]')).not.toHaveAttribute(
+    'aria-busy',
+    'true',
+  );
+  await page.unroute('**/today?*');
+  await page.getByRole('alert').getByRole('button', { name: 'Try again' }).click();
+  await expect(page).toHaveURL(/range=tomorrow/);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
