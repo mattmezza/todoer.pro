@@ -94,6 +94,12 @@ async fn quick_edits_and_reviewed_moves_use_public_references() {
         &["view", &format!("@{}", space["id"].as_str().unwrap())],
     );
     let space_ref = format!("@{}", space["reference"].as_str().unwrap());
+    let space_field = format!("space_id={space_ref}");
+    let members = cli(
+        &url,
+        &["access", "--op", "space_members", "--field", &space_field],
+    );
+    assert!(members["members"].as_array().is_some());
     let list = cli(
         &url,
         &[
@@ -135,7 +141,72 @@ async fn quick_edits_and_reviewed_moves_use_public_references() {
         &["view", &format!("%{}", task[0]["id"].as_str().unwrap())],
     );
     let task_ref = format!("%{}", task["reference"].as_str().unwrap());
-    cli(&url, &["edit", &task_ref, "--title", "Ripe tomatoes"]);
+    let schedule = cli(
+        &url,
+        &[
+            "schedule",
+            "set",
+            &task_ref,
+            "--planned",
+            "2026-11-30",
+            "--priority",
+            "1",
+        ],
+    );
+    assert_eq!(schedule["schedule"]["planned"]["date"], "2026-11-30");
+    assert_eq!(schedule["schedule"]["priority"], 1);
+    let preview = cli(
+        &url,
+        &[
+            "bulk",
+            "preview",
+            "--operation",
+            "update",
+            "--task",
+            &task_ref,
+            "--title",
+            "Preview title",
+        ],
+    );
+    assert!(!preview.is_null());
+    assert_eq!(
+        cli(&url, &["view", &task_ref])["entity"]["title"],
+        "Tomatoes"
+    );
+    let field_id = format!("id={task_ref}");
+    let located = cli(
+        &url,
+        &["organize", "--op", "section_get", "--field", &field_id],
+    );
+    assert!(located.is_null() || located.is_object());
+    let list_field = format!("list_id={list_ref}");
+    cli(
+        &url,
+        &[
+            "access",
+            "--op",
+            "list_restricted",
+            "--field",
+            &list_field,
+            "--field",
+            "restricted=false",
+        ],
+    );
+    cli(
+        &url,
+        &[
+            "edit",
+            &task_ref,
+            "--title",
+            "Ripe tomatoes",
+            "--field",
+            "description=Fresh produce",
+        ],
+    );
+    assert_eq!(
+        cli(&url, &["view", &task_ref])["entity"]["description"],
+        "Fresh produce"
+    );
     let declined = Command::new(env!("CARGO_BIN_EXE_todoer"))
         .env("TODOER_URL", &url)
         .env("TODOER_TOKEN", TOKEN)
@@ -209,6 +280,33 @@ async fn quick_edits_and_reviewed_moves_use_public_references() {
     );
     let from_json = cli(&url, &["task", "add", "--body", &body]);
     assert_eq!(from_json["task"]["title"], "From JSON");
+    let json_task = cli(
+        &url,
+        &[
+            "view",
+            &format!("%{}", from_json["task"]["id"].as_str().unwrap()),
+        ],
+    );
+    let json_ref = format!("%{}", json_task["reference"].as_str().unwrap());
+    let series = cli(
+        &url,
+        &[
+            "schedule",
+            "start",
+            &json_ref,
+            "--rule",
+            "daily",
+            "--every",
+            "2",
+            "--start-local",
+            "2026-11-30T09:00:00",
+            "--timezone",
+            "Europe/Zurich",
+            "--count",
+            "5",
+        ],
+    );
+    assert_eq!(series["spec"]["rule"]["interval_days"], 2);
     let found = cli(&url, &["query", "--list", &list_ref, "--text", "tomatoes"]);
     assert!(
         found["hits"]

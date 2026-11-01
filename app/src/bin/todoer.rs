@@ -95,8 +95,8 @@ enum Command {
     Query(Box<QueryArgs>),
     /// Compact organization action JSON (see OpenAPI OrganizeAction).
     Organize {
-        #[arg(long)]
-        body: String,
+        #[command(flatten)]
+        input: BodyArgs,
     },
     Tags {
         #[command(subcommand)]
@@ -147,12 +147,12 @@ enum Command {
     },
     /// Compact access action JSON; grants require explicit acknowledgment.
     Access {
-        #[arg(long)]
-        body: String,
+        #[command(flatten)]
+        input: BodyArgs,
     },
     Activity {
-        #[arg(long)]
-        body: String,
+        #[command(flatten)]
+        input: BodyArgs,
     },
     Invitations {
         #[command(subcommand)]
@@ -209,6 +209,8 @@ enum Command {
         description: Option<String>,
         #[arg(long)]
         body: Option<String>,
+        #[arg(long = "field", value_name = "KEY=VALUE")]
+        fields: Vec<String>,
     },
     Complete {
         id: String,
@@ -299,6 +301,8 @@ enum WorkspaceCommand {
     Create {
         #[arg(long)]
         body: Option<String>,
+        #[arg(long = "field", value_name = "KEY=VALUE")]
+        fields: Vec<String>,
         #[arg(long)]
         title: Option<String>,
         #[arg(long)]
@@ -308,6 +312,8 @@ enum WorkspaceCommand {
         id: String,
         #[arg(long)]
         body: Option<String>,
+        #[arg(long = "field", value_name = "KEY=VALUE")]
+        fields: Vec<String>,
         #[arg(long)]
         title: Option<String>,
         #[arg(long)]
@@ -318,18 +324,18 @@ enum WorkspaceCommand {
     },
     Grant {
         id: String,
-        #[arg(long)]
-        body: String,
+        #[command(flatten)]
+        input: BodyArgs,
     },
     Revoke {
         id: String,
-        #[arg(long)]
-        body: String,
+        #[command(flatten)]
+        input: BodyArgs,
     },
     Reorder {
         id: String,
-        #[arg(long)]
-        body: String,
+        #[command(flatten)]
+        input: BodyArgs,
     },
 }
 #[derive(Subcommand)]
@@ -346,6 +352,8 @@ enum ListCommand {
     Create {
         #[arg(long)]
         body: Option<String>,
+        #[arg(long = "field", value_name = "KEY=VALUE")]
+        fields: Vec<String>,
         #[arg(long)]
         space: Option<String>,
         #[arg(long)]
@@ -357,6 +365,8 @@ enum ListCommand {
         id: String,
         #[arg(long)]
         body: Option<String>,
+        #[arg(long = "field", value_name = "KEY=VALUE")]
+        fields: Vec<String>,
         #[arg(long)]
         title: Option<String>,
         #[arg(long)]
@@ -367,18 +377,18 @@ enum ListCommand {
     },
     Access {
         id: String,
-        #[arg(long)]
-        body: String,
+        #[command(flatten)]
+        input: BodyArgs,
     },
     Grant {
         id: String,
-        #[arg(long)]
-        body: String,
+        #[command(flatten)]
+        input: BodyArgs,
     },
     Revoke {
         id: String,
-        #[arg(long)]
-        body: String,
+        #[command(flatten)]
+        input: BodyArgs,
     },
 }
 #[derive(Subcommand)]
@@ -394,6 +404,8 @@ enum SectionCommand {
         list: String,
         #[arg(long)]
         body: Option<String>,
+        #[arg(long = "field", value_name = "KEY=VALUE")]
+        fields: Vec<String>,
         #[arg(long)]
         title: Option<String>,
         #[arg(long)]
@@ -403,6 +415,8 @@ enum SectionCommand {
         id: String,
         #[arg(long)]
         body: Option<String>,
+        #[arg(long = "field", value_name = "KEY=VALUE")]
+        fields: Vec<String>,
         #[arg(long)]
         title: Option<String>,
         #[arg(long)]
@@ -410,8 +424,8 @@ enum SectionCommand {
     },
     Reorder {
         list: String,
-        #[arg(long)]
-        body: String,
+        #[command(flatten)]
+        input: BodyArgs,
     },
 }
 #[derive(clap::Args)]
@@ -610,15 +624,43 @@ enum ScheduleCommand {
         id: String,
         #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
+        #[command(flatten)]
+        input: BodyArgs,
+        /// Replace the planned date (YYYY-MM-DD).
         #[arg(long)]
-        body: String,
+        planned: Option<String>,
+        /// Replace the due date or local date-time.
+        #[arg(long)]
+        due: Option<String>,
+        /// Time zone for a timed due date.
+        #[arg(long)]
+        timezone: Option<String>,
+        #[arg(long)]
+        priority: Option<u8>,
     },
     Start {
         id: String,
         #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
+        #[command(flatten)]
+        input: BodyArgs,
+        /// Recurrence rule: daily, weekdays, or completion_relative.
         #[arg(long)]
-        body: String,
+        rule: Option<String>,
+        /// Interval in days for daily or completion-relative recurrence.
+        #[arg(long)]
+        every: Option<u32>,
+        /// Weekday numbers (Monday=1), comma separated.
+        #[arg(long, value_delimiter = ',')]
+        weekdays: Vec<u32>,
+        #[arg(long)]
+        start_local: Option<String>,
+        #[arg(long)]
+        timezone: Option<String>,
+        #[arg(long)]
+        end_date: Option<String>,
+        #[arg(long)]
+        count: Option<u32>,
     },
     Series {
         id: String,
@@ -649,8 +691,8 @@ enum ScheduleCommand {
         from: String,
     },
     Action {
-        #[arg(long)]
-        body: String,
+        #[command(flatten)]
+        input: BodyArgs,
     },
 }
 #[derive(Subcommand)]
@@ -700,8 +742,8 @@ enum FileCommand {
     },
     Intent {
         task: String,
-        #[arg(long)]
-        body: String,
+        #[command(flatten)]
+        input: BodyArgs,
     },
     ResumeIntent {
         id: String,
@@ -753,6 +795,97 @@ enum InvitationCommand {
         id: String,
     },
 }
+/// JSON takes precedence when both forms specify the same field.
+#[derive(clap::Args)]
+struct BodyArgs {
+    /// Structured JSON object.
+    #[arg(long)]
+    body: Option<String>,
+    /// Set a field using key=value; dotted keys and array indexes are supported.
+    #[arg(long = "field", value_name = "KEY=VALUE")]
+    fields: Vec<String>,
+    /// Action name, equivalent to --field op=NAME.
+    #[arg(long)]
+    op: Option<String>,
+}
+
+fn insert_field(target: &mut Value, path: &[&str], value: Value) -> Result<(), (i32, String)> {
+    if path.is_empty() {
+        *target = value;
+        return Ok(());
+    }
+    let key = path[0];
+    if key.is_empty() {
+        return Err((2, "field path contains an empty component".into()));
+    }
+    if let Ok(index) = key.parse::<usize>() {
+        if index >= 500 {
+            return Err((2, "field array index must be below 500".into()));
+        }
+        if target.is_null() {
+            *target = json!([]);
+        }
+        let items = target
+            .as_array_mut()
+            .ok_or((2, "field path conflicts with an existing value".into()))?;
+        while items.len() <= index {
+            items.push(Value::Null);
+        }
+        insert_field(&mut items[index], &path[1..], value)
+    } else {
+        if target.is_null() {
+            *target = json!({});
+        }
+        let object = target
+            .as_object_mut()
+            .ok_or((2, "field path conflicts with an existing value".into()))?;
+        insert_field(
+            object.entry(key.to_owned()).or_insert(Value::Null),
+            &path[1..],
+            value,
+        )
+    }
+}
+
+fn merge_json(target: &mut Value, source: Value) {
+    if let (Some(left), Some(right)) = (target.as_object_mut(), source.as_object()) {
+        for (key, value) in right {
+            merge_json(
+                left.entry(key.clone()).or_insert(Value::Null),
+                value.clone(),
+            );
+        }
+    } else {
+        *target = source;
+    }
+}
+
+impl BodyArgs {
+    fn value(self) -> Result<Value, (i32, String)> {
+        self.value_with(json!({}))
+    }
+    fn value_with(self, mut value: Value) -> Result<Value, (i32, String)> {
+        if let Some(op) = self.op {
+            value["op"] = json!(op);
+        }
+        for field in self.fields {
+            let (key, raw) = field
+                .split_once('=')
+                .ok_or((2, "--field requires KEY=VALUE".into()))?;
+            let parsed =
+                serde_json::from_str(raw).unwrap_or_else(|_| Value::String(raw.to_owned()));
+            insert_field(&mut value, &key.split('.').collect::<Vec<_>>(), parsed)?;
+        }
+        if let Some(body) = self.body {
+            merge_json(&mut value, object_body(&body)?);
+        }
+        if value.as_object().is_none_or(|v| v.is_empty()) {
+            return Err((2, "provide --body or --field".into()));
+        }
+        Ok(value)
+    }
+}
+
 fn object_body(body: &str) -> Result<Value, (i32, String)> {
     let value: Value =
         serde_json::from_str(body).map_err(|_| (2, "--body must contain valid JSON".into()))?;
@@ -766,11 +899,76 @@ fn schedule_request(command: ScheduleCommand) -> Result<RequestSpec, (i32, Strin
         "/agent/schedule",
         match command {
             ScheduleCommand::Get { id } => json!({"op":"get","id":id}),
-            ScheduleCommand::Set { id, revision, body } => {
-                json!({"op":"set","id":id,"revision":revision,"schedule":object_body(&body)?})
+            ScheduleCommand::Set {
+                id,
+                revision,
+                input,
+                planned,
+                due,
+                timezone,
+                priority,
+            } => {
+                let mut schedule = json!({});
+                if let Some(date) = planned {
+                    schedule["planned"] = json!({"kind":"date","date":date});
+                }
+                if let Some(date) = due {
+                    schedule["due"] = if date.contains('T') {
+                        json!({"kind":"timed","local":date,"timezone":timezone.ok_or((2,"--timezone is required for a timed due date".into()))?})
+                    } else {
+                        json!({"kind":"date","date":date})
+                    };
+                } else if timezone.is_some() {
+                    return Err((2, "--timezone requires a timed --due".into()));
+                }
+                if let Some(priority) = priority {
+                    schedule["priority"] = json!(priority);
+                }
+                json!({"op":"set","id":id,"revision":revision,"schedule":input.value_with(schedule)?})
             }
-            ScheduleCommand::Start { id, revision, body } => {
-                json!({"op":"series_start","id":id,"revision":revision,"spec":object_body(&body)?})
+            ScheduleCommand::Start {
+                id,
+                revision,
+                input,
+                rule,
+                every,
+                weekdays,
+                start_local,
+                timezone,
+                end_date,
+                count,
+            } => {
+                let mut spec = json!({});
+                if let Some(rule) = rule {
+                    spec["rule"] = match rule.as_str() {
+                        "daily" => json!({"kind":"daily","interval_days":every.unwrap_or(1)}),
+                        "completion_relative" | "completion-relative" => {
+                            json!({"kind":"completion_relative","days":every.unwrap_or(1)})
+                        }
+                        "weekdays" => json!({"kind":"weekdays","days":weekdays}),
+                        _ => {
+                            return Err((
+                                2,
+                                "--rule must be daily, weekdays, or completion_relative".into(),
+                            ));
+                        }
+                    };
+                } else if every.is_some() || !weekdays.is_empty() {
+                    return Err((2, "--every and --weekdays require --rule".into()));
+                }
+                if let Some(value) = start_local {
+                    spec["start_local"] = json!(value);
+                }
+                if let Some(value) = timezone {
+                    spec["timezone"] = json!(value);
+                }
+                if let Some(value) = end_date {
+                    spec["end_date"] = json!(value);
+                }
+                if let Some(value) = count {
+                    spec["count"] = json!(value);
+                }
+                json!({"op":"series_start","id":id,"revision":revision,"spec":input.value_with(spec)?})
             }
             ScheduleCommand::Series { id } => json!({"op":"series_get","id":id}),
             ScheduleCommand::All => json!({"op":"series_list"}),
@@ -785,7 +983,7 @@ fn schedule_request(command: ScheduleCommand) -> Result<RequestSpec, (i32, Strin
             }
             ScheduleCommand::Planning { from, to } => json!({"op":"planning","from":from,"to":to}),
             ScheduleCommand::Statistics { from } => json!({"op":"statistics","from":from}),
-            ScheduleCommand::Action { body } => object_body(&body)?,
+            ScheduleCommand::Action { input } => input.value()?,
         },
     ))
 }
@@ -823,8 +1021,8 @@ fn files_request(command: FileCommand) -> Result<RequestSpec, (i32, String)> {
             FileCommand::Delete { id, revision } => {
                 json!({"op":"file_delete","id":id,"revision":revision})
             }
-            FileCommand::Intent { task, body } => {
-                json!({"op":"upload_create","task_id":task,"input":object_body(&body)?})
+            FileCommand::Intent { task, input } => {
+                json!({"op":"upload_create","task_id":task,"input":input.value()?})
             }
             FileCommand::ResumeIntent { id } => json!({"op":"upload_get","id":id}),
             FileCommand::Finalize { id, revision } => {
@@ -872,8 +1070,23 @@ fn invitation_request(command: InvitationCommand) -> RequestSpec {
 #[derive(Subcommand)]
 enum BulkCommand {
     Preview {
+        #[command(flatten)]
+        input: BodyArgs,
+        /// Preview one operation without JSON: update, move, trash, restore, tags, section, reparent.
         #[arg(long)]
-        body: String,
+        operation: Option<String>,
+        #[arg(long, requires = "operation")]
+        task: Option<String>,
+        #[arg(long, requires = "operation")]
+        title: Option<String>,
+        #[arg(long, requires = "operation")]
+        description: Option<String>,
+        #[arg(long, requires = "operation")]
+        to: Option<String>,
+        #[arg(long, requires = "operation")]
+        tag: Vec<String>,
+        #[arg(long, requires = "operation")]
+        acknowledge_access_change: bool,
     },
     Apply {
         preview_id: String,
@@ -907,7 +1120,59 @@ enum DestinationCommand {
 }
 fn bulk_request(command: BulkCommand) -> Result<RequestSpec, (i32, String)> {
     match command {
-        BulkCommand::Preview { body } => write_request(Method::POST, "/bulk/preview".into(), body),
+        BulkCommand::Preview {
+            input,
+            operation,
+            task,
+            title,
+            description,
+            to,
+            tag,
+            acknowledge_access_change,
+        } => {
+            let mut base = json!({});
+            if let Some(op) = operation {
+                if (op != "update" && (title.is_some() || description.is_some()))
+                    || (!matches!(op.as_str(), "move" | "section" | "reparent") && to.is_some())
+                    || (op != "tags" && !tag.is_empty())
+                    || (op != "move" && acknowledge_access_change)
+                {
+                    return Err((
+                        2,
+                        "a bulk option does not apply to the selected operation".into(),
+                    ));
+                }
+                let id = task.ok_or((2, "--task is required with --operation".into()))?;
+                let mut item = json!({"op":op,"id":id,"revision":0});
+                match item["op"].as_str().unwrap_or("") {
+                    "update" => {
+                        if let Some(v) = title {
+                            item["title"] = json!(v);
+                        }
+                        if let Some(v) = description {
+                            item["description"] = json!(v);
+                        }
+                    }
+                    "move" => {
+                        item["destination"] =
+                            json!(to.ok_or((2, "--to is required for a move".into()))?);
+                        item["acknowledge_access_change"] = json!(acknowledge_access_change);
+                    }
+                    "section" => item["section_id"] = json!(to),
+                    "reparent" => item["parent_id"] = json!(to),
+                    "tags" => item["tags"] = json!(tag),
+                    "trash" | "restore" => {}
+                    _ => return Err((2, "unknown bulk operation".into())),
+                }
+                base["operations"] = json!([item]);
+            }
+            Ok((
+                Method::POST,
+                "/bulk/preview".into(),
+                Some(input.value_with(base)?),
+                None,
+            ))
+        }
         BulkCommand::Apply {
             preview_id,
             hash,
@@ -965,10 +1230,18 @@ fn write_request(method: Method, path: String, body: String) -> Result<RequestSp
     }
     Ok((method, path, Some(value), None))
 }
+fn write_input(
+    method: Method,
+    path: String,
+    input: BodyArgs,
+) -> Result<RequestSpec, (i32, String)> {
+    Ok((method, path, Some(input.value()?), None))
+}
 fn edit_body(
     body: Option<String>,
     title: Option<String>,
     description: Option<String>,
+    fields: Vec<String>,
 ) -> Result<Value, (i32, String)> {
     let mut value = json!({});
     if let Some(title) = title {
@@ -977,16 +1250,12 @@ fn edit_body(
     if let Some(description) = description {
         value["description"] = json!(description);
     }
-    if let Some(body) = body {
-        let supplied = object_body(&body)?;
-        for (key, field) in supplied.as_object().expect("object_body validates object") {
-            value[key] = field.clone();
-        }
+    BodyArgs {
+        body,
+        fields,
+        op: None,
     }
-    if value.as_object().is_none_or(|fields| fields.is_empty()) {
-        return Err((2, "provide --body, --title, or --description".into()));
-    }
-    Ok(value)
+    .value_with(value)
 }
 fn workspace_request(command: WorkspaceCommand) -> Result<RequestSpec, (i32, String)> {
     Ok(match command {
@@ -999,10 +1268,11 @@ fn workspace_request(command: WorkspaceCommand) -> Result<RequestSpec, (i32, Str
         WorkspaceCommand::Get { id } => read_request(format!("/workspaces/{}", segment(&id))),
         WorkspaceCommand::Create {
             body,
+            fields,
             title,
             description,
         } => {
-            let mut value = edit_body(body, title, description)?;
+            let mut value = edit_body(body, title, description, fields)?;
             if value.get("description").is_none() {
                 value["description"] = json!("");
             }
@@ -1011,31 +1281,32 @@ fn workspace_request(command: WorkspaceCommand) -> Result<RequestSpec, (i32, Str
         WorkspaceCommand::Edit {
             id,
             body,
+            fields,
             title,
             description,
         } => (
             Method::PATCH,
             format!("/workspaces/{}", segment(&id)),
-            Some(edit_body(body, title, description)?),
+            Some(edit_body(body, title, description, fields)?),
             None,
         ),
         WorkspaceCommand::Members { id } => {
             read_request(format!("/workspaces/{}/members", segment(&id)))
         }
-        WorkspaceCommand::Grant { id, body } => write_request(
+        WorkspaceCommand::Grant { id, input } => write_input(
             Method::POST,
             format!("/workspaces/{}/members", segment(&id)),
-            body,
+            input,
         )?,
-        WorkspaceCommand::Revoke { id, body } => write_request(
+        WorkspaceCommand::Revoke { id, input } => write_input(
             Method::POST,
             format!("/workspaces/{}/members/revoke", segment(&id)),
-            body,
+            input,
         )?,
-        WorkspaceCommand::Reorder { id, body } => write_request(
+        WorkspaceCommand::Reorder { id, input } => write_input(
             Method::POST,
             format!("/workspaces/{}/lists/reorder", segment(&id)),
-            body,
+            input,
         )?,
     })
 }
@@ -1050,11 +1321,12 @@ fn list_request(command: ListCommand) -> Result<RequestSpec, (i32, String)> {
         ListCommand::Get { id } => read_request(format!("/lists/{}", segment(&id))),
         ListCommand::Create {
             body,
+            fields,
             space,
             title,
             description,
         } => {
-            let mut value = edit_body(body, title, description)?;
+            let mut value = edit_body(body, title, description, fields)?;
             if let Some(space) = space.filter(|_| value.get("workspace_id").is_none()) {
                 value["workspace_id"] = json!(space);
             }
@@ -1063,29 +1335,30 @@ fn list_request(command: ListCommand) -> Result<RequestSpec, (i32, String)> {
         ListCommand::Edit {
             id,
             body,
+            fields,
             title,
             description,
         } => (
             Method::PATCH,
             format!("/lists/{}", segment(&id)),
-            Some(edit_body(body, title, description)?),
+            Some(edit_body(body, title, description, fields)?),
             None,
         ),
         ListCommand::Sharing { id } => read_request(format!("/lists/{}/sharing", segment(&id))),
-        ListCommand::Access { id, body } => write_request(
+        ListCommand::Access { id, input } => write_input(
             Method::POST,
             format!("/lists/{}/access", segment(&id)),
-            body,
+            input,
         )?,
-        ListCommand::Grant { id, body } => write_request(
+        ListCommand::Grant { id, input } => write_input(
             Method::POST,
             format!("/lists/{}/grants", segment(&id)),
-            body,
+            input,
         )?,
-        ListCommand::Revoke { id, body } => write_request(
+        ListCommand::Revoke { id, input } => write_input(
             Method::POST,
             format!("/lists/{}/grants/revoke", segment(&id)),
-            body,
+            input,
         )?,
     })
 }
@@ -1102,29 +1375,31 @@ fn section_request(command: SectionCommand) -> Result<RequestSpec, (i32, String)
         SectionCommand::Create {
             list,
             body,
+            fields,
             title,
             description,
         } => (
             Method::POST,
             format!("/lists/{}/sections", segment(&list)),
-            Some(edit_body(body, title, description)?),
+            Some(edit_body(body, title, description, fields)?),
             None,
         ),
         SectionCommand::Edit {
             id,
             body,
+            fields,
             title,
             description,
         } => (
             Method::PATCH,
             format!("/sections/{}", segment(&id)),
-            Some(edit_body(body, title, description)?),
+            Some(edit_body(body, title, description, fields)?),
             None,
         ),
-        SectionCommand::Reorder { list, body } => write_request(
+        SectionCommand::Reorder { list, input } => write_input(
             Method::POST,
             format!("/lists/{}/sections/reorder", segment(&list)),
-            body,
+            input,
         )?,
     })
 }
@@ -1316,10 +1591,10 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         Command::Schedule { command } => schedule_request(command)?,
         Command::Comments { command } => comments_request(command),
         Command::Files { command } => files_request(command)?,
-        Command::Access { body } => write_request(Method::POST, "/agent/access".into(), body)?,
-        Command::Activity { body } => write_request(Method::POST, "/agent/activity".into(), body)?,
+        Command::Access { input } => write_input(Method::POST, "/agent/access".into(), input)?,
+        Command::Activity { input } => write_input(Method::POST, "/agent/activity".into(), input)?,
         Command::Invitations { command } => invitation_request(command),
-        Command::Organize { body } => write_request(Method::POST, "/organize".into(), body)?,
+        Command::Organize { input } => write_input(Method::POST, "/organize".into(), input)?,
         Command::Tags { command } => tag_request(command),
         Command::TaskSection {
             id,
@@ -1430,8 +1705,9 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             title,
             description,
             body,
+            fields,
         } => {
-            let mut body = edit_body(body, title, description)?;
+            let mut body = edit_body(body, title, description, fields)?;
             if body.get("revision").is_none() {
                 body["revision"] = json!(revision);
             }
@@ -1685,6 +1961,20 @@ async fn prepare_entity_write(
     path: &str,
     body: &mut Value,
 ) -> Result<(), (i32, String)> {
+    if path == "/agent/access" {
+        if let Some(op) = body["op"].as_str().and_then(|op| op.strip_prefix("space_")) {
+            body["op"] = json!(format!("workspace_{op}"));
+        }
+        if let Some(space) = body
+            .as_object_mut()
+            .and_then(|object| object.remove("space_id"))
+        {
+            if body.get("workspace_id").is_some() {
+                return Err((2, "provide only one of space_id and workspace_id".into()));
+            }
+            body["workspace_id"] = space;
+        }
+    }
     if path == "/query" {
         for (key, kind) in [
             ("list_id", "list"),
@@ -1928,6 +2218,22 @@ async fn prepare_entity_write(
                 Some(format!(
                     "/tasks/{}",
                     segment(body["source_id"].as_str().unwrap_or(""))
+                ))
+            }
+            (&Method::POST, ["agent", "access"])
+                if matches!(op, "workspace_grant" | "workspace_revoke") =>
+            {
+                Some(format!(
+                    "/view/space/{}",
+                    segment(body["workspace_id"].as_str().unwrap_or(""))
+                ))
+            }
+            (&Method::POST, ["agent", "access"])
+                if matches!(op, "list_grant" | "list_revoke" | "list_restricted") =>
+            {
+                Some(format!(
+                    "/view/list/{}",
+                    segment(body["list_id"].as_str().unwrap_or(""))
                 ))
             }
             _ => None,
@@ -3146,11 +3452,41 @@ mod list_output_tests {
             edit_body(
                 Some("{\"title\":\"JSON\"}".into()),
                 Some("flag".into()),
-                None
+                None,
+                Vec::new()
             )
             .unwrap(),
             json!({"title":"JSON"})
         );
+    }
+
+    #[test]
+    fn structured_arguments_support_arrays_and_json_overrides() {
+        let input = BodyArgs {
+            body: Some(r#"{"input":{"title":"JSON"}}"#.into()),
+            fields: vec![
+                "input.title=flags".into(),
+                "input.enabled=true".into(),
+                "operations.0.id=%abc".into(),
+                "operations.0.op=trash".into(),
+                "operations.1.id=%def".into(),
+            ],
+            op: Some("example".into()),
+        };
+        assert_eq!(
+            input.value().unwrap(),
+            json!({"op":"example","input":{"title":"JSON","enabled":true},"operations":[{"id":"%abc","op":"trash"},{"id":"%def"}]})
+        );
+        assert!(
+            BodyArgs {
+                body: None,
+                fields: vec!["items.500.id=x".into()],
+                op: None
+            }
+            .value()
+            .is_err()
+        );
+        assert!(Args::try_parse_from(["todoer", "lists", "move", "#a", "--body", "{}"]).is_err());
     }
 
     #[test]
