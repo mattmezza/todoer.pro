@@ -4057,13 +4057,19 @@ form[data-list-edit] input.list-edit-color {
   outline: none;
 }
 .task-page [data-child-form] textarea[name='title'] {
-  min-height: 44px;
   font-size: 18px;
   font-weight: 600;
 }
 .task-page [data-child-form] textarea[name='description'] {
-  min-height: 44px;
   font-size: 16px;
+}
+.task-page [data-child-form] .capture-entry {
+  row-gap: 0;
+}
+.task-page [data-child-form] textarea[name='title'],
+.task-page [data-child-form] textarea[name='description'] {
+  min-height: 36px;
+  padding-block: 4px;
 }
 .task-page [data-child-form] .composer-actions {
   flex-wrap: wrap;
@@ -13050,6 +13056,30 @@ body > .planning-detail-dismiss {
   }
   .list-settings-panel[data-settings-kind='task'] .planning-group {
     padding: 10px 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .capture-help > button {
+    display: none;
+  }
+  .task-page [data-child-form] .capture-help:not(:has(.capture-literal)) {
+    display: none;
+  }
+  .task-page [data-child-form] .capture-help:has(.capture-literal) {
+    flex-basis: 100%;
+  }
+  .task-page :is([data-child-form], [data-new-comment]) .composer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+  .task-page :is([data-child-form], [data-new-comment]) .composer-actions > button {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    text-align: center;
   }
 }
 
