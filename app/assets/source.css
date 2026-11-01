@@ -2487,7 +2487,7 @@ input[type='color'] {
 }
 .comment-composer form {
   padding: 12px;
-  border: 1px solid #475569;
+  border: 0;
 }
 .comment-composer textarea {
   background: transparent;
@@ -4044,7 +4044,7 @@ form[data-list-edit] input.list-edit-color {
 }
 
 .task-page [data-child-form] {
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: 8px;
   padding: 16px;
   margin-inline: 0;
@@ -4073,6 +4073,11 @@ form[data-list-edit] input.list-edit-color {
 }
 .task-page [data-child-form] .composer-actions {
   flex-wrap: wrap;
+}
+.task-page :is([data-child-cancel], [data-comment-composer-close]) {
+  border-radius: 6px;
+  background: var(--hover);
+  color: var(--text);
 }
 
 .task-page-heading {
@@ -11871,7 +11876,7 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
 .planning-detail-content :is([data-child-form], [data-new-comment]) {
   margin: 4px 0 0;
   padding: 10px;
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: 8px;
   gap: 6px;
   background: var(--surface, transparent);
@@ -11904,9 +11909,6 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   border: 0;
   box-shadow: none;
   resize: vertical;
-}
-.planning-detail-content :is([data-child-form], [data-new-comment]):focus-within {
-  border-color: var(--muted);
 }
 .planning-detail-content :is([data-child-form], [data-new-comment]) .composer-actions {
   padding-top: 6px;
