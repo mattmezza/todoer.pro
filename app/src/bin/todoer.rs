@@ -270,7 +270,11 @@ enum Command {
 enum TaskCommand {
     Add {
         /// Task title and capture shortcuts, quoted as one argument.
-        text: String,
+        #[arg(required_unless_present = "body")]
+        text: Option<String>,
+        /// Full capture request as a JSON object.
+        #[arg(long)]
+        body: Option<String>,
         /// Reuse a key only when retrying the same capture.
         #[arg(long)]
         key: Option<String>,
@@ -1226,10 +1230,18 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         return move_entity(&args, id, to, *yes).await;
     }
     if let Command::Task {
-        command: TaskCommand::Add { text, key },
+        command: TaskCommand::Add { text, body, key },
     } = &args.command
     {
-        return add_task(&args, text, key.as_deref()).await;
+        if let Some(body) = body {
+            return add_task_json(&args, body, key.as_deref()).await;
+        }
+        return add_task(
+            &args,
+            text.as_deref().expect("clap requires task text"),
+            key.as_deref(),
+        )
+        .await;
     }
     if let Command::Archive { reference } | Command::Restore { reference } = &args.command {
         return archive_entity(
@@ -1513,6 +1525,26 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         .map_err(|_| (1, "could not initialize HTTP client".into()))?;
     let token = cli_login::token(&args.url)?;
     normalize_request_path(&client, &args.url, &token, &mut path).await?;
+    if path == "/search" || path == "/review" {
+        for (key, value) in &mut query_pairs {
+            let kind = match key.as_str() {
+                "list" => "list",
+                "workspace" => "space",
+                _ => continue,
+            };
+            let entity = get_json(
+                &client,
+                &args.url,
+                &token,
+                &format!("/view/{kind}/{}", segment(value)),
+            )
+            .await?;
+            *value = entity["entity"]["id"]
+                .as_str()
+                .ok_or((1, "server omitted entity ID".into()))?
+                .to_owned();
+        }
+    }
     let mut url = reqwest::Url::parse(&format!("{}/api/v1{path}", args.url.trim_end_matches('/')))
         .map_err(|_| (2, "invalid server URL".into()))?;
     if !query_pairs.is_empty() {
@@ -1626,6 +1658,24 @@ async fn prepare_entity_write(
     path: &str,
     body: &mut Value,
 ) -> Result<(), (i32, String)> {
+    if path == "/query" {
+        for (key, kind) in [
+            ("list_id", "list"),
+            ("workspace_id", "space"),
+            ("section_id", "section"),
+        ] {
+            if let Some(reference) = body.get(key).and_then(Value::as_str) {
+                let entity = get_json(
+                    client,
+                    base,
+                    token,
+                    &format!("/view/{kind}/{}", segment(reference)),
+                )
+                .await?;
+                body[key] = entity["entity"]["id"].clone();
+            }
+        }
+    }
     if path == "/capture" {
         if let Some(list) = body.get("list_id").and_then(Value::as_str) {
             body["list_id"] = json!(unprefix(list));
@@ -1953,6 +2003,84 @@ async fn get_json(
         .await
         .map_err(|_| (1, "request failed; check server connectivity".into()))?;
     Ok(response_json(response).await?.1)
+}
+
+async fn add_task_json(args: &Args, input: &str, key: Option<&str>) -> Result<(), (i32, String)> {
+    let mut body = object_body(input)?;
+    let client = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|_| (1, "could not initialize HTTP client".into()))?;
+    let token = cli_login::token(&args.url)?;
+    if body.get("list_id").is_none() {
+        body["list_id"] = get_json(&client, &args.url, &token, "/inbox").await?["list_id"].clone();
+    }
+    if body.get("tasks").is_none() {
+        let fields = body.as_object_mut().expect("object_body validates object");
+        let title = fields
+            .remove("title")
+            .ok_or((2, "JSON requires title or tasks".into()))?;
+        let description = fields.remove("description").unwrap_or(json!(""));
+        let parent = fields.remove("parent_id").unwrap_or(Value::Null);
+        body["tasks"] = json!([{"title":title,"description":description,"parent_id":parent}]);
+    }
+    if body["tasks"]
+        .as_array()
+        .is_none_or(|tasks| tasks.len() != 1)
+    {
+        return Err((2, "task add requires exactly one task".into()));
+    }
+    prepare_entity_write(
+        &client,
+        &args.url,
+        &token,
+        &Method::POST,
+        "/capture",
+        &mut body,
+    )
+    .await?;
+    let generated_key = uuid::Uuid::new_v4().to_string();
+    let response = client
+        .post(api_url(&args.url, "/capture")?)
+        .bearer_auth(&token)
+        .header("Idempotency-Key", key.unwrap_or(&generated_key))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|_| (1, "capture request failed".into()))?;
+    let tasks = response_json(response).await?.1;
+    let task = tasks
+        .as_array()
+        .and_then(|tasks| tasks.first())
+        .ok_or((1, "server omitted created task".into()))?;
+    let list_id = task["list_id"]
+        .as_str()
+        .ok_or((1, "server omitted task list".into()))?;
+    let list = get_json(
+        &client,
+        &args.url,
+        &token,
+        &format!("/view/list/{}?full=true&sub=true", segment(list_id)),
+    )
+    .await
+    .map_err(|(code, message)| {
+        (
+            code,
+            format!("Task was created, but its list could not be loaded: {message}"),
+        )
+    })?;
+    if args.json {
+        println!("{}", json!({"task":task,"list":list}));
+    } else {
+        println!(
+            "Added task '{}' to list '#{}'.\n",
+            task["title"].as_str().unwrap_or(""),
+            list["entity"]["title"].as_str().unwrap_or("?")
+        );
+        print!("{}", format_full_view(&list, false));
+    }
+    Ok(())
 }
 
 async fn add_task(args: &Args, text: &str, key: Option<&str>) -> Result<(), (i32, String)> {

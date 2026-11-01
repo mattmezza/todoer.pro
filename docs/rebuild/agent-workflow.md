@@ -25,6 +25,8 @@ todoer changes --after 0
 
 Quote the task text so the shell passes it as one argument. `task add` uses the app's capture parser for destinations, dates, duration, priority and tags, then shows the full destination list. Add `--key` when you need to retry the same capture safely; use a new key for a different request.
 
+For structured input, use `todoer task add --body '{"list_id":"#abc2345","title":"Buy milk","metadata":{"priority":1,"tags":["family"]}}'`. The API capture shape with a single `tasks` item is also accepted. Space, list and section creation and editing accept either `--body` JSON or quick `--title` and `--description` flags; list creation also accepts `--space`.
+
 The CLI reads the current version automatically before an edit. If another edit occurs in between, the server rejects the conflicting write; review the latest item before trying again. `complete --subtree` explicitly requests completion of the subtree. `--description ''` clears a description.
 
 Search defaults to an empty query and at most 50 results. Use `--list` to narrow the list, `--complete true` or `--complete false` to filter status, and `--after` with the last task ID to request the next page. Query parameters are URL encoded.

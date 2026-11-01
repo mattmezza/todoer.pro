@@ -157,6 +157,17 @@ async fn quick_edits_and_reviewed_moves_use_public_references() {
     assert!(human.contains("Added P1 task 'buy bread'"));
     assert!(human.contains("(1h) +family"));
     assert!(human.contains("%buy bread"));
+    let body = format!(
+        r##"{{"list_id":"{list_ref}","title":"From JSON","metadata":{{"priority":1,"tags":["family"]}}}}"##
+    );
+    let from_json = cli(&url, &["task", "add", "--body", &body]);
+    assert_eq!(from_json["task"]["title"], "From JSON");
+    let found = cli(&url, &["query", "--list", &list_ref, "--text", "tomatoes"]);
+    assert!(
+        found["hits"]
+            .as_array()
+            .is_some_and(|rows| !rows.is_empty())
+    );
     let section = cli(&url, &["view", &section_ref]);
     assert_eq!(section["children"][0]["title"], "Ripe tomatoes");
     cli(&url, &["trash", &task_ref]);
