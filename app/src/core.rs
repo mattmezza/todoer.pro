@@ -298,6 +298,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (49, include_str!("../migrations/049_inbox_stream.sql")),
     (50, include_str!("../migrations/050_cli_expiration.sql")),
     (51, include_str!("../migrations/051_favorite_order.sql")),
+    (52, include_str!("../migrations/052_task_durations.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {

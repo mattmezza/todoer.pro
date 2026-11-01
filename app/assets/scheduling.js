@@ -240,6 +240,69 @@ export function mountScheduling({
   const dueFields = el('div', { class: 'planning-due-fields' });
   dueFields.append(dueLabel, dueDate.closest('label'), timedRow);
   dueIntent.append(dueSummary, dueFields);
+  const durationIntent = el('details', {
+    class: 'planning-date-intent planning-duration-intent',
+  });
+  const durationSummary = el('summary');
+  const durationCaption = el('span', {}, 'Set duration');
+  iconFor(durationSummary, 'clock');
+  durationSummary.append(durationCaption);
+  const duration = input('number', 'duration_minutes', '', {
+    min: '1',
+    max: '1440',
+    step: '1',
+    inputmode: 'numeric',
+    placeholder: 'No duration',
+  });
+  const durationChoices = el('div', {
+    class: 'planning-date-shortcuts planning-duration-shortcuts',
+    role: 'group',
+    'aria-label': 'Duration shortcuts',
+  });
+  for (const [text, minutes] of [
+    ['30m', 30],
+    ['1h', 60],
+    ['2h', 120],
+    ['4h', 240],
+    ['8h', 480],
+  ]) {
+    const choice = el(
+      'button',
+      { type: 'button', 'data-minutes': String(minutes) },
+      text,
+    );
+    choice.addEventListener('click', () => {
+      if (!canWrite || busy) return;
+      duration.value = String(minutes);
+      duration.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    durationChoices.append(choice);
+  }
+  const clearDuration = el('button', { type: 'button' }, 'Clear');
+  clearDuration.addEventListener('click', () => {
+    duration.value = '';
+    duration.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  durationIntent.append(
+    durationSummary,
+    durationChoices,
+    label('Duration (minutes)', duration),
+    clearDuration,
+  );
+  dueIntent.after(durationIntent);
+  function durationDisplay() {
+    const minutes = Number(duration.value);
+    const text =
+      minutes >= 60
+        ? `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ''}`
+        : `${minutes}m`;
+    durationCaption.textContent = duration.value ? `Duration · ${text}` : 'Set duration';
+    for (const choice of durationChoices.children)
+      choice.setAttribute(
+        'aria-pressed',
+        String(choice.dataset.minutes === duration.value),
+      );
+  }
   // The summary is the heading; keep field labels available to screen readers.
   for (const control of [planned, dueKind, dueDate, dueLocal])
     control
@@ -529,6 +592,7 @@ export function mountScheduling({
       dueDate: dueDate.value,
       dueLocal: dueLocal.value,
       dueZone: dueZone.value,
+      duration: duration.value,
       priority: priority.value,
       reminders: [...reminders.children].map((row) => ({
         channel: row.querySelector('[name=channel]').value,
@@ -556,6 +620,8 @@ export function mountScheduling({
     dueDate.value = values.dueDate || '';
     dueLocal.value = values.dueLocal || '';
     dueZone.value = values.dueZone || defaultZone;
+    duration.value = values.duration ?? '';
+    durationDisplay();
     priority.value = values.priority || '';
     for (const radio of priorityOptions.querySelectorAll('input'))
       radio.checked = radio.value === priority.value;
@@ -606,6 +672,7 @@ export function mountScheduling({
   }
   function updateVisibility() {
     dateCaptions();
+    durationDisplay();
     timedRow.hidden = dueKind.value !== 'timed';
     dueDate.closest('label').hidden = dueKind.value !== 'date';
     dueLocal.closest('label').hidden = dueKind.value !== 'timed';
@@ -687,6 +754,10 @@ export function mountScheduling({
   function fromSchedule(schedule) {
     return {
       planned: schedule.planned?.date || '',
+      duration:
+        storedSchedule?.duration_minutes == null
+          ? ''
+          : String(storedSchedule.duration_minutes),
       dueKind: schedule.due?.kind || 'none',
       dueDate: schedule.due?.date || '',
       dueLocal: schedule.due?.local || '',
@@ -797,6 +868,12 @@ export function mountScheduling({
       const result = await request(`/tasks/${encodeURIComponent(taskId)}/schedule`);
       if (!active || version !== loadVersion) return;
       storedSchedule = result;
+      if (scheduleDraft && !Object.hasOwn(scheduleDraft.values, 'duration')) {
+        duration.value =
+          result.duration_minutes == null ? '' : String(result.duration_minutes);
+        scheduleDraft.values.duration = duration.value;
+        durationDisplay();
+      }
       showPriorityPreview(result.schedule);
       if (!scheduleDraft) {
         baseRevision = result.task_revision;
@@ -864,7 +941,11 @@ export function mountScheduling({
       const result = await request(
         `/tasks/${encodeURIComponent(taskId)}/schedule`,
         'PUT',
-        { revision: expected, schedule },
+        {
+          revision: expected,
+          schedule,
+          duration_minutes: v.duration ? Number(v.duration) : null,
+        },
       );
       if (!active) return;
       if (onSaved?.(expected, result.task_revision) === false) {

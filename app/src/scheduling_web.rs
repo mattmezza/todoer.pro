@@ -51,13 +51,23 @@ async fn schedule(
     Path(id): Path<String>,
 ) -> Result<Response, ApiError> {
     let a = s.auth(&h, false)?;
-    Ok(Json(s.run(move |db| db.get_schedule(&a, &id)).await?).into_response())
+    let value = s
+        .run(move |db| {
+            let mut value = serde_json::to_value(db.get_schedule(&a, &id)?)
+                .map_err(|_| Error::Invalid("Could not render schedule".into()))?;
+            value["duration_minutes"] = serde_json::json!(db.task_duration(&a, &id)?);
+            Ok(value)
+        })
+        .await?;
+    Ok(Json(value).into_response())
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ScheduleInput {
     revision: i64,
     schedule: Schedule,
+    #[serde(default, deserialize_with = "crate::planning::present_duration")]
+    duration_minutes: Option<Option<u16>>,
 }
 async fn set_schedule(
     State(s): State<AppState>,
@@ -67,8 +77,20 @@ async fn set_schedule(
 ) -> Result<Response, ApiError> {
     let a = s.auth(&h, true)?;
     Ok(Json(
-        s.run(move |db| db.set_schedule(&a, &id, input.revision, input.schedule))
-            .await?,
+        s.run(move |db| {
+            let state = db.set_schedule_with_duration(
+                &a,
+                &id,
+                input.revision,
+                input.schedule,
+                input.duration_minutes,
+            )?;
+            let mut value = serde_json::to_value(state)
+                .map_err(|_| Error::Invalid("Could not render schedule".into()))?;
+            value["duration_minutes"] = serde_json::json!(db.task_duration(&a, &id)?);
+            Ok(value)
+        })
+        .await?,
     )
     .into_response())
 }

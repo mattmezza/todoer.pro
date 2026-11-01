@@ -12,6 +12,7 @@ pub struct PlanEntry {
     pub workspace_id: Option<String>,
     pub space: Option<String>,
     pub local_time: Option<String>,
+    pub duration_minutes: Option<u16>,
     pub timezone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<i64>,
@@ -26,6 +27,13 @@ pub struct Placement {
     pub time: Option<String>,
     pub timezone: String,
     pub priority: Option<u8>,
+    #[serde(default, deserialize_with = "present_duration")]
+    pub duration_minutes: Option<Option<u16>>,
+}
+pub(crate) fn present_duration<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Option<u16>>, D::Error> {
+    Option::<u16>::deserialize(deserializer).map(Some)
 }
 // Called only inside an explicit task write (or the development fixture).
 pub(crate) fn ensure_personal_inbox(
@@ -243,7 +251,16 @@ impl Store {
             } else {
                 Vec::new()
             };
+            let duration_minutes = self
+                .conn
+                .query_row(
+                    "SELECT minutes FROM task_durations WHERE task_id=?1",
+                    [&t.id],
+                    |r| r.get(0),
+                )
+                .optional()?;
             result.push(PlanEntry {
+                duration_minutes,
                 created_at,
                 tags,
                 schedule,
@@ -255,6 +272,49 @@ impl Store {
                 timezone: slot.map(|_| zone.to_string()),
             });
         }
+        Ok(result)
+    }
+    pub fn task_duration(&self, actor: &str, id: &str) -> Result<Option<u16>, Error> {
+        self.get_schedule(actor, id)?;
+        let id = task(&self.conn, id)?.id;
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT minutes FROM task_durations WHERE task_id=?1",
+                [&id],
+                |r| r.get(0),
+            )
+            .optional()?)
+    }
+    pub fn set_schedule_with_duration(
+        &mut self,
+        actor: &str,
+        id: &str,
+        revision: i64,
+        schedule: Schedule,
+        duration: Option<Option<u16>>,
+    ) -> Result<crate::scheduling::ScheduleState, Error> {
+        if duration
+            .flatten()
+            .is_some_and(|minutes| !(1..=1440).contains(&minutes))
+        {
+            return Err(Error::Invalid(
+                "Duration must be between 1 and 1440 minutes".into(),
+            ));
+        }
+        let mut write = crate::agent_ops::StoreWrite::new(self)?;
+        let result = write.set_schedule(actor, id, revision, schedule)?;
+        let task_id = task(&write.conn, id)?.id;
+        if let Some(value) = duration {
+            if let Some(minutes) = value {
+                write.conn.execute("INSERT INTO task_durations(task_id,minutes) VALUES(?1,?2) ON CONFLICT(task_id) DO UPDATE SET minutes=excluded.minutes", params![task_id, minutes])?;
+            } else {
+                write
+                    .conn
+                    .execute("DELETE FROM task_durations WHERE task_id=?1", [&task_id])?;
+            }
+        }
+        write.commit()?;
         Ok(result)
     }
     pub fn place_task(
@@ -298,7 +358,25 @@ impl Store {
             }
             None
         };
+        if placement
+            .duration_minutes
+            .flatten()
+            .is_some_and(|minutes| !(1..=1440).contains(&minutes))
+        {
+            return Err(Error::Invalid(
+                "Duration must be between 1 and 1440 minutes".into(),
+            ));
+        }
         let result = write.set_schedule(actor, &t.id, placement.revision, schedule)?;
+        if let Some(duration) = placement.duration_minutes {
+            if let Some(minutes) = duration {
+                write.conn.execute("INSERT INTO task_durations(task_id,minutes) VALUES(?1,?2) ON CONFLICT(task_id) DO UPDATE SET minutes=excluded.minutes",params![t.id, minutes])?;
+            } else {
+                write
+                    .conn
+                    .execute("DELETE FROM task_durations WHERE task_id=?1", [&t.id])?;
+            }
+        }
         if let (Some(time), Some(_)) = (placement.time, placement.date) {
             write.conn.execute("INSERT INTO plan_slots VALUES(?1,?2,?3) ON CONFLICT(task_id) DO UPDATE SET local_time=excluded.local_time,timezone=excluded.timezone",params![t.id,time,placement.timezone])?;
         } else {
@@ -423,6 +501,7 @@ mod tests {
                 "other",
                 &t.id,
                 Placement {
+                    duration_minutes: None,
                     priority: None,
                     revision: t.revision,
                     date: Some("2026-10-28".into()),
@@ -437,6 +516,7 @@ mod tests {
                 "dev",
                 &t.id,
                 Placement {
+                    duration_minutes: None,
                     priority: None,
                     revision: t.revision,
                     date: Some("2026-10-28".into()),
@@ -461,6 +541,7 @@ mod tests {
                 "dev",
                 &t.id,
                 Placement {
+                    duration_minutes: None,
                     priority: None,
                     revision: t.revision,
                     date: None,
@@ -474,6 +555,7 @@ mod tests {
             "dev",
             &t.id,
             Placement {
+                duration_minutes: None,
                 priority: None,
                 revision: saved.task_revision,
                 date: None,
@@ -571,6 +653,73 @@ mod tests {
         assert_ne!(entries[0].task.id, filed.id);
     }
     #[test]
+    fn duration_persists_across_replanning_and_unplanning_and_clears_explicitly() {
+        let mut s = setup();
+        let task = capture(&mut s);
+        let parse = |revision, date: Option<&str>, duration: serde_json::Value| -> Placement {
+            serde_json::from_value(serde_json::json!({"revision":revision,"date":date,"time":null,"timezone":"Europe/Zurich","duration_minutes":duration})).unwrap()
+        };
+        let saved = s
+            .place_task(
+                "dev",
+                &task.id,
+                parse(task.revision, Some("2026-10-28"), serde_json::json!(120)),
+            )
+            .unwrap();
+        assert_eq!(
+            s.intake_tasks("dev").unwrap()[0].duration_minutes,
+            Some(120)
+        );
+        let moved: Placement = serde_json::from_value(serde_json::json!({"revision":saved.task_revision,"date":"2026-10-29","time":null,"timezone":"Europe/Zurich"})).unwrap();
+        let saved = s.place_task("dev", &task.id, moved).unwrap();
+        assert_eq!(
+            s.intake_tasks("dev").unwrap()[0].duration_minutes,
+            Some(120)
+        );
+        assert!(
+            s.place_task(
+                "dev",
+                &task.id,
+                parse(
+                    saved.task_revision,
+                    Some("2026-10-29"),
+                    serde_json::json!(0)
+                )
+            )
+            .is_err()
+        );
+        let saved = s
+            .place_task(
+                "dev",
+                &task.id,
+                parse(
+                    saved.task_revision,
+                    Some("2026-10-29"),
+                    serde_json::Value::Null,
+                ),
+            )
+            .unwrap();
+        assert_eq!(s.intake_tasks("dev").unwrap()[0].duration_minutes, None);
+        let saved = s
+            .place_task(
+                "dev",
+                &task.id,
+                parse(
+                    saved.task_revision,
+                    Some("2026-10-29"),
+                    serde_json::json!(60),
+                ),
+            )
+            .unwrap();
+        s.place_task(
+            "dev",
+            &task.id,
+            serde_json::from_value(serde_json::json!({"revision":saved.task_revision,"date":null,"time":null,"timezone":"Europe/Zurich"})).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(s.intake_tasks("dev").unwrap()[0].duration_minutes, Some(60));
+    }
+    #[test]
     fn nonexistent_or_ambiguous_clock_time_does_not_change_task() {
         let mut s = setup();
         let t = capture(&mut s);
@@ -580,6 +729,7 @@ mod tests {
                     "dev",
                     &t.id,
                     Placement {
+                        duration_minutes: None,
                         priority: None,
                         revision: t.revision,
                         date: Some(date.into()),

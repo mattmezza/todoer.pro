@@ -1,0 +1,4 @@
+CREATE TABLE task_durations (
+    task_id TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+    minutes INTEGER NOT NULL CHECK(minutes BETWEEN 1 AND 1440)
+);

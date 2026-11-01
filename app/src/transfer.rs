@@ -85,6 +85,7 @@ const BUSINESS: &[&str] = &[
     "upload_intents",
     "attachments",
     "task_schedule",
+    "task_durations",
     "recurrence_series",
     "recurrence_occurrences",
     "history",
@@ -247,6 +248,7 @@ impl Store {
             ("comments", "task_id", &task_ids),
             ("attachments", "task_id", &task_ids),
             ("task_schedule", "task_id", &task_ids),
+            ("task_durations", "task_id", &task_ids),
             ("task_public_ids", "task_id", &task_ids),
             ("task_locations", "task_id", &task_ids),
             ("task_tags", "task_id", &task_ids),
@@ -2236,6 +2238,41 @@ mod tests {
             observations as usize,
             bundle.tables["stats_observation_lists"].len()
         );
+    }
+    #[test]
+    fn task_durations_survive_account_export_and_import() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        db.conn.execute("INSERT INTO tasks(id,reference,list_id,title,position) VALUES('duration-task','dur','inbox','Synthetic task',0)", []).unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO task_durations(task_id,minutes) VALUES('duration-task',120)",
+                [],
+            )
+            .unwrap();
+        let bundle = db.export_bundle("dev", ExportScope::Account).unwrap();
+        assert_eq!(bundle.tables["task_durations"].len(), 1);
+        let mut target = Store::memory().unwrap();
+        target
+            .conn
+            .execute(
+                "INSERT INTO users(id,name) VALUES('restored','Synthetic user')",
+                [],
+            )
+            .unwrap();
+        let mapping = IdentityMap {
+            users: std::collections::BTreeMap::from([("dev".into(), "restored".into())]),
+        };
+        import_bundle(&mut target, &bundle, &mapping, true).unwrap();
+        let duration: i64 = target
+            .conn
+            .query_row(
+                "SELECT minutes FROM task_durations WHERE task_id='duration-task'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(duration, 120);
     }
     #[test]
     fn exports_filter_inaccessible_tasks_before_rendering() {

@@ -518,6 +518,7 @@ fn clone_checklist(
             .ok_or_else(|| invalid("task position overflow"))?;
         c.execute("INSERT INTO tasks(id,reference,list_id,parent_id,title,description,position) VALUES(?1,?2,?3,?4,?5,?6,?7)",params![id,reference,previous.list_id,parent,original.title,original.description,position])?;
         c.execute("INSERT INTO task_tags(task_id,tag_id) SELECT ?1,tag_id FROM task_tags WHERE task_id=?2",params![id,original.id])?;
+        c.execute("INSERT INTO task_durations(task_id,minutes) SELECT ?1,minutes FROM task_durations WHERE task_id=?2",params![id,original.id])?;
         c.execute("INSERT INTO task_locations(task_id,section_id) SELECT ?1,l.section_id FROM task_locations l JOIN sections s ON s.id=l.section_id WHERE l.task_id=?2 AND s.list_id=?3",params![id,original.id,previous.list_id])?;
         let new = task(c, &id)?;
         let schedule = state(c, original)?;
@@ -1131,6 +1132,12 @@ mod tests {
         )
         .unwrap();
         assert_eq!(s.occurrences("dev", &series.id).unwrap().len(), 1);
+        s.conn
+            .execute(
+                "INSERT INTO task_durations(task_id,minutes) VALUES(?1,120),(?2,30)",
+                params![root.id, first.id],
+            )
+            .unwrap();
         s.set_series_state(
             "dev",
             &series.id,
@@ -1156,6 +1163,11 @@ mod tests {
             Some(first_copy.id.as_str())
         );
         assert_eq!(first_copy.description, first.description);
+        assert_eq!(
+            s.task_duration("dev", &occurrences[1].task_id).unwrap(),
+            Some(120)
+        );
+        assert_eq!(s.task_duration("dev", &first_copy.id).unwrap(), Some(30));
         for old in [&root, &first, &grandchild, &sibling] {
             assert!(
                 next.iter()

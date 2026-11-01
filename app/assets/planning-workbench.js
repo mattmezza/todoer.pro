@@ -222,19 +222,21 @@ function modal(title) {
   dialog.showModal();
   return dialog;
 }
-async function placement(entry, b, date, time = null) {
+async function placement(entry, b, date, time = null, durationMinutes) {
   return write(b, () =>
     api(`tasks/${encodeURIComponent(entry.task.id)}/placement`, 'PUT', {
       revision: entry.task.revision,
       date,
       time,
       timezone: zone,
+      ...(durationMinutes !== undefined ? { duration_minutes: durationMinutes } : {}),
     }),
   );
 }
 function planDialog(entry, initial) {
   const d = modal('Plan this task');
-  d.append(node('p', entry.task.title));
+  d.classList.add('plan-task-dialog');
+  d.append(node('h3', entry.task.title, 'plan-task-title'));
   const form = node('form');
   const date = dateInput(initial || entry.schedule.planned?.date || today);
   date.required = true;
@@ -245,10 +247,108 @@ function planDialog(entry, initial) {
   dateLabel.append(date);
   const timeLabel = node('label', 'Time (optional)');
   timeLabel.append(time);
+  const timeShortcuts = node('div', null, 'plan-time-shortcuts');
+  timeShortcuts.setAttribute('role', 'group');
+  timeShortcuts.setAttribute('aria-label', 'Time shortcuts');
+  const parts = (instant) =>
+    Object.fromEntries(
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: zone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      })
+        .formatToParts(instant)
+        .map(({ type, value }) => [type, value]),
+    );
+  for (const [label, minutes] of [
+    ['+0m', 0],
+    ['+30m', 30],
+    ['+1h', 60],
+  ])
+    timeShortcuts.append(
+      button(label, () => {
+        const value = parts(new Date(Date.now() + minutes * 60000));
+        date.value = `${value.year}-${value.month}-${value.day}`;
+        time.value = `${value.hour}:${value.minute}`;
+        time.dispatchEvent(new Event('change', { bubbles: true }));
+      }),
+    );
+  const nowHour = Number(parts(new Date()).hour);
+  const hours = nowHour < 12 || nowHour >= 18 ? [9, 11, 12] : [13, 18, 21];
+  const hourFormat = new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    timeZone: 'UTC',
+  });
+  for (const hour of hours) {
+    const label = hourFormat.format(new Date(Date.UTC(2020, 0, 1, hour)));
+    timeShortcuts.append(
+      button(label, () => {
+        time.value = `${String(hour).padStart(2, '0')}:00`;
+        time.dispatchEvent(new Event('change', { bubbles: true }));
+      }),
+    );
+  }
+  const durationLabel = node('label', 'Duration (minutes, optional)');
+  const duration = node('input');
+  duration.type = 'number';
+  duration.min = '1';
+  duration.max = '1440';
+  duration.step = '1';
+  duration.inputMode = 'numeric';
+  duration.placeholder = 'No duration';
+  duration.value = entry.duration_minutes ?? '';
+  durationLabel.append(duration);
+  const overflowHint = node(
+    'p',
+    'Continues into the next day.',
+    'plan-duration-overflow muted',
+  );
+  overflowHint.hidden = true;
+  const durationShortcuts = node('div', null, 'plan-duration-shortcuts');
+  durationShortcuts.setAttribute('role', 'group');
+  durationShortcuts.setAttribute('aria-label', 'Duration shortcuts');
+  for (const [label, minutes] of [
+    ['30m', 30],
+    ['1h', 60],
+    ['2h', 120],
+    ['4h', 240],
+    ['8h', 480],
+  ]) {
+    const choice = button(label, () => {
+      duration.value = String(minutes);
+      duration.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    choice.dataset.minutes = minutes;
+    durationShortcuts.append(choice);
+  }
+  function updateDuration() {
+    const [hours, minutes] = time.value.split(':').map(Number);
+    overflowHint.hidden =
+      !time.value ||
+      !duration.value ||
+      hours * 60 + minutes + Number(duration.value) <= 1440;
+    for (const choice of durationShortcuts.children)
+      choice.setAttribute(
+        'aria-pressed',
+        String(duration.value === choice.dataset.minutes),
+      );
+  }
+  duration.addEventListener('input', updateDuration);
+  time.addEventListener('input', updateDuration);
+  time.addEventListener('change', updateDuration);
+  updateDuration();
   const submit = node('button', 'Save', 'primary');
   submit.type = 'submit';
   const fields = node('div', null, 'workbench-date-fields');
-  fields.append(dateLabel, timeLabel);
+  const timeField = node('div', null, 'plan-time-field');
+  timeField.append(timeLabel, timeShortcuts);
+  fields.append(dateLabel, timeField);
+  const durationField = node('div', null, 'plan-duration-field');
+  durationField.append(durationLabel, durationShortcuts, overflowHint);
   const actions = node('div', null, 'workbench-form-actions');
   actions.append(
     button('Remove from plan', async (b) => {
@@ -256,13 +356,23 @@ function planDialog(entry, initial) {
     }),
     submit,
   );
-  form.append(fields, actions);
+  form.append(fields, durationField, actions);
   form.onsubmit = async (e) => {
     e.preventDefault();
-    if (await placement(entry, submit, date.value, time.value || null)) d.close();
+    if (
+      await placement(
+        entry,
+        submit,
+        date.value,
+        time.value || null,
+        duration.value ? Number(duration.value) : null,
+      )
+    )
+      d.close();
   };
   d.append(form);
 }
+
 async function organize(entry) {
   const d = modal('Move to a list');
   d.classList.add('destination-dialog');
@@ -1078,6 +1188,30 @@ function dayEntries(date) {
         (a.schedule.priority ?? 3) - (b.schedule.priority ?? 3),
     );
 }
+// Assign lanes across each connected group of overlapping events.
+function timedLayout(entries) {
+  const result = [];
+  let group = [],
+    ends = [];
+  function finish() {
+    for (const item of group) item.columns = ends.length;
+    result.push(...group);
+    group = [];
+    ends = [];
+  }
+  for (const entry of entries) {
+    const [hour, minute] = entry.local_time.split(':').map(Number);
+    const start = hour * 60 + minute;
+    const end = start + Math.max(entry.duration_minutes ?? 30, 30);
+    if (group.length && ends.every((value) => value <= start)) finish();
+    let column = ends.findIndex((value) => value <= start);
+    if (column < 0) column = ends.length;
+    ends[column] = end;
+    group.push({ entry, start, end, column });
+  }
+  finish();
+  return result;
+}
 function calendarDayTitle(date) {
   const header = node('div', null, 'calendar-day-heading');
   if (date === today) header.classList.add('is-today');
@@ -1142,15 +1276,13 @@ function timeBoard() {
       track.append(slot);
     }
     const timed = dayEntries(date).filter((entry) => entry.local_time);
-    for (const entry of timed) {
-      const simultaneous = timed.filter((other) => other.local_time === entry.local_time);
-      const column = simultaneous.indexOf(entry);
-      const [hour, minute] = entry.local_time.split(':').map(Number);
+    for (const { entry, start, end, column, columns } of timedLayout(timed)) {
       const card = taskCard(entry);
       card.classList.add('calendar-event', 'calendar-timed-event');
-      card.style.top = hour * 56 + (minute / 60) * 56 + 'px';
-      card.style.left = `calc(${(column * 100) / simultaneous.length}% + 4px)`;
-      card.style.width = `calc(${100 / simultaneous.length}% - 10px)`;
+      card.style.top = (start / 60) * 56 + 'px';
+      card.style.height = Math.max(28, ((Math.min(end, 1440) - start) / 60) * 56) + 'px';
+      card.style.left = `calc(${(column * 100) / columns}% + 4px)`;
+      card.style.width = `calc(${100 / columns}% - 10px)`;
       track.append(card);
     }
     if (date === today) {
