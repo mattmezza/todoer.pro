@@ -4045,7 +4045,8 @@ form[data-list-edit] input.list-edit-color {
 
 .task-page [data-child-form] {
   border: 1px solid var(--line);
-  padding: 12px;
+  border-radius: 8px;
+  padding: 16px;
   margin-inline: 0;
 }
 .task-page [data-child-form] :is(input, textarea) {
@@ -4054,6 +4055,18 @@ form[data-list-edit] input.list-edit-color {
   padding-inline: 0;
   border: 0;
   outline: none;
+}
+.task-page [data-child-form] textarea[name='title'] {
+  min-height: 44px;
+  font-size: 18px;
+  font-weight: 600;
+}
+.task-page [data-child-form] textarea[name='description'] {
+  min-height: 44px;
+  font-size: 16px;
+}
+.task-page [data-child-form] .composer-actions {
+  flex-wrap: wrap;
 }
 
 .task-page-heading {
