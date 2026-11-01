@@ -13019,7 +13019,8 @@ body > .planning-detail-dismiss {
   .list-settings-panel[data-settings-kind='task'] > header > button:first-child {
     min-height: 44px;
   }
-  .list-settings-panel[data-settings-kind='task'] .task-settings-pin {
+  .list-settings-panel:is([data-settings-kind='task'], [data-settings-kind='workspace'])
+    .task-settings-pin {
     display: none;
   }
   .list-settings-panel[data-settings-kind='task'] .settings-tabs {
