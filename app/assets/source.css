@@ -12143,3 +12143,92 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
     flex: 1;
   }
 }
+
+/* Match the space filter chips while keeping dates below the divider. */
+.planning-list-page .planning-tabs {
+  width: 100%;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 0 0 5px;
+  margin: 16px 0 24px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  scrollbar-width: thin;
+}
+.planning-list-page .planning-tabs a {
+  padding: 5px 10px;
+  border-radius: 16px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+.planning-tabs a[aria-current='page'] {
+  font-weight: 600;
+}
+@media (max-width: 640px) {
+  .notification-bell {
+    position: absolute;
+  }
+  .notification-bell.notification-bell-inline {
+    position: relative;
+    inset: auto;
+    flex: none;
+  }
+  .notification-bell-toggle {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: transparent;
+  }
+  .notification-bell-toggle .ui-icon {
+    width: 20px;
+    height: 20px;
+  }
+  .quiet-info > :not(.sr-only) {
+    display: none;
+  }
+}
+@media (max-width: 640px) {
+  .planning-detail-open:has(main[data-workbench='inbox']) .notification-bell-inline {
+    top: auto;
+  }
+}
+@media (max-width: 640px) {
+  .reference-sidebar {
+    display: flex;
+    bottom: 0;
+    height: 100dvh;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition:
+      transform 220ms ease,
+      visibility 220ms;
+    box-shadow: 12px 0 40px #0006;
+  }
+  .reference-sidebar.open {
+    visibility: visible;
+    transform: translateX(0);
+  }
+  .reference-sidebar .sidebar-scroll {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) {
+  .reference-sidebar {
+    transition: none;
+  }
+}
+@media (max-width: 640px) {
+  .planning-welcome:has(.notification-bell-inline) {
+    padding-right: 0;
+  }
+  .workbench-heading:has(.notification-bell-inline) {
+    gap: 8px;
+  }
+  .workbench-heading:has(.notification-bell-inline) > div:first-child {
+    flex: 1;
+    min-width: 0;
+  }
+}

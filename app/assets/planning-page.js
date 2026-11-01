@@ -283,3 +283,12 @@ const selectedSpace = document.querySelector(
   '.planning-space-filters a[aria-current="true"]:not(:first-child)',
 );
 if (selectedSpace) selectedSpace.scrollIntoView({ block: 'nearest', inline: 'center' });
+
+const selectedDate = document.querySelector('.planning-tabs a[aria-current="page"]');
+if (selectedDate) {
+  const dates = selectedDate.parentElement;
+  dates.scrollLeft =
+    selectedDate.offsetLeft -
+    dates.offsetLeft -
+    (dates.clientWidth - selectedDate.offsetWidth) / 2;
+}

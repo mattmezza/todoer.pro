@@ -28,6 +28,9 @@ function drawer(open) {
   if (!navigation) return;
   if (open && !mobile.matches) return;
   navigation.classList.toggle('open', open);
+  navigation.toggleAttribute('inert', mobile.matches && !open);
+  if (mobile.matches) navigation.setAttribute('aria-hidden', String(!open));
+  else navigation.removeAttribute('aria-hidden');
   toggle?.setAttribute('aria-expanded', String(open));
   backdrop.hidden = !open;
   document.body.classList.toggle('navigation-open', open);
@@ -42,11 +45,14 @@ function drawer(open) {
 }
 toggle?.addEventListener('click', () => drawer(!navigation?.classList.contains('open')));
 backdrop.addEventListener('click', () => drawer(false));
-mobile.addEventListener('change', () => {
-  if (!mobile.matches) drawer(false);
-});
+mobile.addEventListener('change', () => drawer(false));
+drawer(false);
 navigation?.addEventListener('click', (event) => {
-  if (event.target.closest('a') && mobile.matches) drawer(false);
+  if (
+    mobile.matches &&
+    event.target.closest('a, [data-open-search], [data-workspace-create-open]')
+  )
+    drawer(false);
 });
 document.addEventListener('click', (event) => {
   for (const menu of document.querySelectorAll(

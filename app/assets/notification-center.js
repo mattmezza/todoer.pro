@@ -3,6 +3,21 @@ import { request } from './request.js';
 const bell = document.querySelector('[data-notification-bell]');
 const center = document.querySelector('[data-notification-center]');
 if (bell) {
+  const mobile = matchMedia('(max-width: 640px)');
+  function placeBell() {
+    const action = document.querySelector(
+      '.workbench-export, .page-heading > .entity-menu, .task-page-heading > .task-context-menu',
+    );
+    if (mobile.matches && action) {
+      if (bell.previousElementSibling !== action) action.after(bell);
+      bell.classList.add('notification-bell-inline');
+    } else {
+      if (bell.parentElement !== document.body) document.body.append(bell);
+      bell.classList.remove('notification-bell-inline');
+    }
+  }
+  placeBell();
+  mobile.addEventListener('change', placeBell);
   // Measure visible right docks rather than duplicating their responsive widths.
   let dockFrame;
   const observedDocks = new Set();
@@ -50,7 +65,7 @@ if (bell) {
         `${Math.max(8, box.top + box.height / 2 - 21)}px`,
       );
     } else bell.style.removeProperty('--inbox-bell-top');
-    bell.hidden = edge < 90;
+    bell.hidden = !mobile.matches && edge < 90;
   }
   function queueDock() {
     if (!dockFrame) dockFrame = requestAnimationFrame(positionBell);
