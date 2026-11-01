@@ -216,10 +216,16 @@ export function mountBreakdown(root, { inline = false } = {}) {
         target: { kind: 'existing_task', task_id: root.dataset.taskId },
       });
       if (requestGeneration !== generation) return;
-      if (result.status !== 'draft')
+      if (result.status !== 'draft') {
+        const reasons = {
+          provider_timeout: 'The AI provider took too long to respond.',
+          invalid_provider_key: 'The AI provider rejected the configured key.',
+          invalid_provider_output: 'The AI provider returned an unusable response.',
+        };
         throw Error(
-          'AI assistance is unavailable. You can still add sub-tasks manually.',
+          `${reasons[result.reason] || 'AI assistance is unavailable.'} You can still add sub-tasks manually.`,
         );
+      }
       preview = result.preview;
       entries = preview.payload.tasks.map((t) => ({
         title: t.title,
