@@ -204,6 +204,20 @@ export function mountSmartCapture(form) {
         badge.textContent = `${kind} ${date}`;
         metadata.push(badge);
       }
+      if (v.duration !== null) {
+        const badge = document.createElement('span');
+        badge.className = 'capture-date';
+        badge.dataset.duration = '';
+        const days = Math.floor(v.duration / 1440),
+          hours = Math.floor((v.duration % 1440) / 60),
+          minutes = v.duration % 60;
+        const text =
+          [days && `${days}d`, hours && `${hours}h`, minutes && `${minutes}m`]
+            .filter(Boolean)
+            .join(' ') || '0m';
+        badge.textContent = `Duration ${text}`;
+        metadata.push(badge);
+      }
       metadata.push(
         ...v.tags.map((tag) => {
           const badge = document.createElement('span');
@@ -221,7 +235,7 @@ export function mountSmartCapture(form) {
       tags.append(...metadata);
     }
     for (const warning of v.warnings.filter((value) =>
-      /^Multiple (planned|due) dates/.test(value),
+      /^(Multiple (planned|due) dates|Multiple durations|Duration exceeds)/.test(value),
     )) {
       const message = document.createElement('span');
       message.textContent = warning;
@@ -261,6 +275,7 @@ export function mountSmartCapture(form) {
             original: title.value,
             tags: [],
             priority: null,
+            duration: null,
             due: null,
             planned: null,
             destination: null,
@@ -396,6 +411,7 @@ export function mountSmartCapture(form) {
         metadata: v.spans.length
           ? {
               priority: v.priority,
+              ...(v.duration !== null ? { duration_minutes: v.duration } : {}),
               due_date: v.due,
               ...(v.planned ? { planned_date: v.planned } : {}),
               tags: v.tags,

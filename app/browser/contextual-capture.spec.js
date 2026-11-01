@@ -296,3 +296,35 @@ test('contextual dates parse separately, shortcuts navigate, and long titles wra
   await expect.poll(() => title.evaluate((el) => el.offsetHeight)).toBeGreaterThan(60);
   expect(await title.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBeTruthy();
 });
+
+test('duration shortcuts are available in contextual task and subtask composers', async ({
+  page,
+}) => {
+  const values = await page.evaluate(async () => {
+    const { mountSmartCapture } = await import('/assets/smart-capture.js');
+    const results = [];
+    for (const child of [false, true]) {
+      const form = document.createElement('form');
+      if (child) form.dataset.childForm = '';
+      else form.className = 'inline-capture';
+      form.innerHTML = '<input name="title"><div class="inline-actions"></div>';
+      document.querySelector('main').append(form);
+      const capture = mountSmartCapture(form);
+      await capture.ready;
+      const title = form.querySelector('[name="title"]');
+      title.value = child ? 'Child :2 days' : 'Now :0';
+      title.dispatchEvent(new Event('input', { bubbles: true }));
+      results.push({
+        value: capture.get(),
+        badge: form.querySelector('[data-duration]')?.textContent,
+      });
+    }
+    return results;
+  });
+  expect(values[0].value.title).toBe('Now');
+  expect(values[0].value.metadata.duration_minutes).toBe(0);
+  expect(values[0].badge).toBe('Duration 0m');
+  expect(values[1].value.title).toBe('Child');
+  expect(values[1].value.metadata.duration_minutes).toBe(2880);
+  expect(values[1].badge).toBe('Duration 2d');
+});

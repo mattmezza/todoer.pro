@@ -12,7 +12,7 @@ pub struct PlanEntry {
     pub workspace_id: Option<String>,
     pub space: Option<String>,
     pub local_time: Option<String>,
-    pub duration_minutes: Option<u16>,
+    pub duration_minutes: Option<u32>,
     pub timezone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<i64>,
@@ -28,12 +28,12 @@ pub struct Placement {
     pub timezone: String,
     pub priority: Option<u8>,
     #[serde(default, deserialize_with = "present_duration")]
-    pub duration_minutes: Option<Option<u16>>,
+    pub duration_minutes: Option<Option<u32>>,
 }
 pub(crate) fn present_duration<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
-) -> Result<Option<Option<u16>>, D::Error> {
-    Option::<u16>::deserialize(deserializer).map(Some)
+) -> Result<Option<Option<u32>>, D::Error> {
+    Option::<u32>::deserialize(deserializer).map(Some)
 }
 // Called only inside an explicit task write (or the development fixture).
 pub(crate) fn ensure_personal_inbox(
@@ -274,7 +274,7 @@ impl Store {
         }
         Ok(result)
     }
-    pub fn task_duration(&self, actor: &str, id: &str) -> Result<Option<u16>, Error> {
+    pub fn task_duration(&self, actor: &str, id: &str) -> Result<Option<u32>, Error> {
         self.get_schedule(actor, id)?;
         let id = task(&self.conn, id)?.id;
         Ok(self
@@ -292,14 +292,14 @@ impl Store {
         id: &str,
         revision: i64,
         schedule: Schedule,
-        duration: Option<Option<u16>>,
+        duration: Option<Option<u32>>,
     ) -> Result<crate::scheduling::ScheduleState, Error> {
         if duration
             .flatten()
-            .is_some_and(|minutes| !(1..=1440).contains(&minutes))
+            .is_some_and(|minutes| minutes > 5_256_000)
         {
             return Err(Error::Invalid(
-                "Duration must be between 1 and 1440 minutes".into(),
+                "Duration must be between 0 and 5256000 minutes".into(),
             ));
         }
         let mut write = crate::agent_ops::StoreWrite::new(self)?;
@@ -361,10 +361,10 @@ impl Store {
         if placement
             .duration_minutes
             .flatten()
-            .is_some_and(|minutes| !(1..=1440).contains(&minutes))
+            .is_some_and(|minutes| minutes > 5_256_000)
         {
             return Err(Error::Invalid(
-                "Duration must be between 1 and 1440 minutes".into(),
+                "Duration must be between 0 and 5256000 minutes".into(),
             ));
         }
         let result = write.set_schedule(actor, &t.id, placement.revision, schedule)?;
@@ -653,6 +653,37 @@ mod tests {
         assert_ne!(entries[0].task.id, filed.id);
     }
     #[test]
+    fn duration_migration_preserves_existing_values_and_accepts_zero_and_days() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys=ON; CREATE TABLE tasks(id TEXT PRIMARY KEY); INSERT INTO tasks VALUES ('old'),('immediate'),('long');").unwrap();
+        conn.execute_batch(include_str!("../migrations/052_task_durations.sql"))
+            .unwrap();
+        conn.execute("INSERT INTO task_durations VALUES('old',120)", [])
+            .unwrap();
+        conn.execute_batch(include_str!("../migrations/053_duration_range.sql"))
+            .unwrap();
+        conn.execute(
+            "INSERT INTO task_durations VALUES('immediate',0),('long',2880)",
+            [],
+        )
+        .unwrap();
+        assert_eq!(
+            conn.query_row(
+                "SELECT minutes FROM task_durations WHERE task_id='old'",
+                [],
+                |r| r.get::<_, u32>(0)
+            )
+            .unwrap(),
+            120
+        );
+        assert_eq!(
+            conn.query_row("SELECT count(*) FROM task_durations", [], |r| r
+                .get::<_, u32>(0))
+                .unwrap(),
+            3
+        );
+    }
+    #[test]
     fn duration_persists_across_replanning_and_unplanning_and_clears_explicitly() {
         let mut s = setup();
         let task = capture(&mut s);
@@ -683,7 +714,7 @@ mod tests {
                 parse(
                     saved.task_revision,
                     Some("2026-10-29"),
-                    serde_json::json!(0)
+                    serde_json::json!(5_256_001)
                 )
             )
             .is_err()

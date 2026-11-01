@@ -105,6 +105,16 @@ export function mountCaptureHelp({ scoped, allowSection, insert, datesEnabled })
       ],
     },
     {
+      label: 'Duration',
+      items: [
+        { label: 'Immediate', aliases: [':0'] },
+        { label: 'Minutes', aliases: [':30m', ':30minutes'] },
+        { label: 'Hours', aliases: [':2h', ':2hours'] },
+        { label: 'Days', aliases: [':2d', ':2days'] },
+        { label: 'Combined', aliases: [':1h30m'] },
+      ],
+    },
+    {
       label: 'Tags',
       items: [
         { label: 'Tag', aliases: ['+family'] },

@@ -67,7 +67,7 @@ struct ScheduleInput {
     revision: i64,
     schedule: Schedule,
     #[serde(default, deserialize_with = "crate::planning::present_duration")]
-    duration_minutes: Option<Option<u16>>,
+    duration_minutes: Option<Option<u32>>,
 }
 async fn set_schedule(
     State(s): State<AppState>,

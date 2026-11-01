@@ -22,6 +22,7 @@ export function parseCapture(
       destination: null,
       tags: [],
       priority: null,
+      duration: null,
       due: null,
       planned: null,
       spans,
@@ -121,6 +122,45 @@ export function parseCapture(
       value,
     );
   } else if (priorities.length > 1) warnings.push('Multiple priorities; choose one');
+  // Colons are explicit so times, URLs and ordinary prose remain literal.
+  const outsideQuotes = (match) => {
+    const start = match.index + match[0].length - match[1].length;
+    let quoted = false;
+    for (let i = 0; i < start; i++) {
+      if (text[i] === '\\') {
+        i++;
+        continue;
+      }
+      if (text[i] === '"') quoted = !quoted;
+    }
+    return !quoted;
+  };
+  const durationMatches = [
+    ...text.matchAll(
+      /(?:^|\s)(:(?:0(?![\p{L}\p{N}_])|(?:\d+\s*(?:minutes?|mins?|m|hours?|hrs?|h|days?|d))(?:\s*\d+\s*(?:minutes?|mins?|m|hours?|hrs?|h|days?|d))*))(?=$|\s|[,.!?])/giu,
+    ),
+  ].filter((match) => outsideTokens(match) && outsideQuotes(match));
+  if (durationMatches.length === 1) {
+    const match = durationMatches[0];
+    const token = match[1];
+    let minutes = 0;
+    for (const part of token
+      .slice(1)
+      .matchAll(/(\d+)\s*(minutes?|mins?|m|hours?|hrs?|h|days?|d)/gi)) {
+      const unit = part[2].toLowerCase();
+      minutes +=
+        Number(part[1]) * (unit.startsWith('d') ? 1440 : unit.startsWith('h') ? 60 : 1);
+    }
+    if (Number.isSafeInteger(minutes) && minutes <= 5256000) {
+      result.duration = minutes;
+      consume(
+        match.index + match[0].length - token.length,
+        match.index + match[0].length,
+        'duration',
+        minutes,
+      );
+    } else warnings.push('Duration exceeds the supported limit');
+  } else if (durationMatches.length > 1) warnings.push('Multiple durations; choose one');
   if (dates) {
     const parsedDates = captureDateSpans(text, { now, naturalDates, tokens });
     result.planned = parsedDates.planned;
@@ -138,6 +178,7 @@ export function parseCapture(
     result.section_id = undefined;
     result.tags = [];
     result.priority = null;
+    result.duration = null;
     result.due = null;
     result.planned = null;
     spans.length = 0;

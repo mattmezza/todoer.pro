@@ -10,6 +10,8 @@ pub struct CaptureMetadata {
     pub due_date: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub planned_date: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_minutes: Option<u32>,
     #[serde(default)]
     pub tags: Vec<String>,
 }
@@ -102,6 +104,17 @@ impl Store {
             }
             tx.set_schedule(actor, &item.id, item.revision, schedule)?;
             item = crate::core::task(&tx.conn, &item.id)?;
+        }
+        if let Some(minutes) = metadata.duration_minutes {
+            if minutes > 5_256_000 {
+                return Err(Error::Invalid(
+                    "Duration must be between 0 and 5256000 minutes".into(),
+                ));
+            }
+            tx.conn.execute(
+                "INSERT INTO task_durations(task_id,minutes) VALUES(?1,?2)",
+                params![item.id, minutes],
+            )?;
         }
         if !metadata.tags.is_empty() {
             item = tx.set_task_tags(
@@ -264,6 +277,7 @@ mod tests {
             }],
         };
         let metadata = CaptureMetadata {
+            duration_minutes: Some(0),
             priority: Some(0),
             ..Default::default()
         };
@@ -278,6 +292,7 @@ mod tests {
             .capture_with_metadata("new-user", "first", request(), None, metadata)
             .unwrap();
         assert_eq!(first[0].id, retry[0].id);
+        assert_eq!(db.task_duration("new-user", &first[0].id).unwrap(), Some(0));
         assert_eq!(
             db.get_schedule("new-user", &first[0].id)
                 .unwrap()
@@ -291,6 +306,7 @@ mod tests {
         let mut db = Store::memory().unwrap();
         db.seed_dev().unwrap();
         let metadata = CaptureMetadata {
+            duration_minutes: None,
             priority: Some(0),
             due_date: Some("2026-11-01".into()),
             planned_date: Some("2026-10-31".into()),
@@ -325,6 +341,7 @@ mod tests {
             })
         );
         let bad_date = CaptureMetadata {
+            duration_minutes: None,
             planned_date: Some("2026-02-30".into()),
             ..Default::default()
         };
@@ -333,7 +350,16 @@ mod tests {
                 .is_err()
         );
 
+        let too_long = CaptureMetadata {
+            duration_minutes: Some(5_256_001),
+            ..Default::default()
+        };
+        assert!(
+            db.capture_with_metadata("dev", "bad-duration", capture(), None, too_long)
+                .is_err()
+        );
         let invalid = CaptureMetadata {
+            duration_minutes: None,
             priority: Some(9),
             ..Default::default()
         };

@@ -248,8 +248,8 @@ export function mountScheduling({
   iconFor(durationSummary, 'clock');
   durationSummary.append(durationCaption);
   const duration = input('number', 'duration_minutes', '', {
-    min: '1',
-    max: '1440',
+    min: '0',
+    max: '5256000',
     step: '1',
     inputmode: 'numeric',
     placeholder: 'No duration',
@@ -292,10 +292,13 @@ export function mountScheduling({
   dueIntent.after(durationIntent);
   function durationDisplay() {
     const minutes = Number(duration.value);
+    const days = Math.floor(minutes / 1440);
+    const hours = Math.floor((minutes % 1440) / 60);
+    const rest = minutes % 60;
     const text =
-      minutes >= 60
-        ? `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ''}`
-        : `${minutes}m`;
+      [days && `${days}d`, hours && `${hours}h`, rest && `${rest}m`]
+        .filter(Boolean)
+        .join(' ') || '0m';
     durationCaption.textContent = duration.value ? `Duration · ${text}` : 'Set duration';
     for (const choice of durationChoices.children)
       choice.setAttribute(

@@ -102,3 +102,50 @@ test('unknown, impossible, quoted and conflicting date shortcuts remain literal'
 test('date shortcuts without a title never silently create an empty task',()=>{
   const result=parse('.tomo -nw');assert.equal(result.title,'.tomo -nw');assert.equal(result.planned,null);assert.equal(result.due,null);
 });
+
+test('explicit duration shortcuts preserve zero, long units and compound intervals', () => {
+  for (const [token, minutes] of [
+    [':0', 0],
+    [':0m', 0],
+    [':15m', 15],
+    [':15min', 15],
+    [':15minutes', 15],
+    [':2h', 120],
+    [':2 hours', 120],
+    [':2hr', 120],
+    [':2d', 2880],
+    [':2days', 2880],
+    [':1d2h30m', 1590],
+    [':1 hour 30 minutes', 90],
+  ]) {
+    const result = parse(`Plan task ${token}`);
+    assert.equal(result.title, 'Plan task', token);
+    assert.equal(result.duration, minutes, token);
+  }
+  for (const title of [
+    'Meet at 12:30',
+    'https://example.test/x',
+    'Task :10seconds',
+    'Task :abc',
+    'Task "keep :2h as text"',
+  ]) {
+    assert.equal(parse(title).title, title);
+    assert.equal(parse(title).duration, null);
+  }
+  const combined = parse('Task .tomo :2h p1');
+  assert.equal(combined.title, 'Task');
+  assert.equal(combined.planned, '2026-10-29');
+  assert.equal(combined.duration, 120);
+  assert.equal(combined.priority, 1);
+  const conflicting = parse('Task :1h :2h');
+  assert.equal(conflicting.duration, null);
+  assert.equal(conflicting.title, 'Task :1h :2h');
+  assert.ok(
+    conflicting.warnings.some((warning) => warning.includes('Multiple durations')),
+  );
+  const tooLong = parse('Task :4000days');
+  assert.equal(tooLong.duration, null);
+  assert.equal(tooLong.title, 'Task :4000days');
+  assert.ok(tooLong.warnings.some((warning) => warning.includes('supported limit')));
+  assert.equal(parse(':0').duration, null);
+});

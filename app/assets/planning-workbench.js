@@ -295,8 +295,8 @@ function planDialog(entry, initial) {
   const durationLabel = node('label', 'Duration (minutes, optional)');
   const duration = node('input');
   duration.type = 'number';
-  duration.min = '1';
-  duration.max = '1440';
+  duration.min = '0';
+  duration.max = '5256000';
   duration.step = '1';
   duration.inputMode = 'numeric';
   duration.placeholder = 'No duration';
