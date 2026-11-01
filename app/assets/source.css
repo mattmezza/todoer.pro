@@ -11111,10 +11111,10 @@ form[data-load-failed],
   margin: 0 auto 0 0;
   align-self: center;
 }
-.space-inline-editor > .inline-actions {
+:is(.space-inline-editor, form[data-list-edit]) > .inline-actions {
   flex-wrap: wrap;
 }
-.space-inline-editor .inline-actions > .entity-name-reference {
+:is(.space-inline-editor, form[data-list-edit]) .inline-actions > .entity-name-reference {
   flex: 0 0 100%;
 }
 
