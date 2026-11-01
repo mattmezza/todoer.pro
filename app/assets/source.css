@@ -12245,3 +12245,74 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
     right: 0;
   }
 }
+/* The task preview uses the same actions and editor as the full task page. */
+.planning-detail-toolbar {
+  justify-content: flex-start;
+}
+.planning-detail-toolbar button {
+  border-radius: 8px;
+}
+.planning-detail-content .task-page {
+  padding-top: 0;
+}
+.panel-heading-tools {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  margin: -36px 0 12px;
+}
+.planning-detail-content .panel-heading-tools :is(.task-context-menu, .entity-reference) {
+  display: block !important;
+}
+.panel-heading-tools .planning-detail-open-page {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: var(--muted);
+  border-radius: 8px;
+}
+.panel-heading-tools .planning-detail-open-page:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.panel-heading-tools .planning-detail-open-page .ui-icon {
+  width: 18px;
+  height: 18px;
+}
+.panel-priority-picker {
+  position: relative;
+}
+.panel-priority-picker summary {
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 16px;
+  background: var(--hover);
+  list-style: none;
+}
+.panel-priority-picker summary::-webkit-details-marker {
+  display: none;
+}
+.panel-priority-options {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% + 4px);
+  left: 0;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--sidebar);
+  box-shadow: 0 8px 24px #0008;
+}
+.panel-priority-picker summary[data-priority='0'] {
+  color: #ff6b6b;
+}
+.panel-priority-picker summary[data-priority='1'] {
+  color: #e7a93f;
+}
+.panel-priority-picker summary[data-priority='2'] {
+  color: #78aaff;
+}

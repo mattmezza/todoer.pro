@@ -78,7 +78,7 @@ if (main) {
     dismiss.type = 'button';
     dismiss.setAttribute('aria-label', 'Close task details');
     dismiss.innerHTML =
-      '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg>';
+      '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M14 3v18"/></svg>';
     dismiss.onclick = close;
     header.append(dismiss);
     const content = document.createElement('div');
@@ -96,9 +96,18 @@ if (main) {
       openPage.href = `/tasks/${encodeURIComponent(task.dataset.taskId)}`;
       openPage.className = 'planning-detail-open-page';
       openPage.dataset.fullTask = '';
+      openPage.setAttribute('aria-label', 'Open task page');
+      openPage.title = 'Open task page';
       openPage.innerHTML =
-        '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#open"/></svg><span>Open task page</span>';
-      header.prepend(openPage);
+        '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#open"/></svg>';
+      const tools = document.createElement('div');
+      tools.className = 'panel-heading-tools';
+      tools.append(
+        task.querySelector('[data-copy-task-reference]'),
+        openPage,
+        task.querySelector('.task-context-menu'),
+      );
+      task.prepend(tools);
       selected = task.dataset.taskId;
       highlight();
       task.removeAttribute('id');
@@ -106,9 +115,22 @@ if (main) {
       let priorityVersion = 0;
       const reprio = document.createElement('div');
       reprio.className = 'planning-quick-actions planning-reprio';
-      const priorityCaption = document.createElement('span');
-      priorityCaption.textContent = 'Reprio';
-      reprio.append(priorityCaption);
+      const picker = document.createElement('details');
+      picker.className = 'panel-priority-picker';
+      const priorityCaption = document.createElement('summary');
+      priorityCaption.textContent = 'Priority';
+      priorityCaption.setAttribute('aria-label', 'Change priority');
+      picker.append(priorityCaption);
+      const choices = document.createElement('div');
+      choices.className = 'panel-priority-options';
+      picker.append(choices);
+      reprio.append(picker);
+      function selectPriority(priority) {
+        priorityCaption.textContent = `P${priority}`;
+        priorityCaption.dataset.priority = priority;
+        for (const b of choices.querySelectorAll('button'))
+          b.setAttribute('aria-pressed', String(Number(b.dataset.priority) === priority));
+      }
       for (let priority = 0; priority <= 3; priority++) {
         const button = document.createElement('button');
         button.type = 'button';
@@ -143,11 +165,8 @@ if (main) {
               throw Error(
                 (await response.json()).error?.message || 'Could not save priority.',
               );
-            for (const b of reprio.querySelectorAll('button'))
-              b.setAttribute(
-                'aria-pressed',
-                String(Number(b.dataset.priority) === priority),
-              );
+            selectPriority(priority);
+            picker.open = false;
             setSaveState('preview-priority', 'saved');
             await refreshRows();
           } catch (error) {
@@ -158,9 +177,12 @@ if (main) {
               b.disabled = task.dataset.canWrite !== 'true';
           }
         };
-        reprio.append(button);
+        choices.append(button);
       }
-      content.replaceChildren(reprio, task);
+      if (task.dataset.canWrite !== 'true')
+        priorityCaption.setAttribute('aria-disabled', 'true');
+      task.querySelector('.panel-heading-tools').after(reprio);
+      content.replaceChildren(task);
       stop = mountTaskPage(task, { embedded: true });
       const tags = document.createElement('div');
       tags.className = 'panel-task-tags';
@@ -203,11 +225,7 @@ if (main) {
             version === generation &&
             priorityVersion === initialPriorityVersion
           )
-            for (const b of reprio.querySelectorAll('button'))
-              b.setAttribute(
-                'aria-pressed',
-                String(Number(b.dataset.priority) === value.schedule.priority),
-              );
+            selectPriority(value.schedule.priority ?? 3);
         })
         .catch(() => {});
     } catch (error) {

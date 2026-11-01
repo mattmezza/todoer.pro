@@ -116,10 +116,17 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
     'text-decoration-line',
     'line-through',
   );
-  await expect(panel.locator('.planning-reprio [data-priority="1"]')).toHaveCSS(
+  await expect(panel.locator('[data-copy-task-reference]')).toBeVisible();
+  await panel.getByLabel('Task actions').click();
+  await expect(panel.getByRole('button', { name: 'Move to trash…' })).toBeVisible();
+  await panel.getByLabel('Task actions').click();
+  await panel.getByLabel('Change priority').click();
+  await expect(panel.locator('.panel-priority-options [data-priority="1"]')).toHaveCSS(
     'color',
     'rgb(231, 169, 63)',
   );
+  await panel.locator('.panel-priority-options [data-priority="1"]').click();
+  await expect(panel.getByLabel('Change priority')).toHaveText('P1');
   await panel.getByRole('link', { name: 'Open task page' }).click();
   await expect(page).toHaveURL(/\/tasks\//);
   await expect(page.locator('main[data-task-page]')).toBeVisible();
