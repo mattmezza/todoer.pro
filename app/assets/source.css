@@ -12525,3 +12525,17 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
     flex-direction: column;
   }
 }
+
+.space-list-card {
+  cursor: pointer;
+}
+.space-list-card h3 a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.space-list-card:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
