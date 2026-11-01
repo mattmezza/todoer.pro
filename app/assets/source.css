@@ -5598,13 +5598,6 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
     padding-left: 28px;
     padding-right: 24px;
   }
-  .planning-detail-open .planning-task {
-    grid-template-columns: 22px minmax(0, 1fr);
-  }
-  .planning-detail-open .planning-row-meta {
-    grid-column: 2;
-    justify-content: space-between;
-  }
 }
 @media (max-width: 1099px) {
   .planning-detail-panel {
@@ -7906,13 +7899,22 @@ form[data-list-edit] [role='alert']:empty {
   font-size: 10px;
   white-space: nowrap;
 }
-.calendar-all-day .calendar-event .plan-time-action {
-  font-size: 0;
-  width: 14px;
+.calendar-event .plan-time-action .ui-icon {
+  width: 15px;
+  height: 15px;
 }
-.calendar-all-day .calendar-event .plan-time-action::after {
-  content: '⋯';
-  font-size: 12px;
+.calendar-priority {
+  font-weight: 700;
+  margin-right: 5px;
+}
+.calendar-priority[data-priority='0'] {
+  color: #f87171;
+}
+.calendar-priority[data-priority='1'] {
+  color: #fbbf24;
+}
+.calendar-priority[data-priority='2'] {
+  color: #60a5fa;
 }
 .calendar-timed-event.workbench-task {
   position: absolute;
@@ -12931,4 +12933,33 @@ body > .planning-detail-dismiss {
 }
 .planning-detail-content .task-page .task-page-brief {
   margin-top: 20px;
+}
+
+/* Match Today’s task cards to the Inbox roll. */
+.planning-list-page .planning-task {
+  cursor: pointer;
+  align-items: start;
+  gap: 14px;
+  padding: 17px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin: 7px 0;
+  background: var(--surface, transparent);
+}
+.planning-list-page .planning-task:hover,
+.planning-list-page .planning-task:focus-within {
+  background: var(--hover);
+}
+.planning-list-page .planning-completion {
+  margin-top: 2px;
+}
+.planning-list-page .planning-task .task-title {
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+@media (min-width: 701px) {
+  .planning-list-page .planning-row-meta {
+    align-self: center;
+  }
 }

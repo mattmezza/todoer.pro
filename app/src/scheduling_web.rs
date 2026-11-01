@@ -351,6 +351,14 @@ async fn calendar(
             Ok((rows, spaces, selected))
         })
         .await?;
+    let mut rows = rows;
+    rows.sort_by_key(|row| {
+        (
+            row.schedule.schedule.priority.unwrap_or(3),
+            row.dates.clone(),
+            row.task.id.clone(),
+        )
+    });
     let mut body = String::new();
     for row in rows {
         let priority = row.schedule.schedule.priority.unwrap_or(3);

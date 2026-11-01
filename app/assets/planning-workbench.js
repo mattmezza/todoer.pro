@@ -392,6 +392,15 @@ function taskCard(entry, intake = false) {
   const link = node('a', t.title);
   link.href = '/tasks/' + encodeURIComponent(t.id);
   if (t.complete) link.className = 'is-complete';
+  if (!intake) {
+    const priority = entry.schedule.priority ?? 3;
+    if (priority < 3) {
+      const indicator = node('span', '!'.repeat(3 - priority), 'calendar-priority');
+      indicator.dataset.priority = priority;
+      indicator.setAttribute('aria-label', `P${priority} priority`);
+      link.replaceChildren(indicator, document.createTextNode(t.title));
+    } else link.textContent = t.title;
+  }
   text.append(link);
   if (!intake)
     text.append(
@@ -456,9 +465,14 @@ function taskCard(entry, intake = false) {
     );
     row.append(actions);
   } else {
-    row.append(
-      button(entry.local_time || 'All day', () => planDialog(entry), 'plan-time-action'),
-    );
+    const plan = button('', () => planDialog(entry), 'plan-time-action');
+    plan.setAttribute('aria-label', 'Plan date and time for ' + t.title);
+    plan.title = entry.local_time
+      ? 'Planned at ' + entry.local_time
+      : 'Plan date and time';
+    plan.innerHTML =
+      '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#clock"></use></svg>';
+    row.append(plan);
   }
   return row;
 }
@@ -1058,7 +1072,11 @@ function openDay(date) {
 function dayEntries(date) {
   return entries
     .filter((entry) => entry.schedule.planned?.date === date)
-    .sort((a, b) => (a.local_time || '').localeCompare(b.local_time || ''));
+    .sort(
+      (a, b) =>
+        (a.local_time || '').localeCompare(b.local_time || '') ||
+        (a.schedule.priority ?? 3) - (b.schedule.priority ?? 3),
+    );
 }
 function calendarDayTitle(date) {
   const header = node('div', null, 'calendar-day-heading');
@@ -1125,10 +1143,14 @@ function timeBoard() {
     }
     const timed = dayEntries(date).filter((entry) => entry.local_time);
     for (const entry of timed) {
+      const simultaneous = timed.filter((other) => other.local_time === entry.local_time);
+      const column = simultaneous.indexOf(entry);
       const [hour, minute] = entry.local_time.split(':').map(Number);
       const card = taskCard(entry);
       card.classList.add('calendar-event', 'calendar-timed-event');
       card.style.top = hour * 56 + (minute / 60) * 56 + 'px';
+      card.style.left = `calc(${(column * 100) / simultaneous.length}% + 4px)`;
+      card.style.width = `calc(${100 / simultaneous.length}% - 10px)`;
       track.append(card);
     }
     if (date === today) {
@@ -1194,6 +1216,13 @@ function monthBoard() {
         'calendar-month-task',
       );
       link.href = '/tasks/' + encodeURIComponent(entry.task.id);
+      const priority = entry.schedule.priority ?? 3;
+      if (priority < 3) {
+        const indicator = node('span', '!'.repeat(3 - priority), 'calendar-priority');
+        indicator.dataset.priority = priority;
+        indicator.setAttribute('aria-label', `P${priority} priority`);
+        link.prepend(indicator);
+      }
       cell.append(link);
     }
     if (list.length > 3)

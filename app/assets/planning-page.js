@@ -245,7 +245,9 @@ if (main) {
       !link &&
       !event.target.closest('button, input, select, textarea, a, summary, details')
     ) {
-      const row = event.target.closest('[data-planning-rows] .inbox-task');
+      const row = event.target.closest(
+        '[data-planning-rows] :is(.inbox-task, .planning-task)',
+      );
       link = row?.querySelector('a[href^="/tasks/"]');
     }
     if (link?.hasAttribute('data-full-task')) return;
