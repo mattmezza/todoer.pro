@@ -1710,6 +1710,19 @@ impl Store {
             )?
             .collect::<Result<Vec<_>, _>>()?)
     }
+    pub(crate) fn visible_tag_info(&self, actor: &str, id: &str) -> Result<Tag, Error> {
+        if !visible_tag(&self.conn, actor, id)? {
+            return Err(Error::NotFound);
+        }
+        self.conn
+            .query_row(
+                "SELECT id,name,revision FROM tags WHERE id=?1",
+                [id],
+                tag_row,
+            )
+            .optional()?
+            .ok_or(Error::NotFound)
+    }
     pub fn resolve_reference(
         &self,
         actor: &str,

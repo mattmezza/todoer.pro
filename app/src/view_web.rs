@@ -11,6 +11,61 @@ pub(super) struct ViewOptions {
     sub: bool,
 }
 
+#[derive(Default, Deserialize)]
+pub(super) struct OverviewOptions {
+    #[serde(default)]
+    archived: bool,
+    #[serde(default)]
+    archived_only: bool,
+}
+
+pub(super) async fn tag(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, ApiError> {
+    let actor = s.auth(&h, false)?;
+    Ok(Json(
+        s.run(move |db| Ok(json!(db.visible_tag_info(&actor, &id)?)))
+            .await?,
+    ))
+}
+
+pub(super) async fn overview(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(kind): Path<String>,
+    Query(options): Query<OverviewOptions>,
+) -> Result<Json<Value>, ApiError> {
+    let actor = s.auth(&h, false)?;
+    Ok(Json(s.run(move |db| {
+        let mut rows = Vec::new();
+        match kind.as_str() {
+            "spaces" => {
+                for space in db.workspaces(&actor)? {
+                    let archived = db.conn.query_row("SELECT coalesce((SELECT archived FROM workspace_lifecycle WHERE workspace_id=?1),0)", [&space.id], |r| r.get::<_,bool>(0))?;
+                    if (options.archived_only && !archived) || (!options.archived && !options.archived_only && archived) { continue; }
+                    let mut row = serde_json::to_value(&space).map_err(|_| Error::Invalid("could not serialize space".into()))?;
+                    row["archived"] = json!(archived);
+                    row["public_reference"] = json!(crate::defaults::public_id(&db.conn, "workspace", &space.id)?);
+                    rows.push(row);
+                }
+            }
+            "lists" => {
+                for list in db.lists(&actor)? {
+                    let info = db.list_info(&actor, &list.id)?;
+                    if (options.archived_only && !info.archived) || (!options.archived && !options.archived_only && info.archived) { continue; }
+                    let mut row = serde_json::to_value(&info).map_err(|_| Error::Invalid("could not serialize list".into()))?;
+                    row["public_reference"] = json!(crate::defaults::public_id(&db.conn, "list", &list.id)?);
+                    rows.push(row);
+                }
+            }
+            _ => return Err(Error::Invalid("unknown overview type".into())),
+        }
+        Ok(json!(rows))
+    }).await?))
+}
+
 pub(super) async fn view(
     State(s): State<AppState>,
     h: HeaderMap,

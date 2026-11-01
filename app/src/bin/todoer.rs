@@ -104,23 +104,24 @@ enum Command {
     },
     TaskSection {
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true)]
         revision: Option<i64>,
         #[arg(long)]
         section: Option<String>,
         #[arg(long)]
         clear: bool,
     },
+    #[command(hide = true)]
     Reparent {
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
         #[arg(long)]
         parent: Option<String>,
     },
     Reorder {
         list: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
         #[arg(long)]
         parent: Option<String>,
@@ -160,6 +161,11 @@ enum Command {
     Tasks {
         list: String,
     },
+    /// Create a task using the same capture notation as the app.
+    Task {
+        #[command(subcommand)]
+        command: TaskCommand,
+    },
     Search {
         #[arg(long, default_value = "")]
         query: String,
@@ -172,12 +178,21 @@ enum Command {
         #[arg(long)]
         after: Option<String>,
     },
+    #[command(hide = true)]
     Capture {
+        #[arg(long, required_unless_present = "body")]
+        list: Option<String>,
         #[arg(long)]
-        list: String,
+        body: Option<String>,
         #[arg(long)]
-        key: String,
-        #[arg(required = true)]
+        key: Option<String>,
+        #[arg(long)]
+        description: Option<String>,
+        #[arg(long, conflicts_with = "section")]
+        parent: Option<String>,
+        #[arg(long)]
+        section: Option<String>,
+        #[arg(required_unless_present = "body")]
         titles: Vec<String>,
     },
     Edit {
@@ -188,6 +203,8 @@ enum Command {
         title: Option<String>,
         #[arg(long)]
         description: Option<String>,
+        #[arg(long)]
+        body: Option<String>,
     },
     Complete {
         id: String,
@@ -229,14 +246,17 @@ enum Command {
         #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
     },
+    /// Archive a space or list.
+    Archive {
+        reference: String,
+    },
+    /// Restore an archived space or list.
     Restore {
-        id: String,
-        #[arg(long)]
-        revision: i64,
+        reference: String,
     },
     Undo {
         seq: i64,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
     },
     Capabilities,
@@ -247,8 +267,24 @@ enum Command {
 }
 
 #[derive(Subcommand)]
+enum TaskCommand {
+    Add {
+        /// Task title and capture shortcuts, quoted as one argument.
+        text: String,
+        /// Reuse a key only when retrying the same capture.
+        #[arg(long)]
+        key: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
 enum WorkspaceCommand {
-    All,
+    All {
+        #[arg(long, conflicts_with = "archived_only")]
+        archived: bool,
+        #[arg(long)]
+        archived_only: bool,
+    },
     Get {
         id: String,
     },
@@ -290,7 +326,12 @@ enum WorkspaceCommand {
 }
 #[derive(Subcommand)]
 enum ListCommand {
-    All,
+    All {
+        #[arg(long, conflicts_with = "archived_only")]
+        archived: bool,
+        #[arg(long)]
+        archived_only: bool,
+    },
     /// Review audience and tag changes before moving the entire list.
     MovePreview {
         id: String,
@@ -428,7 +469,7 @@ enum TagCommand {
     },
     Rename {
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
         name: String,
     },
@@ -437,7 +478,7 @@ enum TagCommand {
     },
     Set {
         task: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
         #[arg(long)]
         tag: Vec<String>,
@@ -462,7 +503,7 @@ enum ReferenceCommand {
     Bind {
         kind: String,
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
         #[arg(long)]
         occurrence: usize,
@@ -567,14 +608,14 @@ enum ScheduleCommand {
     },
     Set {
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
         #[arg(long)]
         body: String,
     },
     Start {
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
         #[arg(long)]
         body: String,
@@ -585,7 +626,7 @@ enum ScheduleCommand {
     All,
     State {
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
         state: String,
     },
@@ -594,7 +635,7 @@ enum ScheduleCommand {
     },
     Skip {
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
     },
     Planning {
@@ -634,13 +675,13 @@ enum CommentCommand {
     },
     Edit {
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
         body: String,
     },
     Delete {
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
     },
 }
@@ -654,7 +695,7 @@ enum FileCommand {
     },
     Delete {
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
     },
     Intent {
@@ -668,7 +709,7 @@ enum FileCommand {
     #[command(alias = "confirm")]
     Finalize {
         id: String,
-        #[arg(long)]
+        #[arg(long, hide = true, default_value_t = 0)]
         revision: i64,
     },
     Upload {
@@ -949,7 +990,12 @@ fn edit_body(
 }
 fn workspace_request(command: WorkspaceCommand) -> Result<RequestSpec, (i32, String)> {
     Ok(match command {
-        WorkspaceCommand::All => read_request("/workspaces".into()),
+        WorkspaceCommand::All {
+            archived,
+            archived_only,
+        } => read_request(format!(
+            "/cli/overview/spaces?archived={archived}&archived_only={archived_only}"
+        )),
         WorkspaceCommand::Get { id } => read_request(format!("/workspaces/{}", segment(&id))),
         WorkspaceCommand::Create {
             body,
@@ -995,7 +1041,12 @@ fn workspace_request(command: WorkspaceCommand) -> Result<RequestSpec, (i32, Str
 }
 fn list_request(command: ListCommand) -> Result<RequestSpec, (i32, String)> {
     Ok(match command {
-        ListCommand::All => read_request("/lists".into()),
+        ListCommand::All {
+            archived,
+            archived_only,
+        } => read_request(format!(
+            "/cli/overview/lists?archived={archived}&archived_only={archived_only}"
+        )),
         ListCommand::MovePreview {
             id,
             destination_workspace,
@@ -1174,13 +1225,27 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
     if let Command::Move { id, to, yes } = &args.command {
         return move_entity(&args, id, to, *yes).await;
     }
+    if let Command::Task {
+        command: TaskCommand::Add { text, key },
+    } = &args.command
+    {
+        return add_task(&args, text, key.as_deref()).await;
+    }
+    if let Command::Archive { reference } | Command::Restore { reference } = &args.command {
+        return archive_entity(
+            &args,
+            reference,
+            matches!(&args.command, Command::Archive { .. }),
+        )
+        .await;
+    }
     let listing_prefix = match &args.command {
         Command::List
         | Command::Lists {
-            command: ListCommand::All,
+            command: ListCommand::All { .. },
         } => Some('#'),
         Command::Workspace {
-            command: WorkspaceCommand::All,
+            command: WorkspaceCommand::All { .. },
         } => Some('@'),
         Command::Sections {
             command: SectionCommand::All { .. },
@@ -1195,7 +1260,7 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         _ => None,
     };
     let mut query_pairs: Vec<(String, String)> = Vec::new();
-    let (method, path, mut body, key) = match args.command {
+    let (method, mut path, mut body, key) = match args.command {
         Command::Review {
             from,
             to,
@@ -1222,6 +1287,7 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             read_request("/review".into())
         }
         Command::Workspace { command } => workspace_request(command)?,
+        Command::Task { .. } => unreachable!("task creation handled before request construction"),
         Command::View {
             reference,
             full,
@@ -1263,21 +1329,12 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             if section.is_some() && clear {
                 return Err((2, "--section and --clear are mutually exclusive".into()));
             }
-            if let Some(revision) = revision {
-                if section.is_none() && !clear {
-                    return Err((
-                        2,
-                        "set --section or --clear when supplying --revision".into(),
-                    ));
-                }
+            if section.is_some() || clear {
                 action_request(
                     "/organize",
-                    json!({"op":"section_set","id":id,"revision":revision,"section_id":section}),
+                    json!({"op":"section_set","id":id,"revision":revision.unwrap_or(0),"section_id":section}),
                 )
             } else {
-                if section.is_some() || clear {
-                    return Err((2, "--revision is required when changing section".into()));
-                }
                 action_request("/organize", json!({"op":"section_get","id":id}))
             }
         }
@@ -1300,7 +1357,7 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         ),
         Command::References { command } => reference_request(command),
         Command::Destination { command } => destination_request(command, &mut query_pairs),
-        Command::List => (Method::GET, "/lists".into(), None, None),
+        Command::List => (Method::GET, "/cli/overview/lists".into(), None, None),
         Command::Tasks { list } => (
             Method::GET,
             format!("/lists/{}/tasks", segment(&list)),
@@ -1327,29 +1384,48 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             }
             (Method::GET, "/search".into(), None, None)
         }
-        Command::Capture { list, key, titles } => (
-            Method::POST,
-            "/capture".into(),
-            Some(
-                json!({"list_id": unprefix(&list), "tasks": titles.into_iter().map(|title| json!({"title": title, "description": "", "parent_id": null})).collect::<Vec<_>>()}),
-            ),
-            Some(key),
-        ),
+        Command::Capture {
+            list,
+            body,
+            key,
+            titles,
+            description,
+            parent,
+            section,
+        } => {
+            let mut value = if let Some(body) = body {
+                object_body(&body)?
+            } else {
+                json!({})
+            };
+            if value.get("list_id").is_none() {
+                if let Some(list) = list {
+                    value["list_id"] = json!(unprefix(&list));
+                }
+            }
+            if value.get("section_id").is_none() && section.is_some() {
+                value["section_id"] = json!(section);
+            }
+            if value.get("tasks").is_none() && !titles.is_empty() {
+                value["tasks"] = json!(titles.into_iter().map(|title| json!({"title": title, "description": description.as_deref().unwrap_or(""), "parent_id": parent})).collect::<Vec<_>>());
+            }
+            (
+                Method::POST,
+                "/capture".into(),
+                Some(value),
+                Some(key.unwrap_or_else(|| uuid::Uuid::new_v4().to_string())),
+            )
+        }
         Command::Edit {
             id,
             revision,
             title,
             description,
+            body,
         } => {
-            if title.is_none() && description.is_none() {
-                return Err((2, "edit requires --title or --description".into()));
-            }
-            let mut body = json!({"revision": revision});
-            if let Some(title) = title {
-                body["title"] = json!(title);
-            }
-            if let Some(description) = description {
-                body["description"] = json!(description);
+            let mut body = edit_body(body, title, description)?;
+            if body.get("revision").is_none() {
+                body["revision"] = json!(revision);
             }
             (
                 Method::PATCH,
@@ -1417,12 +1493,9 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             Some(json!({"revision": revision})),
             None,
         ),
-        Command::Restore { id, revision } => (
-            Method::POST,
-            format!("/tasks/{}/restore", segment(&id)),
-            Some(json!({"revision": revision})),
-            None,
-        ),
+        Command::Archive { .. } | Command::Restore { .. } => {
+            unreachable!("archive handled before request construction")
+        }
         Command::Undo { seq, revision } => (
             Method::POST,
             format!("/history/{seq}/undo"),
@@ -1438,12 +1511,13 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|_| (1, "could not initialize HTTP client".into()))?;
+    let token = cli_login::token(&args.url)?;
+    normalize_request_path(&client, &args.url, &token, &mut path).await?;
     let mut url = reqwest::Url::parse(&format!("{}/api/v1{path}", args.url.trim_end_matches('/')))
         .map_err(|_| (2, "invalid server URL".into()))?;
     if !query_pairs.is_empty() {
         url.query_pairs_mut().extend_pairs(query_pairs);
     }
-    let token = cli_login::token(&args.url)?;
     if let Some(payload) = body.as_mut() {
         prepare_entity_write(&client, &args.url, &token, &method, &path, payload).await?;
     }
@@ -1474,6 +1548,36 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
     } else {
         print_human(&value);
     }
+    Ok(())
+}
+
+async fn normalize_request_path(
+    client: &Client,
+    base: &str,
+    token: &str,
+    path: &mut String,
+) -> Result<(), (i32, String)> {
+    let parts: Vec<_> = path.trim_start_matches('/').split('/').collect();
+    if parts.len() < 3 {
+        return Ok(());
+    }
+    let kind = match parts[0] {
+        "workspaces" => "space",
+        "lists" => "list",
+        _ => return Ok(()),
+    };
+    let view_path = format!("/view/{kind}/{}", parts[1]);
+    let response = client
+        .get(api_url(base, &view_path)?)
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|_| (1, "could not resolve entity reference".into()))?;
+    let value = response_json(response).await?.1;
+    let id = value["entity"]["id"]
+        .as_str()
+        .ok_or((1, "server omitted entity ID".into()))?;
+    *path = format!("/{}/{}/{}", parts[0], segment(id), parts[2..].join("/"));
     Ok(())
 }
 
@@ -1522,6 +1626,133 @@ async fn prepare_entity_write(
     path: &str,
     body: &mut Value,
 ) -> Result<(), (i32, String)> {
+    if path == "/capture" {
+        if let Some(list) = body.get("list_id").and_then(Value::as_str) {
+            body["list_id"] = json!(unprefix(list));
+        }
+        if let Some(reference) = body.get("section_id").and_then(Value::as_str)
+            && reference.starts_with('$')
+        {
+            let (_, target, _, _) = view_request(reference)?;
+            let response = client
+                .get(api_url(base, &target)?)
+                .bearer_auth(token)
+                .send()
+                .await
+                .map_err(|_| (1, "could not resolve section reference".into()))?;
+            body["section_id"] = response_json(response).await?.1["entity"]["id"].clone();
+        }
+        if let Some(tasks) = body.get_mut("tasks").and_then(Value::as_array_mut) {
+            for task in tasks {
+                if let Some(reference) = task.get("parent_id").and_then(Value::as_str)
+                    && reference.starts_with(['%', '^'])
+                {
+                    let (_, target, _, _) = view_request(reference)?;
+                    let response = client
+                        .get(api_url(base, &target)?)
+                        .bearer_auth(token)
+                        .send()
+                        .await
+                        .map_err(|_| (1, "could not resolve parent reference".into()))?;
+                    task["parent_id"] = response_json(response).await?.1["entity"]["id"].clone();
+                }
+            }
+        }
+    }
+    if path == "/bulk/preview" {
+        if let Some(operations) = body["operations"].as_array_mut() {
+            for operation in operations {
+                for key in ["id", "destination", "section_id", "parent_id"] {
+                    if let Some(reference) = operation.get(key).and_then(Value::as_str)
+                        && reference.starts_with(['@', '#', '$', '%', '^'])
+                    {
+                        let (_, target, _, _) = view_request(reference)?;
+                        let response = client
+                            .get(api_url(base, &target)?)
+                            .bearer_auth(token)
+                            .send()
+                            .await
+                            .map_err(|_| (1, "could not resolve entity reference".into()))?;
+                        let value = response_json(response).await?.1;
+                        operation[key] = value["entity"]["id"].clone();
+                    }
+                }
+                if operation
+                    .get("revision")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(0)
+                    == 0
+                {
+                    let id = operation["id"]
+                        .as_str()
+                        .ok_or((2, "bulk operation requires an ID".into()))?;
+                    let response = client
+                        .get(api_url(base, &format!("/tasks/{}", segment(id)))?)
+                        .bearer_auth(token)
+                        .send()
+                        .await
+                        .map_err(|_| (1, "could not read current task".into()))?;
+                    let value = response_json(response).await?.1;
+                    operation["revision"] = value["revision"].clone();
+                }
+            }
+        }
+    }
+    if path.ends_with("/reorder")
+        || matches!(
+            path,
+            "/organize"
+                | "/agent/schedule"
+                | "/agent/activity"
+                | "/references"
+                | "/destinations/preferences"
+        )
+    {
+        for key in [
+            "id",
+            "list_id",
+            "workspace_id",
+            "task_id",
+            "section_id",
+            "parent_id",
+            "source_id",
+            "target_id",
+        ] {
+            if let Some(reference) = body.get(key).and_then(Value::as_str)
+                && reference.starts_with(['@', '#', '$', '%', '^'])
+            {
+                let (_, target, _, _) = view_request(reference)?;
+                let response = client
+                    .get(api_url(base, &target)?)
+                    .bearer_auth(token)
+                    .send()
+                    .await
+                    .map_err(|_| (1, "could not resolve entity reference".into()))?;
+                let value = response_json(response).await?.1;
+                let id = value["entity"]["id"]
+                    .as_str()
+                    .ok_or((1, "server omitted entity ID".into()))?;
+                body[key] = json!(id);
+            }
+        }
+        if let Some(ids) = body.get_mut("ids").and_then(Value::as_array_mut) {
+            for item in ids {
+                if let Some(reference) = item.as_str()
+                    && reference.starts_with(['@', '#', '$', '%', '^'])
+                {
+                    let (_, target, _, _) = view_request(reference)?;
+                    let response = client
+                        .get(api_url(base, &target)?)
+                        .bearer_auth(token)
+                        .send()
+                        .await
+                        .map_err(|_| (1, "could not resolve entity reference".into()))?;
+                    let value = response_json(response).await?.1;
+                    *item = value["entity"]["id"].clone();
+                }
+            }
+        }
+    }
     if *method == Method::POST && path == "/lists" {
         if let Some(space) = body["workspace_id"].as_str() {
             let url = api_url(base, &format!("/view/space/{}", segment(space)))?;
@@ -1538,12 +1769,47 @@ async fn prepare_entity_write(
     let parts: Vec<_> = path.trim_start_matches('/').split('/').collect();
     let needs_revision = body.get("revision").and_then(Value::as_i64).unwrap_or(0) == 0;
     if needs_revision {
+        let op = body["op"].as_str().unwrap_or("");
+        let action_id = body["id"].as_str().unwrap_or("");
         let fetch = match (method, parts.as_slice()) {
             (&Method::PATCH, ["tasks", id]) => Some(format!("/tasks/{id}")),
             (&Method::POST, ["tasks", id, "trash"]) => Some(format!("/tasks/{id}")),
             (&Method::PATCH, ["workspaces", id]) => Some(format!("/view/space/{id}")),
             (&Method::PATCH, ["lists", id]) => Some(format!("/view/list/{id}")),
             (&Method::PATCH, ["sections", id]) => Some(format!("/view/section/{id}")),
+            (&Method::POST, ["workspaces", id, "members", ..]) => Some(format!("/view/space/{id}")),
+            (&Method::POST, ["workspaces", id, "lists", "reorder"]) => {
+                Some(format!("/view/space/{id}"))
+            }
+            (&Method::POST, ["lists", id, "access" | "grants", ..]) => {
+                Some(format!("/view/list/{id}"))
+            }
+            (&Method::POST, ["lists", id, "sections", "reorder"]) => {
+                Some(format!("/view/list/{id}"))
+            }
+            (&Method::POST, ["organize"])
+                if matches!(op, "tags_set" | "section_set" | "reparent") =>
+            {
+                Some(format!("/tasks/{}", segment(action_id)))
+            }
+            (&Method::POST, ["organize"]) if op == "reorder" => Some(format!(
+                "/view/list/{}",
+                segment(body["list_id"].as_str().unwrap_or(""))
+            )),
+            (&Method::POST, ["organize"]) if op == "tag_rename" => {
+                Some(format!("/cli/tags/{}", segment(action_id)))
+            }
+            (&Method::POST, ["agent", "schedule"])
+                if matches!(op, "set" | "series_start" | "skip") =>
+            {
+                Some(format!("/tasks/{}", segment(action_id)))
+            }
+            (&Method::POST, ["references"]) if op == "bind" && body["source_kind"] == "task" => {
+                Some(format!(
+                    "/tasks/{}",
+                    segment(body["source_id"].as_str().unwrap_or(""))
+                ))
+            }
             _ => None,
         };
         if let Some(fetch) = fetch {
@@ -1560,6 +1826,61 @@ async fn prepare_entity_write(
                 .and_then(Value::as_i64)
                 .ok_or((1, "server omitted current version".into()))?;
             body["revision"] = json!(revision);
+        } else if *method == Method::POST {
+            let read_action = match (path, op) {
+                ("/agent/schedule", "series_state") => {
+                    Some(json!({"op":"series_get","id":action_id}))
+                }
+                ("/agent/activity", "comment_edit" | "comment_delete") => {
+                    Some(json!({"op":"comment_get","id":action_id}))
+                }
+                ("/agent/activity", "file_delete") => {
+                    Some(json!({"op":"file_link","id":action_id}))
+                }
+                ("/agent/activity", "upload_finalize") => {
+                    Some(json!({"op":"upload_get","id":action_id}))
+                }
+                ("/references", "bind") if body["source_kind"] == "comment" => {
+                    Some(json!({"op":"comment_get","id":body["source_id"]}))
+                }
+                _ => None,
+            };
+            if let Some(read_action) = read_action {
+                let read_path = if path == "/references" {
+                    "/agent/activity"
+                } else {
+                    path
+                };
+                let value = transfer_json(client, base, token, read_path, read_action).await?;
+                let revision = value
+                    .get("revision")
+                    .or_else(|| value.pointer("/attachment/revision"))
+                    .or_else(|| value.pointer("/intent/revision"))
+                    .and_then(Value::as_i64)
+                    .ok_or((1, "server omitted current version".into()))?;
+                body["revision"] = json!(revision);
+            } else if let ["history", seq, "undo"] = parts.as_slice() {
+                let seq: i64 = seq
+                    .parse()
+                    .map_err(|_| (2, "invalid history sequence".into()))?;
+                let response = client
+                    .get(api_url(
+                        base,
+                        &format!("/changes?after={}", seq.saturating_sub(1)),
+                    )?)
+                    .bearer_auth(token)
+                    .send()
+                    .await
+                    .map_err(|_| (1, "could not read history".into()))?;
+                let changes = response_json(response).await?.1;
+                let revision = changes
+                    .as_array()
+                    .and_then(|rows| rows.iter().find(|row| row["seq"].as_i64() == Some(seq)))
+                    .and_then(|row| row.pointer("/task/revision"))
+                    .and_then(Value::as_i64)
+                    .ok_or((1, "could not find this history entry".into()))?;
+                body["revision"] = json!(revision);
+            }
         }
     }
     Ok(())
@@ -1583,6 +1904,247 @@ async fn transfer_json(
         .await
         .map_err(|_| (1, "request failed; check server connectivity".into()))?;
     Ok(response_json(response).await?.1)
+}
+
+fn parse_app_capture(
+    text: &str,
+    destinations: &Value,
+    sections: &Value,
+    today: &str,
+) -> Result<Value, (i32, String)> {
+    let dates =
+        include_str!("../../assets/capture-dates.mjs").replace("export function ", "function ");
+    let parser = include_str!("../../assets/smart-capture-parser.mjs")
+        .replace(
+            "import { captureDateSpans } from './capture-dates.mjs';",
+            "",
+        )
+        .replace("export function ", "function ");
+    let date = chrono::NaiveDate::parse_from_str(today, "%Y-%m-%d")
+        .map_err(|_| (1, "invalid capture date".into()))?;
+    use chrono::Datelike;
+    let source = format!(
+        "{dates}\n{parser}\nJSON.stringify(parseCapture({}, {{destinations:{destinations},sections:{sections},now:new Date({},{},{},12),dates:true}}))",
+        json!(text),
+        date.year(),
+        date.month0(),
+        date.day()
+    );
+    let runtime =
+        rquickjs::Runtime::new().map_err(|_| (1, "could not initialize capture parser".into()))?;
+    let context = rquickjs::Context::full(&runtime)
+        .map_err(|_| (1, "could not initialize capture parser".into()))?;
+    let parsed: String = context
+        .with(|ctx| ctx.eval(source))
+        .map_err(|err| (1, format!("capture parser failed: {err}")))?;
+    serde_json::from_str(&parsed).map_err(|_| (1, "capture parser returned invalid output".into()))
+}
+
+async fn get_json(
+    client: &Client,
+    base: &str,
+    token: &str,
+    path: &str,
+) -> Result<Value, (i32, String)> {
+    let response = client
+        .get(api_url(base, path)?)
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|_| (1, "request failed; check server connectivity".into()))?;
+    Ok(response_json(response).await?.1)
+}
+
+async fn add_task(args: &Args, text: &str, key: Option<&str>) -> Result<(), (i32, String)> {
+    if text.trim().is_empty() {
+        return Err((2, "task text cannot be empty".into()));
+    }
+    let client = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|_| (1, "could not initialize HTTP client".into()))?;
+    let token = cli_login::token(&args.url)?;
+    let options = get_json(&client, &args.url, &token, "/capture/options").await?;
+    let lists = get_json(&client, &args.url, &token, "/cli/overview/lists").await?;
+    let spaces = get_json(&client, &args.url, &token, "/cli/overview/spaces").await?;
+    let mut destinations = options["destinations"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    for list in lists.as_array().into_iter().flatten() {
+        if !destinations.iter().any(|d| d["list_id"] == list["id"]) {
+            destinations.push(json!({"space":"","space_id":"","list":list["title"],"list_id":list["id"],"default_list":false}));
+        }
+    }
+    for destination in &mut destinations {
+        if let Some(list) = lists
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|row| row["id"] == destination["list_id"])
+            && let Some(reference) = list["public_reference"].as_str()
+            && text.contains(&format!("#{reference}"))
+        {
+            destination["list"] = json!(reference);
+        }
+        if let Some(space) = spaces
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|row| row["id"] == destination["space_id"])
+            && let Some(reference) = space["public_reference"].as_str()
+            && text.contains(&format!("@{reference}"))
+        {
+            destination["space"] = json!(reference);
+        }
+    }
+    let timezone: chrono_tz::Tz = options["timezone"]
+        .as_str()
+        .unwrap_or("UTC")
+        .parse()
+        .unwrap_or(chrono_tz::UTC);
+    let today = chrono::Utc::now()
+        .with_timezone(&timezone)
+        .date_naive()
+        .to_string();
+    let destinations = json!(destinations);
+    let preliminary = parse_app_capture(text, &destinations, &json!([]), &today)?;
+    if let Some(warnings) = preliminary["warnings"]
+        .as_array()
+        .filter(|rows| !rows.is_empty())
+    {
+        return Err((
+            2,
+            warnings
+                .iter()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join("; "),
+        ));
+    }
+    let list_id = if let Some(id) = preliminary
+        .pointer("/destination/list_id")
+        .and_then(Value::as_str)
+    {
+        id.to_owned()
+    } else {
+        get_json(&client, &args.url, &token, "/inbox").await?["list_id"]
+            .as_str()
+            .ok_or((1, "server omitted inbox".into()))?
+            .to_owned()
+    };
+    let mut sections = if list_id.starts_with("intake:") {
+        vec![]
+    } else {
+        get_json(
+            &client,
+            &args.url,
+            &token,
+            &format!("/lists/{}/sections", segment(&list_id)),
+        )
+        .await?
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+    };
+    for section in &mut sections {
+        if let Some(reference) = section["reference"].as_str()
+            && text.contains(&format!("${reference}"))
+        {
+            section["title"] = json!(reference);
+        }
+    }
+    let parsed = parse_app_capture(text, &destinations, &json!(sections), &today)?;
+    if let Some(warnings) = parsed["warnings"]
+        .as_array()
+        .filter(|rows| !rows.is_empty())
+    {
+        return Err((
+            2,
+            warnings
+                .iter()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join("; "),
+        ));
+    }
+    let title = parsed["title"]
+        .as_str()
+        .filter(|title| !title.trim().is_empty())
+        .ok_or((2, "task title cannot be empty".into()))?;
+    let body = json!({"list_id":list_id,"section_id":parsed.get("section_id"),"tasks":[{"title":title,"description":"","parent_id":null}],"metadata":{"priority":parsed["priority"],"due_date":parsed["due"],"planned_date":parsed["planned"],"duration_minutes":parsed["duration"],"tags":parsed["tags"]}});
+    let generated_key = uuid::Uuid::new_v4().to_string();
+    let response = client
+        .post(api_url(&args.url, "/capture")?)
+        .bearer_auth(&token)
+        .header("Idempotency-Key", key.unwrap_or(&generated_key))
+        .json(&body)
+        .send()
+        .await
+        .map_err(|_| (1, "capture request failed".into()))?;
+    let tasks = response_json(response).await?.1;
+    let task = tasks
+        .as_array()
+        .and_then(|rows| rows.first())
+        .ok_or((1, "server omitted created task".into()))?;
+    let actual_list = task["list_id"]
+        .as_str()
+        .ok_or((1, "server omitted task list".into()))?;
+    let list = get_json(
+        &client,
+        &args.url,
+        &token,
+        &format!("/view/list/{}?full=true&sub=true", segment(actual_list)),
+    )
+    .await
+    .map_err(|(code, message)| {
+        (
+            code,
+            format!("Task was created, but its list could not be loaded: {message}"),
+        )
+    })?;
+    if args.json {
+        println!("{}", json!({"task":task,"list":list,"capture":parsed}));
+    } else {
+        let priority = parsed["priority"]
+            .as_u64()
+            .map(|p| format!("P{p} "))
+            .unwrap_or_default();
+        let planned = parsed["planned"]
+            .as_str()
+            .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
+            .map(|d| format!(" planned for {}", d.format("%b %-d")))
+            .unwrap_or_default();
+        let due = parsed["due"]
+            .as_str()
+            .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
+            .map(|d| format!(" due {}", d.format("%b %-d")))
+            .unwrap_or_default();
+        let duration = parsed["duration"]
+            .as_u64()
+            .map(|n| {
+                if n % 60 == 0 {
+                    format!(" ({}h)", n / 60)
+                } else {
+                    format!(" ({n}m)")
+                }
+            })
+            .unwrap_or_default();
+        let tags = parsed["tags"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(|s| format!(" +{s}"))
+            .collect::<String>();
+        println!(
+            "Added {priority}task '{title}' to list '#{}'{planned}{due}{duration}{tags}.\n",
+            list["entity"]["title"].as_str().unwrap_or("?")
+        );
+        print!("{}", format_full_view(&list, false));
+    }
+    Ok(())
 }
 
 async fn move_entity(
@@ -1736,6 +2298,99 @@ async fn move_entity(
         output_value(args, &result);
     } else {
         println!("Moved {source} to {destination}.");
+    }
+    Ok(())
+}
+
+async fn archive_entity(args: &Args, reference: &str, archive: bool) -> Result<(), (i32, String)> {
+    let kind = reference.chars().next().unwrap_or('?');
+    if !matches!(kind, '@' | '#') && (archive || !matches!(kind, '%' | '^')) {
+        return Err((
+            2,
+            "archiving is currently supported for spaces and lists".into(),
+        ));
+    }
+    let client = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|_| (1, "could not initialize HTTP client".into()))?;
+    let token = cli_login::token(&args.url)?;
+    if !archive && matches!(kind, '%' | '^') {
+        let trash = get_json(&client, &args.url, &token, "/trash").await?;
+        let row = trash
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|row| {
+                (row["public_reference"].as_str() == Some(unprefix(reference))
+                    || row["id"].as_str() == Some(unprefix(reference)))
+                    && (kind == '^') == !row["parent_id"].is_null()
+            })
+            .ok_or((2, "task was not found in trash".into()))?;
+        let id = row["id"]
+            .as_str()
+            .ok_or((1, "server omitted task ID".into()))?;
+        let revision = row["revision"]
+            .as_i64()
+            .ok_or((1, "server omitted current version".into()))?;
+        let value = transfer_json(
+            &client,
+            &args.url,
+            &token,
+            &format!("/tasks/{}/restore", segment(id)),
+            json!({"revision":revision}),
+        )
+        .await?;
+        if args.json {
+            output_value(args, &value);
+        } else {
+            println!("Restored {reference}.");
+        }
+        return Ok(());
+    }
+    let (_, path, _, _) = view_request(reference)?;
+    let response = client
+        .get(api_url(&args.url, &path)?)
+        .bearer_auth(&token)
+        .send()
+        .await
+        .map_err(|_| (1, "could not read entity".into()))?;
+    let entity = response_json(response).await?.1;
+    let id = entity["entity"]["id"]
+        .as_str()
+        .ok_or((1, "server omitted entity ID".into()))?;
+    let revision = entity["entity"]["revision"]
+        .as_i64()
+        .ok_or((1, "server omitted current version".into()))?;
+    let (method, path, body) = if kind == '@' {
+        (
+            Method::POST,
+            format!("/workspaces/{}/lifecycle", segment(id)),
+            json!({"revision":revision,"action":if archive { "archive" } else { "restore" },"confirmation":null}),
+        )
+    } else {
+        (
+            Method::PATCH,
+            format!("/lists/{}", segment(id)),
+            json!({"revision":revision,"archived":archive}),
+        )
+    };
+    let response = client
+        .request(method, api_url(&args.url, &path)?)
+        .bearer_auth(&token)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|_| (1, "archive request failed".into()))?;
+    let value = response_json(response).await?.1;
+    if args.json {
+        output_value(args, &value);
+    } else {
+        println!(
+            "{} {reference}.",
+            if archive { "Archived" } else { "Restored" }
+        );
     }
     Ok(())
 }
@@ -1929,7 +2584,12 @@ fn format_lists(value: &Value, prefix: char) -> String {
                 } else {
                     prefix
                 };
-            format!("{marker}{title}  {prefix}{reference}\n")
+            let archived = if row["archived"] == true {
+                "  [archived]"
+            } else {
+                ""
+            };
+            format!("{marker}{title}  {prefix}{reference}{archived}\n")
         })
         .collect()
 }
@@ -2248,5 +2908,23 @@ mod list_output_tests {
             .unwrap(),
             json!({"title":"JSON"})
         );
+    }
+
+    #[test]
+    fn task_add_uses_the_app_capture_parser() {
+        let options = json!([{"space":"Personal","space_id":"s1","list":"abc123d","list_id":"l1","default_list":true}]);
+        let parsed = parse_app_capture(
+            "buy milk #abc123d .tomo :1h +family !!",
+            &options,
+            &json!([]),
+            "2026-11-29",
+        )
+        .unwrap();
+        assert_eq!(parsed["title"], "buy milk");
+        assert_eq!(parsed["destination"]["list_id"], "l1");
+        assert_eq!(parsed["priority"], 1);
+        assert_eq!(parsed["planned"], "2026-11-30");
+        assert_eq!(parsed["duration"], 60);
+        assert_eq!(parsed["tags"], json!(["family"]));
     }
 }

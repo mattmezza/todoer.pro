@@ -89,8 +89,102 @@ async fn quick_edits_and_reviewed_moves_use_public_references() {
     );
     let task_ref = format!("%{}", task["reference"].as_str().unwrap());
     cli(&url, &["edit", &task_ref, "--title", "Ripe tomatoes"]);
+    let declined = Command::new(env!("CARGO_BIN_EXE_todoer"))
+        .env("TODOER_URL", &url)
+        .env("TODOER_TOKEN", TOKEN)
+        .args(["move", &task_ref, "--to", &section_ref])
+        .output()
+        .unwrap();
+    assert!(!declined.status.success());
+    assert!(
+        cli(&url, &["view", &section_ref])["children"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
     cli(&url, &["move", &task_ref, "--to", &section_ref, "--yes"]);
+    cli(&url, &["task-section", &task_ref, "--clear"]);
+    cli(
+        &url,
+        &["task-section", &task_ref, "--section", &section_ref],
+    );
+    cli(&url, &["tags", "set", &task_ref, "--tag", "fresh"]);
+    let comment = cli(
+        &url,
+        &[
+            "comments",
+            "add",
+            &task_ref,
+            "--key",
+            "synthetic-comment",
+            "Note",
+        ],
+    );
+    let comment_id = comment["id"].as_str().unwrap();
+    cli(&url, &["comments", "edit", comment_id, "Updated note"]);
+    assert_eq!(
+        cli(&url, &["comments", "get", comment_id])["body"],
+        "Updated note"
+    );
+    let added = cli(
+        &url,
+        &[
+            "task",
+            "add",
+            &format!("buy milk {list_ref} .tomo :1h +family !!"),
+        ],
+    );
+    assert_eq!(added["task"]["title"], "buy milk");
+    assert_eq!(added["capture"]["priority"], 1);
+    assert_eq!(added["capture"]["duration"], 60);
+    assert_eq!(added["capture"]["tags"], serde_json::json!(["family"]));
+    let human = Command::new(env!("CARGO_BIN_EXE_todoer"))
+        .env("TODOER_URL", &url)
+        .env("TODOER_TOKEN", TOKEN)
+        .args([
+            "task",
+            "add",
+            &format!("buy bread {list_ref} .tomo :1h +family !!"),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        human.status.success(),
+        "{}",
+        String::from_utf8_lossy(&human.stderr)
+    );
+    let human = String::from_utf8(human.stdout).unwrap();
+    assert!(human.contains("Added P1 task 'buy bread'"));
+    assert!(human.contains("(1h) +family"));
+    assert!(human.contains("%buy bread"));
     let section = cli(&url, &["view", &section_ref]);
     assert_eq!(section["children"][0]["title"], "Ripe tomatoes");
+    cli(&url, &["trash", &task_ref]);
+    cli(&url, &["restore", &task_ref]);
+    cli(&url, &["archive", &list_ref]);
+    assert!(
+        !cli(&url, &["lists", "all"])
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["id"] == list["entity"]["id"])
+    );
+    assert!(
+        cli(&url, &["lists", "all", "--archived-only"])
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["id"] == list["entity"]["id"] && row["archived"] == true)
+    );
+    cli(&url, &["restore", &list_ref]);
+    cli(&url, &["archive", &space_ref]);
+    assert!(
+        cli(&url, &["spaces", "all", "--archived"])
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["id"] == space["entity"]["id"] && row["archived"] == true)
+    );
+    cli(&url, &["restore", &space_ref]);
     server.abort();
 }

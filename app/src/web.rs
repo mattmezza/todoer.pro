@@ -294,6 +294,8 @@ pub fn router(state: AppState) -> Router {
         .route("/ready", get(ready))
         .route("/api/v1/lists", get(lists))
         .route("/api/v1/view/{kind}/{reference}", get(view_http::view))
+        .route("/api/v1/cli/overview/{kind}", get(view_http::overview))
+        .route("/api/v1/cli/tags/{id}", get(view_http::tag))
         .route("/api/v1/lists/{id}/tasks", get(tasks))
         .route("/api/v1/capture", post(capture))
         .route("/api/v1/capture/options", get(capture_options))
@@ -1419,9 +1421,26 @@ mod filters {
 struct Revision {
     revision: i64,
 }
-async fn trash_tasks(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Vec<Task>>, ApiError> {
+async fn trash_tasks(
+    State(s): State<AppState>,
+    h: HeaderMap,
+) -> Result<Json<Vec<TaskOverview>>, ApiError> {
     let actor = s.auth(&h, false)?;
-    Ok(Json(s.run(move |db| db.trash_tasks(&actor)).await?))
+    Ok(Json(
+        s.run(move |db| {
+            db.trash_tasks(&actor)?
+                .into_iter()
+                .map(|task| {
+                    let public_reference = crate::defaults::public_id(&db.conn, "task", &task.id)?;
+                    Ok(TaskOverview {
+                        task,
+                        public_reference,
+                    })
+                })
+                .collect()
+        })
+        .await?,
+    ))
 }
 async fn trash_task(
     State(s): State<AppState>,
@@ -1442,7 +1461,11 @@ async fn restore_task(
 ) -> Result<Json<Task>, ApiError> {
     let actor = s.auth(&h, true)?;
     Ok(Json(
-        s.run(move |db| db.restore(&actor, &id, c.revision)).await?,
+        s.run(move |db| {
+            let id = crate::defaults::resolve(&db.conn, "task", &id)?;
+            db.restore(&actor, &id, c.revision)
+        })
+        .await?,
     ))
 }
 async fn undo(

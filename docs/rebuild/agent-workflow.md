@@ -13,32 +13,31 @@ todoer list
 todoer --json tasks LIST_ID
 todoer search --query 'proposal' --list LIST_ID --complete false --limit 50
 todoer search --query 'proposal' --after LAST_TASK_ID
-todoer capture --list LIST_ID --key daily-plan-2026-10-26 'Draft proposal' 'Review notes'
-todoer edit TASK_ID --revision 1 --title 'Draft revised proposal'
-todoer complete TASK_ID --revision 2
-todoer complete TASK_ID --revision 2 --subtree
-todoer reopen TASK_ID --revision 3
-todoer subtree TASK_ID
-todoer move-preview TASK_ID --destination DESTINATION_LIST_ID
-todoer move TASK_ID --destination DESTINATION_LIST_ID --revision 4
-# After reviewing a preview that adds access for new members:
-todoer move TASK_ID --destination DESTINATION_LIST_ID --revision 4 --acknowledge-access-change
+todoer task add 'Draft proposal #project .tomo :1h +work !!'
+todoer edit '%TASK_REFERENCE' --title 'Draft revised proposal'
+todoer complete '%TASK_REFERENCE'
+todoer complete '%TASK_REFERENCE' --subtree
+todoer reopen '%TASK_REFERENCE'
+todoer subtree '%TASK_REFERENCE'
+todoer move '%TASK_REFERENCE' --to '#DESTINATION_REFERENCE'
 todoer changes --after 0
 ```
 
-Quote each capture title containing spaces. Each positional argument becomes one task with an empty description and no parent. Reuse the same idempotency key when retrying the same capture request; choose a new key for a new capture. The server checks idempotency.
+Quote the task text so the shell passes it as one argument. `task add` uses the app's capture parser for destinations, dates, duration, priority and tags, then shows the full destination list. Add `--key` when you need to retry the same capture safely; use a new key for a different request.
 
-Read the current task revision before editing, completing, reopening, or moving it. On a conflict, fetch the latest tasks or subtree and reconcile the desired change before retrying with its new revision. `complete --subtree` explicitly requests completion of the subtree. `--description ''` clears a description.
+The CLI reads the current version automatically before an edit. If another edit occurs in between, the server rejects the conflicting write; review the latest item before trying again. `complete --subtree` explicitly requests completion of the subtree. `--description ''` clears a description.
 
 Search defaults to an empty query and at most 50 results. Use `--list` to narrow the list, `--complete true` or `--complete false` to filter status, and `--after` with the last task ID to request the next page. Query parameters are URL encoded.
 
-Before moving a subtree, use `move-preview` to inspect whether the destination adds members who can access it. Moves that broaden access require `--acknowledge-access-change` after reviewing that preview. The default is false.
+`move` validates the operation before asking for confirmation and warns if access broadens. Pass `--yes` to confirm noninteractively. It supports moving a list to a space, a section to a list, and a task or subtask to a list, section, task, or subtask.
 
 Use `--json` for scripts: successful response bodies are printed unchanged to stdout. Human list views show titles and references, with completion status for tasks. Use `--json` for revisions. Errors go to stderr. Exit codes are 0 for success, 2 for invalid CLI arguments or HTTP validation errors, 3 for missing credentials or HTTP authentication/authorization errors, 4 for HTTP revision/conflict errors, and 1 for other failures. Network requests time out after 30 seconds and redirects are not followed.
 
 `todoer spaces all`, `todoer lists all`, and `todoer sections all LIST` show names and short references. Task listings show status and task references; `todoer subtree TASK` indents descendants and shows a continuation cursor when needed. References use `@` for spaces, `#` for lists, `$` for sections, `%` for tasks, and `^` for subtasks. Use `todoer view REFERENCE` to show an entity and its immediate children. Add `--info` for its description and child counts: `s` sections, `o` open top-level tasks, and `d` completed top-level tasks. List views include sections and unsectioned top-level tasks; section views show their top-level tasks, and task views show direct subtasks. Subtasks are excluded from the task counts. `todoer --json view REFERENCE` includes revisions and the structured children. Quote references in a shell, for example `todoer view '#abc2345'` or `todoer view '$abc2345'`. List references also work with `lists get/edit`, `tasks`, `capture --list`, and `sections all/create`; space references work with `spaces get/edit`, and section references with `sections edit`. Other commands may still require the full ID, available through `--json`; older servers also show the full ID in the overview. `space` and `workspace` remain aliases for `spaces`.
 
 `todoer view '#abc2345' --full` shows a list's description, sections and top-level tasks, including unsectioned tasks. Add `--sub` to include nested subtasks, and `--info` to add the list's `s`, `o` and `d` counts and each section's `o` and `d` counts. These counts exclude subtasks. In JSON full views, each section's `children` contains its tasks in display order; subtasks have a `depth` greater than zero. Unsectioned tasks appear directly in the list's `children`.
+
+Use `todoer archive '@SPACE'` or `todoer archive '#LIST'` to archive a space or list, and `todoer restore` with the same reference to restore it. `spaces all` and `lists all` exclude archived items by default; add `--archived` to include them or `--archived-only` to show only archived items. Sections and tasks do not currently have an archive state.
 
 The CLI calls `/api/v1/search`, `/api/v1/lists`, `/api/v1/lists/{id}/tasks`, `/api/v1/capture`, `/api/v1/tasks/{id}`, `/api/v1/tasks/{id}/subtree/query`, `/api/v1/tasks/{id}/move-preview?destination=...`, `/api/v1/tasks/{id}/move`, and `/api/v1/changes?after=N`. Capture sends `Idempotency-Key`; all requests send bearer authentication. No remote MCP transport is implied by these endpoints.
 
@@ -47,8 +46,8 @@ The official Python MCP SDK check is available as `uv run --no-project scripts/r
 The check requires the implemented tool subset, including bulk preview/apply and saved destinations. It exercises initialization, destination resolution, identical capture retry, subtree read, edit, guarded undo, trash, restore, destination preferences, bulk dry-run, guarded apply, retry, and rollback. SDK 2.3.0 currently logs `Session termination failed: 202` when this rmcp transport acknowledges session cleanup; the request assertions complete and the check exits successfully.
 
 
-Implemented recovery commands: `todoer trash-list`, `todoer trash TASK_ID --revision N`,
-`todoer restore TASK_ID --revision N`, `todoer undo CHANGE_SEQ --revision N`, and
+Implemented recovery commands: `todoer trash-list`, `todoer trash TASK_REFERENCE`,
+`todoer undo CHANGE_SEQ`, and
 `todoer capabilities`. `make rust-integration` exercises the Rust CLI over real
 HTTP and the official Python MCP client against an isolated running server. It
 creates synthetic tasks; never run verification scripts against a personal or
@@ -86,17 +85,16 @@ todoer --json query --body '{"text":"proposal","entities":["task"],"fields":[],"
 todoer tags list LIST_ID --prefix urgent
 todoer tags create LIST_ID urgent
 todoer tags get TASK_ID
-todoer tags set TASK_ID --revision 1 --tag urgent --tag-id EXISTING_TAG_UUID
-todoer tags rename TAG_UUID --revision 1 'high priority'
-todoer task-section TASK_ID
-todoer task-section ROOT_TASK_ID --revision 2 --section SECTION_ID
-todoer task-section ROOT_TASK_ID --revision 3 --clear
-todoer reparent TASK_ID --revision 4 --parent PARENT_TASK_ID
-todoer reparent TASK_ID --revision 5
-todoer reorder LIST_ID --revision LIST_REVISION FIRST_TASK_ID SECOND_TASK_ID
+todoer tags set '%TASK_REFERENCE' --tag urgent --tag-id EXISTING_TAG_UUID
+todoer tags rename TAG_UUID 'high priority'
+todoer task-section '%TASK_REFERENCE'
+todoer task-section '%TASK_REFERENCE' --section '$SECTION_REFERENCE'
+todoer task-section '%TASK_REFERENCE' --clear
+todoer move '%TASK_REFERENCE' --to '%PARENT_REFERENCE'
+todoer reorder '#LIST_REFERENCE' '%FIRST_TASK' '%SECOND_TASK'
 ```
 
-`tags set` replaces the complete tag set; no `--tag` or `--tag-id` clears it. Names create missing tags atomically with assignment. Standalone workspace tag creation requires workspace editor access; direct list guests cannot list unused workspace tags. Section writes apply to roots and their descendants. Reparenting is same-list only, rejects cycles, and follows the new parent's section; omitting `--parent` creates a root. Sibling reorder requires every active sibling exactly once and the current **list** revision. Read current revisions after each write. The compact `organize --body` command accepts the OpenAPI `OrganizeAction` schema when scripting more involved actions.
+`tags set` replaces the complete tag set; no `--tag` or `--tag-id` clears it. Names create missing tags atomically with assignment. Standalone space tag creation requires space editor access; direct list guests cannot list unused space tags. Section writes apply to roots and their descendants. Moving beneath a task is same-list only, rejects cycles, and follows the new parent's section. Sibling reorder requires every active sibling exactly once. The compact `organize --body` command accepts the OpenAPI `OrganizeAction` schema when scripting more involved actions.
 
 ```sh
 todoer references resolve '#Inbox'
