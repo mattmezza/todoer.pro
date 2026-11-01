@@ -268,6 +268,25 @@ function planDialog(entry, initial) {
         .formatToParts(instant)
         .map(({ type, value }) => [type, value]),
     );
+  const dateShortcuts = node('div', null, 'plan-date-shortcuts');
+  dateShortcuts.setAttribute('role', 'group');
+  dateShortcuts.setAttribute('aria-label', 'Date shortcuts');
+  for (const [label, days, description] of [
+    ['+0d', 0, 'Today'],
+    ['+1d', 1, 'Tomorrow'],
+    ['+2d', 2, 'In two days'],
+    ['+3d', 3, 'In three days'],
+    ['+1w', 7, 'In one week'],
+    ['+2w', 14, 'In two weeks'],
+  ]) {
+    const choice = button(label, () => {
+      const value = parts(new Date());
+      date.value = add(`${value.year}-${value.month}-${value.day}`, days);
+      date.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    choice.title = description;
+    dateShortcuts.append(choice);
+  }
   for (const [label, minutes] of [
     ['+0m', 0],
     ['+30m', 30],
@@ -356,13 +375,15 @@ function planDialog(entry, initial) {
   const submit = node('button', 'Save', 'primary');
   submit.type = 'submit';
   const fields = node('div', null, 'workbench-date-fields');
+  const dateField = node('div', null, 'plan-date-field');
+  dateField.append(dateLabel, dateShortcuts);
   const timeField = node('div', null, 'plan-time-field');
   timeField.append(timeLabel, timeShortcuts);
-  fields.append(dateLabel, timeField);
+  fields.append(dateField, timeField);
   const durationField = node('div', null, 'plan-duration-field');
   durationField.append(durationLabel, durationShortcuts, overflowHint);
   fields.append(durationField);
-  for (const shortcuts of [timeShortcuts, durationShortcuts]) {
+  for (const shortcuts of [dateShortcuts, timeShortcuts, durationShortcuts]) {
     const updateEdges = () => {
       shortcuts.classList.toggle('can-scroll-left', shortcuts.scrollLeft > 1);
       shortcuts.classList.toggle(

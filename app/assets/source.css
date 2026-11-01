@@ -13072,6 +13072,7 @@ body > .planning-detail-dismiss {
   overflow-wrap: anywhere;
   color: var(--text);
 }
+.plan-task-dialog .plan-date-field,
 .plan-task-dialog .plan-time-field,
 .plan-task-dialog .plan-duration-field {
   min-width: 0;
@@ -13089,7 +13090,8 @@ body > .planning-detail-dismiss {
 .plan-task-dialog .workbench-date-fields input {
   min-width: 0;
 }
-.plan-task-dialog :is(.plan-time-shortcuts, .plan-duration-shortcuts) {
+.plan-task-dialog
+  :is(.plan-date-shortcuts, .plan-time-shortcuts, .plan-duration-shortcuts) {
   display: flex;
   gap: 2px;
   overflow-x: auto;
@@ -13100,16 +13102,33 @@ body > .planning-detail-dismiss {
   --shortcut-right: #000 100%, transparent 100%;
   mask-image: linear-gradient(to right, var(--shortcut-left), var(--shortcut-right));
 }
-.plan-task-dialog :is(.plan-time-shortcuts, .plan-duration-shortcuts)::-webkit-scrollbar {
+.plan-task-dialog
+  :is(
+    .plan-date-shortcuts,
+    .plan-time-shortcuts,
+    .plan-duration-shortcuts
+  )::-webkit-scrollbar {
   display: none;
 }
-.plan-task-dialog :is(.plan-time-shortcuts, .plan-duration-shortcuts).can-scroll-left {
+.plan-task-dialog
+  :is(
+    .plan-date-shortcuts,
+    .plan-time-shortcuts,
+    .plan-duration-shortcuts
+  ).can-scroll-left {
   --shortcut-left: transparent 0%, #000 12px;
 }
-.plan-task-dialog :is(.plan-time-shortcuts, .plan-duration-shortcuts).can-scroll-right {
+.plan-task-dialog
+  :is(
+    .plan-date-shortcuts,
+    .plan-time-shortcuts,
+    .plan-duration-shortcuts
+  ).can-scroll-right {
   --shortcut-right: #000 calc(100% - 12px), transparent 100%;
 }
-.plan-task-dialog :is(.plan-time-shortcuts, .plan-duration-shortcuts) button {
+.plan-task-dialog
+  :is(.plan-date-shortcuts, .plan-time-shortcuts, .plan-duration-shortcuts)
+  button {
   flex: 0 0 auto;
   min-height: 36px;
   padding: 6px;
@@ -13118,7 +13137,9 @@ body > .planning-detail-dismiss {
   color: var(--muted);
   font-size: 13px;
 }
-.plan-task-dialog :is(.plan-time-shortcuts, .plan-duration-shortcuts) button:hover,
+.plan-task-dialog
+  :is(.plan-date-shortcuts, .plan-time-shortcuts, .plan-duration-shortcuts)
+  button:hover,
 .plan-task-dialog .plan-duration-shortcuts button[aria-pressed='true'] {
   background: var(--hover);
   color: var(--text);

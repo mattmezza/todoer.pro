@@ -68,6 +68,23 @@ test('task duration is shared between the planning dialog and task settings', as
   const date = await dialog.getByLabel('Day').inputValue();
   expect(date).toBe(expected.date);
   await expect(dialog.getByLabel('Time (optional)')).toHaveValue(expected.time);
+  const currentDay = await page.evaluate(() => {
+    const zone = document.querySelector('[data-workbench]').dataset.timezone;
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: zone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+  });
+  const nextWeek = new Date(`${currentDay}T12:00:00Z`);
+  nextWeek.setUTCDate(nextWeek.getUTCDate() + 7);
+  await dialog
+    .getByRole('group', { name: 'Date shortcuts' })
+    .getByRole('button', { name: '+1w' })
+    .click();
+  await expect(dialog.getByLabel('Day')).toHaveValue(nextWeek.toISOString().slice(0, 10));
+  await expect(dialog.getByLabel('Time (optional)')).toHaveValue(expected.time);
   const durationShortcuts = dialog.getByRole('group', { name: 'Duration shortcuts' });
   await durationShortcuts.getByRole('button', { name: '1d' }).click();
   await expect(dialog.getByLabel('Duration (minutes, optional)')).toHaveValue('1440');
