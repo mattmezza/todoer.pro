@@ -34,9 +34,9 @@ Search defaults to an empty query and at most 50 results. Use `--list` to narrow
 
 Before moving a subtree, use `move-preview` to inspect whether the destination adds members who can access it. Moves that broaden access require `--acknowledge-access-change` after reviewing that preview. The default is false.
 
-Use `--json` for scripts: successful response bodies are printed unchanged to stdout. Human output shows task completion, identifiers, titles, and revisions. Errors go to stderr. Exit codes are 0 for success, 2 for invalid CLI arguments or HTTP validation errors, 3 for missing credentials or HTTP authentication/authorization errors, 4 for HTTP revision/conflict errors, and 1 for other failures. Network requests time out after 30 seconds and redirects are not followed.
+Use `--json` for scripts: successful response bodies are printed unchanged to stdout. Human list views show titles and references, with completion status for tasks. Use JSON or a detail command for revisions. Errors go to stderr. Exit codes are 0 for success, 2 for invalid CLI arguments or HTTP validation errors, 3 for missing credentials or HTTP authentication/authorization errors, 4 for HTTP revision/conflict errors, and 1 for other failures. Network requests time out after 30 seconds and redirects are not followed.
 
-`todoer lists all` shows each list's name and full ID on one line. Use `todoer lists get LIST_ID` for its description and revision, or `todoer --json lists all` for the complete response.
+`todoer space all`, `todoer lists all`, and `todoer sections all LIST` show names and short references. Task listings show status and task references; `todoer subtree TASK` indents descendants and shows a continuation cursor when needed. References use `@` for spaces, `#` for lists, `$` for sections, `%` for tasks, and `^` for subtasks. Use `todoer view REFERENCE` to show any of these. Quote references in a shell, for example `todoer view '#abc2345'` or `todoer view '$abc2345'`. List references also work with `lists get/edit`, `tasks`, `capture --list`, and `sections all/create`; space references work with `space get/edit`, and section references with `sections edit`. Other commands may still require the full ID, available through `--json`; older servers also show the full ID in the overview. `workspace` remains an alias for `space`.
 
 The CLI calls `/api/v1/search`, `/api/v1/lists`, `/api/v1/lists/{id}/tasks`, `/api/v1/capture`, `/api/v1/tasks/{id}`, `/api/v1/tasks/{id}/subtree/query`, `/api/v1/tasks/{id}/move-preview?destination=...`, `/api/v1/tasks/{id}/move`, and `/api/v1/changes?after=N`. Capture sends `Idempotency-Key`; all requests send bearer authentication. No remote MCP transport is implied by these endpoints.
 
@@ -160,8 +160,8 @@ MCP attachment operations accept metadata/intents, not inline binary bodies. A c
 `manage_access` groups organization and sharing operations in MCP. The existing workspace/list/section CLI commands and `access --body` use the same authority checks. Access expansion requires explicit acknowledgement; missing acknowledgement or stale workspace/list revisions returns conflict. Invitations are email-bound grants and may queue email delivery:
 
 ```sh
-todoer invitations list workspace WORKSPACE_ID
-todoer invitations create workspace WORKSPACE_ID person@example.invalid --role viewer --key UNIQUE_RETRY_KEY --acknowledge-access-change
+todoer invitations list space SPACE_ID
+todoer invitations create space SPACE_ID person@example.invalid --role viewer --key UNIQUE_RETRY_KEY --acknowledge-access-change
 todoer invitations revoke INVITATION_ID
 ```
 
@@ -196,12 +196,12 @@ todoer --json subtree TASK_ID --limit 25 --fields title,revision,complete
 todoer --json subtree TASK_ID --limit 25 --fields title,revision,complete --cursor CURSOR
 todoer --json subtree TASK_ID --fields title,description,revision
 todoer --json review --from 2026-10-26 --to 2026-11-01 --list LIST_ID
-todoer --json lists move-preview LIST_ID --destination-workspace DESTINATION_WORKSPACE_ID
+todoer --json lists move-preview LIST_ID --destination-space DESTINATION_WORKSPACE_ID
 ```
 
 `read_subtree` is the same bounded MCP page, with optional `limit`, `fields`, and `cursor`. Reuse the same root and projection when paging. Mutation makes a cursor stale (`resync_required`); restart rather than combining snapshots. Ancestor context is authorization checked and bounded, with explicit omitted/truncated markers. Extremely deep trees require reading a deeper root.
 
-`todoer review` calls the implemented weekly-review REST endpoint. Omitted dates default to the current local week; `--workspace` and `--list` restrict the scope. It retains counting and coverage notes: completion counts distinct recorded leaf work, older history can be incomplete, planned-versus-completed uses current leaf schedules, and overdue trends contain actual observations rather than invented historical zeroes. MCP `schedule_tasks` adds `{action:{op:"review",from:"YYYY-MM-DD",to:"YYYY-MM-DD",list_id:null|ID,workspace_id:null|ID}}`; explicit dates are required there. The compact MCP/agent response clears upcoming task descriptions and retains the notes.
+`todoer review` calls the implemented weekly-review REST endpoint. Omitted dates default to the current local week; `--space` and `--list` restrict the scope. It retains counting and coverage notes: completion counts distinct recorded leaf work, older history can be incomplete, planned-versus-completed uses current leaf schedules, and overdue trends contain actual observations rather than invented historical zeroes. MCP `schedule_tasks` adds `{action:{op:"review",from:"YYYY-MM-DD",to:"YYYY-MM-DD",list_id:null|ID,workspace_id:null|ID}}`; explicit dates are required there. The compact MCP/agent response clears upcoming task descriptions and retains the notes.
 
 Whole-list moves use existing stable IDs and common authorization. Both workspaces require live owner access; a credential restricted to only one workspace/list cannot move the whole list. `manage_access` supports `list_move_preview` with `list_id` and `destination_workspace_id`, then `list_move` with `list_id` and an `input` object containing the preview's `destination_workspace_id`, `list_revision`, `source_workspace_revision`, `destination_workspace_revision`, and `policy_hash`. Expanded access additionally requires `acknowledge_access_change:true` after reviewing the full audience. The CLI apply command is `todoer lists move LIST_ID --body 'JSON'` with that same exact input. Never replace stale revisions blindly or infer acknowledgement from an old preview. List contents, sections, comments/files, reference IDs, and audit history remain under the common atomic move operation.
 

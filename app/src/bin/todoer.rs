@@ -33,13 +33,18 @@ enum Command {
         to: Option<String>,
         #[arg(long)]
         list: Option<String>,
-        #[arg(long)]
+        #[arg(long = "space", visible_alias = "workspace")]
         workspace: Option<String>,
     },
-    /// Workspace administration. JSON write bodies require current revisions.
+    /// Space administration. JSON write bodies require current revisions.
+    #[command(name = "space", visible_alias = "workspace")]
     Workspace {
         #[command(subcommand)]
         command: WorkspaceCommand,
+    },
+    /// View a space, list, section, task or subtask by its prefixed reference.
+    View {
+        reference: String,
     },
     /// List details, creation, sharing and access administration.
     Lists {
@@ -276,7 +281,7 @@ enum ListCommand {
     /// Review audience and tag changes before moving the entire list.
     MovePreview {
         id: String,
-        #[arg(long)]
+        #[arg(long = "destination-space", visible_alias = "destination-workspace")]
         destination_workspace: String,
     },
     /// Apply the exact reviewed revisions and policy hash (ListWorkspaceMoveInput JSON).
@@ -346,7 +351,7 @@ struct QueryArgs {
     text: String,
     #[arg(long)]
     entity: Vec<String>,
-    #[arg(long)]
+    #[arg(long = "space", visible_alias = "workspace")]
     workspace: Option<String>,
     #[arg(long)]
     list: Option<String>,
@@ -458,7 +463,7 @@ fn query_request(q: QueryArgs) -> Result<RequestSpec, (i32, String)> {
         Method::POST,
         "/query".into(),
         Some(
-            json!({"text":q.text,"entities":entities,"workspace_id":q.workspace,"list_id":q.list,"section_id":q.section,"tag":q.tag,"status":q.status,"priority":q.priority,"planned_from":q.planned_from,"planned_to":q.planned_to,"due_from":q.due_from,"due_to":q.due_to,"recurrence":q.recurrence,"limit":q.limit,"cursor":q.cursor,"sort":q.sort,"fields":fields}),
+            json!({"text":q.text,"entities":entities,"workspace_id":q.workspace.as_deref().map(unprefix),"list_id":q.list.as_deref().map(unprefix),"section_id":q.section.as_deref().map(unprefix),"tag":q.tag,"status":q.status,"priority":q.priority,"planned_from":q.planned_from,"planned_to":q.planned_to,"due_from":q.due_from,"due_to":q.due_to,"recurrence":q.recurrence,"limit":q.limit,"cursor":q.cursor,"sort":q.sort,"fields":fields}),
         ),
         None,
     ))
@@ -766,6 +771,11 @@ fn invitation_request(command: InvitationCommand) -> RequestSpec {
         "/agent/access",
         match command {
             InvitationCommand::List { kind, id } => {
+                let kind = if kind == "space" {
+                    "workspace".to_owned()
+                } else {
+                    kind
+                };
                 json!({"op":"invitations","target_kind":kind,"target_id":id})
             }
             InvitationCommand::Create {
@@ -776,6 +786,11 @@ fn invitation_request(command: InvitationCommand) -> RequestSpec {
                 key,
                 acknowledge_access_change,
             } => {
+                let kind = if kind == "space" {
+                    "workspace".to_owned()
+                } else {
+                    kind
+                };
                 json!({"op":"invite","idempotency_key":key,"input":{"target_kind":kind,"target_id":id,"email":email,"role":role,"acknowledge_access_change":acknowledge_access_change}})
             }
             InvitationCommand::Revoke { id } => json!({"op":"revoke_invitation","id":id}),
@@ -968,7 +983,7 @@ fn section_request(command: SectionCommand) -> Result<RequestSpec, (i32, String)
 }
 fn segment(value: &str) -> String {
     // Encode user-provided identifiers as a single URL path segment.
-    value
+    unprefix(value)
         .bytes()
         .map(|b| {
             if b.is_ascii_alphanumeric() || b"-._~".contains(&b) {
@@ -978,6 +993,29 @@ fn segment(value: &str) -> String {
             }
         })
         .collect()
+}
+
+fn unprefix(value: &str) -> &str {
+    value
+        .strip_prefix(['@', '#', '$', '%', '^'])
+        .unwrap_or(value)
+}
+
+fn view_request(reference: &str) -> Result<RequestSpec, (i32, String)> {
+    let (prefix, id) = reference
+        .split_at_checked(1)
+        .ok_or((2, "expected a prefixed reference (@, #, $, % or ^)".into()))?;
+    if id.is_empty() {
+        return Err((2, "reference is missing its identifier".into()));
+    }
+    let path = match prefix {
+        "@" => "workspaces",
+        "#" => "lists",
+        "$" => "sections",
+        "%" | "^" => "tasks",
+        _ => return Err((2, "expected a prefixed reference (@, #, $, % or ^)".into())),
+    };
+    Ok(read_request(format!("/{path}/{}", segment(id))))
 }
 
 #[tokio::main]
@@ -1029,12 +1067,26 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
     {
         return transfer_file(&args, command).await;
     }
-    let compact_lists = matches!(
-        &args.command,
-        Command::Lists {
-            command: ListCommand::All
-        }
-    );
+    let listing_prefix = match &args.command {
+        Command::List
+        | Command::Lists {
+            command: ListCommand::All,
+        } => Some('#'),
+        Command::Workspace {
+            command: WorkspaceCommand::All,
+        } => Some('@'),
+        Command::Sections {
+            command: SectionCommand::All { .. },
+        } => Some('$'),
+        Command::Tasks { .. } | Command::TrashList => Some('%'),
+        _ => None,
+    };
+    let compact_subtree =
+        matches!(&args.command, Command::Subtree { fields, .. } if fields.is_empty());
+    let view_reference = match &args.command {
+        Command::View { reference } => Some(reference.clone()),
+        _ => None,
+    };
     let mut query_pairs: Vec<(String, String)> = Vec::new();
     let (method, path, body, key) = match args.command {
         Command::Review {
@@ -1050,12 +1102,20 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
                 ("workspace", workspace),
             ] {
                 if let Some(value) = value {
-                    query_pairs.push((key.into(), value));
+                    query_pairs.push((
+                        key.into(),
+                        if key == "workspace" || key == "list" {
+                            unprefix(&value).to_owned()
+                        } else {
+                            value
+                        },
+                    ));
                 }
             }
             read_request("/review".into())
         }
         Command::Workspace { command } => workspace_request(command)?,
+        Command::View { reference } => view_request(&reference)?,
         Command::Lists { command } => list_request(command)?,
         Command::Sections { command } => section_request(command)?,
         Command::AuthInfo | Command::Login { .. } | Command::Logout | Command::AuthStatus => {
@@ -1148,7 +1208,7 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             Method::POST,
             "/capture".into(),
             Some(
-                json!({"list_id": list, "tasks": titles.into_iter().map(|title| json!({"title": title, "description": "", "parent_id": null})).collect::<Vec<_>>()}),
+                json!({"list_id": unprefix(&list), "tasks": titles.into_iter().map(|title| json!({"title": title, "description": "", "parent_id": null})).collect::<Vec<_>>()}),
             ),
             Some(key),
         ),
@@ -1198,7 +1258,16 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             cursor,
         } => {
             let mut body = json!({"limit":limit,"cursor":cursor});
-            if !fields.is_empty() {
+            if fields.is_empty() && !args.json {
+                body["fields"] = json!([
+                    "reference",
+                    "public_reference",
+                    "title",
+                    "complete",
+                    "revision",
+                    "position"
+                ]);
+            } else if !fields.is_empty() {
                 body["fields"] = json!(fields);
             }
             (
@@ -1278,12 +1347,24 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
         )
     })?;
     let (raw, value) = response_json(response).await?;
+    if let Some(reference) = &view_reference {
+        let parent = value
+            .get("parent_id")
+            .is_some_and(|parent| !parent.is_null());
+        if (reference.starts_with('%') && parent) || (reference.starts_with('^') && !parent) {
+            return Err((2, "reference prefix does not match task type".into()));
+        }
+    }
     if args.json {
         println!("{raw}");
     } else if raw.is_empty() {
         println!("OK");
-    } else if compact_lists && value.is_array() {
-        print!("{}", format_lists(&value));
+    } else if let Some(prefix) = listing_prefix.filter(|_| value.is_array()) {
+        print!("{}", format_lists(&value, prefix));
+    } else if compact_subtree && value.get("items").and_then(Value::as_array).is_some() {
+        print!("{}", format_subtree(&value));
+    } else if let Some(reference) = view_reference {
+        print!("{}", format_view(&value, &reference));
     } else {
         print_human(&value);
     }
@@ -1511,19 +1592,70 @@ async fn transfer_file(args: &Args, command: &FileCommand) -> Result<(), (i32, S
     Ok(())
 }
 
-fn format_lists(value: &Value) -> String {
+fn format_lists(value: &Value, prefix: char) -> String {
     let rows = value.as_array().expect("list response is an array");
     if rows.is_empty() {
-        return "No lists.\n".into();
+        return "No results.\n".into();
     }
     rows.iter()
         .map(|row| {
             let title = row["title"].as_str().unwrap_or("");
             let title = title.split_whitespace().collect::<Vec<_>>().join(" ");
-            let id = row["id"].as_str().unwrap_or("?");
-            format!("{title}  {id}\n")
+            let reference = row["public_reference"]
+                .as_str()
+                .or_else(|| row["reference"].as_str())
+                .or_else(|| row["id"].as_str())
+                .unwrap_or("?");
+            let marker = match row.get("complete").and_then(Value::as_bool) {
+                Some(true) => "[x] ",
+                Some(false) => "[ ] ",
+                None => "",
+            };
+            let prefix =
+                if prefix == '%' && row.get("parent_id").is_some_and(|parent| !parent.is_null()) {
+                    '^'
+                } else {
+                    prefix
+                };
+            format!("{marker}{title}  {prefix}{reference}\n")
         })
         .collect()
+}
+
+fn format_subtree(value: &Value) -> String {
+    let rows = value["items"]
+        .as_array()
+        .expect("subtree items are an array");
+    let mut output = String::new();
+    for row in rows {
+        let depth = row["depth"].as_u64().unwrap_or(0).min(256) as usize;
+        output.push_str(&"  ".repeat(depth));
+        output.push_str(&format_lists(&json!([row]), '%'));
+    }
+    if rows.is_empty() {
+        output.push_str("No results.\n");
+    }
+    if let Some(cursor) = value["next_cursor"].as_str() {
+        output.push_str(&format!("\nMore results: --cursor {cursor}\n"));
+    }
+    output
+}
+
+fn format_view(value: &Value, reference: &str) -> String {
+    let title = value["title"].as_str().unwrap_or("");
+    let marker = match value.get("complete").and_then(Value::as_bool) {
+        Some(true) => "[x] ",
+        Some(false) => "[ ] ",
+        None => "",
+    };
+    let mut output = format!("{marker}{title}  {reference}\n");
+    if let Some(revision) = value["revision"].as_i64() {
+        output.push_str(&format!("Revision: {revision}\n"));
+    }
+    if let Some(description) = value["description"].as_str().filter(|s| !s.is_empty()) {
+        output.push_str(&format!("\n{description}\n"));
+    }
+    output
 }
 
 fn print_human(value: &Value) {
@@ -1567,15 +1699,50 @@ mod list_output_tests {
     use super::*;
 
     #[test]
-    fn lists_are_compact_and_keep_full_ids() {
+    fn lists_are_compact_and_prefer_short_references() {
         let lists = json!([
-            {"id":"036cf2d9-5258-4411-89fc-edab0cedf4fe", "title":"groceries", "revision":1, "description":"Groceries.\n\n[Card](https://example.com)"},
+            {"id":"036cf2d9-5258-4411-89fc-edab0cedf4fe", "reference":"abc2345", "title":"groceries", "revision":1, "description":"Groceries.\n\n[Card](https://example.com)"},
             {"id":"second-id", "title":"travel\nplans", "description":""}
         ]);
         assert_eq!(
-            format_lists(&lists),
-            "groceries  036cf2d9-5258-4411-89fc-edab0cedf4fe\ntravel plans  second-id\n"
+            format_lists(&lists, '#'),
+            "groceries  #abc2345\ntravel plans  #second-id\n"
         );
-        assert_eq!(format_lists(&json!([])), "No lists.\n");
+        assert_eq!(format_lists(&json!([]), '#'), "No results.\n");
+    }
+
+    #[test]
+    fn subtree_shows_hierarchy_status_and_continuation() {
+        let page = json!({"items":[{"depth":0,"title":"Plan","reference":"abc","parent_id":null,"complete":false},{"depth":1,"title":"Book","reference":"def","parent_id":"root","complete":true}],"next_cursor":"next"});
+        assert_eq!(
+            format_subtree(&page),
+            "[ ] Plan  %abc\n  [x] Book  ^def\n\nMore results: --cursor next\n"
+        );
+    }
+
+    #[test]
+    fn view_routes_prefixed_references_and_rejects_invalid_input() {
+        for (reference, expected) in [
+            ("@a", "/workspaces/a"),
+            ("#b", "/lists/b"),
+            ("$c", "/sections/c"),
+            ("%d", "/tasks/d"),
+            ("^e", "/tasks/e"),
+        ] {
+            assert_eq!(view_request(reference).unwrap().1, expected);
+        }
+        assert!(view_request("unknown").is_err());
+        assert!(view_request("#").is_err());
+        assert_eq!(
+            format_view(
+                &json!({"title":"Milk","revision":2,"complete":false,"description":"Buy oat milk."}),
+                "%abc2345"
+            ),
+            "[ ] Milk  %abc2345\nRevision: 2\n\nBuy oat milk.\n"
+        );
+        assert!(Args::try_parse_from(["todoer", "space", "all"]).is_ok());
+        assert!(Args::try_parse_from(["todoer", "workspace", "all"]).is_ok());
+        assert!(Args::try_parse_from(["todoer", "review", "--space", "abc"]).is_ok());
+        assert!(Args::try_parse_from(["todoer", "query", "--space", "abc"]).is_ok());
     }
 }

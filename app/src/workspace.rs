@@ -265,7 +265,7 @@ fn section_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Section> {
         revision: r.get(5)?,
     })
 }
-fn section_raw(c: &Connection, id: &str) -> Result<Section, Error> {
+pub(crate) fn section_raw(c: &Connection, id: &str) -> Result<Section, Error> {
     c.query_row(
         "SELECT id,list_id,title,description,position,revision FROM sections WHERE id=?1",
         [id],

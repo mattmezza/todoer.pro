@@ -300,7 +300,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/search", get(search))
         .route("/api/v1/tasks/{id}/move-preview", get(move_preview))
-        .route("/api/v1/tasks/{id}", patch(update))
+        .route("/api/v1/tasks/{id}", get(get_task).patch(update))
         .route("/api/v1/tasks/{id}/subtree", get(subtree))
         .route("/api/v1/tasks/{id}/subtree/query", post(subtree_query))
         .route("/api/v1/tasks/{id}/move", post(move_task))
@@ -1045,17 +1045,59 @@ async fn task_fragment(
         },
     )?))
 }
-async fn lists(State(s): State<AppState>, h: HeaderMap) -> Result<Json<Vec<List>>, ApiError> {
+#[derive(Serialize)]
+struct ListOverview {
+    #[serde(flatten)]
+    list: List,
+    reference: String,
+}
+
+async fn lists(
+    State(s): State<AppState>,
+    h: HeaderMap,
+) -> Result<Json<Vec<ListOverview>>, ApiError> {
     let actor = s.auth(&h, false)?;
-    Ok(Json(s.run(move |db| db.lists(&actor)).await?))
+    Ok(Json(
+        s.run(move |db| {
+            db.lists(&actor)?
+                .into_iter()
+                .map(|list| {
+                    let reference = crate::defaults::public_id(&db.conn, "list", &list.id)?;
+                    Ok(ListOverview { list, reference })
+                })
+                .collect()
+        })
+        .await?,
+    ))
 }
 async fn tasks(
     State(s): State<AppState>,
     h: HeaderMap,
     Path(id): Path<String>,
-) -> Result<Json<Vec<Task>>, ApiError> {
+) -> Result<Json<Vec<TaskOverview>>, ApiError> {
     let actor = s.auth(&h, false)?;
-    Ok(Json(s.run(move |db| db.tasks(&actor, &id)).await?))
+    Ok(Json(
+        s.run(move |db| {
+            let id = crate::defaults::resolve(&db.conn, "list", &id)?;
+            db.tasks(&actor, &id)?
+                .into_iter()
+                .map(|task| {
+                    let public_reference = crate::defaults::public_id(&db.conn, "task", &task.id)?;
+                    Ok(TaskOverview {
+                        task,
+                        public_reference,
+                    })
+                })
+                .collect()
+        })
+        .await?,
+    ))
+}
+#[derive(Serialize)]
+struct TaskOverview {
+    #[serde(flatten)]
+    task: Task,
+    public_reference: String,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -1160,7 +1202,7 @@ async fn capture(
     Ok(Json(
         s.run(move |db| {
             let input = Capture {
-                list_id: c.list_id,
+                list_id: crate::defaults::resolve(&db.conn, "list", &c.list_id)?,
                 tasks: c.tasks,
             };
             match c.metadata {
@@ -1169,6 +1211,25 @@ async fn capture(
                 }
                 None => db.capture_at(&actor, &key, input, c.section_id),
             }
+        })
+        .await?,
+    ))
+}
+async fn get_task(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<TaskOverview>, ApiError> {
+    let actor = s.auth(&h, false)?;
+    Ok(Json(
+        s.run(move |db| {
+            let task = crate::core::task(&db.conn, &id)?;
+            crate::core::access_rank(&db.conn, &actor, &task.list_id, 1)?;
+            let public_reference = crate::defaults::public_id(&db.conn, "task", &task.id)?;
+            Ok(TaskOverview {
+                task,
+                public_reference,
+            })
         })
         .await?,
     ))
@@ -1190,7 +1251,21 @@ async fn subtree_query(
 ) -> Result<Json<crate::subtree_query::SubtreePage>, ApiError> {
     let actor = s.auth(&h, false)?;
     Ok(Json(
-        s.run(move |db| db.read_subtree(&actor, &id, input)).await?,
+        s.run(move |db| {
+            let id = crate::defaults::resolve(&db.conn, "task", &id)?;
+            let mut page = db.read_subtree(&actor, &id, input)?;
+            for item in &mut page.items {
+                if item.get("public_reference").is_some() {
+                    let task_id = item["id"]
+                        .as_str()
+                        .ok_or_else(|| Error::Invalid("subtree omitted task ID".into()))?;
+                    item["public_reference"] =
+                        json!(crate::defaults::public_id(&db.conn, "task", task_id)?);
+                }
+            }
+            Ok(page)
+        })
+        .await?,
     ))
 }
 async fn subtree(

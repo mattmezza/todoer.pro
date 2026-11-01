@@ -81,7 +81,10 @@ pub(super) fn routes() -> Router<AppState> {
             "/api/v1/lists/{id}/sections/reorder",
             post(api_reorder_sections),
         )
-        .route("/api/v1/sections/{id}", patch(api_update_section))
+        .route(
+            "/api/v1/sections/{id}",
+            get(api_section).patch(api_update_section),
+        )
 }
 
 async fn list_color_suggestion(
@@ -175,12 +178,41 @@ struct Reorder {
     ids: Vec<String>,
 }
 
+#[derive(Serialize)]
+struct WorkspaceOverview {
+    #[serde(flatten)]
+    workspace: Workspace,
+    reference: String,
+}
+
+#[derive(Serialize)]
+struct SectionOverview {
+    #[serde(flatten)]
+    section: Section,
+    reference: String,
+}
+
 async fn api_workspaces(
     State(s): State<AppState>,
     h: HeaderMap,
-) -> Result<Json<Vec<Workspace>>, ApiError> {
+) -> Result<Json<Vec<WorkspaceOverview>>, ApiError> {
     let actor = s.auth(&h, false)?;
-    Ok(Json(s.run(move |db| db.workspaces(&actor)).await?))
+    Ok(Json(
+        s.run(move |db| {
+            db.workspaces(&actor)?
+                .into_iter()
+                .map(|workspace| {
+                    let reference =
+                        crate::defaults::public_id(&db.conn, "workspace", &workspace.id)?;
+                    Ok(WorkspaceOverview {
+                        workspace,
+                        reference,
+                    })
+                })
+                .collect()
+        })
+        .await?,
+    ))
 }
 async fn api_workspace(
     State(s): State<AppState>,
@@ -188,7 +220,13 @@ async fn api_workspace(
     Path(id): Path<String>,
 ) -> Result<Json<Workspace>, ApiError> {
     let actor = s.auth(&h, false)?;
-    Ok(Json(s.run(move |db| db.workspace(&actor, &id)).await?))
+    Ok(Json(
+        s.run(move |db| {
+            let id = crate::defaults::resolve(&db.conn, "workspace", &id)?;
+            db.workspace(&actor, &id)
+        })
+        .await?,
+    ))
 }
 async fn api_create_workspace(
     State(s): State<AppState>,
@@ -208,8 +246,11 @@ async fn api_update_workspace(
 ) -> Result<Json<Workspace>, ApiError> {
     let actor = s.auth(&h, true)?;
     Ok(Json(
-        s.run(move |db| db.update_workspace(&actor, &id, input))
-            .await?,
+        s.run(move |db| {
+            let id = crate::defaults::resolve(&db.conn, "workspace", &id)?;
+            db.update_workspace(&actor, &id, input)
+        })
+        .await?,
     ))
 }
 
@@ -316,7 +357,13 @@ async fn api_list(
     Path(id): Path<String>,
 ) -> Result<Json<WorkspaceList>, ApiError> {
     let actor = s.auth(&h, false)?;
-    Ok(Json(s.run(move |db| db.list_info(&actor, &id)).await?))
+    Ok(Json(
+        s.run(move |db| {
+            let id = crate::defaults::resolve(&db.conn, "list", &id)?;
+            db.list_info(&actor, &id)
+        })
+        .await?,
+    ))
 }
 async fn api_update_list(
     State(s): State<AppState>,
@@ -326,7 +373,11 @@ async fn api_update_list(
 ) -> Result<Json<List>, ApiError> {
     let actor = s.auth(&h, true)?;
     Ok(Json(
-        s.run(move |db| db.update_list(&actor, &id, input)).await?,
+        s.run(move |db| {
+            let id = crate::defaults::resolve(&db.conn, "list", &id)?;
+            db.update_list(&actor, &id, input)
+        })
+        .await?,
     ))
 }
 async fn api_access(
@@ -386,9 +437,21 @@ async fn api_sections(
     State(s): State<AppState>,
     h: HeaderMap,
     Path(id): Path<String>,
-) -> Result<Json<Vec<Section>>, ApiError> {
+) -> Result<Json<Vec<SectionOverview>>, ApiError> {
     let actor = s.auth(&h, false)?;
-    Ok(Json(s.run(move |db| db.sections(&actor, &id)).await?))
+    Ok(Json(
+        s.run(move |db| {
+            let id = crate::defaults::resolve(&db.conn, "list", &id)?;
+            db.sections(&actor, &id)?
+                .into_iter()
+                .map(|section| {
+                    let reference = crate::defaults::public_id(&db.conn, "section", &section.id)?;
+                    Ok(SectionOverview { section, reference })
+                })
+                .collect()
+        })
+        .await?,
+    ))
 }
 async fn api_create_section(
     State(s): State<AppState>,
@@ -398,8 +461,11 @@ async fn api_create_section(
 ) -> Result<Json<Section>, ApiError> {
     let actor = s.auth(&h, true)?;
     Ok(Json(
-        s.run(move |db| db.create_section(&actor, &id, input))
-            .await?,
+        s.run(move |db| {
+            let id = crate::defaults::resolve(&db.conn, "list", &id)?;
+            db.create_section(&actor, &id, input)
+        })
+        .await?,
     ))
 }
 async fn api_update_section(
@@ -410,8 +476,27 @@ async fn api_update_section(
 ) -> Result<Json<Section>, ApiError> {
     let actor = s.auth(&h, true)?;
     Ok(Json(
-        s.run(move |db| db.update_section(&actor, &id, input))
-            .await?,
+        s.run(move |db| {
+            let id = crate::defaults::resolve(&db.conn, "section", &id)?;
+            db.update_section(&actor, &id, input)
+        })
+        .await?,
+    ))
+}
+async fn api_section(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<Section>, ApiError> {
+    let actor = s.auth(&h, false)?;
+    Ok(Json(
+        s.run(move |db| {
+            let id = crate::defaults::resolve(&db.conn, "section", &id)?;
+            let section = crate::workspace::section_raw(&db.conn, &id)?;
+            crate::core::access_rank(&db.conn, &actor, &section.list_id, 1)?;
+            Ok(section)
+        })
+        .await?,
     ))
 }
 async fn api_reorder_lists(
@@ -1299,6 +1384,156 @@ mod tests {
                 .to_vec(),
         )
         .unwrap()
+    }
+
+    #[tokio::test]
+    async fn list_overview_references_work_for_get_tasks_and_capture() {
+        let (_, state) = app();
+        let app = crate::web::router(state);
+        let (status, lists) = json_request(&app, "GET", "/api/v1/lists", json!({}), true).await;
+        assert_eq!(status, StatusCode::OK);
+        let list = lists
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|l| l["id"] == "groceries")
+            .unwrap();
+        let reference = list["reference"].as_str().unwrap();
+        assert_eq!(reference.len(), 7);
+        let (status, details) = json_request(
+            &app,
+            "GET",
+            &format!("/api/v1/lists/{reference}"),
+            json!({}),
+            true,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(details["id"], "groceries");
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/capture")
+                    .header("authorization", format!("Bearer {TOKEN}"))
+                    .header("content-type", "application/json")
+                    .header("idempotency-key", "short-reference-test")
+                    .body(Body::from(
+                        json!({"list_id":reference,"tasks":[{"title":"Milk"}]}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let (status, tasks) = json_request(
+            &app,
+            "GET",
+            &format!("/api/v1/lists/{reference}/tasks"),
+            json!({}),
+            true,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(
+            tasks
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|t| t["title"] == "Milk")
+        );
+        let task_ref = tasks
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["title"] == "Milk")
+            .unwrap()["public_reference"]
+            .as_str()
+            .unwrap();
+        assert_eq!(task_ref.len(), 7);
+        let (status, task) = json_request(
+            &app,
+            "GET",
+            &format!("/api/v1/tasks/{task_ref}"),
+            json!({}),
+            true,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(task["title"], "Milk");
+        let (status, tree) = json_request(
+            &app,
+            "POST",
+            &format!("/api/v1/tasks/{task_ref}/subtree/query"),
+            json!({"fields":["title","public_reference"]}),
+            true,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(tree["items"][0]["public_reference"], task_ref);
+        let (status, section) = json_request(
+            &app,
+            "POST",
+            &format!("/api/v1/lists/{reference}/sections"),
+            json!({"title":"Dairy"}),
+            true,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, sections) = json_request(
+            &app,
+            "GET",
+            &format!("/api/v1/lists/{reference}/sections"),
+            json!({}),
+            true,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let section_ref = sections
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["id"] == section["id"])
+            .unwrap()["reference"]
+            .as_str()
+            .unwrap();
+        let (status, section_detail) = json_request(
+            &app,
+            "GET",
+            &format!("/api/v1/sections/{section_ref}"),
+            json!({}),
+            true,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(section_detail["title"], "Dairy");
+        let (status, _) = json_request(
+            &app,
+            "PATCH",
+            &format!("/api/v1/sections/{section_ref}"),
+            json!({"revision":1,"title":"Chilled"}),
+            true,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, spaces) =
+            json_request(&app, "GET", "/api/v1/workspaces", json!({}), true).await;
+        assert_eq!(status, StatusCode::OK);
+        let space = spaces.as_array().unwrap().first().unwrap();
+        let (status, details) = json_request(
+            &app,
+            "GET",
+            &format!(
+                "/api/v1/workspaces/{}",
+                space["reference"].as_str().unwrap()
+            ),
+            json!({}),
+            true,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(details["id"], space["id"]);
     }
 
     #[tokio::test]
