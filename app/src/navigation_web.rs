@@ -1,11 +1,25 @@
 use super::*;
-use crate::navigation::FavoriteInput;
+use crate::navigation::{FavoriteInput, FavoriteOrder};
 pub(super) fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/v1/favorites", get(favorites).put(set_favorite))
+        .route(
+            "/api/v1/favorites/order",
+            axum::routing::put(reorder_favorites),
+        )
         .route("/favorites", get(page).post(form))
         .route("/api/v1/lists/{id}/color", get(color).put(set_color))
         .route("/lists/{id}/color", post(color_form))
+}
+async fn reorder_favorites(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Input(input): Input<FavoriteOrder>,
+) -> Result<Json<Value>, ApiError> {
+    let actor = s.auth(&h, true)?;
+    s.run(move |db| db.reorder_favorites(&actor, &input.expected, &input.order))
+        .await?;
+    Ok(Json(json!({"saved":true})))
 }
 async fn favorites(
     State(s): State<AppState>,

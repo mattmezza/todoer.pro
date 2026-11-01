@@ -14,6 +14,14 @@ pub(super) struct SidebarSpace {
     pub title: String,
     pub slug: String,
 }
+pub(super) struct SidebarFavorite {
+    pub kind: String,
+    pub id: String,
+    pub title: String,
+    pub slug: String,
+    pub color: String,
+    pub initials: String,
+}
 pub(super) struct Sidebar {
     pub archive_note: String,
     pub archive_revision: i64,
@@ -22,8 +30,9 @@ pub(super) struct Sidebar {
     pub font: String,
     pub is_platform_admin: bool,
     pub settings_section: String,
-    pub favorites: Vec<SidebarList>,
+    pub favorites: Vec<SidebarFavorite>,
     pub favorite_ids: Vec<String>,
+    pub favorite_space_ids: Vec<String>,
     pub list_is_favorite: bool,
     pub account_id: String,
     pub lists: Vec<SidebarList>,
@@ -160,22 +169,48 @@ pub(super) fn build_sidebar(
         .filter(|f| f.kind == "list" && active_lists.contains(&f.id))
         .map(|f| f.id.clone())
         .collect();
+    let favorite_space_ids = personal_favorites
+        .iter()
+        .filter(|f| f.kind == "workspace")
+        .map(|f| f.id.clone())
+        .collect();
     let favorites = personal_favorites
         .into_iter()
-        .filter(|f| f.kind == "list" && active_lists.contains(&f.id))
-        .map(|f| SidebarList {
-            slug: slugs
-                .lists
-                .get(&f.id)
-                .cloned()
-                .unwrap_or_else(|| f.title.to_lowercase()),
-            color: db
-                .list_color(actor, &f.id)
-                .ok()
-                .flatten()
-                .unwrap_or_else(|| "blue".into()),
-            id: f.id,
-            title: f.title,
+        .filter(|f| {
+            (f.kind == "list" && active_lists.contains(&f.id))
+                || (f.kind == "workspace" && spaces.iter().any(|space| space.id == f.id))
+        })
+        .map(|f| {
+            let slug = if f.kind == "workspace" {
+                slugs.workspaces.get(&f.id)
+            } else {
+                slugs.lists.get(&f.id)
+            }
+            .cloned()
+            .unwrap_or_else(|| f.title.to_lowercase());
+            let initials = f
+                .title
+                .split_whitespace()
+                .filter_map(|part| part.chars().next())
+                .take(2)
+                .flat_map(char::to_uppercase)
+                .collect();
+            let color = if f.kind == "list" {
+                db.list_color(actor, &f.id)
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| "blue".into())
+            } else {
+                String::new()
+            };
+            SidebarFavorite {
+                kind: f.kind,
+                id: f.id,
+                title: f.title,
+                slug,
+                color,
+                initials,
+            }
         })
         .collect();
     let menu_spaces = spaces
@@ -212,6 +247,7 @@ pub(super) fn build_sidebar(
         settings_section: String::new(),
         list_is_favorite: favorite_ids.iter().any(|id| id == current_list),
         favorite_ids,
+        favorite_space_ids,
         favorites,
         account_id: user,
         lists,

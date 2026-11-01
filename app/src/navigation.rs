@@ -16,6 +16,43 @@ pub struct FavoriteInput {
     pub id: String,
     pub favorite: bool,
 }
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[serde(deny_unknown_fields)]
+pub struct FavoriteKey {
+    pub kind: String,
+    pub id: String,
+}
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FavoriteOrder {
+    pub expected: Vec<FavoriteKey>,
+    pub order: Vec<FavoriteKey>,
+}
+fn favorites_for(conn: &rusqlite::Connection, actor: &str) -> Result<Vec<Favorite>, Error> {
+    let (user, _) = actor_identity(conn, actor)?;
+    let mut statement=conn.prepare("SELECT f.target_kind,f.target_id,CASE f.target_kind WHEN 'list' THEN l.title ELSE w.title END FROM favorites f LEFT JOIN lists l ON f.target_kind='list' AND l.id=f.target_id LEFT JOIN workspaces w ON f.target_kind='workspace' AND w.id=f.target_id WHERE f.user_id=?1 AND (f.target_kind='list' AND l.archived=0 AND NOT EXISTS(SELECT 1 FROM workspace_lifecycle x WHERE x.workspace_id=l.workspace_id AND (x.archived=1 OR x.deleted_at IS NOT NULL)) AND EXISTS(SELECT 1 FROM actor_list_access a WHERE a.actor_id=?2 AND a.list_id=f.target_id AND a.rank>=1) OR f.target_kind='workspace' AND NOT EXISTS(SELECT 1 FROM workspace_lifecycle x WHERE x.workspace_id=w.id AND (x.archived=1 OR x.deleted_at IS NOT NULL)) AND EXISTS(SELECT 1 FROM actor_workspace_access a WHERE a.actor_id=?2 AND a.workspace_id=f.target_id AND a.rank>=1)) ORDER BY f.position,f.created_at,f.target_kind,f.target_id")?;
+    Ok(statement
+        .query_map(params![user, actor], |r| {
+            let kind: String = r.get(0)?;
+            let id: String = r.get(1)?;
+            let url = format!(
+                "/{}/{}",
+                if kind == "list" {
+                    "lists"
+                } else {
+                    "workspaces"
+                },
+                id
+            );
+            Ok(Favorite {
+                kind,
+                id,
+                title: r.get(2)?,
+                url,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?)
+}
 impl Store {
     pub fn list_reference(&self, actor: &str, id: &str) -> Result<String, Error> {
         access_rank(&self.conn, actor, id, 1)?;
@@ -54,29 +91,61 @@ impl Store {
         }
     }
     pub fn favorites(&self, actor: &str) -> Result<Vec<Favorite>, Error> {
-        let (user, _) = actor_identity(&self.conn, actor)?;
-        let mut statement=self.conn.prepare("SELECT f.target_kind,f.target_id,CASE f.target_kind WHEN 'list' THEN l.title ELSE w.title END FROM favorites f LEFT JOIN lists l ON f.target_kind='list' AND l.id=f.target_id LEFT JOIN workspaces w ON f.target_kind='workspace' AND w.id=f.target_id WHERE f.user_id=?1 AND (f.target_kind='list' AND l.archived=0 AND EXISTS(SELECT 1 FROM actor_list_access a WHERE a.actor_id=?2 AND a.list_id=f.target_id AND a.rank>=1) OR f.target_kind='workspace' AND EXISTS(SELECT 1 FROM actor_workspace_access a WHERE a.actor_id=?2 AND a.workspace_id=f.target_id AND a.rank>=1)) ORDER BY f.created_at,f.target_kind,f.target_id")?;
-        Ok(statement
-            .query_map(params![user, actor], |r| {
-                let kind: String = r.get(0)?;
-                let id: String = r.get(1)?;
-                let url = format!(
-                    "/{}/{}",
-                    if kind == "list" {
-                        "lists"
-                    } else {
-                        "workspaces"
-                    },
-                    id
-                );
-                Ok(Favorite {
-                    kind,
-                    id,
-                    title: r.get(2)?,
-                    url,
-                })
-            })?
-            .collect::<Result<Vec<_>, _>>()?)
+        favorites_for(&self.conn, actor)
+    }
+    pub fn reorder_favorites(
+        &mut self,
+        actor: &str,
+        expected: &[FavoriteKey],
+        order: &[FavoriteKey],
+    ) -> Result<(), Error> {
+        let user = actor_user(&self.conn, actor, 3)?;
+        let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
+        let current = favorites_for(&tx, actor)?
+            .into_iter()
+            .map(|item| FavoriteKey {
+                kind: item.kind,
+                id: item.id,
+            })
+            .collect::<Vec<_>>();
+        if current != expected {
+            return Err(Error::Conflict(
+                "Favorites changed; reload before reordering".into(),
+            ));
+        }
+        let mut left = current.clone();
+        let mut right = order.to_vec();
+        left.sort();
+        right.sort();
+        if left != right {
+            return Err(Error::Invalid(
+                "Order must include each visible favorite once".into(),
+            ));
+        }
+        // Replace visible slots while retaining inaccessible favorites in their places.
+        let all = {
+            let mut statement = tx.prepare("SELECT target_kind,target_id FROM favorites WHERE user_id=?1 ORDER BY position,created_at,target_kind,target_id")?;
+            statement
+                .query_map([&user], |row| {
+                    Ok(FavoriteKey {
+                        kind: row.get(0)?,
+                        id: row.get(1)?,
+                    })
+                })?
+                .collect::<Result<Vec<_>, _>>()?
+        };
+        let visible = current.iter().collect::<std::collections::HashSet<_>>();
+        let mut replacements = order.iter();
+        for (position, original) in all.iter().enumerate() {
+            let item = if visible.contains(original) {
+                replacements.next().expect("validated visible order")
+            } else {
+                original
+            };
+            tx.execute("UPDATE favorites SET position=?4 WHERE user_id=?1 AND target_kind=?2 AND target_id=?3", params![user,item.kind,item.id,position as i64])?;
+        }
+        tx.commit()?;
+        Ok(())
     }
     pub fn set_favorite(&mut self, actor: &str, input: FavoriteInput) -> Result<(), Error> {
         let user = actor_user(&self.conn, actor, 3)?;
@@ -91,7 +160,7 @@ impl Store {
         }
         if input.favorite {
             tx.execute(
-                "INSERT OR IGNORE INTO favorites(user_id,target_kind,target_id) VALUES(?1,?2,?3)",
+                "INSERT OR IGNORE INTO favorites(user_id,target_kind,target_id,position) VALUES(?1,?2,?3,CASE WHEN ?2='workspace' THEN COALESCE((SELECT min(position)-1 FROM favorites WHERE user_id=?1),0) ELSE COALESCE((SELECT max(position)+1 FROM favorites WHERE user_id=?1),0) END)",
                 params![user, input.kind, input.id],
             )?;
         } else {
@@ -151,6 +220,57 @@ pub(crate) fn validate_list_color(color: &Option<String>) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn space_favorites_prepend_and_reordering_checks_the_visible_snapshot() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let space = db
+            .create_workspace(
+                "dev",
+                crate::workspace::WorkspaceInput {
+                    title: "Work plans".into(),
+                    description: String::new(),
+                },
+            )
+            .unwrap();
+        db.set_favorite(
+            "dev",
+            FavoriteInput {
+                kind: "list".into(),
+                id: "groceries".into(),
+                favorite: true,
+            },
+        )
+        .unwrap();
+        db.set_favorite(
+            "dev",
+            FavoriteInput {
+                kind: "workspace".into(),
+                id: space.id.clone(),
+                favorite: true,
+            },
+        )
+        .unwrap();
+        let expected = db
+            .favorites("dev")
+            .unwrap()
+            .into_iter()
+            .map(|item| FavoriteKey {
+                kind: item.kind,
+                id: item.id,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(expected[0].id, space.id);
+        let mut order = expected.clone();
+        order.reverse();
+        db.reorder_favorites("dev", &expected, &order).unwrap();
+        assert_eq!(db.favorites("dev").unwrap()[0].id, "groceries");
+        assert!(matches!(
+            db.reorder_favorites("dev", &expected, &order),
+            Err(Error::Conflict(_))
+        ));
+        assert!(db.reorder_favorites("other", &order, &order).is_err());
+    }
     #[test]
     fn favorites_are_personal_and_recheck_revocation() {
         let mut db = Store::memory().unwrap();

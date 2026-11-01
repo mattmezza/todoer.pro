@@ -1,6 +1,7 @@
 import './list-archive.js';
 import './entity-name.js';
 import './reference-copy.js';
+import './favorite-order.js';
 import { beginLoading } from './loading.js';
 import './notification-center.js';
 import { request as fetch } from './request.js';
@@ -511,9 +512,11 @@ if (spaceSettings) {
 
 // Personal favorites are available to viewers as well as list editors.
 document.addEventListener('click', async (event) => {
-  const button = event.target.closest('[data-list-favorite]');
+  const button = event.target.closest('[data-list-favorite],[data-space-favorite]');
   if (!button || button.disabled) return;
   const favorite = button.dataset.isFavorite !== 'true';
+  const kind = button.dataset.spaceFavorite ? 'workspace' : 'list';
+  const id = button.dataset.spaceFavorite || button.dataset.listFavorite;
   button.disabled = true;
   try {
     const response = await fetch('/api/v1/favorites', {
@@ -525,20 +528,34 @@ document.addEventListener('click', async (event) => {
           document.querySelector('[name=csrf]')?.value ||
           '',
       },
-      body: JSON.stringify({ kind: 'list', id: button.dataset.listFavorite, favorite }),
+      body: JSON.stringify({ kind, id, favorite }),
     });
     if (!response.ok)
       throw Error(
         (await response.json()).error?.message || 'Could not update favorites.',
       );
-    for (const item of document.querySelectorAll('[data-list-favorite]')) {
-      if (item.dataset.listFavorite !== button.dataset.listFavorite) continue;
+    for (const item of document.querySelectorAll(
+      '[data-list-favorite],[data-space-favorite]',
+    )) {
+      if ((item.dataset.spaceFavorite || item.dataset.listFavorite) !== id) continue;
       item.dataset.isFavorite = String(favorite);
       item.querySelector('span').textContent = favorite
         ? 'Remove from favorites'
         : 'Add to favorites';
     }
     button.closest('details')?.removeAttribute('open');
+    const current = document.querySelector('[data-favorites-container]');
+    if (current) {
+      const page = await fetch(location.pathname + location.search, {
+        cache: 'no-store',
+      });
+      if (page.ok) {
+        const next = new DOMParser()
+          .parseFromString(await page.text(), 'text/html')
+          .querySelector('[data-favorites-container]');
+        if (next) current.replaceChildren(...next.childNodes);
+      }
+    }
   } catch (error) {
     toast(error.message);
   } finally {

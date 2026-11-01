@@ -12645,3 +12645,29 @@ form[data-list-edit] .list-color-custom .list-edit-color {
   height: 36px;
   flex: 0 0 36px;
 }
+
+.favorite-entry {
+  cursor: grab;
+  touch-action: pan-y;
+}
+.favorite-entry:active {
+  cursor: grabbing;
+}
+.favorite-entry[data-favorite-dragging] {
+  opacity: 0.45;
+}
+.favorite-entry[data-favorite-drop='before'] {
+  box-shadow: 0 -2px var(--accent);
+}
+.favorite-entry[data-favorite-drop='after'] {
+  box-shadow: 0 2px var(--accent);
+}
+.reference-sidebar .favorite-space-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #34445f;
+  color: #e2e8f0;
+  font: 700 10px/1 var(--font-sans);
+}

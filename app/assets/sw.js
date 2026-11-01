@@ -19,6 +19,7 @@ const STATIC = [
   '/assets/list-archive.js',
   '/assets/entity-name.js',
   '/assets/reference-copy.js',
+  '/assets/favorite-order.js',
   '/assets/loading.js',
   '/assets/request.js',
   '/assets/reauth.js',
