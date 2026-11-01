@@ -11043,9 +11043,16 @@ form[data-load-failed],
   gap: 6px 16px;
   align-items: start;
 }
-.reference-list-page .inline-capture {
+.reference-list-page :is(.inline-capture, [data-section-create]) {
   border: 0;
   padding: 16px;
+}
+.reference-list-page [data-section-create] input[name='title'] {
+  font-size: 18px;
+  font-weight: 600;
+}
+.reference-list-page [data-section-create] .inline-actions {
+  border: 0;
 }
 .reference-list-page .inline-capture .capture-entry {
   row-gap: 0;
@@ -11057,7 +11064,8 @@ form[data-load-failed],
 .reference-list-page .inline-capture textarea[name='description'] {
   font-size: 16px;
 }
-.reference-list-page .inline-capture :is(#capture-cancel, [data-capture-cancel]) {
+.reference-list-page
+  :is(#capture-cancel, [data-capture-cancel], [data-section-add-cancel]) {
   border-radius: 6px;
   background: var(--hover);
   color: var(--text);
@@ -13132,12 +13140,15 @@ body > .planning-detail-dismiss {
   .reference-list-page .inline-capture .capture-help:has(.capture-literal) {
     flex-basis: 100%;
   }
-  .reference-list-page .inline-capture .inline-actions {
+  .reference-list-page :is(.inline-capture, [data-section-create]) .inline-actions {
     flex-wrap: wrap;
     justify-content: center;
     gap: 8px;
   }
-  .reference-list-page .inline-capture .inline-actions > button {
+  .reference-list-page
+    :is(.inline-capture, [data-section-create])
+    .inline-actions
+    > button {
     flex: 1 1 0;
     min-width: 0;
     justify-content: center;
