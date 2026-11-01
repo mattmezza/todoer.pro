@@ -12838,7 +12838,9 @@ form[data-list-edit] .list-color-custom .list-edit-color {
 .planning-detail-content .task-page-heading h1 {
   font-size: clamp(24px, 2.2vw, 32px);
 }
-.planning-detail-content .task-due-summary:has(.task-date-summary):not([hidden]) {
+.planning-detail-content
+  .task-page:not([data-edit-mode])
+  > .task-due-summary:has(.task-date-summary):not([hidden]) {
   display: flex !important;
   float: none;
   max-width: none;
@@ -12922,7 +12924,9 @@ body > .planning-detail-dismiss {
   top: calc(20px + env(safe-area-inset-top));
   z-index: 65;
 }
-.planning-detail-content .task-due-summary:has(.task-date-summary):not([hidden]) {
+.planning-detail-content
+  .task-page:not([data-edit-mode])
+  > .task-due-summary:has(.task-date-summary):not([hidden]) {
   margin-top: 8px;
 }
 .planning-detail-content .task-page .task-page-brief {

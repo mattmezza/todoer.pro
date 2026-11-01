@@ -219,6 +219,18 @@ test('Today uses the same task-page panel', async ({ page }) => {
   await expect(panel.locator('.task-date-summary')).toContainText('Planned for');
   await expect(panel.locator('.task-date-summary')).toBeVisible();
   await expect(panel.getByRole('button', { name: title })).toBeVisible();
+  await panel.getByRole('button', { name: title }).click();
+  await expect(panel.getByLabel('Task title', { exact: true })).toBeVisible();
+  await expect(panel.locator('.task-date-summary')).toBeHidden();
+  await panel.getByLabel('Task title', { exact: true }).fill(`${title} updated`);
+  await panel.getByLabel('Task title', { exact: true }).press('Enter');
+  await expect(panel.getByRole('button', { name: `${title} updated` })).toBeVisible();
+  await expect(panel.locator('.task-date-summary')).toBeVisible();
+  await panel.getByRole('button', { name: 'Add a description' }).click();
+  await expect(panel.getByLabel('Description, Markdown supported')).toBeVisible();
+  await expect(panel.locator('.task-date-summary')).toBeHidden();
+  await panel.locator('[data-cancel-edit]').click();
+  await expect(panel.locator('.task-date-summary')).toBeVisible();
   const closeBox = await page.getByLabel('Close task details').boundingBox();
   await expect
     .poll(async () => {
