@@ -210,7 +210,7 @@ async function openSettings(listId, selected, kind, taskRoot) {
     if (section) {
       const mounted = task ? section : section.cloneNode(true);
       if (!task && tab === 'sharing') {
-        if (workspace) {
+        if (workspace && !docked) {
           const membersHeading = mounted.querySelector('#members-heading');
           if (membersHeading) membersHeading.textContent = 'Members';
         }
