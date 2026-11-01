@@ -83,7 +83,7 @@ test('mobile row gestures target one task and section controls fit the screen', 
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect(row(tasks[0].id)).not.toHaveClass(/is-complete/);
   await gesture(tasks[1].id, -120, 0, 0, () =>
-    checkReveal(tasks[1].id, 'trash', 'Trash'),
+    checkReveal(tasks[1].id, 'archive', 'Archive'),
   );
   await expect(row(tasks[1].id)).toHaveCount(0);
   await expect(row(tasks[0].id)).toBeVisible();

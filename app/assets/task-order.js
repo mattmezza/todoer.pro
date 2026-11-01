@@ -339,7 +339,7 @@ export function mountTaskOrdering({
       if (event.cancelable) event.preventDefault();
       current.dx = current.row.dataset.complete === 'true' ? Math.min(0, dx) : dx;
       const distance = Math.max(-120, Math.min(120, current.dx));
-      current.row.dataset.swipeAction = distance >= 0 ? 'done' : 'trash';
+      current.row.dataset.swipeAction = distance >= 0 ? 'done' : 'archive';
       current.row.style.setProperty('--swipe-distance', `${distance}px`);
     } else if (current.mode === 'drag') {
       if (event.cancelable) event.preventDefault();
@@ -370,7 +370,7 @@ export function mountTaskOrdering({
     if (current.mode !== 'pending') suppressClickUntil = Date.now() + 700;
     resetTouch();
     if (current.mode === 'swipe' && Math.abs(current.dx || 0) >= 80) {
-      if (!blocked()) onSwipe?.(current.row, current.dx > 0 ? 'complete' : 'trash');
+      if (!blocked()) onSwipe?.(current.row, current.dx > 0 ? 'complete' : 'archive');
     } else if (current.mode === 'drag' && current.target) {
       run(async () => {
         const state = await current.pending;

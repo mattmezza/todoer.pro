@@ -846,19 +846,21 @@ async function swipeTask(row, action) {
   swipingTasks.add(id);
   row.setAttribute('aria-busy', 'true');
   try {
+    const title = row.querySelector('.task-title')?.textContent.trim() || 'Task';
     const result = await api(
-      `/tasks/${encodeURIComponent(id)}${action === 'trash' ? '/trash' : ''}`,
-      action === 'trash' ? 'POST' : 'PATCH',
-      {
-        revision: Number(row.dataset.revision),
-        ...(action === 'complete' ? { complete: true } : {}),
-      },
+      action === 'archive'
+        ? `/cli/lifecycle/task/${encodeURIComponent(id)}`
+        : `/tasks/${encodeURIComponent(id)}`,
+      action === 'archive' ? 'POST' : 'PATCH',
+      action === 'archive'
+        ? { archive: true }
+        : { revision: Number(row.dataset.revision), complete: true },
     );
     const element = document.createElement('div');
     element.className = 'inbox-undo';
     element.setAttribute('role', 'status');
     const text = document.createElement('span');
-    text.textContent = `${action === 'trash' ? 'Moved to trash' : 'Completed'} · ${result.title}`;
+    text.textContent = `${action === 'archive' ? 'Archived' : 'Completed'} · ${result.title || title}`;
     const undo = document.createElement('button');
     undo.type = 'button';
     undo.textContent = 'Undo';
@@ -867,12 +869,13 @@ async function swipeTask(row, action) {
       undo.disabled = true;
       try {
         await api(
-          `/tasks/${encodeURIComponent(id)}${action === 'trash' ? '/restore' : ''}`,
-          action === 'trash' ? 'POST' : 'PATCH',
-          {
-            revision: result.revision,
-            ...(action === 'complete' ? { complete: false } : {}),
-          },
+          action === 'archive'
+            ? `/cli/lifecycle/task/${encodeURIComponent(id)}`
+            : `/tasks/${encodeURIComponent(id)}`,
+          action === 'archive' ? 'POST' : 'PATCH',
+          action === 'archive'
+            ? { archive: false }
+            : { revision: result.revision, complete: false },
         );
         swipeUndo.splice(swipeUndo.indexOf(item), 1);
         element.remove();
