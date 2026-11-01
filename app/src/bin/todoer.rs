@@ -48,6 +48,12 @@ enum Command {
         /// Show descriptions and child counts.
         #[arg(long)]
         info: bool,
+        /// Show a list's sections and top-level tasks.
+        #[arg(long)]
+        full: bool,
+        /// Include nested subtasks in a full list view.
+        #[arg(long, requires = "full")]
+        sub: bool,
     },
     /// List details, creation, sharing and access administration.
     Lists {
@@ -1119,7 +1125,23 @@ async fn run(args: Args) -> Result<(), (i32, String)> {
             read_request("/review".into())
         }
         Command::Workspace { command } => workspace_request(command)?,
-        Command::View { reference, .. } => view_request(&reference)?,
+        Command::View {
+            reference,
+            full,
+            sub,
+            ..
+        } => {
+            if full && !reference.starts_with('#') {
+                return Err((2, "--full requires a list reference".into()));
+            }
+            if full {
+                query_pairs.push(("full".into(), "true".into()));
+                if sub {
+                    query_pairs.push(("sub".into(), "true".into()));
+                }
+            }
+            view_request(&reference)?
+        }
         Command::Lists { command } => list_request(command)?,
         Command::Sections { command } => section_request(command)?,
         Command::AuthInfo | Command::Login { .. } | Command::Logout | Command::AuthStatus => {
@@ -1664,7 +1686,83 @@ fn view_label(row: &Value) -> String {
     format!("{marker}{prefix}{title}")
 }
 
+fn count_text(counts: &Value) -> String {
+    [("sections", "s"), ("open", "o"), ("done", "d")]
+        .into_iter()
+        .filter_map(|(field, prefix)| counts[field].as_u64().map(|n| format!("{prefix}{n}")))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn format_full_view(value: &Value, info: bool) -> String {
+    let mut entity = value["entity"].clone();
+    entity["kind"] = json!("list");
+    let mut output = format!(
+        "{}  #{}",
+        view_label(&entity),
+        value["reference"].as_str().unwrap_or("?")
+    );
+    if info {
+        let counts = count_text(&value["counts"]);
+        if !counts.is_empty() {
+            output.push_str(&format!("  {counts}"));
+        }
+    }
+    output.push('\n');
+    if let Some(description) = entity["description"]
+        .as_str()
+        .filter(|s| !s.trim().is_empty())
+    {
+        output.push_str(&format!("\n{description}\n"));
+    }
+    if let Some(children) = value["children"].as_array() {
+        let mut unsectioned = false;
+        for row in children {
+            if row["kind"] == "section" {
+                output.push_str(&format!(
+                    "\n{}  ${}",
+                    view_label(row),
+                    row["reference"].as_str().unwrap_or("?")
+                ));
+                if info {
+                    let counts = count_text(&row["counts"]);
+                    if !counts.is_empty() {
+                        output.push_str(&format!("  {counts}"));
+                    }
+                }
+                output.push('\n');
+                if let Some(tasks) = row["children"].as_array() {
+                    for task in tasks {
+                        append_full_task(&mut output, task, 1);
+                    }
+                }
+            } else {
+                if !unsectioned {
+                    output.push('\n');
+                    unsectioned = true;
+                }
+                append_full_task(&mut output, row, 0);
+            }
+        }
+    }
+    output
+}
+
+fn append_full_task(output: &mut String, task: &Value, indent: usize) {
+    let depth = task["depth"].as_u64().unwrap_or(0).min(256) as usize;
+    let prefix = view_prefix(task["kind"].as_str().unwrap_or(""));
+    output.push_str(&format!(
+        "{}{}  {prefix}{}\n",
+        "  ".repeat(indent + depth),
+        view_label(task),
+        task["reference"].as_str().unwrap_or("?")
+    ));
+}
+
 fn format_view(value: &Value, info: bool) -> String {
+    if value["full"] == true {
+        return format_full_view(value, info);
+    }
     let mut entity = value["entity"].clone();
     entity["kind"] = value["kind"].clone();
     let prefix = view_prefix(value["kind"].as_str().unwrap_or(""));
@@ -1688,20 +1786,10 @@ fn format_view(value: &Value, info: bool) -> String {
             output.push_str(&" ".repeat(width - label.chars().count() + 2));
             output.push_str(&format!("{prefix}{reference}"));
             if info && row["counts"].is_object() {
-                let counts = &row["counts"];
-                let mut parts = Vec::new();
-                if let Some(sections) = counts["sections"].as_u64() {
-                    parts.push(format!("s{sections}"));
-                }
-                if let Some(open) = counts["open"].as_u64() {
-                    parts.push(format!("o{open}"));
-                }
-                if let Some(done) = counts["done"].as_u64() {
-                    parts.push(format!("d{done}"));
-                }
-                if !parts.is_empty() {
+                let counts = count_text(&row["counts"]);
+                if !counts.is_empty() {
                     output.push_str("  ");
-                    output.push_str(&parts.join(" "));
+                    output.push_str(&counts);
                 }
             }
             output.push('\n');
@@ -1822,10 +1910,25 @@ mod list_output_tests {
         hide_revisions(&mut raw);
         assert_eq!(raw, json!({"child":{"title":"Milk"}}));
         assert!(Args::try_parse_from(["todoer", "view", "@abc2345", "--info"]).is_ok());
+        assert!(
+            Args::try_parse_from(["todoer", "view", "#abc2345", "--full", "--sub", "--info"])
+                .is_ok()
+        );
+        assert!(Args::try_parse_from(["todoer", "view", "#abc2345", "--sub"]).is_err());
         assert!(Args::try_parse_from(["todoer", "spaces", "all"]).is_ok());
         assert!(Args::try_parse_from(["todoer", "space", "all"]).is_ok());
         assert!(Args::try_parse_from(["todoer", "workspace", "all"]).is_ok());
         assert!(Args::try_parse_from(["todoer", "review", "--space", "abc"]).is_ok());
         assert!(Args::try_parse_from(["todoer", "query", "--space", "abc"]).is_ok());
+    }
+
+    #[test]
+    fn full_list_output_shows_sections_and_nested_tasks_with_optional_counts() {
+        let value = json!({"full":true,"kind":"list","reference":"listref","entity":{"title":"groceries","description":"List for groceries."},"counts":{"sections":1,"open":2,"done":1},"children":[{"kind":"section","title":"veggies","reference":"sectionref","counts":{"open":1,"done":1},"children":[{"kind":"task","title":"Tomatoes","reference":"taskref","complete":false,"depth":0},{"kind":"subtask","title":"Check ripeness","reference":"subref","complete":false,"depth":1},{"kind":"task","title":"Carrots","reference":"done","complete":true,"depth":0}]},{"kind":"task","title":"Milk","reference":"milk","complete":false,"depth":0}]});
+        assert_eq!(
+            format_view(&value, true),
+            "#groceries  #listref  s1 o2 d1\n\nList for groceries.\n\n$veggies  $sectionref  o1 d1\n  [ ] %Tomatoes  %taskref\n    [ ] ^Check ripeness  ^subref\n  [x] %Carrots  %done\n\n[ ] %Milk  %milk\n"
+        );
+        assert!(!format_view(&value, false).contains("s1 o2 d1"));
     }
 }

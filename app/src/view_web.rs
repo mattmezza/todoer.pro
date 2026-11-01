@@ -1,17 +1,92 @@
 //! Immediate, authorized children for the CLI's explorable view.
 use super::*;
 use rusqlite::params;
+use std::collections::HashMap;
+
+#[derive(Default, Deserialize)]
+pub(super) struct ViewOptions {
+    #[serde(default)]
+    full: bool,
+    #[serde(default)]
+    sub: bool,
+}
 
 pub(super) async fn view(
     State(s): State<AppState>,
     h: HeaderMap,
     Path((kind, reference)): Path<(String, String)>,
+    Query(options): Query<ViewOptions>,
 ) -> Result<Json<Value>, ApiError> {
     let actor = s.auth(&h, false)?;
     Ok(Json(
-        s.run(move |db| view_data(db, &actor, &kind, &reference))
-            .await?,
+        s.run(move |db| {
+            if options.sub && !options.full {
+                return Err(Error::Invalid("sub requires full".into()));
+            }
+            if options.full {
+                if kind != "list" {
+                    return Err(Error::Invalid("full view requires a list".into()));
+                }
+                full_list(db, &actor, &reference, options.sub)
+            } else {
+                view_data(db, &actor, &kind, &reference)
+            }
+        })
+        .await?,
     ))
+}
+
+fn full_list(db: &Store, actor: &str, reference: &str, sub: bool) -> Result<Value, Error> {
+    let id = crate::defaults::resolve(&db.conn, "list", reference)?;
+    let info = db.list_info(actor, &id)?;
+    let sections = db.sections(actor, &id)?;
+    let mut stmt = db.conn.prepare("SELECT t.id,t.reference,t.list_id,t.parent_id,t.title,'' AS description,t.complete,t.revision,t.position,CASE WHEN d.section_id IS NULL THEN loc.section_id ELSE NULL END FROM tasks t LEFT JOIN task_locations loc ON loc.task_id=t.id LEFT JOIN list_defaults d ON d.section_id=loc.section_id WHERE t.list_id=?1 AND t.deleted_at IS NULL AND (?2 OR t.parent_id IS NULL) ORDER BY t.position,t.id")?;
+    let tasks = stmt
+        .query_map(params![id, sub], |row| {
+            Ok((
+                crate::core::task_row(row)?,
+                row.get::<_, Option<String>>(9)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut roots: HashMap<Option<String>, Vec<&Task>> = HashMap::new();
+    let mut descendants: HashMap<&str, Vec<&Task>> = HashMap::new();
+    for (task, section) in &tasks {
+        if let Some(parent) = task.parent_id.as_deref() {
+            descendants.entry(parent).or_default().push(task);
+        } else {
+            roots.entry(section.clone()).or_default().push(task);
+        }
+    }
+    let render_tasks = |section: Option<String>| -> Result<Vec<Value>, Error> {
+        let mut result = Vec::new();
+        let mut stack: Vec<(&Task, usize)> = roots
+            .get(&section)
+            .into_iter()
+            .flatten()
+            .rev()
+            .map(|task| (*task, 0))
+            .collect();
+        while let Some((task, depth)) = stack.pop() {
+            let mut row = task_summary(db, task)?;
+            row["depth"] = json!(depth);
+            result.push(row);
+            if let Some(children) = descendants.get(task.id.as_str()) {
+                stack.extend(children.iter().rev().map(|child| (*child, depth + 1)));
+            }
+        }
+        Ok(result)
+    };
+    let mut children = Vec::new();
+    for section in &sections {
+        children.push(json!({"kind":"section","id":section.id,"title":section.title,"reference":crate::defaults::public_id(&db.conn, "section", &section.id)?,"revision":section.revision,"counts":counts(db, &id, Some(&section.id))?,"children":render_tasks(Some(section.id.clone()))?}));
+    }
+    children.extend(render_tasks(None)?);
+    let mut total = counts(db, &id, None)?;
+    total["sections"] = json!(sections.len());
+    Ok(
+        json!({"kind":"list","reference":crate::defaults::public_id(&db.conn, "list", &id)?,"entity":info,"counts":total,"full":true,"children":children}),
+    )
 }
 
 fn task_children(
@@ -133,6 +208,7 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         let response = app
+            .clone()
             .oneshot(
                 Request::builder()
                     .uri("/api/v1/view/list/groceries")
@@ -148,6 +224,21 @@ mod tests {
         assert_eq!(value["entity"]["id"], "groceries");
         assert!(value["entity"]["revision"].is_i64());
         assert!(value["children"].is_array());
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/view/list/groceries?full=true&sub=true")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let value: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(value["full"], true);
+        assert!(value["counts"]["sections"].is_number());
     }
 
     #[test]
@@ -266,5 +357,26 @@ mod tests {
         assert!(view_data(&db, "other", "list", &list.id).is_err());
         assert!(view_data(&db, "other", "section", &section.id).is_err());
         assert!(view_data(&db, "other", "task", &root.id).is_err());
+        let full = full_list(&db, "dev", &list.id, false).unwrap();
+        assert_eq!(full["counts"], json!({"sections":1,"open":1,"done":1}));
+        assert_eq!(full["children"][0]["children"].as_array().unwrap().len(), 1);
+        assert_eq!(full["children"][0]["children"][0]["id"], root.id);
+        assert_eq!(full["children"][1]["id"], done.id);
+        let full_sub = full_list(&db, "dev", &list.id, true).unwrap();
+        let tasks = full_sub["children"][0]["children"].as_array().unwrap();
+        assert_eq!(tasks.len(), 3);
+        assert_eq!(
+            (tasks[0]["id"].as_str(), tasks[0]["depth"].as_u64()),
+            (Some(root.id.as_str()), Some(0))
+        );
+        assert_eq!(
+            (tasks[1]["id"].as_str(), tasks[1]["depth"].as_u64()),
+            (Some(child.id.as_str()), Some(1))
+        );
+        assert_eq!(
+            (tasks[2]["id"].as_str(), tasks[2]["depth"].as_u64()),
+            (Some(subchild.id.as_str()), Some(2))
+        );
+        assert!(full_list(&db, "other", &list.id, true).is_err());
     }
 }
