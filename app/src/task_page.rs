@@ -11,6 +11,8 @@ struct Crumb {
 }
 struct Child {
     id: String,
+    comment_count: u64,
+    subtask_count: u64,
     public_reference: String,
     title: String,
     description_html: String,
@@ -21,6 +23,8 @@ struct Child {
 #[derive(Template)]
 #[template(path = "task-page.html")]
 struct TaskPage {
+    comment_count: u64,
+    subtask_count: u64,
     sidebar: Sidebar,
     task: Task,
     public_reference: String,
@@ -155,7 +159,7 @@ async fn page(
                 &task.id,
                 SubtreeRead {
                     limit: 100,
-                    fields: vec![TaskField::Title, TaskField::DescriptionHtml, TaskField::Complete, TaskField::Revision],
+                    fields: vec![TaskField::Title, TaskField::DescriptionHtml, TaskField::CommentCount, TaskField::SubtaskCount, TaskField::Complete, TaskField::Revision],
                     cursor: None,
                 },
             )?;
@@ -177,6 +181,8 @@ async fn page(
                 .map(|x| -> Result<Child, Error> { let id = x["id"].as_str().unwrap_or_default().to_owned(); Ok(Child {
                     public_reference: crate::defaults::public_id(&db.conn, "task", &id)?,
                     id,
+                    comment_count: x["comment_count"].as_u64().unwrap_or(0),
+                    subtask_count: x["subtask_count"].as_u64().unwrap_or(0),
                     title: x["title"].as_str().unwrap_or_default().into(),
                     description_html: x["description_html"].as_str().unwrap_or_default().into(),
                     complete: x["complete"].as_bool().unwrap_or(false),
@@ -202,7 +208,10 @@ async fn page(
                 "SELECT COALESCE(MAX(h.seq),0) FROM history h JOIN actor_list_access a ON a.list_id=h.list_id WHERE a.actor_id=?1",
                 [&a], |row| row.get(0),
             )?;
+            let counts = db.task_counts(&a, &[task.id.as_str()])?.get(&task.id).copied().unwrap_or_default();
             Ok(TaskPage {
+                comment_count: counts.comments,
+                subtask_count: counts.subtasks,
                 list_color: db.list_color(&a, &task.list_id)?.unwrap_or_else(|| "blue".into()),
                 change_cursor,
                 public_reference,

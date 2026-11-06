@@ -37,6 +37,7 @@ const STATIC = [
   '/assets/task-panel.js',
   '/assets/task-gestures.js',
   '/assets/task-swipe-actions.js',
+  '/assets/task-indicators.js',
   '/assets/task-list-refresh.js',
   '/assets/structured-edit.js',
   '/assets/seamless-editor.js',

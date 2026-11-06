@@ -660,6 +660,8 @@ struct ListPage {
 }
 struct RenderedTask {
     task: Task,
+    comment_count: u64,
+    subtask_count: u64,
     public_reference: String,
     description_html: String,
 }
@@ -703,7 +705,15 @@ fn preorder_tasks(tasks: Vec<Task>) -> Result<Vec<Task>, Error> {
     Ok(result)
 }
 fn rendered_tasks(db: &Store, actor: &str, list: &str) -> Result<Vec<RenderedTask>, Error> {
-    preorder_tasks(db.tasks(actor, list)?)?
+    let tasks = preorder_tasks(db.tasks(actor, list)?)?;
+    let task_counts = db.task_counts(
+        actor,
+        &tasks
+            .iter()
+            .map(|task| task.id.as_str())
+            .collect::<Vec<_>>(),
+    )?;
+    tasks
         .into_iter()
         .map(|task| {
             let description_html = if task.description.is_empty() {
@@ -718,6 +728,16 @@ fn rendered_tasks(db: &Store, actor: &str, list: &str) -> Result<Vec<RenderedTas
                 )?
             };
             Ok(RenderedTask {
+                comment_count: task_counts
+                    .get(&task.id)
+                    .copied()
+                    .unwrap_or_default()
+                    .comments,
+                subtask_count: task_counts
+                    .get(&task.id)
+                    .copied()
+                    .unwrap_or_default()
+                    .subtasks,
                 public_reference: crate::defaults::public_id(&db.conn, "task", &task.id)?,
                 task,
                 description_html,
@@ -1586,6 +1606,8 @@ struct StructuredSearchPage {
     next: String,
 }
 struct SearchResultView {
+    comment_count: u64,
+    subtask_count: u64,
     task_id: String,
     title: String,
     kind: String,
@@ -1700,6 +1722,8 @@ async fn search_page(
                 }
             };
             SearchResultView {
+                comment_count: hit.comment_count.unwrap_or(0),
+                subtask_count: hit.subtask_count.unwrap_or(0),
                 task_id: url.strip_prefix("/tasks/").unwrap_or("").to_string(),
                 title: hit.title.unwrap_or_else(|| hit.kind.clone()),
                 kind: hit.kind,

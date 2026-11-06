@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Serialize)]
 pub struct PlanEntry {
     pub task: Task,
+    pub comment_count: u64,
+    pub subtask_count: u64,
     pub schedule: Schedule,
     pub list: String,
     pub workspace_id: Option<String>,
@@ -194,6 +196,13 @@ impl Store {
             .timezone
             .parse()
             .map_err(|_| Error::Invalid("Invalid timezone".into()))?;
+        let task_counts = self.task_counts(
+            actor,
+            &tasks
+                .iter()
+                .map(|task| task.id.as_str())
+                .collect::<Vec<_>>(),
+        )?;
         let mut result = Vec::new();
         for t in tasks {
             let (name,workspace,space): (String,Option<String>,Option<String>) = self.conn.query_row("SELECT l.title,CASE WHEN EXISTS(SELECT 1 FROM actor_workspace_access WHERE actor_id=?1 AND workspace_id=l.workspace_id) THEN l.workspace_id ELSE NULL END,CASE WHEN EXISTS(SELECT 1 FROM actor_workspace_access WHERE actor_id=?1 AND workspace_id=l.workspace_id) THEN w.title ELSE NULL END FROM lists l LEFT JOIN workspaces w ON w.id=l.workspace_id WHERE l.id=?2",params![actor,t.list_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?)))?;
@@ -260,6 +269,8 @@ impl Store {
                 )
                 .optional()?;
             result.push(PlanEntry {
+                comment_count: task_counts.get(&t.id).copied().unwrap_or_default().comments,
+                subtask_count: task_counts.get(&t.id).copied().unwrap_or_default().subtasks,
                 duration_minutes,
                 created_at,
                 tags,

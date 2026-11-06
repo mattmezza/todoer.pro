@@ -1,3 +1,4 @@
+import { taskIndicators } from './task-indicators.js';
 import { inference } from './ai-transaction.js';
 import { beginLoading } from './loading.js';
 
@@ -587,6 +588,8 @@ onPageLoad(async (scope) => {
         ),
       );
     row.append(check, text);
+    const indicators = taskIndicators(entry.comment_count, entry.subtask_count);
+    if (indicators) row.append(indicators);
     if (intake) {
       row.classList.add('inbox-task');
       if (rollObserver) rollObserver.observe(row);
@@ -1422,10 +1425,13 @@ onPageLoad(async (scope) => {
       cell.append(heading);
       const list = dayEntries(date);
       for (const entry of list.slice(0, 3)) {
-        const link = node(
-          'a',
-          (entry.local_time ? entry.local_time + ' ' : '') + entry.task.title,
-          'calendar-month-task',
+        const link = node('a', null, 'calendar-month-task');
+        link.append(
+          node(
+            'span',
+            (entry.local_time ? entry.local_time + ' ' : '') + entry.task.title,
+            'calendar-month-task-title',
+          ),
         );
         link.href = '/tasks/' + encodeURIComponent(entry.task.id);
         const priority = entry.schedule.priority ?? 3;
@@ -1433,8 +1439,10 @@ onPageLoad(async (scope) => {
           const indicator = node('span', '!'.repeat(3 - priority), 'calendar-priority');
           indicator.dataset.priority = priority;
           indicator.setAttribute('aria-label', `P${priority} priority`);
-          link.prepend(indicator);
+          link.querySelector('.calendar-month-task-title').prepend(indicator);
         }
+        const indicators = taskIndicators(entry.comment_count, entry.subtask_count);
+        if (indicators) link.append(indicators);
         cell.append(link);
       }
       if (list.length > 3)

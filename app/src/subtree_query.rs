@@ -20,6 +20,8 @@ pub enum TaskField {
     Title,
     Description,
     DescriptionHtml,
+    CommentCount,
+    SubtaskCount,
     Complete,
     Revision,
     Position,
@@ -32,6 +34,8 @@ impl TaskField {
             Self::ListId => "list_id",
             Self::Title => "title",
             Self::Description | Self::DescriptionHtml => "description",
+            Self::CommentCount => "comment_count",
+            Self::SubtaskCount => "subtask_count",
             Self::Complete => "complete",
             Self::Revision => "revision",
             Self::Position => "position",
@@ -309,6 +313,20 @@ impl Store {
         let mut sizes = String::from("octet_length(p.id)+coalesce(octet_length(p.parent_id),0)");
         for field in &read.fields {
             let col = field.column();
+            if *field == TaskField::SubtaskCount {
+                projection.push_str(
+                    ",'subtask_count',(SELECT count(*) FROM tasks child WHERE child.parent_id=p.id AND child.deleted_at IS NULL)",
+                );
+                sizes.push_str("+20");
+                continue;
+            }
+            if *field == TaskField::CommentCount {
+                projection.push_str(
+                    ",'comment_count',(SELECT count(*) FROM comments c WHERE c.task_id=p.id AND c.deleted_at IS NULL)",
+                );
+                sizes.push_str("+20");
+                continue;
+            }
             if *field == TaskField::PublicReference {
                 let expression =
                     "coalesce((SELECT short_id FROM task_public_ids WHERE task_id=p.id),p.id)";
@@ -471,6 +489,79 @@ mod tests {
         )
         .unwrap()
     }
+    #[test]
+    fn subtask_counts_measure_immediate_live_children() {
+        let mut s = store();
+        let root = add(&mut s, "root", None, "");
+        let child = add(&mut s, "child", Some(&root.id), "");
+        let grandchild = add(&mut s, "grandchild", Some(&child.id), "");
+        let deleted = add(&mut s, "removed child", Some(&root.id), "");
+        s.trash("dev", &deleted.id, deleted.revision).unwrap();
+        let fields = SubtreeRead {
+            fields: vec![TaskField::SubtaskCount],
+            ..Default::default()
+        };
+        let page = s.read_subtree("dev", &root.id, fields).unwrap();
+        assert_eq!(page.items[0]["subtask_count"], 1);
+        assert_eq!(page.items[1]["subtask_count"], 1);
+        assert_eq!(page.items[2]["subtask_count"], 0);
+        let counts = s
+            .task_counts("dev", &[&root.id, &child.id, &grandchild.id])
+            .unwrap();
+        assert_eq!(counts[&root.id].subtasks, 1);
+        assert_eq!(counts[&child.id].subtasks, 1);
+        assert_eq!(counts[&grandchild.id].subtasks, 0);
+        assert!(
+            read(&s, &root.id, 100, None)
+                .items
+                .iter()
+                .all(|item| item.get("subtask_count").is_none())
+        );
+    }
+
+    #[test]
+    fn comment_counts_are_opt_in_per_task_and_follow_discussion_changes() {
+        let mut s = store();
+        let root = add(&mut s, "root", None, "");
+        let child = add(&mut s, "child", Some(&root.id), "");
+        let comment = s
+            .create_comment(
+                "dev",
+                &child.id,
+                "subtree-comment-count",
+                crate::discussion::NewComment {
+                    body: "Child comment".into(),
+                    attachment_ids: Vec::new(),
+                },
+            )
+            .unwrap();
+        assert!(
+            read(&s, &root.id, 100, None)
+                .items
+                .iter()
+                .all(|item| item.get("comment_count").is_none())
+        );
+        let projection = |cursor| SubtreeRead {
+            limit: 1,
+            fields: vec![TaskField::CommentCount],
+            cursor,
+        };
+        let first = s.read_subtree("dev", &root.id, projection(None)).unwrap();
+        assert_eq!(first.items[0]["comment_count"], 0);
+        let second = s
+            .read_subtree("dev", &root.id, projection(first.next_cursor.clone()))
+            .unwrap();
+        assert_eq!(second.items[0]["comment_count"], 1);
+        s.delete_comment("dev", &comment.id, comment.revision)
+            .unwrap();
+        assert!(matches!(
+            s.read_subtree("dev", &root.id, projection(first.next_cursor)),
+            Err(Error::Conflict(_))
+        ));
+        let refreshed = s.read_subtree("dev", &child.id, projection(None)).unwrap();
+        assert_eq!(refreshed.items[0]["comment_count"], 0);
+    }
+
     #[test]
     fn preorder_pages_projection_and_stable_context() {
         let mut s = store();

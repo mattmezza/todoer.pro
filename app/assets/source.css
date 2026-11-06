@@ -13697,3 +13697,117 @@ html.page-loading::after {
     touch-action: pan-y;
   }
 }
+
+/* Quiet indicators share one slot immediately before task actions. */
+.task-indicators,
+[data-root-indicators] {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+}
+.task-row-count {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 26px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+}
+.task-row-count .ui-icon {
+  width: 16px;
+  height: 16px;
+}
+.reference-list-page .task > .task-indicators {
+  align-self: flex-start;
+}
+.task-page .task-page-child-line > .task-indicators {
+  flex: 0 0 auto;
+}
+.planning-detail-content .task-page-child-line:has(> .task-indicators) {
+  padding-right: 44px;
+}
+.planning-detail-content .task-page-child-line > .task-indicators {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+[data-root-indicators]:empty {
+  display: none;
+}
+.calendar-month-task .task-indicators {
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.omnibar-result .task-indicators {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.planning-detail-content
+  .task-page-child-line:has(> .task-indicators > .task-row-count + .task-row-count) {
+  padding-right: 88px;
+}
+
+.calendar-month-task {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.calendar-month-task-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:is(.calendar-event, .calendar-month-task) .task-indicators {
+  gap: 6px;
+}
+:is(.calendar-event, .calendar-month-task) .task-row-count {
+  min-height: 15px;
+  gap: 3px;
+  font-size: 10px;
+}
+:is(.calendar-event, .calendar-month-task) .task-row-count .ui-icon {
+  width: 12px;
+  height: 12px;
+}
+@media (max-width: 640px) {
+  .dedicated-task-page .task-page-heading > [data-root-indicators] {
+    position: absolute;
+    top: calc(-63px - env(safe-area-inset-top));
+    right: 92px;
+  }
+}
+
+@media (max-width: 700px) {
+  .calendar-month-task {
+    flex-wrap: wrap;
+    gap: 0;
+  }
+  .calendar-month-task-title {
+    flex-basis: 100%;
+  }
+  .calendar-month-task .task-indicators {
+    margin-left: 0;
+    gap: 3px;
+    flex-wrap: wrap;
+    flex-basis: 100%;
+    max-width: 100%;
+  }
+  .calendar-month-task .task-row-count {
+    gap: 1px;
+    font-size: 9px;
+  }
+  .calendar-month-task .task-row-count .ui-icon {
+    width: 10px;
+    height: 10px;
+  }
+}

@@ -749,6 +749,43 @@ mod tests {
     }
 
     #[test]
+    fn row_comment_counts_are_authorized_and_exclude_deleted_comments() {
+        let (mut db, task, _) = fixture();
+        let ids = [task.id.as_str()];
+        assert_eq!(db.task_counts("dev", &ids).unwrap()[&task.id].comments, 0);
+        let mut comments = Vec::new();
+        for key in ["count-first", "count-second"] {
+            comments.push(
+                db.create_comment(
+                    "dev",
+                    &task.id,
+                    key,
+                    NewComment {
+                        body: key.into(),
+                        attachment_ids: Vec::new(),
+                    },
+                )
+                .unwrap(),
+            );
+        }
+        assert_eq!(db.task_counts("dev", &ids).unwrap()[&task.id].comments, 2);
+        assert_eq!(db.task_counts("other", &ids).unwrap()[&task.id].comments, 2);
+        assert!(db.task_counts("unknown", &ids).unwrap().is_empty());
+        for (index, comment) in comments.iter().enumerate() {
+            db.delete_comment("dev", &comment.id, comment.revision)
+                .unwrap();
+            assert_eq!(
+                db.task_counts("dev", &ids)
+                    .unwrap()
+                    .get(&task.id)
+                    .map(|counts| counts.comments)
+                    .unwrap_or(0),
+                1 - index as u64
+            );
+        }
+    }
+
+    #[test]
     fn chronological_comments_have_independent_cas_and_author_or_owner_checks() {
         let (mut db, task, list) = fixture();
         let first = db

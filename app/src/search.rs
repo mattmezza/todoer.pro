@@ -71,6 +71,10 @@ pub struct ContextItem {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchHit {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comment_count: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtask_count: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference: Option<String>,
     pub kind: String,
     pub id: String,
@@ -138,6 +142,7 @@ const FIELDS: &[&str] = &[
     "schedule",
     "timestamps",
     "reference",
+    "counts",
 ];
 fn validate(q: &Query) -> Result<(), Error> {
     if q.text
@@ -498,6 +503,8 @@ UNION ALL SELECT 'tag',g.id,(SELECT MIN(t.list_id) FROM task_tags tt JOIN tasks 
             .query_map(params_from_iter(values.iter()), |r| {
                 Ok((
                     SearchHit {
+                        comment_count: None,
+                        subtask_count: None,
                         reference: None,
                         kind: r.get(0)?,
                         id: r.get(1)?,
@@ -522,10 +529,29 @@ UNION ALL SELECT 'tag',g.id,(SELECT MIN(t.list_id) FROM task_tags tt JOIN tasks 
                 ))
             })?
             .collect::<Result<Vec<_>, _>>()?;
+        let counts = if wanted("counts") {
+            self.task_counts(
+                actor,
+                &rows
+                    .iter()
+                    .take(query.limit)
+                    .filter(|(hit, _, _, _)| hit.kind == "task")
+                    .map(|(hit, _, _, _)| hit.id.as_str())
+                    .collect::<Vec<_>>(),
+            )?
+        } else {
+            Default::default()
+        };
         let has_more = rows.len() > query.limit;
         let mut hits = Vec::new();
         let mut next_cursor = None;
         for (mut hit, workspace, section, key) in rows.into_iter().take(query.limit) {
+            if hit.kind == "task"
+                && let Some(counts) = counts.get(&hit.id)
+            {
+                hit.comment_count = Some(counts.comments);
+                hit.subtask_count = Some(counts.subtasks);
+            }
             if has_more {
                 next_cursor = Some(
                     URL_SAFE_NO_PAD.encode(

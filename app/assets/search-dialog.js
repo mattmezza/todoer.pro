@@ -175,6 +175,8 @@ export function searchOmnibar() {
         this.hits = data.hits.map((hit, index) => ({
           ...hit,
           title: hit.title || hit.kind,
+          commentLabel: `${hit.comment_count} ${hit.comment_count === 1 ? 'comment' : 'comments'}`,
+          subtaskLabel: `${hit.subtask_count} ${hit.subtask_count === 1 ? 'subtask' : 'subtasks'}`,
           rowId: `omnibar-result-${index}`,
           href: destination(hit, this.overviewHref),
           contextLabel: [

@@ -104,7 +104,15 @@ onPageLoad((scope) => {
           if (!activation.isConnected) return;
           replaying = true;
           try {
-            activation.click();
+            if (typeof activation.click === 'function') activation.click();
+            else
+              activation.dispatchEvent(
+                new MouseEvent('click', {
+                  bubbles: true,
+                  cancelable: true,
+                  view: window,
+                }),
+              );
           } finally {
             replaying = false;
           }

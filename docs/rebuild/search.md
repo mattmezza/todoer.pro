@@ -30,7 +30,7 @@ Optional filters:
 | `planned_from`, `planned_to` | Inclusive date-only planning range |
 | `due_from`, `due_to` | Inclusive due calendar-date range in each task's stored local timezone |
 | `recurrence` | `none`, `any`, `active`, `paused`, or `stopped` |
-| `fields` | Optional array drawn from `title`, `snippet`, `context`, `schedule`, `timestamps`; omitted means all |
+| `fields` | Optional array drawn from `title`, `snippet`, `context`, `schedule`, `timestamps`, `reference`, `counts`; omitted means all |
 
 Date filters use `YYYY-MM-DD`. A due time `2026-10-27T00:30:00` in `Europe/Zurich` belongs to October 27 even when its UTC date differs. Result schedule fields retain `due_timezone`. Unscheduled tasks do not match date or priority filters. Task-dependent filters exclude unrelated entity results. A tag filter selects associated tasks/comments/attachments; it does not list the tag entity itself.
 
@@ -58,3 +58,5 @@ Quick search exposes a copy-reference action beside each result. The optional
 `reference` projection returns the canonical prefixed identifier (`@space`, `#list`, `$section`, `%task`, `^subtask`, `+tag`); it is included by default. Comments and
 attachments use their parent task's reference. Copying keeps quick search open
 and preserves keyboard navigation.
+
+Task search hits include `comment_count` and `subtask_count` when `counts` is selected. Counts exclude deleted comments and archived or deleted children; subtasks count immediate children. Other entity hits omit these fields.

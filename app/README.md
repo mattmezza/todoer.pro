@@ -42,6 +42,13 @@ completion controls and editors keep their normal behavior. The gesture invokes
 the existing completion control so subtree confirmations and permissions remain
 consistent.
 
+Task and subtask rows show quiet comment and subtask counts when nonzero, before
+the row menu where available. The same indicators appear in Inbox, Today,
+calendar, search, task pages and panels. Comments exclude deleted entries;
+subtasks count immediate live children, excluding archives and trash. Counts
+arrive with the existing row reads and update through the existing live refresh.
+Subtask rows support the same configured mobile swipe actions and Undo as lists.
+
 Local UI state belongs in Alpine components: shared dialogs, menus, search,
 filters, color pickers and preference forms. Keep their markup in templates and
 their data factories in external modules registered once in `assets/alpine.js`.

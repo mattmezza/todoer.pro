@@ -1,3 +1,4 @@
+import { taskIndicators } from './task-indicators.js';
 import { createTaskSwipeActions } from './task-swipe-actions.js';
 import { mountTaskOrdering } from './task-order.js';
 import { navigate, refreshPage } from './page-navigation.js';
@@ -138,6 +139,8 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
     description: description.value,
     revision: Number(root.dataset.revision),
     complete: root.dataset.complete === 'true',
+    comment_count: Number(root.dataset.commentCount) || 0,
+    subtask_count: Number(root.dataset.subtaskCount) || 0,
   };
   let draft = read(prefix),
     childDraft = read(childKey),
@@ -435,6 +438,10 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
       get('.task-context-menu > div').append(promote);
     }
     promote.hidden = !canWrite || !task.parent_id;
+    const indicators = get('[data-root-indicators]');
+    const counts = taskIndicators(task.comment_count, task.subtask_count);
+    indicators.replaceChildren(...(counts ? [counts] : []));
+    indicators.hidden = !counts;
     get('[data-edit-title]').textContent = task.title;
     if (!embedded) document.title = `${task.title} · Todoer`;
     const complete = get('[data-root-complete]');
@@ -453,6 +460,8 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
         'complete',
         'revision',
         'position',
+        'comment_count',
+        'subtask_count',
       ],
     });
     const value = page.items[0];
@@ -466,6 +475,8 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
         'title',
         'description',
         'description_html',
+        'comment_count',
+        'subtask_count',
         'complete',
         'revision',
         'position',
@@ -693,6 +704,8 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
         reference.title = 'Copy sub-task reference';
         reference.dataset.copyChildReference = reference.textContent;
         line.append(reference);
+        const indicators = taskIndicators(child.comment_count, child.subtask_count);
+        if (indicators) line.append(indicators);
         if (childMenu) line.append(childMenu);
         row.append(line);
         renderChildDescription(row, child);

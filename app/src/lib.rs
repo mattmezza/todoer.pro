@@ -23,6 +23,7 @@ pub mod search;
 pub mod slugs;
 pub mod statistics;
 pub mod subtree_query;
+mod task_counts;
 pub mod taxonomy;
 pub mod transfer;
 pub mod web;
