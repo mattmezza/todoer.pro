@@ -1,3 +1,4 @@
+import { pageScope } from './page-lifecycle.js';
 import { captureToday } from './capture-dates.mjs';
 import { mountCaptureHelp } from './capture-help.js';
 import { beginLoading } from './loading.js';
@@ -27,17 +28,19 @@ export function mountSmartCapture(form) {
     title.style.height = `${title.scrollHeight + title.offsetHeight - title.clientHeight}px`;
   }
   let lastWidth = -1;
-  const sizeObserver = new ResizeObserver(() => {
-    if (!form.isConnected) {
-      sizeObserver.disconnect();
-      return;
-    }
-    const width = title.clientWidth;
-    if (width !== lastWidth) {
-      lastWidth = width;
-      resizeTitle();
-    }
-  });
+  const sizeObserver = pageScope().track(
+    new ResizeObserver(() => {
+      if (!form.isConnected) {
+        sizeObserver.disconnect();
+        return;
+      }
+      const width = title.clientWidth;
+      if (width !== lastWidth) {
+        lastWidth = width;
+        resizeTitle();
+      }
+    }),
+  );
   sizeObserver.observe(title);
   const scoped = form.matches('.inline-capture, [data-child-form]');
   const allowSection = scoped && form.id === 'capture-form';

@@ -1,3 +1,4 @@
+import { pageScope } from './page-lifecycle.js';
 // Sections share the list revision, so writes always validate the displayed set.
 export function mountSectionOrdering({
   container,
@@ -8,6 +9,8 @@ export function mountSectionOrdering({
   error,
   blocked,
 }) {
+  const scope = pageScope();
+
   if (!canWrite) return;
   let busy = false,
     gesture = null,
@@ -55,7 +58,8 @@ export function mountSectionOrdering({
       busy = false;
     }
   }
-  container.addEventListener(
+  scope.listen(
+    container,
     'click',
     (event) => {
       if (suppressClick) {
@@ -75,7 +79,7 @@ export function mountSectionOrdering({
     },
     true,
   );
-  container.addEventListener('dragstart', (event) => {
+  scope.listen(container, 'dragstart', (event) => {
     const handle = event.target.closest('[data-section-drag]');
     if (!handle) return;
     gesture = { source: handle.closest('.task-section') };
@@ -83,10 +87,10 @@ export function mountSectionOrdering({
     event.dataTransfer.setData('text/plain', gesture.source.dataset.sectionId);
     gesture.source.dataset.sectionDragging = '';
   });
-  container.addEventListener('dragover', (event) => {
+  scope.listen(container, 'dragover', (event) => {
     if (gesture?.source) event.preventDefault();
   });
-  container.addEventListener('drop', (event) => {
+  scope.listen(container, 'drop', (event) => {
     if (!gesture?.source) return;
     event.preventDefault();
     const target = event.target.closest('.task-section[data-section-id]');
@@ -95,11 +99,12 @@ export function mountSectionOrdering({
     gesture.source.removeAttribute('data-section-dragging');
     gesture = null;
   });
-  container.addEventListener('dragend', () => {
+  scope.listen(container, 'dragend', () => {
     gesture?.source?.removeAttribute('data-section-dragging');
     gesture = null;
   });
-  container.addEventListener(
+  scope.listen(
+    container,
     'touchstart',
     (event) => {
       const handle = matchMedia('(max-width: 640px)').matches
@@ -116,7 +121,7 @@ export function mountSectionOrdering({
         ready: false,
       };
       const state = gesture;
-      state.timer = setTimeout(() => {
+      state.timer = scope.timeout(() => {
         if (gesture === state) {
           state.ready = true;
           state.source.dataset.sectionDragging = '';
@@ -125,7 +130,8 @@ export function mountSectionOrdering({
     },
     { passive: true },
   );
-  container.addEventListener(
+  scope.listen(
+    container,
     'touchmove',
     (event) => {
       if (!gesture?.timer || event.touches.length !== 1) return;
@@ -157,7 +163,7 @@ export function mountSectionOrdering({
     clearTimeout(gesture.timer);
     if (gesture.ready) {
       suppressClick = true;
-      setTimeout(() => {
+      scope.timeout(() => {
         suppressClick = false;
       }, 500);
       move(gesture.source, gesture.target, gesture.after);
@@ -166,8 +172,8 @@ export function mountSectionOrdering({
     for (const node of sections()) node.removeAttribute('data-section-drop');
     gesture = null;
   }
-  container.addEventListener('touchend', endTouch);
-  container.addEventListener('touchcancel', () => {
+  scope.listen(container, 'touchend', endTouch);
+  scope.listen(container, 'touchcancel', () => {
     if (gesture) gesture.target = null;
     endTouch();
   });

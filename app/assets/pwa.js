@@ -1,3 +1,4 @@
+import { onPageLoad } from './page-lifecycle.js';
 export async function setupPwa(scope, onLogout) {
   if (!('serviceWorker' in navigator)) return null;
   try {
@@ -153,3 +154,5 @@ function suggestInstall() {
   wireInstallButtons();
 }
 suggestInstall();
+
+onPageLoad(wireInstallButtons);

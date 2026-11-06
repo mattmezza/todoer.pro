@@ -1,3 +1,4 @@
+import { refreshPage } from './page-navigation.js';
 import { inference } from './ai-transaction.js';
 import { beginLoading } from './loading.js';
 import { request } from './request.js';
@@ -171,7 +172,7 @@ export function mountBreakdown(root, { inline = false } = {}) {
           expected_hash: preview.expected_hash,
           idempotency_key: applyKey,
         });
-        location.reload();
+        refreshPage();
       } catch (error) {
         status.textContent = error.message;
       } finally {

@@ -13496,3 +13496,37 @@ body > .planning-detail-dismiss {
   max-width: 100%;
   overflow-x: auto;
 }
+
+/* Page navigation keeps the current screen visible until its replacement arrives. */
+@media (min-width: 641px) {
+  html {
+    scrollbar-gutter: stable;
+  }
+}
+html.page-loading::after {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto;
+  height: 2px;
+  background: var(--accent);
+  z-index: 10000;
+  pointer-events: none;
+}
+#main:focus-visible {
+  outline: none;
+}
+.navigation-error {
+  position: fixed;
+  inset: auto 16px 20px;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--sidebar);
+  color: var(--text);
+}

@@ -17,6 +17,18 @@ const STATIC = [
   '/assets/numeric-mono.woff2',
   '/assets/app.js',
   '/assets/site.js',
+  '/assets/page-lifecycle.js',
+  '/assets/page-navigation.js',
+  '/assets/navigation.js',
+  '/assets/home-filters.js',
+  '/assets/section-collapse.js',
+  '/assets/section-order.js',
+  '/assets/task-panel.js',
+  '/assets/task-list-refresh.js',
+  '/assets/structured-edit.js',
+  '/assets/seamless-editor.js',
+  '/assets/settings-feedback.js',
+  '/assets/export-menu.js',
   '/assets/list-archive.js',
   '/assets/entity-name.js',
   '/assets/reference-copy.js',
@@ -212,7 +224,12 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
-  if (request.mode !== 'navigate') return;
+  const pageRequest =
+    request.mode === 'navigate' ||
+    (request.headers.get('HX-Request') === 'true' &&
+      request.headers.get('HX-Request-Type') === 'full' &&
+      url.pathname.startsWith('/lists/'));
+  if (!pageRequest) return;
   event.respondWith(
     (async () => {
       const scope = await currentScope(event.clientId);

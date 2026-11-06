@@ -7,7 +7,7 @@ setup: ## Install locked frontend dependencies and fetch Rust crates
 	cargo fetch --locked
 assets: ## Compile app styles and self-host htmx
 	npm run assets
-	cp node_modules/htmx.org/dist/htmx.min.js app/assets/htmx.min.js
+	node scripts/prepare-htmx.mjs
 dev: dev-env assets ## Run local app (set TODOER_DEV_AUTH=1 and TODOER_DEV_TOKEN)
 	mkdir -p .local/rebuild
 	cargo run --locked --bin todoer-server

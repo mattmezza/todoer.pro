@@ -1,3 +1,4 @@
+import { navigate } from './page-navigation.js';
 import { mountSmartCapture } from './smart-capture.js';
 import { enqueueCapture, replayCaptures } from './offline.js';
 import { request } from './request.js';
@@ -56,7 +57,7 @@ if (form) {
         smart.reset();
         status.textContent = 'Task added.';
         form.elements.title.focus();
-      } else location.assign(`/lists/${encodeURIComponent(list)}`);
+      } else navigate(`/lists/${encodeURIComponent(list)}`);
     } catch (error) {
       status.textContent = error.message;
     } finally {

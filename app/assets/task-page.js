@@ -1,3 +1,5 @@
+import { navigate, refreshPage } from './page-navigation.js';
+import { onPageLoad } from './page-lifecycle.js';
 import { mountStructuredEdit } from './structured-edit.js';
 import { mountSmartCapture } from './smart-capture.js';
 import { beginLoading } from './loading.js';
@@ -9,7 +11,7 @@ import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
 import './site.js';
 import { mountBreakdown } from './task-breakdown.js';
-mountBreakdown(document.querySelector('[data-task-page]'));
+
 import { mountDiscussion } from './discussion.js';
 import { mountScheduling } from './scheduling.js';
 import { mountTaskMetadata } from './task-metadata.js';
@@ -766,7 +768,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
       }
       if (current.list_id !== task.list_id) {
         remember();
-        location.reload();
+        refreshPage();
         return;
       }
       const hasDraft = !!draft || dirty();
@@ -1013,7 +1015,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         root.dispatchEvent(
           new CustomEvent('todoer:task-trashed', { bubbles: true, detail: { id } }),
         );
-      else location.assign(`/lists/${encodeURIComponent(task.list_id)}`);
+      else navigate(`/lists/${encodeURIComponent(task.list_id)}`);
     } catch (error) {
       conflict(error.message);
       pending = true;
@@ -1251,7 +1253,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         idempotency_key: moveKey,
       });
       remember();
-      location.assign(`/tasks/${encodeURIComponent(id)}`);
+      navigate(`/tasks/${encodeURIComponent(id)}`);
     } catch (error) {
       get('[data-move-error]').textContent =
         `${error.message} Review again if this plan is stale.`;
@@ -1476,11 +1478,15 @@ export function mountTaskPage(root, { embedded = false } = {}) {
   addEventListener(
     'pageshow',
     (event) => {
-      if (event.persisted && !embedded) location.reload();
+      if (event.persisted && !embedded) refreshPage();
     },
     { signal: lifecycle.signal },
   );
   return cleanup;
 }
-const taskPage = document.querySelector('main[data-task-page]');
-if (taskPage) mountTaskPage(taskPage);
+onPageLoad(() => {
+  const taskPage = document.querySelector('main[data-task-page]');
+  if (!taskPage) return;
+  mountBreakdown(taskPage);
+  return mountTaskPage(taskPage);
+});

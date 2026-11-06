@@ -1,3 +1,4 @@
+import { refreshPage } from './page-navigation.js';
 import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { setSaveState, trackSave } from './quiet-info.js';
@@ -190,7 +191,7 @@ export async function moveToParent(id) {
           request(id, { snapshot: first.snapshot }, 'promote'),
         );
         dialog.close();
-        location.reload();
+        refreshPage();
       } catch (error) {
         setSaveState(source, 'error', error.message);
         confirm.disabled = false;

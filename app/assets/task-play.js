@@ -1,3 +1,4 @@
+import { onPageLoad, pageScope } from './page-lifecycle.js';
 import { request as fetch } from './request.js';
 import { welcomeChase } from './welcome-chase.js';
 function mountCards() {
@@ -331,7 +332,7 @@ function mountFunnyTasks() {
       }
     }
   };
-  const tick = setInterval(async () => {
+  const tick = pageScope().interval(async () => {
     if (!tray.isConnected) {
       clearInterval(tick);
       return;
@@ -380,33 +381,37 @@ function mountFunnyTasks() {
   document.body.append(tray);
   return tray;
 }
-if (
-  (location.pathname === '/today' ||
-    location.pathname === '/inbox' ||
-    location.pathname === '/settings' ||
-    location.pathname === '/settings/general') &&
-  document.querySelector('meta[name=account-id]')
-) {
-  let toy;
-  function apply(value) {
-    toy?.remove();
-    document
-      .querySelectorAll('.task-flyer,.fun-task-flyer')
-      .forEach((flyer) => flyer.remove());
-    toy =
-      value.fun_animations === false
-        ? null
-        : value.fun_animation === 'chase'
-          ? welcomeChase()
-          : value.fun_animation === 'tasks'
-            ? mountFunnyTasks()
-            : mountCards();
+onPageLoad((scope) => {
+  if (
+    (location.pathname === '/today' ||
+      location.pathname === '/inbox' ||
+      location.pathname === '/settings' ||
+      location.pathname === '/settings/general') &&
+    document.querySelector('meta[name=account-id]')
+  ) {
+    let toy;
+    function apply(value) {
+      toy?.remove();
+      document
+        .querySelectorAll('.task-flyer,.fun-task-flyer')
+        .forEach((flyer) => flyer.remove());
+      toy =
+        value.fun_animations === false
+          ? null
+          : value.fun_animation === 'chase'
+            ? welcomeChase()
+            : value.fun_animation === 'tasks'
+              ? mountFunnyTasks()
+              : mountCards();
+    }
+    scope.cleanup(() => toy?.remove());
+    scope.listen(document, 'todoer-play-preferences', (event) => apply(event.detail));
+    scope
+      .request('/api/v1/notification-preferences', { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((value) => {
+        if (value && !scope.signal.aborted) apply(value);
+      })
+      .catch(() => {});
   }
-  document.addEventListener('todoer-play-preferences', (event) => apply(event.detail));
-  fetch('/api/v1/notification-preferences', { cache: 'no-store' })
-    .then((response) => (response.ok ? response.json() : null))
-    .then((value) => {
-      if (value) apply(value);
-    })
-    .catch(() => {});
-}
+});

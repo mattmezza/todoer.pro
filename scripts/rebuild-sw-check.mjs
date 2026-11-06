@@ -48,3 +48,58 @@ await click('/review');
 assert.equal(notices.length, 2);
 assert.equal(opened.length, 1);
 console.log('Actual service-worker handlers: generic summaries/reminders, strict routes and logged-out suppression passed');
+
+// Full-page HTMX GETs use the same account-isolated offline cache as navigation.
+const pageHandlers = new Map();
+const stores = new Map();
+let pageScope = 'synthetic-page-user';
+let offline = false;
+const keyOf = (request) => typeof request === 'string' ? request : request.url;
+const cacheStore = (name) => {
+  if (!stores.has(name)) stores.set(name, new Map());
+  const entries = stores.get(name);
+  return {
+    match: async (request) => {
+      if (name === 'todoer-offline-meta-v1') return pageScope ? new Response(pageScope) : undefined;
+      return entries.get(keyOf(request))?.clone();
+    },
+    put: async (request, response) => entries.set(keyOf(request), response),
+    delete: async (request) => entries.delete(keyOf(request)),
+    keys: async () => [...entries.keys()],
+  };
+};
+const pageContext = vm.createContext({
+  URL, Promise, Map, Response,
+  caches: { open: async (name) => cacheStore(name), delete: async (name) => stores.delete(name) },
+  fetch: async () => {
+    if (offline) throw Error('Offline fixture');
+    return new Response('<main id="main">Synthetic offline page</main>', {
+      headers: { 'Content-Type': 'text/html', 'X-Todoer-Account': pageScope },
+    });
+  },
+  self: {
+    location: { origin: 'https://tasks.example.invalid' },
+    addEventListener: (name, fn) => pageHandlers.set(name, fn),
+  },
+});
+vm.runInContext(await readFile('app/assets/sw.js', 'utf8'), pageContext);
+async function pageFetch(path, headers = {}, mode = 'same-origin') {
+  let response;
+  pageHandlers.get('fetch')({
+    request: { url: `https://tasks.example.invalid${path}`, method: 'GET', mode, headers: new Headers(headers) },
+    clientId: 'synthetic-client',
+    respondWith: (value) => { response = value; },
+  });
+  return response;
+}
+const fullPageHeaders = { 'HX-Request': 'true', 'HX-Request-Type': 'full' };
+assert.equal((await pageFetch('/lists/example', fullPageHeaders)).status, 200);
+offline = true;
+assert.match(await (await pageFetch('/lists/example', fullPageHeaders)).text(), /Synthetic offline page/);
+assert.match(await (await pageFetch('/lists/example', {}, 'navigate')).text(), /Synthetic offline page/);
+assert.equal(await pageFetch('/fragments/lists/example/tasks', { 'HX-Request': 'true', 'HX-Request-Type': 'partial' }), undefined);
+pageScope = 'another-synthetic-user';
+assert.equal((await pageFetch('/lists/example', fullPageHeaders)).status, 503);
+pageScope = null;
+assert.equal((await pageFetch('/lists/example', fullPageHeaders)).status, 503);
+console.log('Service-worker page requests: HTMX/navigation cache parity, fragment exclusion and account isolation passed');

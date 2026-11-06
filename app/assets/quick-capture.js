@@ -1,3 +1,5 @@
+import { onPageLoad } from './page-lifecycle.js';
+import { navigate, refreshPage } from './page-navigation.js';
 import { loadingDialog } from './loading.js';
 import { request as fetch } from './request.js';
 import { enqueueCapture, replayCaptures } from './offline.js';
@@ -202,7 +204,7 @@ export async function openCapture(listId) {
           !interpreted.repeat &&
           (location.pathname === '/today' || location.pathname === '/upcoming')
         )
-          location.reload();
+          refreshPage();
       } catch (e) {
         error.textContent = e.message;
         if (!dialog.open) dialog.showModal();
@@ -245,13 +247,15 @@ document.addEventListener(
   },
   true,
 );
-if (document.body.classList.contains('planning-list-page')) {
-  const button = document.querySelector('.sidebar-add');
-  if (button) {
-    button.removeAttribute('data-list-create-open');
-    button.dataset.quickCapture = '';
-    button.setAttribute('aria-label', 'Add task');
-    if (button.tagName === 'A') button.href = '/capture';
-    button.querySelector('span').textContent = 'Add task';
+onPageLoad(() => {
+  if (document.body.classList.contains('planning-list-page')) {
+    const button = document.querySelector('.sidebar-add');
+    if (button) {
+      button.removeAttribute('data-list-create-open');
+      button.dataset.quickCapture = '';
+      button.setAttribute('aria-label', 'Add task');
+      if (button.tagName === 'A') button.href = '/capture';
+      button.querySelector('span').textContent = 'Add task';
+    }
   }
-}
+});

@@ -332,7 +332,7 @@ async function openSettings(listId, selected, kind, taskRoot) {
     state.docked = docked;
     if (docked) {
       ownsHistory = false;
-      history.replaceState(null, '', location.pathname + location.search);
+      history.replaceState({ htmx: true }, '', location.pathname + location.search);
     } else {
       ownsHistory = true;
       history.pushState({ todoerSettings: true }, '', `#settings-${selected}`);

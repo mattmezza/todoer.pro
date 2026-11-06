@@ -1,3 +1,4 @@
+import { navigate } from './page-navigation.js';
 import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 // Global quick search uses the same live, authorized ranked search contract.
@@ -229,7 +230,8 @@ export function openSearch() {
         select(active + (event.key === 'ArrowDown' ? 1 : -1));
       } else if (event.key === 'Enter') {
         event.preventDefault();
-        location.assign(
+        dialog.close();
+        navigate(
           active >= 0
             ? results.querySelectorAll('.omnibar-result')[active].querySelector('a').href
             : overview.href,

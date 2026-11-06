@@ -25,13 +25,17 @@ export function createTaskPanel({
   dismiss.innerHTML =
     '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M14 3v18"/></svg>';
   dismiss.onclick = close;
-  function close() {
+  function close(animate = true) {
     generation++;
     stop();
     stop = () => {};
     refreshPanelTags = () => {};
     const closingPanel = panel;
-    if (closingPanel && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (
+      closingPanel &&
+      animate &&
+      !matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
       closingPanel.style.pointerEvents = 'none';
       closingPanel
         .animate([{ transform: 'translateX(0)' }, { transform: 'translateX(100%)' }], {
@@ -271,7 +275,7 @@ export function createTaskPanel({
     contains: (node) => Boolean(panel?.contains(node)),
     refreshTags: () => refreshPanelTags(),
     destroy() {
-      close();
+      close(false);
       document.removeEventListener('click', clicked);
       document.removeEventListener('keydown', keydown);
       document.removeEventListener('todoer:task-trashed', trashed);

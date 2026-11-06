@@ -1,3 +1,4 @@
+import { onPageLoad } from './page-lifecycle.js';
 // Match the server's slugify rules without changing the user's input or caret.
 export function referenceSlug(value) {
   const slug = value
@@ -35,7 +36,9 @@ function preview(field) {
   output.textContent = `Reference preview: ${field.dataset.referencePrefix}${referenceSlug(field.value)}`;
   output.hidden = !field.value.trim();
 }
-for (const field of document.querySelectorAll(selector)) preview(field);
+onPageLoad(() => {
+  for (const field of document.querySelectorAll(selector)) preview(field);
+});
 for (const event of ['input', 'focusin', 'compositionend'])
   document.addEventListener(event, ({ target }) => {
     if (target instanceof Element) preview(target);

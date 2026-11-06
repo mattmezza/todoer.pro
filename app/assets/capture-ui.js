@@ -1,3 +1,4 @@
+import { pageScope } from './page-lifecycle.js';
 import { enqueueCapture } from './offline.js';
 import { mountSmartCapture } from './smart-capture.js';
 export function mountCaptures({
@@ -9,6 +10,8 @@ export function mountCaptures({
   setBusy,
   onSettled,
 }) {
+  const scope = pageScope();
+
   const key = (section) => `todoer:${account}:capture:${listId}:${section || 'main'}`;
   const section = (form) => form.dataset.captureSection || null;
   const title = (form) => form.querySelector('[name="title"]');
@@ -43,12 +46,12 @@ export function mountCaptures({
     }
   }
   restore();
-  document.body.addEventListener('htmx:after:swap', restore);
-  document.addEventListener('input', (event) => {
+  scope.listen(document.body, 'htmx:after:swap', restore);
+  scope.listen(document, 'input', (event) => {
     const form = event.target.closest('.inline-capture');
     if (form) persist(form);
   });
-  document.addEventListener('click', (event) => {
+  scope.listen(document, 'click', (event) => {
     const trigger = event.target.closest('#capture-open,[data-section-capture]');
     if (trigger) {
       const form =
@@ -71,7 +74,7 @@ export function mountCaptures({
       )?.focus();
     }
   });
-  document.addEventListener('submit', async (event) => {
+  scope.listen(document, 'submit', async (event) => {
     const form = event.target.closest('.inline-capture');
     if (!form) return;
     event.preventDefault();

@@ -1,3 +1,4 @@
+import { onPageLoad } from './page-lifecycle.js';
 import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 // Device enablement is explicitly initiated by a user gesture.
@@ -313,5 +314,7 @@ export function mountPushSettings(root) {
     optIn.removeEventListener('change', changeOptIn);
   };
 }
-const root = document.querySelector('[data-push-settings]');
-if (root) mountPushSettings(root);
+onPageLoad(() => {
+  const root = document.querySelector('[data-push-settings]');
+  if (root) return mountPushSettings(root);
+});

@@ -1,3 +1,5 @@
+import { navigate, refreshPage } from './page-navigation.js';
+import { pageScope } from './page-lifecycle.js';
 import { beginLoading } from './loading.js';
 import { editorAnchor, alignEditorField } from './seamless-editor.js';
 import { toast } from './toast.js';
@@ -6,6 +8,8 @@ import { openListSettings, setupTaskSettingsDock } from './list-settings.js';
 import { previewTaskMove } from './task-page.js';
 import { mountListColorPicker } from './list-color-picker.js';
 export function mountListUi({ api, notice, listId }) {
+  const scope = pageScope();
+
   setupTaskSettingsDock(document.querySelector('main'), 'list', listId);
   const canWrite = document.body.dataset.canWrite === 'true';
   const edit = document.querySelector('[data-list-edit]');
@@ -132,7 +136,7 @@ export function mountListUi({ api, notice, listId }) {
       button.setAttribute('aria-pressed', String(completedCheck.checked));
     }
   }
-  completedCheck?.addEventListener('change', updateCompletedLabel);
+  scope.listen(completedCheck, 'change', updateCompletedLabel);
   if (completedCheck) updateCompletedLabel();
   const closeMenus = () =>
     document
@@ -146,7 +150,7 @@ export function mountListUi({ api, notice, listId }) {
     if (button) button.disabled = true;
     try {
       await api(path, 'PATCH', body);
-      location.reload();
+      refreshPage();
     } catch (error) {
       let output = form.querySelector('[role="alert"]');
       if (!output) {
@@ -159,7 +163,7 @@ export function mountListUi({ api, notice, listId }) {
       if (button) button.disabled = false;
     }
   }
-  document.addEventListener('click', async (event) => {
+  scope.listen(document, 'click', async (event) => {
     if (event.target.closest('[data-list-edit-open]') && canWrite) {
       const titleAnchor = editorAnchor(
         document.querySelector('[data-list-display] h1 button'),
@@ -227,7 +231,7 @@ export function mountListUi({ api, notice, listId }) {
           revision: Number(edit.dataset.revision),
           archived: true,
         });
-        location.reload();
+        refreshPage();
       } catch (error) {
         notice(error.message, true);
       }
@@ -247,7 +251,7 @@ export function mountListUi({ api, notice, listId }) {
           await api(`/cli/lifecycle/section/${section.dataset.sectionId}`, 'POST', {
             archive: true,
           });
-          location.reload();
+          refreshPage();
         }
       } catch (error) {
         notice(error.message, true);
@@ -298,7 +302,7 @@ export function mountListUi({ api, notice, listId }) {
       }
     }
   });
-  edit?.addEventListener('submit', (event) => {
+  scope.listen(edit, 'submit', (event) => {
     event.preventDefault();
     const data = new FormData(edit);
     save(edit, `/lists/${listId}`, {
@@ -308,7 +312,7 @@ export function mountListUi({ api, notice, listId }) {
       color: data.get('color'),
     });
   });
-  sectionCreate?.addEventListener('submit', async (event) => {
+  scope.listen(sectionCreate, 'submit', async (event) => {
     event.preventDefault();
     const button = sectionCreate.querySelector('[type="submit"]');
     button.disabled = true;
@@ -318,7 +322,7 @@ export function mountListUi({ api, notice, listId }) {
         title: data.get('title'),
         description: data.get('description'),
       });
-      location.reload();
+      refreshPage();
     } catch (error) {
       sectionCreate.querySelector('[role="alert"]').textContent = error.message;
     } finally {
@@ -338,7 +342,7 @@ export function mountListUi({ api, notice, listId }) {
     close.textContent = '×';
     close.onclick = () => dialog.close();
     dialog.append(close, heading);
-    dialog.addEventListener('close', () => dialog.remove(), { once: true });
+    scope.listen(dialog, 'close', () => dialog.remove(), { once: true });
     document.body.append(dialog);
     return dialog;
   }
@@ -457,7 +461,7 @@ export function mountListUi({ api, notice, listId }) {
       expected_hash: preview.expected_hash,
       idempotency_key: crypto.randomUUID(),
     });
-    location.reload();
+    refreshPage();
   }
   async function archivedSections() {
     const dialog = modal('Archived sections');
@@ -467,8 +471,8 @@ export function mountListUi({ api, notice, listId }) {
     status.textContent = 'Loading archived sections…';
     dialog.append(status);
     let restored = false;
-    dialog.addEventListener('close', () => {
-      if (restored) location.reload();
+    scope.listen(dialog, 'close', () => {
+      if (restored) refreshPage();
     });
     dialog.showModal();
     try {
@@ -712,7 +716,7 @@ export function mountListUi({ api, notice, listId }) {
             policy_hash: preview.policy_hash,
             acknowledge_access_change: ack.checked,
           });
-          location.reload();
+          refreshPage();
         } else if (kind === 'section') {
           await api(`/sections/${entityId}/move`, 'POST', {
             destination_list_id: reviewed.destination,
@@ -722,7 +726,7 @@ export function mountListUi({ api, notice, listId }) {
             policy_hash: preview.policy_hash,
             acknowledge_access_change: ack.checked,
           });
-          location.assign(`/lists/${reviewed.destination}`);
+          navigate(`/lists/${reviewed.destination}`);
         } else {
           const plan = reviewed.plan;
           await api('/bulk/apply', 'POST', {
@@ -730,7 +734,7 @@ export function mountListUi({ api, notice, listId }) {
             expected_hash: plan.expected_hash,
             idempotency_key: key,
           });
-          location.assign(`/lists/${reviewed.destination}`);
+          navigate(`/lists/${reviewed.destination}`);
         }
       } catch (failure) {
         error.textContent = `${failure.message}. Nothing was moved unless a prior request succeeded; close and refresh to check.`;
