@@ -87,6 +87,7 @@ test('dedicated task preserves drafts across reload, remote CAS conflict and exp
     .getByRole('dialog', { name: 'Confirm change' })
     .getByRole('button', { name: 'Confirm', exact: true })
     .click();
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled();
   await page.getByLabel('Task title', { exact: true }).press('Control+Enter');
   await expect(page.locator('[data-edit-title]')).toHaveText('My preserved local title');
   await expect(page.locator('[data-brief-form]')).toBeHidden();
@@ -111,7 +112,7 @@ test('task page shares metadata planning and discussion while keeping the brief 
   await page.locator('.task-context-menu > summary').click();
   await page.locator('[data-open-advanced]').click();
   await page.getByText('Set planned date', { exact: true }).click();
-  const planned = page.getByLabel('Planned date', { exact: true });
+  const planned = page.getByLabel('Work on', { exact: true });
   await expect(planned).toBeEnabled();
   await planned.fill('2026-11-02');
   await planned.press('Tab');
@@ -370,9 +371,7 @@ test('bounded checklist continuation retains brief and subtask drafts and report
   await expect(page.locator('[data-child-progress]')).toContainText('loaded items');
   await page.getByRole('button', { name: 'Load more sub-tasks', exact: true }).click();
   await expect(page.locator('[data-children] > li')).toHaveCount(100);
-  await expect(page.locator('[data-child-progress]')).toHaveText(
-    '0/100 leaf items complete',
-  );
+  await expect(page.locator('[data-child-progress]')).toHaveText('0/100 tasks complete');
   await expect(page.getByLabel('Task title', { exact: true })).toHaveValue(
     'Unsubmitted root draft',
   );
@@ -542,32 +541,38 @@ test('subtask title edits stay inline and recover after reload', async ({ page }
   expect((await current(child.id)).title).toBe('Recovered child draft');
 });
 
-test('list task panel edits child titles inline on a phone without saving the parent', async ({
-  page,
-}) => {
-  const { capture, current } = await setup(page);
-  const parent = await capture(`Panel parent ${randomUUID().slice(0, 8)}`);
-  const child = await capture('Panel child title', '', parent.id);
-  const before = await current(parent.id);
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/lists/inbox');
-  const taskRow = page.locator(`#task-list .task[data-id="${parent.id}"]`);
-  await taskRow.getByLabel(`Actions for ${parent.title}`, { exact: true }).click();
-  await taskRow.getByRole('button', { name: 'Open details', exact: true }).click();
-  const panel = page.locator('#task-editor');
-  await expect(panel).toBeVisible();
-  await panel
-    .getByRole('button', { name: 'Edit title for Panel child title', exact: true })
-    .click();
-  const editor = panel.locator('[class="inline-editor"]');
-  await editor.getByLabel('Task title', { exact: true }).fill('Renamed panel child');
-  await editor.getByRole('button', { name: 'Save', exact: true }).click();
-  await expect(
-    panel.getByRole('button', { name: 'Renamed panel child', exact: true }),
-  ).toBeVisible();
-  expect((await current(child.id)).title).toBe('Renamed panel child');
-  expect((await current(parent.id)).revision).toBe(before.revision);
-  const bounds = await panel.boundingBox();
-  expect(bounds.x).toBeGreaterThanOrEqual(0);
-  expect(bounds.x + bounds.width).toBeLessThanOrEqual(391);
-});
+for (const width of [390, 1280]) {
+  test(`list task panel at ${width}px edits child titles inline without saving the parent`, async ({
+    page,
+  }) => {
+    const { capture, current } = await setup(page);
+    const parent = await capture(`Panel parent ${randomUUID().slice(0, 8)}`);
+    const child = await capture('Panel child title', '', parent.id);
+    const before = await current(parent.id);
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto('/lists/inbox');
+    const taskRow = page.locator(`#task-list .task[data-id="${parent.id}"]`);
+    await taskRow.getByLabel(`Actions for ${parent.title}`, { exact: true }).click();
+    await taskRow.getByRole('button', { name: 'Open details', exact: true }).click();
+    const panel = page.locator('#task-editor');
+    await expect(panel).toBeVisible();
+    await panel
+      .getByRole('button', { name: 'Edit title for Panel child title', exact: true })
+      .click();
+    const editor = panel.locator('[class="inline-editor"]');
+    await editor.getByLabel('Task title', { exact: true }).fill('Renamed panel child');
+    await editor.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(
+      panel.getByRole('button', { name: 'Renamed panel child', exact: true }),
+    ).toBeVisible();
+    expect((await current(child.id)).title).toBe('Renamed panel child');
+    expect((await current(parent.id)).revision).toBe(before.revision);
+    const bounds = await panel.boundingBox();
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(Math.abs(bounds.x + bounds.width - width)).toBeLessThanOrEqual(1);
+    expect(await panel.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    ).toBe(true);
+  });
+}

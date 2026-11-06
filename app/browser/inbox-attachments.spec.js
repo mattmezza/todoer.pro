@@ -1,13 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
-for (const mode of ['drop', 'paste', 'comment-paste']) {
+for (const mode of ['drop', 'paste', 'comment-paste', 'existing-comment-paste']) {
   test(`${mode} uploads a file and preserves the comment draft`, async ({ page }) => {
     let finalized = false;
     let uploaded = false;
     await page.route('**/api/v1/tasks/*/uploads', async (route) => {
       const upload = route.request().postDataJSON();
-      if (mode === 'comment-paste') expect(upload.comment_id).toBeTruthy();
+      if (mode.includes('comment-paste')) expect(upload.comment_id).toBeTruthy();
       else expect(upload.comment_id).toBeNull();
       expect(upload).toMatchObject({
         filename: 'notes.txt',
@@ -50,6 +50,14 @@ for (const mode of ['drop', 'paste', 'comment-paste']) {
       data: { list_id: inbox.list_id, tasks: [{ title }] },
     });
     expect(created.ok()).toBeTruthy();
+    if (mode === 'existing-comment-paste') {
+      const [task] = await created.json();
+      const comment = await page.request.post(`/api/v1/tasks/${task.id}/comments`, {
+        headers: { 'x-csrf-token': csrf, 'Idempotency-Key': randomUUID() },
+        data: { body: 'Existing comment' },
+      });
+      expect(comment.ok()).toBeTruthy();
+    }
     await page.reload();
     await page
       .locator('.inbox-task')
@@ -60,6 +68,13 @@ for (const mode of ['drop', 'paste', 'comment-paste']) {
     await expect(panel.locator('[data-file-choose]')).toBeVisible();
     await panel.locator('[data-comment-composer] > summary').click();
     await panel.getByLabel('Add a comment').fill('Draft stays here');
+    if (mode === 'existing-comment-paste') {
+      await panel.locator('.comment-actions > summary').click();
+      await panel.getByRole('button', { name: 'Edit comment', exact: true }).click();
+      await panel
+        .getByLabel('Edit comment', { exact: true })
+        .fill('Unsaved existing comment edit');
+    }
     const data = await page.evaluateHandle(() => {
       const transfer = new DataTransfer();
       transfer.items.add(new File(['hello'], 'notes.txt', { type: 'text/plain' }));
@@ -74,7 +89,12 @@ for (const mode of ['drop', 'paste', 'comment-paste']) {
       await panel.dispatchEvent('drop', { dataTransfer: data });
       await expect(page.locator('.attachment-drop-zone-panel')).toBeHidden();
     } else {
-      const target = mode === 'comment-paste' ? panel.getByLabel('Add a comment') : panel;
+      const target =
+        mode === 'existing-comment-paste'
+          ? panel.getByLabel('Edit comment', { exact: true })
+          : mode === 'comment-paste'
+            ? panel.getByLabel('Add a comment')
+            : panel;
       await target.evaluate((element, clipboardData) => {
         element.dispatchEvent(
           new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }),
@@ -92,6 +112,10 @@ for (const mode of ['drop', 'paste', 'comment-paste']) {
     await expect(panel.getByLabel('Add a comment')).toHaveValue(
       mode === 'comment-paste' ? '' : 'Draft stays here',
     );
+    if (mode === 'existing-comment-paste')
+      await expect(panel.getByLabel('Edit comment', { exact: true })).toHaveValue(
+        'Unsaved existing comment edit',
+      );
     expect(uploaded).toBe(true);
     expect(finalized).toBe(true);
     await expect(panel.getByRole('link', { name: 'Download notes.txt' })).toBeVisible();
