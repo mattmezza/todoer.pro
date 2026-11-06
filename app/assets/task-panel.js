@@ -15,6 +15,7 @@ export function createTaskPanel({
     selected,
     generation = 0,
     loading = false,
+    reading,
     stop = () => {},
     refreshPanelTags = () => {};
   const dismiss = document.createElement('button');
@@ -27,6 +28,7 @@ export function createTaskPanel({
   dismiss.onclick = close;
   function close(animate = true) {
     generation++;
+    reading?.abort();
     stop();
     stop = () => {};
     refreshPanelTags = () => {};
@@ -54,6 +56,10 @@ export function createTaskPanel({
   }
   async function open(url) {
     const version = ++generation;
+    reading?.abort();
+    reading = new AbortController();
+    const signal = reading.signal;
+    const read = (url, options = {}) => fetch(url, { ...options, signal });
     stop();
     stop = () => {};
     if (!panel) {
@@ -78,7 +84,7 @@ export function createTaskPanel({
     if (compact) header.append(dismiss);
     panel.append(header, content);
     try {
-      const response = await fetch(url, { cache: 'no-store' });
+      const response = await read(url, { cache: 'no-store' });
       if (!response.ok) throw Error('Could not open this task.');
       const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
       if (version !== generation) return;
@@ -174,7 +180,13 @@ export function createTaskPanel({
       if (task.dataset.canWrite !== 'true')
         priorityCaption.setAttribute('aria-disabled', 'true');
       content.replaceChildren(task);
-      stop = mountTaskPage(task, { embedded: true });
+      stop = mountTaskPage(task, {
+        embedded: true,
+        onSchedule: (value) => {
+          if (version === generation && priorityVersion === 0)
+            selectPriority(value.schedule.priority ?? 3);
+        },
+      });
       const tags = document.createElement('div');
       tags.className = 'panel-task-tags';
       tags.setAttribute('aria-label', 'Task tags');
@@ -184,7 +196,7 @@ export function createTaskPanel({
       refreshPanelTags = async () => {
         const requestVersion = ++tagsVersion;
         try {
-          const response = await fetch(
+          const response = await read(
             `/api/v1/tasks/${encodeURIComponent(task.dataset.taskId)}/tags`,
             { cache: 'no-store' },
           );
@@ -205,20 +217,6 @@ export function createTaskPanel({
         }
       };
       refreshPanelTags();
-      const initialPriorityVersion = priorityVersion;
-      fetch(`/api/v1/tasks/${encodeURIComponent(task.dataset.taskId)}/schedule`, {
-        cache: 'no-store',
-      })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((value) => {
-          if (
-            value &&
-            version === generation &&
-            priorityVersion === initialPriorityVersion
-          )
-            selectPriority(value.schedule.priority ?? 3);
-        })
-        .catch(() => {});
     } catch (error) {
       if (version === generation) skeleton.fail(error.message, () => open(url));
     } finally {

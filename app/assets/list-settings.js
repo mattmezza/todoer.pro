@@ -175,6 +175,10 @@ async function openSettings(listId, selected, kind, taskRoot) {
       tab = 'planning';
     stopActivity();
     selected = tab;
+    if (task)
+      taskRoot.dispatchEvent(
+        new CustomEvent('todoer:task-settings-tab', { detail: tab }),
+      );
     for (const button of tabs.children) {
       button.setAttribute('aria-selected', String(button.dataset.tab === tab));
       button.tabIndex = button.dataset.tab === tab ? 0 : -1;

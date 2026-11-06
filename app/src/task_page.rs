@@ -33,6 +33,7 @@ struct TaskPage {
     account_id: String,
     can_write: bool,
     section_id: String,
+    list_color: String,
     has_more: bool,
 }
 async fn legacy_page(
@@ -202,6 +203,7 @@ async fn page(
                 [&a], |row| row.get(0),
             )?;
             Ok(TaskPage {
+                list_color: db.list_color(&a, &task.list_id)?.unwrap_or_else(|| "blue".into()),
                 change_cursor,
                 public_reference,
                 sidebar,

@@ -645,7 +645,9 @@ for (const width of [390, 1280]) {
     expect((await current(parent.id)).revision).toBe(before.revision);
     const bounds = await panel.boundingBox();
     expect(bounds.x).toBeGreaterThanOrEqual(0);
-    expect(Math.abs(bounds.x + bounds.width - width)).toBeLessThanOrEqual(1);
+    // The desktop layout reserves a scrollbar gutter outside the panel.
+    const viewport = await page.evaluate(() => document.documentElement.clientWidth);
+    expect(Math.abs(bounds.x + bounds.width - viewport)).toBeLessThanOrEqual(1);
     expect(await panel.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),

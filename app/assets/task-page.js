@@ -76,7 +76,7 @@ function checkIcon(button, complete) {
   button.append(svg);
 }
 
-export function mountTaskPage(root, { embedded = false } = {}) {
+export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
   const lifecycle = new AbortController();
   const get = (selector) => root.querySelector(selector);
   const id = root.dataset.taskId,
@@ -112,21 +112,18 @@ export function mountTaskPage(root, { embedded = false } = {}) {
   // subtree. Do not expose rows until their handlers and descriptions are ready.
   let childrenReady = false;
   let childrenLoading = beginLoading(get('[data-children]'), { variant: 'rows' });
-  fetch(`/api/v1/lists/${encodeURIComponent(root.dataset.listId)}/color`)
-    .then((r) => (r.ok ? r.json() : null))
-    .then((value) => {
-      const color = value?.color || 'blue';
-      const dot = document.createElement('span');
-      dot.className = `list-dot badge-${color}`;
-      dot.hidden = true;
-      root.append(dot);
-      const resolved = /^#[0-9a-f]{6}$/i.test(color)
-        ? color
-        : getComputedStyle(dot).backgroundColor;
-      root.style.setProperty('--list-color', resolved);
-      dot.remove();
-    })
-    .catch(() => {});
+  {
+    const color = root.dataset.listColor || 'blue';
+    const dot = document.createElement('span');
+    dot.className = `list-dot badge-${color}`;
+    dot.hidden = true;
+    root.append(dot);
+    const resolved = /^#[0-9a-f]{6}$/i.test(color)
+      ? color
+      : getComputedStyle(dot).backgroundColor;
+    root.style.setProperty('--list-color', resolved);
+    dot.remove();
+  }
 
   let task = {
     id,
@@ -492,9 +489,11 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     descriptionInput.setAttribute('aria-label', 'Subtask description');
     const save = document.createElement('button');
     save.type = 'submit';
+    save.className = 'primary';
     save.textContent = 'Save';
     const cancel = document.createElement('button');
     cancel.type = 'button';
+    cancel.className = 'secondary';
     cancel.textContent = 'Cancel';
     row.querySelector(':scope > [data-child-description]')?.setAttribute('hidden', '');
     input.oninput = descriptionInput.oninput = () =>
@@ -749,7 +748,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     renderChildren();
     childrenReady = true;
   }
-  async function refresh() {
+  async function refresh(initial = false) {
     if (!alive) return;
     if (busy || loading || interacting()) {
       pending = true;
@@ -760,44 +759,49 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     get('[data-connection]').textContent = 'Refreshing...';
     get('[data-load-more]').disabled = true;
     try {
-      const current = await fetchTask();
-      if (!alive) return;
-      if (busy || interacting()) {
-        pending = true;
-        return;
-      }
-      if (current.list_id !== task.list_id) {
+      // The fresh HTML already contains the authorized task and rendered brief.
+      if (!initial) {
+        const current = await fetchTask();
+        if (!alive) return;
+        if (busy || interacting()) {
+          pending = true;
+          return;
+        }
+        if (current.list_id !== task.list_id) {
+          remember();
+          refreshPage();
+          return;
+        }
+        const hasDraft = !!draft || dirty();
         remember();
-        refreshPage();
-        return;
-      }
-      const hasDraft = !!draft || dirty();
-      remember();
-      task = { ...task, ...current };
-      updateView();
-      if (!hasDraft) {
-        title.value = task.title;
-        description.value = task.description;
-      } else if (draft && draft.revision !== task.revision)
-        conflict(
-          'The saved task changed. Your draft and its original revision are preserved. Review the saved version before rebasing.',
+        task = { ...task, ...current };
+        updateView();
+        if (!hasDraft) {
+          title.value = task.title;
+          description.value = task.description;
+        } else if (draft && draft.revision !== task.revision)
+          conflict(
+            'The saved task changed. Your draft and its original revision are preserved. Review the saved version before rebasing.',
+          );
+        const rendered = await request(
+          `/fragments/tasks/${encodeURIComponent(id)}/description`,
+          'GET',
+          undefined,
+          { html: true },
         );
-      const rendered = await request(
-        `/fragments/tasks/${encodeURIComponent(id)}/description`,
-        'GET',
-        undefined,
-        { html: true },
-      );
-      if (!alive) return;
-      if (busy || interacting()) {
-        pending = true;
-        return;
-      }
-      get('[data-saved-description]').innerHTML = rendered; // authenticated sanitized saved-source fragment
+        if (!alive) return;
+        if (busy || interacting()) {
+          pending = true;
+          return;
+        }
+        get('[data-saved-description]').innerHTML = rendered; // authenticated sanitized saved-source fragment
+      } else updateView();
       await loadChildren();
-      discussion?.refresh?.();
-      scheduling?.refresh?.();
-      metadata?.refresh?.();
+      if (!initial) {
+        discussion?.refresh?.();
+        scheduling?.refresh?.();
+        metadata?.refresh?.();
+      }
       get('[data-connection]').textContent = 'Up to date';
     } catch (error) {
       if (!childrenReady && alive)
@@ -1305,9 +1309,10 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         mountScheduling({
           ...shared,
           container,
+          onLoaded: onSchedule,
           onSaved: (expected, revision) => {
             if (!saved(expected, revision)) return false;
-            mountMetadata();
+            if (metadata) mountMetadata();
             return true;
           },
         }),
@@ -1335,7 +1340,14 @@ export function mountTaskPage(root, { embedded = false } = {}) {
       );
     };
     mountPlanning();
-    mountMetadata();
+    if (!embedded) mountMetadata();
+    root.addEventListener(
+      'todoer:task-settings-tab',
+      (event) => {
+        if (event.detail === 'tags' && !metadata) mountMetadata();
+      },
+      { signal: lifecycle.signal },
+    );
   }
   root.addEventListener('keydown', (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
@@ -1428,7 +1440,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
   if (!embedded) setupTaskSettingsDock(root);
   if (new URLSearchParams(location.search).get('move') === '1')
     get('[data-open-move]').click();
-  refresh();
+  refresh(true);
   if ('EventSource' in window) {
     eventSource = new EventSource(
       `/api/v1/events?after=${Number(root.dataset.cursor) || 0}&list_id=${encodeURIComponent(task.list_id)}`,

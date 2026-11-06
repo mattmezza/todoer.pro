@@ -659,6 +659,7 @@ struct ListPage {
 }
 struct RenderedTask {
     task: Task,
+    public_reference: String,
     description_html: String,
 }
 impl std::ops::Deref for RenderedTask {
@@ -716,6 +717,7 @@ fn rendered_tasks(db: &Store, actor: &str, list: &str) -> Result<Vec<RenderedTas
                 )?
             };
             Ok(RenderedTask {
+                public_reference: crate::defaults::public_id(&db.conn, "task", &task.id)?,
                 task,
                 description_html,
             })

@@ -15,6 +15,7 @@ export function mountScheduling({
   onSaved,
   onConflict,
   beginWrite,
+  onLoaded,
 }) {
   if (!taskId || !accountId || !container)
     throw new Error('Scheduling requires a task, account and container');
@@ -871,6 +872,7 @@ export function mountScheduling({
       const result = await request(`/tasks/${encodeURIComponent(taskId)}/schedule`);
       if (!active || version !== loadVersion) return;
       storedSchedule = result;
+      onLoaded?.(result);
       if (scheduleDraft && !Object.hasOwn(scheduleDraft.values, 'duration')) {
         duration.value =
           result.duration_minutes == null ? '' : String(result.duration_minutes);

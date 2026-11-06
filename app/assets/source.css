@@ -955,8 +955,7 @@ dialog h2 {
   padding: 6px 9px;
 }
 .inline-editor button {
-  font-size: 11px;
-  color: var(--accent);
+  font-size: 13px;
   min-height: 44px;
   min-width: 44px;
 }
@@ -1335,7 +1334,9 @@ input[type='checkbox'] {
   color: var(--muted);
 }
 .reference-list-page .task {
-  padding: 18px 8px;
+  padding: 18px 24px;
+  border-radius: 0;
+  cursor: pointer;
   min-height: 62px;
   gap: 4px;
 }
@@ -1592,7 +1593,7 @@ input[type='checkbox'] {
     display: none;
   }
   .reference-list-page .task {
-    padding: 16px 0;
+    padding: 16px 24px;
   }
   .reference-list-page .task-title {
     font-size: 16px;
@@ -3303,7 +3304,7 @@ form[data-list-edit] .inline-actions {
 
 /* Match each control's centre to the first 26px title line. */
 .reference-list-page .task-title {
-  display: block;
+  display: inline;
   line-height: 26px;
 }
 .reference-list-page .task > .completion,
@@ -5393,7 +5394,6 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
 .reference-list-page .section-tasks > .task {
   position: relative;
   margin-left: 12px;
-  padding-left: 0;
 }
 .reference-list-page .section-tasks > .task > .completion {
   margin-left: -12px;
@@ -13400,6 +13400,12 @@ body > .planning-detail-dismiss {
 .reference-list-page .task.is-selected {
   background: var(--hover);
 }
+@media (hover: hover) {
+  .reference-list-page .task:hover {
+    background: var(--hover);
+    border-radius: 8px;
+  }
+}
 .reference-list-page .task-content {
   cursor: pointer;
 }
@@ -13510,6 +13516,28 @@ body > .planning-detail-dismiss {
 .task-child-description :is(pre, table) {
   max-width: 100%;
   overflow-x: auto;
+}
+/* Keep the 44px controls from adding space between subtask titles and briefs. */
+.planning-detail-content .task-page-child-line {
+  position: relative;
+  display: block;
+  padding-inline: 46px 42px;
+}
+.planning-detail-content .task-page-child-line > a {
+  display: block;
+}
+.planning-detail-content .task-page-child-line > .task-child-complete {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.planning-detail-content .task-child-menu {
+  position: absolute;
+  top: -3px;
+  right: 0;
+}
+.planning-detail-content .task-child-description {
+  margin: 4px 0 0 46px;
 }
 
 /* Page navigation keeps the current screen visible until its replacement arrives. */

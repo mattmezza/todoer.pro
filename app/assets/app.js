@@ -410,7 +410,7 @@ onPageLoad((scope) => {
       !window.getSelection()?.toString()
     ) {
       const link = e.target.closest('a');
-      if (link && !link.matches('.task-title')) return;
+      if (link) return;
       e.preventDefault();
       await openTask(row.dataset.id);
     }
@@ -489,7 +489,10 @@ onPageLoad((scope) => {
   const taskId = new URLSearchParams(location.search).get('task');
   if (taskId) openTask(taskId);
   function openTask(id) {
-    return taskPanel.open(`/tasks/${encodeURIComponent(id)}`);
+    const link = $(`#task-list .task[data-id="${CSS.escape(id)}"] .task-title`);
+    return taskPanel.open(
+      link?.getAttribute('href') || `/tasks/${encodeURIComponent(id)}`,
+    );
   }
   scope.listen(window, 'pagehide', () => taskPanel.destroy());
 
@@ -625,9 +628,11 @@ onPageLoad((scope) => {
       if (previousDescription) previousDescription.hidden = true;
       const save = document.createElement('button');
       save.type = 'submit';
+      save.className = 'primary';
       save.textContent = 'Save';
       const cancel = document.createElement('button');
       cancel.type = 'button';
+      cancel.className = 'secondary';
       cancel.textContent = 'Cancel';
       const key = `todoer:${account}:inline:${id}`;
       const stash = () =>

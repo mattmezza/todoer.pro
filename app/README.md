@@ -23,6 +23,12 @@ browser history. Existing task editors, panels and API forms retain their own
 handlers. Authentication, downloads and links marked `data-full-navigation` use
 normal browser navigation. Cached list pages also work through HTMX offline.
 
+Task titles open their dedicated page; clicking the rest of a list row opens its
+side panel. Panels reuse the freshly rendered task and description, share their
+schedule read, and load metadata when the Tags tab opens. Account timezone reads
+are shared within the current page scope. Editable task snapshots remain fresh
+on each opening, and switching panels cancels abandoned reads.
+
 Page controllers register with `onPageLoad` from `assets/page-lifecycle.js`.
 Check for the controller's page root before mounting, and use the supplied scope
 for listeners, requests, timers and observers. Return or register cleanup for
