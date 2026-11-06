@@ -160,7 +160,10 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
   await panel.getByRole('button', { name: 'Close breakdown' }).click();
   const chooser = page.waitForEvent('filechooser');
   await expect(panel.locator('.task-files-heading')).toBeHidden();
-  await panel.getByRole('button', { name: 'Attach file' }).click();
+  const commentAttach = panel.locator('[data-new-comment] [data-comment-attach]');
+  await (
+    (await commentAttach.count()) ? commentAttach : panel.locator('[data-file-choose]')
+  ).click();
   await chooser;
   await panel.getByRole('button', { name: 'Complete task' }).click();
   await expect(task).toHaveClass(/is-complete/);
