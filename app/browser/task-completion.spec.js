@@ -74,7 +74,7 @@ test('task detail confirms nested completion and skips confirmation when childre
   await page.goto(`/tasks/${parent.id}`);
   await expect(page.locator('[data-connection]')).toHaveText('Up to date');
   const modal = page.getByRole('dialog', { name: 'Confirm change' });
-  await page.locator(`[data-child-id="${child.id}"] .task-child-complete`).click();
+  await page.getByRole('button', { name: 'Complete Child', exact: true }).click();
   await expect(modal).toBeVisible();
   await modal.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect.poll(async () => (await current(grandchild.id)).complete).toBe(true);
@@ -119,4 +119,27 @@ test('completion checks additional subtree pages before changing a task', async 
   expect(cursors).toEqual([null, 'synthetic-next-page']);
   await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
   expect((await current(child.id)).complete).toBe(false);
+});
+
+test('planning card completion asks before completing unfinished subtasks', async ({
+  page,
+}) => {
+  const { api, current } = await setup(page);
+  const inbox = await api('/inbox');
+  const [parent] = await api('/capture', 'POST', {
+    list_id: inbox.list_id,
+    tasks: [{ title: `Planning parent ${randomUUID()}` }],
+  });
+  const [child] = await api('/capture', 'POST', {
+    list_id: inbox.list_id,
+    tasks: [{ title: 'Planning child', parent_id: parent.id }],
+  });
+  await page.goto('/inbox');
+  await page
+    .locator(`.workbench-task[data-task-id="${parent.id}"] .workbench-check`)
+    .click();
+  const modal = page.getByRole('dialog', { name: 'Confirm change' });
+  await expect(modal).toBeVisible();
+  await modal.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect.poll(async () => (await current(child.id)).complete).toBe(true);
 });

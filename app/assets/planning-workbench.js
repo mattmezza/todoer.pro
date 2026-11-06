@@ -1,4 +1,3 @@
-import { taskCommentCount } from './task-comment-count.js';
 import { inference } from './ai-transaction.js';
 import { beginLoading } from './loading.js';
 
@@ -588,8 +587,6 @@ onPageLoad(async (scope) => {
         ),
       );
     row.append(check, text);
-    const comments = taskCommentCount(entry.comment_count);
-    if (comments) row.append(comments);
     if (intake) {
       row.classList.add('inbox-task');
       if (rollObserver) rollObserver.observe(row);
