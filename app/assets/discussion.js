@@ -387,7 +387,7 @@ export function mountDiscussion({
   }
   async function digest(file) {
     if (file.size > 25 * 1024 * 1024)
-      throw new Error('Files must be no larger than 25 MiB');
+      throw new Error('This file is too large. Choose a file up to 25 MiB.');
     const bytes = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
     return [...new Uint8Array(bytes)]
       .map((byte) => byte.toString(16).padStart(2, '0'))
@@ -458,7 +458,7 @@ export function mountDiscussion({
     const name = state.name.replace(/[\[\]\\]/g, '\\$&');
     const image = /\.(png|jpe?g|gif|webp|svg)$/i.test(state.name);
     const url = `/api/v1/attachments/${encodeURIComponent(attachment.id)}/${image ? 'preview' : 'download'}`;
-    const markdown = `${image ? '!' : ''}[${name}](${url})`;
+    const markdown = `[${name}](${url})`;
     input.setRangeText(
       markdown,
       start,
@@ -747,6 +747,7 @@ export function mountDiscussion({
       '[data-file-choose],[data-comment-attach]',
     );
     if (attachmentButton) {
+      attachmentButton.closest('.comment-actions')?.removeAttribute('open');
       const input = get('[data-file-input]');
       if (input) {
         const row = attachmentButton.closest('[data-comment-id]');
