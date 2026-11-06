@@ -1,3 +1,4 @@
+import './section-collapse.js';
 import './list-archive.js';
 import './entity-name.js';
 import './reference-copy.js';

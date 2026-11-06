@@ -28,6 +28,10 @@ pub(super) struct Sidebar {
     pub can_restore_list: bool,
     pub space_overview: bool,
     pub font: String,
+    pub show_favorites: bool,
+    pub swipe_left: String,
+    pub swipe_right: String,
+    pub collapsed_sections: String,
     pub is_platform_admin: bool,
     pub settings_section: String,
     pub favorites: Vec<SidebarFavorite>,
@@ -236,11 +240,17 @@ pub(super) fn build_sidebar(
     };
     let can_restore_list =
         !archive_note.is_empty() && db.list_permission(actor, current_list)? >= 2;
+    let preferences = db.notification_preferences(actor)?;
     Ok(Sidebar {
         archive_note,
         archive_revision,
         can_restore_list,
-        font: db.notification_preferences(actor)?.font,
+        font: preferences.font,
+        show_favorites: preferences.show_favorites,
+        swipe_left: preferences.swipe_left,
+        swipe_right: preferences.swipe_right,
+        collapsed_sections: serde_json::to_string(&preferences.collapsed_sections)
+            .unwrap_or_default(),
         is_platform_admin,
         menu_spaces,
         space_overview: false,

@@ -25,6 +25,10 @@ pub(super) fn routes() -> Router<AppState> {
             "/api/v1/notification-preferences",
             get(preferences).put(set_preferences),
         )
+        .route(
+            "/api/v1/section-preferences/{id}",
+            axum::routing::put(set_section_preference),
+        )
         .route("/api/v1/planning", get(planning))
         .route("/api/v1/statistics", get(statistics))
         .route(
@@ -201,6 +205,33 @@ async fn set_preferences(
             .await?,
     )
     .into_response())
+}
+#[derive(Deserialize)]
+struct SectionPreference {
+    collapsed: bool,
+}
+async fn set_section_preference(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+    Input(input): Input<SectionPreference>,
+) -> Result<Response, ApiError> {
+    if h.contains_key(header::AUTHORIZATION) || !s.origin_ok(&h) {
+        return Err(Error::Forbidden.into());
+    }
+    let actor = s.auth(&h, true)?;
+    s.run(move |db| {
+        let mut preferences = db.notification_preferences(&actor)?;
+        preferences
+            .collapsed_sections
+            .retain(|section| section != &id);
+        if input.collapsed {
+            preferences.collapsed_sections.push(id);
+        }
+        db.set_notification_preferences(&actor, preferences)
+    })
+    .await?;
+    Ok(StatusCode::NO_CONTENT.into_response())
 }
 #[derive(Deserialize)]
 struct Range {
@@ -696,6 +727,10 @@ async fn notification_form(
         fun_animations: current.fun_animations,
         fun_animation: current.fun_animation,
         font: current.font,
+        show_favorites: current.show_favorites,
+        swipe_left: current.swipe_left,
+        swipe_right: current.swipe_right,
+        collapsed_sections: current.collapsed_sections,
         email_opt_in: form.contains_key("email_opt_in"),
         quiet_start: nonempty("quiet_start"),
         quiet_end: nonempty("quiet_end"),
@@ -956,6 +991,15 @@ async fn save_appearance(
     s.run(move |db| {
         let mut preferences = db.notification_preferences(&actor)?;
         preferences.font = font;
+        preferences.show_favorites = form.contains_key("show_favorites");
+        preferences.swipe_left = form
+            .get("swipe_left")
+            .cloned()
+            .unwrap_or_else(|| "archive".into());
+        preferences.swipe_right = form
+            .get("swipe_right")
+            .cloned()
+            .unwrap_or_else(|| "complete".into());
         db.set_notification_preferences(&actor, preferences)
     })
     .await?;

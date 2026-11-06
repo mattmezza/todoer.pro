@@ -17,6 +17,10 @@ pub struct Preferences {
     pub fun_animations: bool,
     pub fun_animation: String,
     pub font: String,
+    pub show_favorites: bool,
+    pub swipe_left: String,
+    pub swipe_right: String,
+    pub collapsed_sections: Vec<String>,
     pub email_opt_in: bool,
     pub quiet_start: Option<String>,
     pub quiet_end: Option<String>,
@@ -40,6 +44,10 @@ impl Default for Preferences {
             fun_animations: true,
             fun_animation: "tasks".into(),
             font: "geist".into(),
+            show_favorites: true,
+            swipe_left: "archive".into(),
+            swipe_right: "complete".into(),
+            collapsed_sections: Vec::new(),
             email_opt_in: false,
             quiet_start: None,
             quiet_end: None,
@@ -139,6 +147,22 @@ impl Store {
         }
         if !matches!(value.font.as_str(), "geist" | "inter") {
             return Err(invalid("Unknown appearance font"));
+        }
+        if [&value.swipe_left, &value.swipe_right]
+            .iter()
+            .any(|action| !matches!(action.as_str(), "archive" | "complete" | "none"))
+        {
+            return Err(invalid("Unknown task swipe action"));
+        }
+        if value.collapsed_sections.len() > 1000
+            || value
+                .collapsed_sections
+                .iter()
+                .any(|id| id.is_empty() || id.len() > 100)
+        {
+            return Err(invalid(
+                "Collapsed sections must contain at most 1000 section IDs",
+            ));
         }
         zone(&value.timezone)?;
         time(&value.daily_time)?;
@@ -314,6 +338,35 @@ mod tests {
         preferences.font = "untrusted".into();
         assert!(db.set_notification_preferences("dev", preferences).is_err());
         assert_eq!(db.notification_preferences("dev").unwrap().font, "inter");
+    }
+    #[test]
+    fn navigation_preferences_default_validate_and_persist() {
+        let defaults: Preferences = serde_json::from_str("{}").unwrap();
+        assert!(defaults.show_favorites);
+        assert_eq!(defaults.swipe_left, "archive");
+        assert_eq!(defaults.swipe_right, "complete");
+        assert!(defaults.collapsed_sections.is_empty());
+        let mut db = db();
+        let mut value = defaults;
+        value.show_favorites = false;
+        value.swipe_left = "none".into();
+        value.swipe_right = "archive".into();
+        value.collapsed_sections = vec!["section-example".into()];
+        db.set_notification_preferences("dev", value.clone())
+            .unwrap();
+        let saved = db.notification_preferences("dev").unwrap();
+        assert!(!saved.show_favorites);
+        assert_eq!(saved.swipe_left, "none");
+        assert_eq!(saved.swipe_right, "archive");
+        assert_eq!(saved.collapsed_sections, ["section-example"]);
+        value.swipe_left = "delete".into();
+        assert!(
+            db.set_notification_preferences("dev", value.clone())
+                .is_err()
+        );
+        value.swipe_left = "complete".into();
+        value.collapsed_sections = vec!["section".into(); 1001];
+        assert!(db.set_notification_preferences("dev", value).is_err());
     }
     #[test]
     fn playful_preferences_preserve_defaults_validate_and_persist() {

@@ -3,5 +3,9 @@
 <fieldset><legend>Font</legend>
 <label class="appearance-font appearance-inter"><span class="appearance-font-name"><input type="radio" name="font" value="inter" {% if sidebar.font == "inter" %}checked{% endif %}>Inter</span><p>Make room for what matters.</p><small>Your spaces, lists and everyday plans. Aa Bb Cc 0123456789</small></label>
 <label class="appearance-font appearance-geist"><span class="appearance-font-name"><input type="radio" name="font" value="geist" {% if sidebar.font == "geist" %}checked{% endif %}>Geist</span><p>Make room for what matters.</p><small>Your spaces, lists and everyday plans. Aa Bb Cc 0123456789</small></label>
-</fieldset><div><button type="submit" class="primary">Save appearance</button></div>
+</fieldset>
+<fieldset><legend>Sidebar</legend><label><input type="checkbox" name="show_favorites"{% if sidebar.show_favorites %} checked{% endif %}> Show favorites in the sidebar</label></fieldset>
+<fieldset><legend>Task swipe actions</legend><p class="muted">On touchscreens, swipe a task to act on it. You can undo completed or archived tasks.</p>
+<label>Swipe left<select name="swipe_left"><option value="archive"{% if sidebar.swipe_left == "archive" %} selected{% endif %}>Archive</option><option value="complete"{% if sidebar.swipe_left == "complete" %} selected{% endif %}>Complete</option><option value="none"{% if sidebar.swipe_left == "none" %} selected{% endif %}>Do nothing</option></select></label>
+<label>Swipe right<select name="swipe_right"><option value="complete"{% if sidebar.swipe_right == "complete" %} selected{% endif %}>Complete</option><option value="archive"{% if sidebar.swipe_right == "archive" %} selected{% endif %}>Archive</option><option value="none"{% if sidebar.swipe_right == "none" %} selected{% endif %}>Do nothing</option></select></label></fieldset><div><button type="submit" class="primary">Save appearance</button></div>
 </form>

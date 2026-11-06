@@ -1,3 +1,11 @@
+function swipeAction(distance) {
+  const nav = document.querySelector('#navigation');
+  return (
+    (distance > 0 ? nav?.dataset.swipeRight : nav?.dataset.swipeLeft) ||
+    (distance > 0 ? 'complete' : 'archive')
+  );
+}
+
 // Ordering never moves DOM nodes optimistically: a confirmed write refreshes the
 // canonical fragment, and a rejected write leaves drafts and selections intact.
 // Native HTML5 drag is enabled only on desktop-width fine-pointer/hover devices.
@@ -337,9 +345,14 @@ export function mountTaskOrdering({
     }
     if (current.mode === 'swipe') {
       if (event.cancelable) event.preventDefault();
-      current.dx = current.row.dataset.complete === 'true' ? Math.min(0, dx) : dx;
+      current.dx =
+        current.row.dataset.complete === 'true' && swipeAction(dx) === 'complete'
+          ? 0
+          : dx;
       const distance = Math.max(-120, Math.min(120, current.dx));
-      current.row.dataset.swipeAction = distance >= 0 ? 'done' : 'archive';
+      const action = swipeAction(distance);
+      current.row.dataset.swipeAction = action === 'complete' ? 'done' : action;
+      if (action === 'none') return;
       current.row.style.setProperty('--swipe-distance', `${distance}px`);
     } else if (current.mode === 'drag') {
       if (event.cancelable) event.preventDefault();
@@ -370,7 +383,8 @@ export function mountTaskOrdering({
     if (current.mode !== 'pending') suppressClickUntil = Date.now() + 700;
     resetTouch();
     if (current.mode === 'swipe' && Math.abs(current.dx || 0) >= 80) {
-      if (!blocked()) onSwipe?.(current.row, current.dx > 0 ? 'complete' : 'archive');
+      const action = swipeAction(current.dx);
+      if (!blocked() && action !== 'none') onSwipe?.(current.row, action);
     } else if (current.mode === 'drag' && current.target) {
       run(async () => {
         const state = await current.pending;
