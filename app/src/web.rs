@@ -648,7 +648,6 @@ struct ListPage {
     reference: String,
     sidebar: Sidebar,
     slug: String,
-    lists: Vec<List>,
     list: List,
     groups: Vec<TaskGroup>,
     task_count: usize,
@@ -730,6 +729,7 @@ struct TaskRows {
     can_write: bool,
 }
 struct TaskGroup {
+    collapsed: bool,
     reference: String,
     progress: usize,
     completed: usize,
@@ -750,7 +750,9 @@ fn grouped_rows(
     let tasks = rendered_tasks(db, actor, list)?;
     let count = tasks.iter().filter(|task| task.parent_id.is_none()).count();
     let slugs = db.entity_slugs(actor)?;
+    let collapsed = db.notification_preferences(actor)?.collapsed_sections;
     let mut groups = vec![TaskGroup {
+        collapsed: false,
         reference: String::new(),
         progress: 0,
         completed: 0,
@@ -772,6 +774,7 @@ fn grouped_rows(
         }
         let description_html = crate::markdown::render(&section.description);
         groups.push(TaskGroup {
+            collapsed: collapsed.contains(&section.id),
             reference: crate::defaults::public_id(&db.conn, "section", &section.id)?,
             progress: 0,
             completed: 0,
@@ -979,7 +982,6 @@ pub(super) async fn page(
         sidebar,
         slug,
         color,
-        lists,
         list,
         groups,
         task_count,

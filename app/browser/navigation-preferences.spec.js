@@ -97,6 +97,10 @@ test('section collapse survives reload and a second browser tab', async ({
   );
   await disclosure.locator('summary').click();
   expect((await saved).ok()).toBeTruthy();
+  const serverHtml = await (await page.request.get(`/lists/${list.id}`)).text();
+  expect(
+    serverHtml.split(`data-section-id="${section.id}"`)[1].split('</details>')[0],
+  ).not.toContain('class="section-collapse" open');
   await page.reload();
   await expect(disclosure).not.toHaveAttribute('open');
   const second = await context.newPage();

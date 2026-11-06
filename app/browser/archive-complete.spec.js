@@ -31,8 +31,13 @@ for (const width of [390, 1280]) {
     });
     const section = await post(`/lists/${list.id}/sections`, {
       title: 'Review section',
-      description: '',
+      description: 'A helpful section description',
     });
+    const secondSection = await post(`/lists/${list.id}/sections`, {
+      title: 'Another section',
+      description: 'Second archive',
+    });
+    await post(`/cli/lifecycle/section/${secondSection.id}`, { archive: true });
     const [root] = await post('/capture', {
       list_id: list.id,
       section_id: section.id,
@@ -73,10 +78,25 @@ for (const width of [390, 1280]) {
     await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
     await page.locator('[data-list-display] .entity-menu > summary').click();
     await page.getByRole('button', { name: 'Archived sections…' }).click();
-    await page.getByRole('button', { name: 'Restore section Review section' }).click();
-    await page
-      .getByRole('dialog', { name: 'Restore this section?' })
-      .getByRole('button', { name: 'Restore section', exact: true })
+    const archiveDialog = page.getByRole('dialog', {
+      name: 'Archived sections',
+      exact: true,
+    });
+    await expect(archiveDialog).toContainText('$Review section');
+    await expect(archiveDialog).toContainText('A helpful section description');
+    await archiveDialog
+      .getByRole('button', { name: 'Restore section Review section' })
+      .click();
+    await expect(archiveDialog).toBeVisible();
+    await expect(
+      archiveDialog.getByRole('button', { name: 'Restore section Another section' }),
+    ).toBeVisible();
+    await archiveDialog
+      .getByRole('button', { name: 'Restore section Another section' })
+      .click();
+    await expect(archiveDialog).toContainText('All sections restored');
+    await archiveDialog
+      .getByRole('button', { name: 'Close dialog', exact: true })
       .click();
     await expect(group).toBeVisible();
     await page.goto(`/space/${space.id}`);
@@ -86,6 +106,19 @@ for (const width of [390, 1280]) {
       .getByRole('dialog', { name: 'Archive this space?' })
       .getByRole('button', { name: 'Archive space', exact: true })
       .click();
-    await expect(page).toHaveURL(/\/spaces$/);
+    await expect(page).toHaveURL(/\/space\//);
+    await expect(
+      page.getByRole('region', { name: 'Archived space', exact: true }),
+    ).toBeVisible();
+    await expect(page.locator('[data-space-edit-open]')).toHaveCount(0);
+    await expect(page.locator('[data-list-create-open]')).toHaveCount(0);
+    await expect(
+      page.locator('.space-list-card a').filter({ hasText: '#Lifecycle list' }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Restore space…', exact: true }).click();
+    await expect(
+      page.getByRole('region', { name: 'Archived space', exact: true }),
+    ).toHaveCount(0);
+    await expect(page.locator('[data-space-edit-open]')).toHaveCount(1);
   });
 }

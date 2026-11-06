@@ -461,10 +461,15 @@ export function mountListUi({ api, notice, listId }) {
   }
   async function archivedSections() {
     const dialog = modal('Archived sections');
+    dialog.classList.add('archived-sections-dialog');
     const status = document.createElement('p');
     status.setAttribute('role', 'status');
     status.textContent = 'Loading archived sections…';
     dialog.append(status);
+    let restored = false;
+    dialog.addEventListener('close', () => {
+      if (restored) location.reload();
+    });
     dialog.showModal();
     try {
       const sections = await api(
@@ -475,32 +480,36 @@ export function mountListUi({ api, notice, listId }) {
         : 'No archived sections in this list.';
       for (const section of sections) {
         const row = document.createElement('div');
-        row.className = 'inline-actions';
-        const name = document.createElement('span');
-        name.textContent = section.title;
+        row.className = 'archived-section-row';
+        const copy = document.createElement('div');
+        const name = document.createElement('strong');
+        name.className = 'archived-section-name';
+        name.textContent = `$${section.title}`;
+        copy.append(name);
+        if (section.description) {
+          const description = document.createElement('p');
+          description.textContent = section.description;
+          copy.append(description);
+        }
         const restore = document.createElement('button');
         restore.type = 'button';
+        restore.className = 'primary';
         restore.textContent = 'Restore';
         restore.setAttribute('aria-label', `Restore section ${section.title}`);
         restore.onclick = async () => {
           restore.disabled = true;
           try {
-            if (
-              !(await confirmAction(
-                'This section and its archived tasks will return to active views.',
-                { title: 'Restore this section?', acceptLabel: 'Restore section' },
-              ))
-            )
-              return;
             await api(`/cli/lifecycle/section/${section.id}`, 'POST', { archive: false });
-            location.reload();
+            restored = true;
+            row.remove();
+            if (!dialog.querySelector('.archived-section-row'))
+              status.textContent = 'All sections restored. Close to return to your list.';
           } catch (error) {
             status.textContent = error.message;
-          } finally {
             restore.disabled = false;
           }
         };
-        row.append(name, restore);
+        row.append(copy, restore);
         dialog.append(row);
       }
     } catch (error) {

@@ -238,8 +238,10 @@ pub(super) fn build_sidebar(
     } else {
         db.list_info(actor, current_list)?.list.revision
     };
-    let can_restore_list =
-        !archive_note.is_empty() && db.list_permission(actor, current_list)? >= 2;
+    let can_restore_list = !archive_note.is_empty()
+        && !archive_note.starts_with("Archived space")
+        && db.list_info(actor, current_list)?.archived
+        && db.list_permission(actor, current_list)? >= 2;
     let preferences = db.notification_preferences(actor)?;
     Ok(Sidebar {
         archive_note,

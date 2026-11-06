@@ -729,6 +729,8 @@ async fn space_redirect(
 #[derive(Template)]
 #[template(path = "space-overview.html")]
 struct SpaceOverview {
+    archived: bool,
+    can_restore: bool,
     sidebar: super::Sidebar,
     workspace: Workspace,
     reference: String,
@@ -772,6 +774,7 @@ async fn space_page(
         let id = crate::defaults::resolve(&db.conn, "workspace", &id)?;
         let workspace = db.workspace(&actor, &id)?;
         let rank = db.workspace_permission(&actor, &id)?;
+        let archived = db.conn.query_row("SELECT coalesce((SELECT archived FROM workspace_lifecycle WHERE workspace_id=?1),0)", [&id], |r| r.get::<_,bool>(0))?;
         let reference = crate::defaults::public_id(&db.conn, "workspace", &id)?;
         // Aggregate only lists visible through the live actor view. Hidden lists
         // and their task totals never contribute to this overview.
@@ -784,7 +787,7 @@ async fn space_page(
         let mut archived_lists = Vec::new();
         let mut active_lists = Vec::new();
         for mut card in lists {
-            if let Some(note) = db.list_archive_note(&actor, &card.id)? { card.archive_note = note; archived_lists.push(card); }
+            if db.list_info(&actor, &card.id)?.archived { card.archive_note = db.list_archive_note(&actor, &card.id)?.unwrap_or_default(); archived_lists.push(card); }
             else { active_lists.push(card); }
         }
         let mut lists = active_lists;
@@ -803,7 +806,7 @@ async fn space_page(
         let tasks = tasks.iter().filter(|row| lists.iter().any(|list| list.id == row.task.list_id)).collect::<Vec<_>>();
         let planned_today = tasks.iter().filter(|row| row.dates.iter().any(|date| date == &today.to_string())).count();
         let planned_week = tasks.len();
-        Ok(SpaceOverview { sidebar, workspace, reference, lists, archived_lists, open, completed, total:open+completed, planned_today, planned_week, can_edit:rank>=3, can_create:rank>=2 })
+        Ok(SpaceOverview { archived, can_restore: archived && rank>=3, sidebar, workspace, reference, lists, archived_lists, open, completed, total:open+completed, planned_today, planned_week, can_edit:rank>=3 && !archived, can_create:rank>=2 && !archived })
     }).await?;
     if requested != overview.reference {
         return Ok(Redirect::to(&format!("/space/{}", overview.reference)).into_response());

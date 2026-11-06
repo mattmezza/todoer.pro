@@ -185,8 +185,23 @@ fn workspace_rank(c: &Connection, actor: &str, id: &str) -> Result<i64, Error> {
     .optional()?
     .unwrap_or(0))
 }
+pub(crate) fn require_active_workspace(c: &Connection, id: &str) -> Result<(), Error> {
+    if c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM workspace_lifecycle WHERE workspace_id=?1 AND archived=1)",
+        [id],
+        |r| r.get::<_, bool>(0),
+    )? {
+        return Err(Error::Conflict(
+            "Restore this space before making changes".into(),
+        ));
+    }
+    Ok(())
+}
 fn require_workspace(c: &Connection, actor: &str, id: &str, minimum: i64) -> Result<(), Error> {
     if workspace_rank(c, actor, id)? >= minimum {
+        if minimum >= 2 {
+            require_active_workspace(c, id)?;
+        }
         Ok(())
     } else {
         Err(Error::Forbidden)
@@ -224,6 +239,15 @@ pub(crate) fn require_list(
         .optional()?
         .unwrap_or(0);
     if rank >= minimum {
+        if minimum >= 2 {
+            let workspace: Option<String> =
+                c.query_row("SELECT workspace_id FROM lists WHERE id=?1", [id], |r| {
+                    r.get(0)
+                })?;
+            if let Some(workspace) = workspace {
+                require_active_workspace(c, &workspace)?;
+            }
+        }
         Ok(())
     } else {
         Err(Error::Forbidden)
@@ -343,7 +367,9 @@ impl Store {
         confirmation: Option<&str>,
     ) -> Result<(), Error> {
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
-        require_workspace(&tx, actor, id, 3)?;
+        if workspace_rank(&tx, actor, id)? < 3 {
+            return Err(Error::Forbidden);
+        }
         let old = workspace_raw(&tx, id)?;
         check_revision(old.revision, revision)?;
         let archived = tx
@@ -444,7 +470,9 @@ impl Store {
         actor: &str,
         workspace: &str,
     ) -> Result<Vec<WorkspaceMember>, Error> {
-        require_workspace(&self.conn, actor, workspace, 3)?;
+        if workspace_rank(&self.conn, actor, workspace)? < 3 {
+            return Err(Error::Forbidden);
+        }
         let mut stmt = self.conn.prepare(
             "SELECT user_id,role FROM workspace_members WHERE workspace_id=?1 ORDER BY user_id",
         )?;
@@ -606,6 +634,19 @@ impl Store {
     }
     pub fn list_archive_note(&self, actor: &str, id: &str) -> Result<Option<String>, Error> {
         require_list(&self.conn, actor, id, 1)?;
+        let workspace: Option<String> =
+            self.conn
+                .query_row("SELECT workspace_id FROM lists WHERE id=?1", [id], |r| {
+                    r.get(0)
+                })?;
+        if let Some(workspace) = workspace {
+            let archived: bool = self.conn.query_row("SELECT EXISTS(SELECT 1 FROM workspace_lifecycle WHERE workspace_id=?1 AND archived=1)", [&workspace], |r| r.get(0))?;
+            if archived {
+                return Ok(Some(
+                    "Archived space · restore the space before making changes".into(),
+                ));
+            }
+        }
         let user = crate::core::actor_identity(&self.conn, actor)?.0;
         self.conn.query_row("SELECT l.archived,l.archived_by,u.name,l.archived_at FROM lists l LEFT JOIN users u ON u.id=l.archived_by WHERE l.id=?1",[id],|r| {
             let archived: bool = r.get(0)?;
@@ -2610,6 +2651,42 @@ mod lifecycle_tests {
         db.change_workspace_lifecycle("dev", &w.id, revision, "archive", None)
             .unwrap();
         assert!(db.list_permission("dev", &l.id).is_ok());
+        assert!(
+            db.list_archive_note("dev", &l.id)
+                .unwrap()
+                .unwrap()
+                .contains("Archived space")
+        );
+        assert!(db.tasks("dev", &l.id).is_ok());
+        assert!(matches!(
+            crate::core::access_rank(&db.conn, "dev", &l.id, 2),
+            Err(Error::Conflict(_))
+        ));
+        assert!(matches!(
+            db.update_workspace(
+                "dev",
+                &w.id,
+                WorkspaceChange {
+                    revision: db.workspace("dev", &w.id).unwrap().revision,
+                    title: Some("Forbidden rename".into()),
+                    description: None
+                }
+            ),
+            Err(Error::Conflict(_))
+        ));
+        assert!(matches!(
+            db.create_list(
+                "dev",
+                CreateList {
+                    workspace_id: w.id.clone(),
+                    title: "Forbidden list".into(),
+                    description: String::new(),
+                    restricted: false
+                }
+            ),
+            Err(Error::Conflict(_))
+        ));
+
         assert!(
             db.change_workspace_lifecycle("dev", &w.id, revision, "restore", None)
                 .is_err()

@@ -121,10 +121,44 @@ root?.querySelector('[data-space-archive]')?.addEventListener('click', async (ev
     );
     if (!response.ok)
       throw Error((await response.json()).error?.message || 'Could not archive space.');
-    location.assign('/spaces');
+    location.reload();
   } catch (error) {
     toast(error.message);
   } finally {
     button.disabled = false;
   }
 });
+
+root &&
+  document
+    .querySelector('[data-space-restore]')
+    ?.addEventListener('click', async (event) => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        const response = await fetch(
+          `/api/v1/workspaces/${encodeURIComponent(root.dataset.spaceId)}/lifecycle`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content,
+            },
+            body: JSON.stringify({
+              revision: Number(root.dataset.spaceRevision),
+              action: 'restore',
+              confirmation: null,
+            }),
+          },
+        );
+        if (!response.ok)
+          throw Error(
+            (await response.json()).error?.message || 'Could not restore space.',
+          );
+        location.reload();
+      } catch (error) {
+        toast(error.message);
+      } finally {
+        button.disabled = false;
+      }
+    });

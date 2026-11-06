@@ -13,7 +13,6 @@ if (container && navigation) {
       initialized.add(details);
       const section = details.closest('[data-section-id]');
       const id = section.dataset.sectionId;
-      details.open = !collapsed.has(id);
       details
         .querySelector('summary')
         .setAttribute('aria-label', `Toggle section ${section.dataset.sectionTitle}`);

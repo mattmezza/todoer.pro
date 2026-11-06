@@ -119,6 +119,15 @@ pub(crate) fn access_rank(c: &Connection, actor: &str, list: &str, rank: i64) ->
     )? {
         return Err(Error::Forbidden);
     }
+    if rank >= 2 {
+        let workspace: Option<String> =
+            c.query_row("SELECT workspace_id FROM lists WHERE id=?1", [list], |r| {
+                r.get(0)
+            })?;
+        if let Some(workspace) = workspace {
+            crate::workspace::require_active_workspace(c, &workspace)?;
+        }
+    }
     Ok(())
 }
 pub(crate) fn actor_user(c: &Connection, actor: &str, required: i64) -> Result<String, Error> {
