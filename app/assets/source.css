@@ -13456,3 +13456,48 @@ body > .planning-detail-dismiss {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+.task-page [data-new-comment] .composer-actions > button {
+  min-height: 44px;
+}
+.task-page [data-new-comment] .composer-actions > .comment-attach-icon {
+  display: inline-flex;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+}
+.task-page [data-new-comment] .comment-attach-icon:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.comment-upload-limit {
+  margin: 0;
+  text-align: right;
+  font-size: 12px;
+}
+
+.task-child-description {
+  min-width: 0;
+  margin: 6px 0 0 34px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.task-child-description > :first-child {
+  margin-top: 0;
+}
+.task-child-description > :last-child {
+  margin-bottom: 0;
+}
+.task-child-description :is(pre, table) {
+  max-width: 100%;
+  overflow-x: auto;
+}
