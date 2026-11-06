@@ -18,7 +18,9 @@ function placeholder(variant, target) {
   const root = document.createElement('div');
   root.className = `loading-skeleton skeleton-${variant}`;
   root.setAttribute('aria-hidden', 'true');
-  if (variant === 'text') {
+  if (variant === 'spinner') {
+    root.append(part('loading-spinner'));
+  } else if (variant === 'text') {
     root.append(part('skeleton-line'));
   } else if (variant === 'discussion') {
     root.append(part('skeleton-line skeleton-line-label'));
@@ -72,17 +74,15 @@ function placeholder(variant, target) {
           ),
         );
     }
-  } else if (variant === 'capture' || variant === 'task') {
+  } else if (variant === 'capture') {
     root.append(part('skeleton-line skeleton-title'), lines());
-    if (variant === 'task') root.append(row(), row(), row());
-    else
-      root.append(
-        part(
-          'skeleton-capture-footer',
-          part('skeleton-line skeleton-line-label'),
-          part('skeleton-action'),
-        ),
-      );
+    root.append(
+      part(
+        'skeleton-capture-footer',
+        part('skeleton-line skeleton-line-label'),
+        part('skeleton-action'),
+      ),
+    );
   } else {
     for (let i = 0; i < (variant === 'compact' ? 1 : 3); i++) root.append(row());
   }

@@ -80,7 +80,7 @@ export function createTaskPanel({
     header.className = 'planning-detail-toolbar';
     const content = document.createElement('div');
     content.className = 'planning-detail-content';
-    const skeleton = beginLoading(content, { variant: 'task' });
+    const pending = beginLoading(content, { variant: 'spinner' });
     if (compact) header.append(dismiss);
     panel.append(header, content);
     try {
@@ -218,9 +218,9 @@ export function createTaskPanel({
       };
       refreshPanelTags();
     } catch (error) {
-      if (version === generation) skeleton.fail(error.message, () => open(url));
+      if (version === generation) pending.fail(error.message, () => open(url));
     } finally {
-      skeleton.finish();
+      pending.finish();
     }
   }
 

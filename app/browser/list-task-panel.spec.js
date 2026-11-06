@@ -66,6 +66,67 @@ for (const width of [390, 1280]) {
     await expect(page).toHaveURL(/\/tasks\//);
     expect(await page.evaluate(() => window.listDocument === document)).toBe(true);
   });
+
+  test(`task panel uses a stable spinner and supports retry at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/signin');
+    await page.getByRole('button', { name: 'Enter development workspace' }).click();
+    const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
+    const created = await page.request.post('/api/v1/capture', {
+      headers: { 'x-csrf-token': csrf, 'Idempotency-Key': randomUUID() },
+      data: {
+        list_id: 'inbox',
+        tasks: [{ title: `Loading ${randomUUID()}` }],
+      },
+    });
+    expect(created.ok()).toBe(true);
+    const [task] = await created.json();
+    await page.goto('/lists/inbox');
+    await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+    const row = page.locator(`.task[data-id="${task.id}"]`);
+    const href = await row.locator('.task-title').getAttribute('href');
+    let release;
+    const delayed = new Promise((resolve) => {
+      release = resolve;
+    });
+    let fail = true;
+    await page.route(`**${href}`, async (route) => {
+      await delayed;
+      if (fail) await route.fulfill({ status: 503, body: 'Unavailable' });
+      else await route.continue();
+    });
+    await row.click({ position: { x: 16, y: 6 } });
+    const panel = page.getByRole('complementary', { name: 'Task details', exact: true });
+    const content = panel.locator('.planning-detail-content');
+    const spinner = content.locator('.loading-spinner');
+    await expect(content).toHaveAttribute('aria-busy', 'true');
+    await expect(spinner).toBeVisible();
+    await expect(content.locator('.skeleton-line, .skeleton-row')).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Close task details', exact: true }),
+    ).toBeVisible();
+    expect(await spinner.evaluate((el) => getComputedStyle(el).animationName)).toBe(
+      'none',
+    );
+    const geometry = await panel.boundingBox();
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    expect(await spinner.evaluate((el) => getComputedStyle(el).animationName)).toBe(
+      'quiet-saving-spin',
+    );
+    release();
+    await expect(content.getByRole('alert')).toContainText('Could not open this task.');
+    await expect(spinner).toHaveCount(0);
+    await expect(content).not.toHaveAttribute('aria-busy');
+    fail = false;
+    await content.getByRole('button', { name: 'Try again' }).click();
+    await expect(panel.locator('[data-edit-title]')).toHaveText(task.title);
+    await expect(content.locator('.loading-error, .loading-spinner')).toHaveCount(0);
+    expect(await panel.boundingBox()).toEqual(geometry);
+    await page.unrouteAll({ behavior: 'wait' });
+  });
 }
 
 test('switching task panels avoids duplicate reads and defers hidden metadata', async ({

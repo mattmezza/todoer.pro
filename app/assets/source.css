@@ -10682,8 +10682,8 @@ main.auth-shell {
 [data-load-failed='choices'] {
   min-height: 304px;
 }
-[data-loading-pending='task'],
-[data-load-failed='task'] {
+[data-loading-pending='spinner'],
+[data-load-failed='spinner'] {
   min-height: 380px;
 }
 [data-loading-pending='capture'],
@@ -10731,6 +10731,28 @@ main.auth-shell {
 /* Absolute loading overlays need the same inset as the panel's loaded content. */
 .planning-detail-content > :is(.loading-skeleton, .loading-error) {
   inset: 4px 20px 32px;
+}
+/* Task contents vary; indicate progress without predicting their layout. */
+.skeleton-spinner {
+  align-items: center;
+  justify-content: center;
+  animation: loading-reveal 100ms ease-out 150ms both;
+}
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid color-mix(in srgb, var(--muted) 20%, transparent);
+  border-top-color: var(--muted);
+  border-radius: 50%;
+  animation: quiet-saving-spin 800ms linear infinite;
+}
+@keyframes loading-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .skeleton-row {
   display: flex;
@@ -10844,10 +10866,6 @@ main.auth-shell {
   width: 64%;
   margin: 14px 0 22px;
 }
-.skeleton-task > .skeleton-copy {
-  flex: 0;
-  margin: 8px 0 28px;
-}
 .skeleton-capture > .skeleton-copy {
   flex: 0;
   margin-top: 4px;
@@ -10934,6 +10952,7 @@ form[data-load-failed],
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .skeleton-spinner,
   .loading-skeleton * {
     animation: none !important;
   }
