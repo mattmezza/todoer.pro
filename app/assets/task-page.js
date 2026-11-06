@@ -100,7 +100,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
     button.querySelector('span').textContent = label;
     button.querySelector('use').setAttribute('href', `/assets/icons.svg#${icon}`);
   }
-  form.classList.add('inline-editor');
+  form.classList.add('inline-editor', 'entry-form');
   form.prepend(title);
   title.placeholder = 'Task name';
   const saveStructured = mountStructuredEdit(title);
@@ -484,7 +484,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
     const base = { ...child, ...snapshot };
     const editor = document.createElement('form');
     editor.dataset.childInline = '';
-    editor.className = 'inline-editor';
+    editor.className = 'inline-editor entry-form';
     const input = document.createElement('input');
     input.name = 'title';
     input.value = base.title;

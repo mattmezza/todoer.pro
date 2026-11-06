@@ -532,7 +532,7 @@ onPageLoad((scope) => {
       }
       const display = row.querySelector('.task-title');
       const form = document.createElement('form');
-      form.className = 'inline-editor';
+      form.className = 'inline-editor entry-form';
       const input = document.createElement('input');
       input.name = 'title';
       input.value = task.title;

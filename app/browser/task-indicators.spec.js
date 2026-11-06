@@ -207,7 +207,23 @@ test('both indicators appear in Inbox, Today, calendar views and search', async 
   await page.reload();
   for (const task of [parent, child])
     await indicators(page.locator(`[data-planning-task="${task.id}"]`));
-  await page.goto(`/plan?view=week&date=${date}`);
+  // Use a separate calendar day so other browser fixtures cannot fill the
+  // month's first three visible slots before this test's tasks.
+  const calendarDate = '2060-02-12';
+  for (const task of [parent, child]) {
+    const current = await (
+      await page.request.get(`/api/v1/tasks/${task.id}/schedule`)
+    ).json();
+    const response = await page.request.put(`/api/v1/tasks/${task.id}/schedule`, {
+      headers: { 'x-csrf-token': csrf },
+      data: {
+        revision: current.task_revision,
+        schedule: { ...current.schedule, planned: { kind: 'date', date: calendarDate } },
+      },
+    });
+    expect(response.ok(), await response.text()).toBeTruthy();
+  }
+  await page.goto(`/plan?view=week&date=${calendarDate}`);
   for (const task of [parent, child])
     await indicators(page.locator(`.calendar-event[data-task-id="${task.id}"]`));
   const current = await (await page.request.get(`/api/v1/tasks/${child.id}`)).json();
@@ -215,7 +231,7 @@ test('both indicators appear in Inbox, Today, calendar views and search', async 
     headers: { 'x-csrf-token': csrf },
     data: {
       revision: current.revision,
-      date,
+      date: calendarDate,
       time: '10:00',
       timezone: 'UTC',
       duration_minutes: 30,
@@ -224,7 +240,7 @@ test('both indicators appear in Inbox, Today, calendar views and search', async 
   expect(placed.ok(), await placed.text()).toBeTruthy();
   await page.reload();
   await indicators(page.locator(`.calendar-timed-event[data-task-id="${child.id}"]`));
-  await page.goto(`/plan?view=month&date=${date}`);
+  await page.goto(`/plan?view=month&date=${calendarDate}`);
   await indicators(
     page.locator('.calendar-month-task').filter({ hasText: title }).first(),
   );

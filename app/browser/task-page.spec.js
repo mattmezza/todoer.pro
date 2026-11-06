@@ -620,7 +620,10 @@ for (const width of [390, 1280]) {
     await expect(detail).toHaveCSS('border-bottom-width', '0px');
     await panel.locator('[data-edit-title]').click();
     const brief = panel.locator('[data-brief-form]');
-    await expect(brief.locator('[name=title]')).toHaveCSS('font-size', '15px');
+    await expect(brief.locator('[name=title]')).toHaveCSS(
+      'font-size',
+      width <= 640 ? '16px' : '15px',
+    );
     await expect(brief.locator('[name=title]')).toHaveCSS('border-top-width', '1px');
     await expect(brief.locator('[name=description]')).toHaveCSS(
       'border-top-width',

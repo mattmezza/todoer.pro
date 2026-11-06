@@ -204,3 +204,60 @@ test('Today filter failures preserve the list and offer a retry', async ({ page 
   await expect(page).toHaveURL(/range=tomorrow/);
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
+
+test('lowest priority capture and task editing preserve the default low priority', async ({
+  page,
+}) => {
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  await page.goto('/lists/inbox');
+  const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
+  const title = `Lowest ${randomUUID()}`;
+  await page.getByRole('button', { name: 'Add task', exact: true }).first().click();
+  const capture = page.locator('#capture-form');
+  await capture.getByLabel('New task title', { exact: true }).fill(`${title} p4`);
+  await expect(capture.locator('.capture-priority')).toHaveText('P4');
+  await capture.getByRole('button', { name: 'Add task', exact: true }).click();
+  const row = page.locator('.task').filter({ hasText: title });
+  await expect(row.locator('.task-title')).toHaveText(title);
+  const id = await row.getAttribute('data-id');
+  expect(
+    (await (await page.request.get(`/api/v1/tasks/${id}/schedule`)).json()).schedule
+      .priority,
+  ).toBe(4);
+  await row.click({ position: { x: 16, y: 6 } });
+  const panel = page.getByRole('complementary', { name: 'Task details', exact: true });
+  const picker = panel.getByLabel('Change priority', { exact: true });
+  await expect(picker).toHaveText('P4');
+  const muted = await panel.evaluate((el) =>
+    getComputedStyle(el).getPropertyValue('--muted').trim(),
+  );
+  const heading = panel.locator('[data-edit-title]');
+  const color = (value) =>
+    page.evaluate((value) => {
+      const el = document.createElement('span');
+      el.style.color = value;
+      document.body.append(el);
+      const color = getComputedStyle(el).color;
+      el.remove();
+      return color;
+    }, value);
+  await expect(heading).toHaveCSS('color', await color(muted));
+  await picker.click();
+  await panel.getByRole('button', { name: 'P3 · Low priority', exact: true }).click();
+  await expect(picker).toHaveText('P3');
+  const text = await panel.evaluate((el) =>
+    getComputedStyle(el).getPropertyValue('--text').trim(),
+  );
+  await expect(heading).toHaveCSS('color', await color(text));
+  const defaults = await page.request.post('/api/v1/capture', {
+    headers: { 'x-csrf-token': csrf, 'Idempotency-Key': randomUUID() },
+    data: { list_id: 'inbox', tasks: [{ title: 'Default priority' }] },
+  });
+  expect(defaults.ok()).toBeTruthy();
+  const [task] = await defaults.json();
+  expect(
+    (await (await page.request.get(`/api/v1/tasks/${task.id}/schedule`)).json()).schedule
+      .priority,
+  ).toBe(3);
+});

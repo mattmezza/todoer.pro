@@ -1,5 +1,4 @@
 import { navigate, refreshPage } from './page-navigation.js';
-import { editorAnchor, alignEditorField } from './seamless-editor.js';
 import './space-list-order.js';
 import { confirmAction } from './confirm.js';
 import { toast } from './toast.js';
@@ -14,16 +13,12 @@ onPageLoad((scope) => {
   const description = root?.querySelector('.space-overview-description');
   function editSpace(target) {
     if (!form || !form.hidden) return;
-    const titleAnchor = editorAnchor(heading.querySelector('h1'));
-    const descriptionAnchor = editorAnchor(description);
     heading.querySelector('.entity-menu').open = false;
     form.hidden = false;
     heading.hidden = true;
     description.hidden = true;
     const title = form.querySelector('[name="title"]');
     const brief = form.querySelector('[name="description"]');
-    alignEditorField(title, titleAnchor, { expand: true });
-    alignEditorField(brief, descriptionAnchor);
     const input = target.closest('.space-overview-description') ? brief : title;
     input.focus();
     if (input === title) title.select();

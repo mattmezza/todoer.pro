@@ -2727,14 +2727,14 @@ input[type='color'] {
 #list-create-dialog h2 {
   font: 600 24px/1.4 var(--font-sans);
 }
-#list-create-dialog p,
-#list-create-dialog label,
-#list-create-dialog input,
-#list-create-dialog textarea {
+:where(#list-create-dialog) p,
+:where(#list-create-dialog) label,
+:where(#list-create-dialog) input,
+:where(#list-create-dialog) textarea {
   font-size: 16px;
   line-height: 1.5;
 }
-#list-create-dialog form {
+:where(#list-create-dialog) form {
   gap: 20px;
   margin-top: 24px;
 }
@@ -2753,7 +2753,7 @@ input[type='color'] {
   padding: 4px;
   cursor: pointer;
 }
-#list-create-dialog .inline-actions {
+:where(#list-create-dialog) .inline-actions {
   border: 0;
   margin: 0;
   padding-top: 0;
@@ -4567,7 +4567,7 @@ dialog:not(.list-settings-panel):not(.search-omnibar)
     select,
     textarea:not(#capture-new-title),
     li
-  ) {
+  ):not(.entry-form :is(input, textarea)) {
   font-size: 16px !important;
   line-height: 1.5;
 }
@@ -4761,7 +4761,7 @@ dialog:is(.quick-dialog, .sharing-modal, .workspace-create-dialog, [data-move-di
     input:not([type='hidden']):not([type='checkbox']):not([type='color']),
     select,
     textarea
-  ) {
+  ):not(.entry-form *) {
   background: #09090b;
   border-color: #394253;
   border-radius: 4px;
@@ -4769,7 +4769,7 @@ dialog:is(.quick-dialog, .sharing-modal, .workspace-create-dialog, [data-move-di
 #list-create-dialog {
   width: min(664px, calc(100vw - 32px));
 }
-#list-create-dialog form {
+:where(#list-create-dialog) form {
   margin-top: 18px;
   gap: 16px;
 }
@@ -4786,20 +4786,20 @@ dialog:is(.quick-dialog, .sharing-modal, .workspace-create-dialog, [data-move-di
   align-items: center;
   height: 44px;
 }
-#list-create-dialog textarea {
+:where(#list-create-dialog) textarea {
   min-height: 76px;
 }
-#list-create-dialog .inline-actions {
+:where(#list-create-dialog) .inline-actions {
   padding: 0;
   margin-top: 4px;
   gap: 20px;
 }
-#list-create-dialog .inline-actions button {
+:where(#list-create-dialog) .inline-actions button {
   font-size: 16px;
   min-height: 38px;
   padding: 8px 20px;
 }
-#list-create-dialog .inline-actions .primary {
+:where(#list-create-dialog) .inline-actions .primary {
   min-width: 100px;
 }
 #list-create-dialog form > p.muted {
@@ -13838,4 +13838,136 @@ html.page-loading::after {
 }
 .priority-options {
   grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+/* A shared compact editor for task, subtask, section, comment, list and space content. */
+body form.entry-form:not([hidden]) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  margin: 10px 0 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+body
+  form.entry-form:not([hidden])
+  > :is(
+    label,
+    .capture-entry,
+    .capture-preview,
+    .capture-result,
+    .list-name-row,
+    .quick-capture-footer
+  ) {
+  flex: 1 0 100%;
+  min-width: 0;
+  width: 100%;
+}
+body form.entry-form:not([hidden]) :is(input:not([type]), input[type='text'], textarea) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--field);
+  color: var(--text);
+  font: 15px/1.55 var(--font-sans);
+  box-shadow: none;
+}
+body form.entry-form:not([hidden]) textarea {
+  flex: 1 0 100%;
+  resize: vertical;
+}
+body form.entry-form:not([hidden]) textarea:not([name='title']) {
+  min-height: 44px;
+  padding: 10px 12px;
+}
+body form.entry-form:not([hidden]) .capture-entry {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+body
+  form.entry-form:not([hidden])
+  :is(.inline-actions, .composer-actions, .task-page-actions) {
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+body
+  form.entry-form:not([hidden])
+  :is(.inline-actions, .composer-actions, .task-page-actions)
+  > button,
+body form.entry-form.inline-editor > button,
+body form.entry-form button.primary[type='submit'] {
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 9px 15px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: 13px/1.5 var(--font-sans);
+}
+body
+  form.entry-form:not([hidden])
+  :is(.inline-actions, .composer-actions, .task-page-actions)
+  > .primary,
+body form.entry-form.inline-editor > .primary,
+body form.entry-form button.primary[type='submit'] {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+  font-weight: 600;
+}
+body
+  form.entry-form:not([hidden])
+  :is(.inline-actions, .composer-actions, .task-page-actions)
+  > .primary {
+  order: -1;
+}
+body form.entry-form:not([hidden]) :is(input, textarea):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.task-page[data-priority] form.entry-form [name='title'] {
+  color: var(--task-priority-color);
+}
+@media (max-width: 640px) {
+  body
+    form.entry-form:not([hidden])
+    :is(input:not([type]), input[type='text'], textarea) {
+    font-size: 16px;
+  }
+}
+
+/* Reserve row width for active editors. */
+.task:has(.inline-editor) > .task-indicators,
+.task-page-child-line:has(> .inline-editor) > .task-indicators {
+  display: none;
+}
+.task-page-child-line,
+.task-child-description {
+  cursor: pointer;
+}
+
+body form.entry-form .inline-actions > .entity-name-reference {
+  order: 1;
+  flex: 1 0 100%;
 }

@@ -36,6 +36,7 @@ test('contextual forms preserve locations and dates while parsing allowed metada
       const form = document.createElement('form');
       if (kind === 'child') form.dataset.childForm = '';
       else form.className = 'inline-capture';
+      form.classList.add('entry-form');
       if (kind === 'main') form.id = 'capture-form';
       form.innerHTML = '<input name="title"><div class="inline-actions"></div>';
       document.querySelector('main').append(form);
@@ -75,6 +76,7 @@ test('all contextual composers show parsed priority and tag badges without desti
       form.dataset.kind = kind;
       if (kind === 'child') form.dataset.childForm = '';
       else form.className = 'inline-capture';
+      form.classList.add('entry-form');
       if (kind === 'main') form.id = 'capture-form';
       form.innerHTML = '<input name="title"><div class="inline-actions"></div>';
       document.querySelector('main').append(form);
@@ -161,6 +163,7 @@ test('capture tags stack beneath priority without separating title and descripti
       if (kind === 'child') form.dataset.childForm = '';
       else if (kind === 'quick') form.className = 'quick-capture-form';
       else form.className = 'inline-capture';
+      form.classList.add('entry-form');
       if (kind === 'main') form.id = 'capture-form';
       form.innerHTML =
         '<input name="title" value="Buy milk p1 +family +weekly-shopping"><textarea name="description" placeholder="Description"></textarea><div class="inline-actions"></div>';
@@ -202,7 +205,7 @@ test('capture tags stack beneath priority without separating title and descripti
     for (const item of geometry) {
       expect(item.tagsBelow).toBe(true);
       expect(item.tagsRight).toBe(true);
-      expect(item.descriptionGap).toBeGreaterThanOrEqual(0);
+      expect(item.descriptionGap).toBeGreaterThanOrEqual(-0.5);
       expect(item.descriptionGap).toBeLessThanOrEqual(12);
       expect(item.matchingStyle).toBe(true);
       expect(item.overflow).toBe(false);

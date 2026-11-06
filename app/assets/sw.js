@@ -41,7 +41,6 @@ const STATIC = [
   '/assets/task-indicators.js',
   '/assets/task-list-refresh.js',
   '/assets/structured-edit.js',
-  '/assets/seamless-editor.js',
   '/assets/settings-feedback.js',
   '/assets/export-menu.js',
   '/assets/list-archive.js',

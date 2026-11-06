@@ -80,7 +80,7 @@ export async function openCapture(listId) {
       if (outsidePress && outside(event)) dialog.close();
       outsidePress = false;
     });
-    form.className = 'quick-capture-form';
+    form.className = 'quick-capture-form entry-form';
     const destination = form.querySelector('[name=list_id]');
     const destinationLabel = form.querySelector('label[for="capture-destination"]');
     destination.hidden = true;

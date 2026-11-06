@@ -48,7 +48,13 @@ calendar, search, and subtask rows within task pages and panels. Task detail
 headers do not show counts. Comments exclude deleted entries;
 subtasks count immediate live children, excluding archives and trash. Counts
 arrive with the existing row reads and update through the existing live refresh.
-Subtask rows support the same configured mobile swipe actions and Undo as lists.
+Subtask rows support the same configured mobile swipe actions and Undo as lists. Task and subtask row bodies open the shared details panel; title links open the full task page. The panel owns one browser history entry: Back closes it, Forward restores it, and switching the preview replaces that entry.
+
+New tasks default to P3 (Low), displayed in the theme text color. P4 (Lowest)
+is available in capture (`p4` or `!4`), editors, filters and search, and uses the
+muted color. Entity add/edit forms share compact bordered fields, growing
+textareas, a primary save action and a secondary cancel action. Optional emoji
+controls in the list color picker start collapsed.
 
 Local UI state belongs in Alpine components: shared dialogs, menus, search,
 filters, color pickers and preference forms. Keep their markup in templates and

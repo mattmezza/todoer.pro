@@ -1,7 +1,6 @@
 import { navigate, refreshPage } from './page-navigation.js';
 import { pageScope } from './page-lifecycle.js';
 import { beginLoading } from './loading.js';
-import { editorAnchor, alignEditorField } from './seamless-editor.js';
 import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
 import { openListSettings, setupTaskSettingsDock } from './list-settings.js';
@@ -171,18 +170,10 @@ export function mountListUi({ api, notice, listId }) {
   }
   scope.listen(document, 'click', async (event) => {
     if (event.target.closest('[data-list-edit-open]') && canWrite) {
-      const titleAnchor = editorAnchor(
-        document.querySelector('[data-list-display] h1 button'),
-      );
-      const descriptionAnchor = editorAnchor(document.querySelector('.list-description'));
       closeMenus();
       edit.hidden = false;
       document.querySelector('[data-list-display]').hidden = true;
       document.querySelector('.list-description').hidden = true;
-      alignEditorField(edit.querySelector('[name="title"]'), titleAnchor, {
-        expand: true,
-      });
-      alignEditorField(edit.querySelector('[name="description"]'), descriptionAnchor);
       const focused = edit.querySelector(
         event.target.closest('.list-description')
           ? '[name="description"]'
@@ -356,6 +347,7 @@ export function mountListUi({ api, notice, listId }) {
   function editSection(section) {
     const dialog = modal('Edit section');
     const form = document.createElement('form');
+    form.className = 'entry-form';
     const title = document.createElement('input');
     title.name = 'title';
     title.dataset.referencePrefix = '$';
