@@ -443,7 +443,7 @@ async fn calendar(
                 crate::markdown::render(&row.task.description)
             )
         };
-        body.push_str(&format!(r#"<article class="task planning-task{}" data-planning-task="{}"><a class="planning-completion" href="/tasks/{}" aria-label="Open task">{}</a><div class="task-content"><a class="task-title" href="/tasks/{}">{}</a>{}</div><span class="planning-row-meta"><span class="task-priority-summary" data-priority="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#flag"/></svg>{}</span><time class="planning-date" datetime="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#calendar"/></svg>{}</time></span></article>"#,
+        body.push_str(&format!(r#"<article class="task planning-task{}" data-planning-task="{}" x-bind:hidden="!matchesRow($el)"><a class="planning-completion" href="/tasks/{}" aria-label="Open task">{}</a><div class="task-content"><a class="task-title" href="/tasks/{}">{}</a>{}</div><span class="planning-row-meta"><span class="task-priority-summary" data-priority="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#flag"/></svg>{}</span><time class="planning-date" datetime="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#calendar"/></svg>{}</time></span></article>"#,
           if row.task.complete { " is-complete" } else { "" }, esc(&row.task.id), esc(&row.task.id), if row.task.complete { "✓" } else { "" }, esc(&row.task.id), esc(&row.task.title), description, priority, priority_label, esc(&row.dates[0]), esc(&row.dates[0])));
     }
     if body.is_empty() {

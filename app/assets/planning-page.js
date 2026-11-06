@@ -47,6 +47,7 @@ onPageLoad((scope) => {
         if (!next)
           throw Error('Could not refresh tasks. Sign in again if your session ended.');
         rows.replaceChildren(...next.childNodes);
+        main.dispatchEvent(new Event('todoer:planning-rows'));
         highlight();
       } catch (error) {
         if (version === rowsGeneration)

@@ -1,6 +1,5 @@
 import { navigate, refreshPage } from './page-navigation.js';
 import './page-navigation.js';
-import './section-collapse.js';
 import './list-archive.js';
 import './entity-name.js';
 import './reference-copy.js';
@@ -9,7 +8,6 @@ import { beginLoading } from './loading.js';
 import './notification-center.js';
 
 import './alpine.js';
-import './home-filters.js';
 import './settings-feedback.js';
 import './export-menu.js';
 import './navigation.js';
