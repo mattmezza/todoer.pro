@@ -116,6 +116,12 @@ pub enum BulkTag {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum BulkOperation {
+    Complete {
+        id: String,
+        revision: i64,
+        #[serde(default)]
+        complete_subtree: bool,
+    },
     Update {
         id: String,
         revision: i64,
@@ -156,7 +162,8 @@ pub enum BulkOperation {
 impl BulkOperation {
     fn id(&self) -> &str {
         match self {
-            Self::Update { id, .. }
+            Self::Complete { id, .. }
+            | Self::Update { id, .. }
             | Self::Move { id, .. }
             | Self::Trash { id, .. }
             | Self::Restore { id, .. }
@@ -167,7 +174,8 @@ impl BulkOperation {
     }
     fn set_id(&mut self, value: String) {
         match self {
-            Self::Update { id, .. }
+            Self::Complete { id, .. }
+            | Self::Update { id, .. }
             | Self::Move { id, .. }
             | Self::Trash { id, .. }
             | Self::Restore { id, .. }
@@ -365,6 +373,21 @@ fn policy_hash(
 }
 fn execute(store: &mut Store, actor: &str, operation: &BulkOperation) -> Result<Task, Error> {
     match operation {
+        BulkOperation::Complete {
+            id,
+            revision,
+            complete_subtree,
+        } => store.update(
+            actor,
+            id,
+            crate::core::Change {
+                revision: *revision,
+                title: None,
+                description: None,
+                complete: Some(true),
+                complete_subtree: *complete_subtree,
+            },
+        ),
         BulkOperation::Update {
             id,
             revision,
@@ -872,6 +895,60 @@ mod tests {
                 .unwrap(),
             0
         );
+    }
+    #[test]
+    fn completion_preview_binds_descendants_and_applies_atomically() {
+        let mut db = db();
+        let root = task(&mut db, "inbox", "Root");
+        let child = db
+            .capture(
+                "dev",
+                "bulk-complete-child",
+                Capture {
+                    list_id: "inbox".into(),
+                    tasks: vec![NewTask {
+                        title: "Child".into(),
+                        description: String::new(),
+                        parent_id: Some(root.id.clone()),
+                    }],
+                },
+            )
+            .unwrap()
+            .remove(0);
+        let operation = BulkOperation::Complete {
+            id: root.id.clone(),
+            revision: root.revision,
+            complete_subtree: true,
+        };
+        let plan = db.bulk_preview("dev", vec![operation.clone()]).unwrap();
+        assert_eq!(plan.steps[0].before.len(), 2);
+        assert!(!raw_task(&db.conn, &root.id).unwrap().complete);
+        assert!(!raw_task(&db.conn, &child.id).unwrap().complete);
+        db.update(
+            "dev",
+            &child.id,
+            crate::core::Change {
+                revision: child.revision,
+                title: Some("Changed".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(matches!(
+            db.bulk_apply(
+                "dev",
+                &plan.preview_id,
+                &plan.expected_hash,
+                "stale-complete"
+            ),
+            Err(Error::Conflict(_))
+        ));
+        assert!(!raw_task(&db.conn, &root.id).unwrap().complete);
+        let plan = db.bulk_preview("dev", vec![operation]).unwrap();
+        db.bulk_apply("dev", &plan.preview_id, &plan.expected_hash, "complete")
+            .unwrap();
+        assert!(raw_task(&db.conn, &root.id).unwrap().complete);
+        assert!(raw_task(&db.conn, &child.id).unwrap().complete);
     }
     #[test]
     fn preview_rolls_back_real_writes_and_apply_retries_are_payload_bound() {

@@ -87,3 +87,44 @@ archivedToggle?.addEventListener('change', () => {
 });
 
 import './space-list-order.js';
+
+// Reuse the space lifecycle endpoint and shared accessible confirmation dialog.
+import { confirmAction } from './confirm.js';
+import { toast } from './toast.js';
+root?.querySelector('[data-space-archive]')?.addEventListener('click', async (event) => {
+  const button = event.currentTarget;
+  if (button.disabled) return;
+  button.disabled = true;
+  heading.querySelector('.entity-menu').open = false;
+  try {
+    if (
+      !(await confirmAction(
+        'This space and its lists become read-only and leave active views. Tasks, files, history and existing access are preserved. You can restore it from Spaces using Show archived.',
+        { title: 'Archive this space?', acceptLabel: 'Archive space' },
+      ))
+    )
+      return;
+    const response = await fetch(
+      `/api/v1/workspaces/${encodeURIComponent(root.dataset.spaceId)}/lifecycle`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content,
+        },
+        body: JSON.stringify({
+          revision: Number(root.dataset.spaceRevision),
+          action: 'archive',
+          confirmation: null,
+        }),
+      },
+    );
+    if (!response.ok)
+      throw Error((await response.json()).error?.message || 'Could not archive space.');
+    location.assign('/spaces');
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+  }
+});

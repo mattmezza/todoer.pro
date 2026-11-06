@@ -232,6 +232,47 @@ export function mountListUi({ api, notice, listId }) {
         notice(error.message, true);
       }
     }
+    const archiveSection = event.target.closest('[data-section-archive]');
+    if (archiveSection && canWrite && !archiveSection.disabled) {
+      const section = archiveSection.closest('[data-section-id]');
+      closeMenus();
+      archiveSection.disabled = true;
+      try {
+        if (
+          await confirmAction(
+            'This section and its tasks will leave active views. Tasks, files and history are preserved. Restore it from Archived sections in the list menu.',
+            { title: 'Archive this section?', acceptLabel: 'Archive section' },
+          )
+        ) {
+          await api(`/cli/lifecycle/section/${section.dataset.sectionId}`, 'POST', {
+            archive: true,
+          });
+          location.reload();
+        }
+      } catch (error) {
+        notice(error.message, true);
+      } finally {
+        archiveSection.disabled = false;
+      }
+    }
+    if (event.target.closest('[data-archived-sections-open]') && canWrite) {
+      closeMenus();
+      await archivedSections();
+    }
+    const completeAll = event.target.closest(
+      '[data-list-complete],[data-section-complete]',
+    );
+    if (completeAll && canWrite && !completeAll.disabled) {
+      closeMenus();
+      completeAll.disabled = true;
+      try {
+        await completeScope(completeAll);
+      } catch (error) {
+        notice(error.message, true);
+      } finally {
+        completeAll.disabled = false;
+      }
+    }
     const sectionButton = event.target.closest('[data-section-edit-open]');
     if (sectionButton && canWrite) {
       closeMenus();
@@ -345,6 +386,126 @@ export function mountListUi({ api, notice, listId }) {
     dialog.append(form);
     dialog.showModal();
     title.select();
+  }
+  async function completeScope(trigger) {
+    const section = trigger.closest('[data-section-id]');
+    const tasks = await api(`/lists/${listId}/tasks`);
+    const sectionRoots = section ? new Set() : null;
+    if (section) {
+      let cursor = null;
+      do {
+        const page = await api('/query', 'POST', {
+          entities: ['task'],
+          list_id: listId,
+          section_id: section.dataset.sectionId,
+          status: 'all',
+          limit: 100,
+          sort: 'id',
+          fields: [],
+          cursor,
+        });
+        for (const hit of page.hits) sectionRoots.add(hit.id);
+        cursor = page.next_cursor;
+      } while (cursor);
+    }
+    const byId = new Map(tasks.map((task) => [task.id, task]));
+    const unfinishedRoots = new Set();
+    for (const task of tasks) {
+      if (task.complete) continue;
+      let root = task;
+      while (root.parent_id && byId.has(root.parent_id)) root = byId.get(root.parent_id);
+      unfinishedRoots.add(root.id);
+    }
+    const roots = tasks.filter(
+      (task) =>
+        !task.parent_id &&
+        unfinishedRoots.has(task.id) &&
+        (!sectionRoots || sectionRoots.has(task.id)),
+    );
+    if (!roots.length) {
+      toast('There are no unfinished tasks to complete.');
+      return;
+    }
+    if (roots.length > 50)
+      throw Error(
+        'This action supports up to 50 top-level tasks. Complete smaller sections separately.',
+      );
+    const preview = await api('/bulk/preview', 'POST', {
+      operations: roots.map((task) => ({
+        op: 'complete',
+        id: task.id,
+        revision: task.revision,
+        complete_subtree: true,
+      })),
+    });
+    const affected = preview.steps
+      .flatMap((step) => step.before)
+      .filter((task) => !task.complete);
+    if (!affected.length) {
+      toast('All tasks are already complete.');
+      return;
+    }
+    if (
+      !(await confirmAction(
+        `Mark ${affected.length} unfinished task${affected.length === 1 ? '' : 's'} complete in this ${section ? 'section' : 'list'}, including sub-tasks and tasks hidden by filters? Files and history are preserved. Recurring tasks follow their completion rules.`,
+        { title: 'Mark all tasks complete?', acceptLabel: 'Mark all complete' },
+      ))
+    )
+      return;
+    await api('/bulk/apply', 'POST', {
+      preview_id: preview.preview_id,
+      expected_hash: preview.expected_hash,
+      idempotency_key: crypto.randomUUID(),
+    });
+    location.reload();
+  }
+  async function archivedSections() {
+    const dialog = modal('Archived sections');
+    const status = document.createElement('p');
+    status.setAttribute('role', 'status');
+    status.textContent = 'Loading archived sections…';
+    dialog.append(status);
+    dialog.showModal();
+    try {
+      const sections = await api(
+        `/cli/overview/sections?list=${encodeURIComponent(listId)}&archived_only=true`,
+      );
+      status.textContent = sections.length
+        ? 'Restore a section with its archived tasks, files and history.'
+        : 'No archived sections in this list.';
+      for (const section of sections) {
+        const row = document.createElement('div');
+        row.className = 'inline-actions';
+        const name = document.createElement('span');
+        name.textContent = section.title;
+        const restore = document.createElement('button');
+        restore.type = 'button';
+        restore.textContent = 'Restore';
+        restore.setAttribute('aria-label', `Restore section ${section.title}`);
+        restore.onclick = async () => {
+          restore.disabled = true;
+          try {
+            if (
+              !(await confirmAction(
+                'This section and its archived tasks will return to active views.',
+                { title: 'Restore this section?', acceptLabel: 'Restore section' },
+              ))
+            )
+              return;
+            await api(`/cli/lifecycle/section/${section.id}`, 'POST', { archive: false });
+            location.reload();
+          } catch (error) {
+            status.textContent = error.message;
+          } finally {
+            restore.disabled = false;
+          }
+        };
+        row.append(name, restore);
+        dialog.append(row);
+      }
+    } catch (error) {
+      status.textContent = error.message;
+    }
   }
   async function openMove(trigger) {
     const kind = trigger.hasAttribute('data-list-move-open')

@@ -11164,6 +11164,194 @@
           }
         }
       }
+    },
+    "/api/v1/tasks/{id}/structured-edit": {
+      "post": {
+        "operationId": "structuredEditTask",
+        "summary": "Atomically edit task text and structured metadata",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Domain validation failed; malformed query rejections may use a plain body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied or missing/invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Revision, idempotency or domain conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds 128 KiB"
+          },
+          "422": {
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Invalid JSON body, unsupported fields or content type. Structured invalid error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required for cookie-authenticated writes; bearer writes do not require it."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "revision": {
+                    "type": "integer",
+                    "format": "int64"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "properties": {
+                      "priority": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 3
+                      },
+                      "due_date": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "planned_date": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "duration_minutes": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      },
+                      "tags": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "default": []
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "revision",
+                  "title",
+                  "metadata"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "description": "Updates title and optional description, preserves omitted schedule fields, and adds metadata tags atomically at the supplied revision."
+      }
     }
   },
   "components": {
@@ -12328,6 +12516,32 @@
       },
       "BulkOperation": {
         "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "const": "complete"
+              },
+              "id": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "complete_subtree": {
+                "type": "boolean",
+                "default": false
+              }
+            },
+            "required": [
+              "op",
+              "id",
+              "revision"
+            ],
+            "additionalProperties": false
+          },
           {
             "type": "object",
             "properties": {
