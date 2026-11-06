@@ -123,17 +123,17 @@ export function createTaskPanel({
       tools.append(reprio, openPage, task.querySelector('.task-context-menu'));
       function selectPriority(priority) {
         task.dataset.priority = String(priority);
-        const labels = ['Highest', 'High', 'Medium', 'Low'];
+        const labels = ['Highest', 'High', 'Medium', 'Low', 'Lowest'];
         priorityCaption.textContent = `P${priority}`;
         priorityCaption.title = `${labels[priority]} priority`;
         priorityCaption.dataset.priority = priority;
         for (const b of choices.querySelectorAll('button'))
           b.setAttribute('aria-pressed', String(Number(b.dataset.priority) === priority));
       }
-      for (let priority = 0; priority <= 3; priority++) {
+      for (let priority = 0; priority <= 4; priority++) {
         const button = document.createElement('button');
         button.type = 'button';
-        button.textContent = `P${priority} · ${['Highest', 'High', 'Medium', 'Low'][priority]} priority`;
+        button.textContent = `P${priority} · ${['Highest', 'High', 'Medium', 'Low', 'Lowest'][priority]} priority`;
         button.dataset.priority = priority;
         button.disabled = task.dataset.canWrite !== 'true';
         button.onclick = async () => {

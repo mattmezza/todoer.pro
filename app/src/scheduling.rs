@@ -156,8 +156,8 @@ fn validate(schedule: &Schedule) -> Result<(), Error> {
             }
         }
     }
-    if schedule.priority.is_some_and(|p| !(0..=3).contains(&p)) {
-        return Err(invalid("priority must be 0, 1, 2 or 3"));
+    if schedule.priority.is_some_and(|p| !(0..=4).contains(&p)) {
+        return Err(invalid("priority must be 0, 1, 2, 3 or 4"));
     }
     if schedule.reminders.len() > 10 {
         return Err(invalid("at most ten reminder intents are supported"));
@@ -1437,7 +1437,7 @@ mod tests {
         );
     }
     #[test]
-    fn p0_is_persisted_as_highest_priority_and_out_of_range_is_rejected() {
+    fn priorities_p0_through_p4_persist_and_out_of_range_is_rejected() {
         let mut s = db();
         let t = new_task(&mut s);
         let mut value = schedule();
@@ -1448,6 +1448,14 @@ mod tests {
             Some(0)
         );
         value.priority = Some(4);
+        let saved = s
+            .set_schedule("dev", &t.id, saved.task_revision, value.clone())
+            .unwrap();
+        assert_eq!(
+            s.get_schedule("dev", &t.id).unwrap().schedule.priority,
+            Some(4)
+        );
+        value.priority = Some(5);
         assert!(
             s.set_schedule("dev", &t.id, saved.task_revision, value)
                 .is_err()

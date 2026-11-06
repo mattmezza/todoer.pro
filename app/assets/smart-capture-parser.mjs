@@ -108,7 +108,7 @@ export function parseCapture(
     return !tokens.some((t) => start < t.end && end > t.start);
   };
   const priorities = [
-    ...text.matchAll(/(?:^|\s)(p[0-3]|![0-3]|!{1,3})(?=\s|$)/gi),
+    ...text.matchAll(/(?:^|\s)(p[0-4]|![0-4]|!{1,3})(?=\s|$)/gi),
   ].filter(outsideTokens);
   if (priorities.length === 1) {
     const m = priorities[0],

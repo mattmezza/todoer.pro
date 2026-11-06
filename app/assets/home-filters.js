@@ -4,7 +4,7 @@ export function priorityFilters() {
     selected: [],
     priorities: [
       { value: 'all', label: 'All priorities' },
-      ...[0, 1, 2, 3].map((value) => ({ value: String(value), label: `P${value}` })),
+      ...[0, 1, 2, 3, 4].map((value) => ({ value: String(value), label: `P${value}` })),
     ],
     rowPriorities: [],
     init() {
@@ -30,7 +30,7 @@ export function priorityFilters() {
     readSelection() {
       this.selected = (new URLSearchParams(location.search).get('prio') || '')
         .split(',')
-        .filter((value) => /^[0-3]$/.test(value));
+        .filter((value) => /^[0-4]$/.test(value));
       this.syncLinks();
     },
     togglePriority(event) {
@@ -41,7 +41,7 @@ export function priorityFilters() {
           : this.selected.includes(value)
             ? this.selected.filter((priority) => priority !== value)
             : [...this.selected, value];
-      if (this.selected.length === 4) this.selected = [];
+      if (this.selected.length === 5) this.selected = [];
       const url = new URL(location.href);
       this.updateURL(url);
       history.pushState({ htmx: true }, '', url);

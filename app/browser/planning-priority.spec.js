@@ -15,7 +15,7 @@ test('Today and all-day calendar entries follow priority and keep actions aligne
     headers: { 'x-csrf-token': csrf, 'Idempotency-Key': randomUUID() },
     data: {
       list_id: inbox.list_id,
-      tasks: [3, 1, 0, 2].map((p) => ({ title: `${prefix} P${p}` })),
+      tasks: [3, 1, 0, 2, 4].map((p) => ({ title: `${prefix} P${p}` })),
     },
   });
   expect(response.ok()).toBeTruthy();
@@ -24,7 +24,7 @@ test('Today and all-day calendar entries follow priority and keep actions aligne
   const date = await page
     .locator('main[data-planning-today]')
     .getAttribute('data-planning-today');
-  for (const [index, priority] of [3, 1, 0, 2].entries()) {
+  for (const [index, priority] of [3, 1, 0, 2, 4].entries()) {
     const task = tasks[index];
     const schedule = await (
       await page.request.get(`/api/v1/tasks/${task.id}/schedule`)
@@ -41,7 +41,7 @@ test('Today and all-day calendar entries follow priority and keep actions aligne
   await page.reload();
   const rows = page.locator('.planning-task').filter({ hasText: prefix });
   await expect(rows.locator('.task-title')).toHaveText(
-    [0, 1, 2, 3].map((p) => `${prefix} P${p}`),
+    [0, 1, 2, 3, 4].map((p) => `${prefix} P${p}`),
   );
   await rows.first().locator('.task-title').click();
   await expect(page.getByLabel('Task details', { exact: true })).toBeVisible();
@@ -60,12 +60,13 @@ test('Today and all-day calendar entries follow priority and keep actions aligne
   const cards = page
     .locator('.calendar-all-day .calendar-event')
     .filter({ hasText: prefix });
-  await expect(cards).toHaveCount(4);
+  await expect(cards).toHaveCount(5);
   await expect(cards.locator('.workbench-task-copy a')).toHaveText([
     `!!!${prefix} P0`,
     `!!${prefix} P1`,
     `!${prefix} P2`,
     `${prefix} P3`,
+    `P4 ${prefix} P4`,
   ]);
   const clock = cards
     .first()

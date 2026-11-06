@@ -571,8 +571,12 @@ onPageLoad(async (scope) => {
     if (t.complete) link.className = 'is-complete';
     if (!intake) {
       const priority = entry.schedule.priority ?? 3;
-      if (priority < 3) {
-        const indicator = node('span', '!'.repeat(3 - priority), 'calendar-priority');
+      if (priority !== 3) {
+        const indicator = node(
+          'span',
+          priority < 3 ? '!'.repeat(3 - priority) : 'P4 ',
+          'calendar-priority',
+        );
         indicator.dataset.priority = priority;
         indicator.setAttribute('aria-label', `P${priority} priority`);
         link.replaceChildren(indicator, document.createTextNode(t.title));
@@ -1084,6 +1088,7 @@ onPageLoad(async (scope) => {
       [1, 'P1 · High'],
       [2, 'P2 · Medium'],
       [3, 'P3 · Low'],
+      [4, 'P4 · Lowest'],
     ]) {
       const option = node('option', label);
       option.value = value;
@@ -1435,8 +1440,12 @@ onPageLoad(async (scope) => {
         );
         link.href = '/tasks/' + encodeURIComponent(entry.task.id);
         const priority = entry.schedule.priority ?? 3;
-        if (priority < 3) {
-          const indicator = node('span', '!'.repeat(3 - priority), 'calendar-priority');
+        if (priority !== 3) {
+          const indicator = node(
+            'span',
+            priority < 3 ? '!'.repeat(3 - priority) : 'P4 ',
+            'calendar-priority',
+          );
           indicator.dataset.priority = priority;
           indicator.setAttribute('aria-label', `P${priority} priority`);
           link.querySelector('.calendar-month-task-title').prepend(indicator);

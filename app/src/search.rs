@@ -161,8 +161,8 @@ fn validate(q: &Query) -> Result<(), Error> {
     if !["all", "open", "completed"].contains(&q.status.as_str()) {
         return Err(invalid("status must be all, open or completed"));
     }
-    if q.priority.is_some_and(|p| !(0..=3).contains(&p)) {
-        return Err(invalid("priority must be 0..3"));
+    if q.priority.is_some_and(|p| !(0..=4).contains(&p)) {
+        return Err(invalid("priority must be 0..4"));
     }
     if q.entities
         .as_ref()
@@ -949,7 +949,7 @@ mod tests {
         db.conn
             .execute("UPDATE tasks SET complete=1 WHERE id='done'", [])
             .unwrap();
-        db.conn.execute("INSERT INTO task_schedule VALUES('open',1,?1)",[r#"{"planned":{"kind":"date","date":"2026-10-26"},"due":{"kind":"timed","local":"2026-10-27T00:30:00","timezone":"Europe/Zurich"},"priority":2,"reminders":[]}"#]).unwrap();
+        db.conn.execute("INSERT INTO task_schedule VALUES('open',1,?1)",[r#"{"planned":{"kind":"date","date":"2026-10-26"},"due":{"kind":"timed","local":"2026-10-27T00:30:00","timezone":"Europe/Zurich"},"priority":4,"reminders":[]}"#]).unwrap();
         db.conn.execute_batch("INSERT INTO recurrence_series(id,actor,spec,state) VALUES('series','dev','{}','active');INSERT INTO recurrence_occurrences VALUES('series',1,'open','2026-10-27T00:30:00','pending');").unwrap();
         let mut query = q("Scheduled");
         assert_eq!(db.query("dev", &query).unwrap().total, 1);
@@ -957,7 +957,7 @@ mod tests {
         assert_eq!(db.query("dev", &query).unwrap().hits[0].id, "done");
         query.status = "all".into();
         assert_eq!(db.query("dev", &query).unwrap().total, 2);
-        query.priority = Some(2);
+        query.priority = Some(4);
         query.planned_from = Some("2026-10-26".into());
         query.planned_to = Some("2026-10-26".into());
         query.due_from = Some("2026-10-27".into());

@@ -5869,6 +5869,9 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
   --task-priority-color: #78aaff;
 }
 .task-page[data-priority='3'] {
+  --task-priority-color: var(--text);
+}
+.task-page[data-priority='4'] {
   --task-priority-color: var(--muted);
 }
 .task-page .task-title-display,
@@ -13798,4 +13801,22 @@ html.page-loading::after {
     width: 10px;
     height: 10px;
   }
+}
+
+/* Default P3 uses the theme text; P4 is intentionally quieter. */
+:is(.task-page, .planning-row-meta) .task-priority-summary[data-priority='4'],
+.priority-option[data-priority='4'] .ui-icon,
+.planning-priority-filters button[data-priority='4'],
+.calendar-priority[data-priority='4'],
+.capture-priority[data-priority='4'],
+.inbox-priority[data-priority='4'],
+.planning-reprio button[data-priority='4'],
+.panel-priority-picker summary[data-priority='4'] {
+  color: var(--muted);
+}
+.task-page[data-priority='4'] .task-page-complete::before {
+  border-color: #526377;
+}
+.priority-options {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }

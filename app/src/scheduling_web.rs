@@ -437,7 +437,8 @@ async fn calendar(
             1 => "P1 · High",
             2 => "P2 · Medium",
             3 => "P3 · Low",
-            _ => "P2 · Medium",
+            4 => "P4 · Lowest",
+            _ => "P3 · Low",
         };
         let description = if row.task.description.trim().is_empty() {
             String::new()

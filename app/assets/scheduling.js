@@ -66,6 +66,7 @@ export function mountScheduling({
     ['1', 'P1 · High'],
     ['2', 'P2 · Medium'],
     ['3', 'P3 · Low'],
+    ['4', 'P4 · Lowest'],
   ]);
   const reminders = el('div', { 'data-reminders': '' });
   const addReminder = el(
@@ -171,6 +172,7 @@ export function mountScheduling({
     ['1', 'P1'],
     ['2', 'P2'],
     ['3', 'P3'],
+    ['4', 'P4'],
   ]) {
     const choice = input('radio', 'priority_choice', value);
     choice.setAttribute('aria-label', `${text} priority`);
@@ -795,21 +797,22 @@ export function mountScheduling({
       });
       page.querySelector('.task-page-heading').after(summary);
     }
-    page.dataset.priority = String(schedule?.priority ?? 2);
+    page.dataset.priority = String(schedule?.priority ?? 3);
     summary.replaceChildren();
     summary.hidden = false;
     summary.title = 'Edit planning';
     {
       const priorityBadge = document.createElement('span');
       priorityBadge.className = 'task-priority-summary';
-      priorityBadge.dataset.priority = String(schedule?.priority ?? 2);
+      priorityBadge.dataset.priority = String(schedule?.priority ?? 3);
       const names = {
         0: 'P0 · Highest priority',
         1: 'P1 · High priority',
         2: 'P2 · Medium priority',
         3: 'P3 · Low priority',
+        4: 'P4 · Lowest priority',
       };
-      priorityBadge.textContent = names[schedule?.priority ?? 2];
+      priorityBadge.textContent = names[schedule?.priority ?? 3];
       iconFor(priorityBadge, 'flag');
       const line = document.createElement('span');
       line.className = 'task-priority-line';

@@ -102,6 +102,7 @@ export function mountCaptureHelp({ scoped, allowSection, insert, datesEnabled })
         { label: 'High', aliases: ['p1', '!1', '!!'] },
         { label: 'Medium', aliases: ['p2', '!2', '!'] },
         { label: 'Low', aliases: ['p3', '!3'] },
+        { label: 'Lowest', aliases: ['p4', '!4'] },
       ],
     },
     {
