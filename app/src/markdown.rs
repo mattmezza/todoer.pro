@@ -19,7 +19,12 @@ pub(crate) fn sanitize(html: &str) -> String {
                     .strip_prefix("/api/v1/attachments/")
                     .and_then(|path| path.strip_suffix("/preview"));
                 return id
-                    .filter(|id| !id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric()))
+                    .filter(|id| {
+                        !id.is_empty()
+                            && id
+                                .bytes()
+                                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+                    })
                     .map(|_| std::borrow::Cow::Borrowed(value));
             }
             Some(std::borrow::Cow::Borrowed(value))
@@ -50,10 +55,11 @@ mod tests {
     #[test]
     fn permits_only_local_attachment_images() {
         let html = render(
-            "![local](/api/v1/attachments/abc2345/preview) ![remote](https://tracker.invalid/a.png) ![path](/api/v1/attachments/../preview)",
+            "![local](/api/v1/attachments/abc2345/preview) ![legacy](/api/v1/attachments/a_knkwp2ha22aw/preview) ![remote](https://tracker.invalid/a.png) ![path](/api/v1/attachments/../preview)",
         );
-        assert_eq!(html.matches("<img ").count(), 1);
+        assert_eq!(html.matches("<img ").count(), 2);
         assert!(html.contains("src=\"/api/v1/attachments/abc2345/preview\""));
+        assert!(html.contains("src=\"/api/v1/attachments/a_knkwp2ha22aw/preview\""));
         assert!(!html.contains("tracker.invalid"));
     }
     #[test]
