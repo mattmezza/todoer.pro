@@ -1,4 +1,7 @@
 import Alpine from './alpine-csp.min.js';
+import { confirmationDialog } from './confirmation-dialog.js';
+import { exportDialog } from './export-dialog.js';
+import { workspaceCreateDialog, workspaceActionDialog } from './workspace-dialogs.js';
 import { capturePreferences } from './capture-preferences.js';
 import { mutedLists } from './notification-picker.js';
 import { notificationPreferences } from './settings-feedback.js';
@@ -17,4 +20,11 @@ Alpine.data('sectionCollapse', sectionCollapse);
 Alpine.data('mutedLists', mutedLists);
 Alpine.data('notificationPreferences', notificationPreferences);
 Alpine.data('capturePreferences', capturePreferences);
+Alpine.data('confirmationDialog', confirmationDialog);
+Alpine.data('exportDialog', exportDialog);
+Alpine.data('workspaceCreateDialog', workspaceCreateDialog);
+Alpine.data('workspaceActionDialog', workspaceActionDialog);
+// Mark the initial swap containers too, so Alpine cleans up their descendants
+// when HTMX removes a parent that has no x-data of its own.
+Alpine.addRootSelector(() => '#main, #navigation, [data-app-dialogs]');
 Alpine.start();

@@ -16,7 +16,7 @@ test('mobile dialogs center and scroll within the viewport', async ({ page }) =>
     const { confirmAction } = await import('/assets/confirm.js');
     void confirmAction('Delete this test item?');
   });
-  const confirmation = page.locator('.confirmation-dialog');
+  const confirmation = page.locator('.confirmation-dialog[open]');
   await expect(confirmation).toBeVisible();
   const confirmationBox = await confirmation.boundingBox();
   expect(Math.abs(confirmationBox.y + confirmationBox.height / 2 - 422)).toBeLessThan(3);

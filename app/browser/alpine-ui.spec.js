@@ -21,6 +21,7 @@ async function navigate(page, path) {
     const { navigate } = await import('/assets/page-navigation.js');
     await navigate(path);
   }, path);
+  await expect(page.locator('#main')).not.toHaveAttribute('aria-busy', 'true');
 }
 
 test('list dialog keeps manual colors, drafts and focus across errors and swaps', async ({
@@ -43,7 +44,7 @@ test('list dialog keeps manual colors, drafts and focus across errors and swaps'
   expect(listResponse.ok()).toBeTruthy();
   const list = await listResponse.json();
   await navigate(page, `/lists/${list.id}`);
-  const listPath = new URL(page.url()).pathname;
+  const listPath = `/lists/${list.id}`;
   const dialog = page.locator('#list-create-dialog');
   let releaseSuggestion;
   const waiting = new Promise((resolve) => (releaseSuggestion = resolve));
@@ -107,4 +108,103 @@ test('list dialog keeps manual colors, drafts and focus across errors and swaps'
   await expect(page).toHaveTitle(`#${title} · Todoer`);
   expect(errors).toEqual([]);
   expect(await page.evaluate(() => window.alpineViolations)).toEqual([]);
+});
+
+test('confirmation requests stay queued and settle when their page is replaced', async ({
+  page,
+}) => {
+  await signin(page);
+  await page.evaluate(async () => {
+    const { confirmAction } = await import('/assets/confirm.js');
+    window.confirmed = [];
+    void confirmAction('Apply the first change?', {
+      title: 'First change',
+      acceptLabel: 'Apply',
+    }).then((result) => window.confirmed.push(result));
+    void confirmAction('Apply the second change?', { title: 'Second change' }).then(
+      (result) => window.confirmed.push(result),
+    );
+  });
+  const first = page.getByRole('dialog', { name: 'First change', exact: true });
+  await expect(first.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  await first.getByRole('button', { name: 'Apply', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Second change' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect.poll(() => page.evaluate(() => window.confirmed)).toEqual([true, false]);
+  await page.evaluate(async () => {
+    const { confirmAction } = await import('/assets/confirm.js');
+    void confirmAction('Keep waiting?', { title: 'Leaving this page' }).then((result) =>
+      window.confirmed.push(result),
+    );
+  });
+  await expect(page.getByRole('dialog', { name: 'Leaving this page' })).toBeVisible();
+  await navigate(page, '/today');
+  await expect
+    .poll(() => page.evaluate(() => window.confirmed))
+    .toEqual([true, false, false]);
+  await expect(page.locator('[data-confirmation-dialog]')).toHaveCount(1);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('export keeps its format controls usable after errors and downloads the selected report', async ({
+  page,
+}) => {
+  await signin(page);
+  let failing = true;
+  const requests = [];
+  await page.route('**/api/v1/reports/export?**', async (route) => {
+    requests.push(new URL(route.request().url()).searchParams.get('format'));
+    await route.fulfill(
+      failing
+        ? { status: 503, json: { error: { message: 'Synthetic export unavailable' } } }
+        : { contentType: 'text/csv', body: 'title\nSynthetic export\n' },
+    );
+  });
+  await page.evaluate(async () => {
+    const { openExport } = await import('/assets/export-menu.js');
+    openExport({ kind: 'list', id: 'inbox' });
+  });
+  const dialog = page.getByRole('dialog', { name: 'Export', exact: true });
+  await dialog.getByRole('button', { name: 'CSV', exact: true }).click();
+  await expect(dialog.locator('.quiet-info')).toHaveAttribute('data-save-state', 'error');
+  await expect(dialog.getByRole('button', { name: 'CSV', exact: true })).toBeEnabled();
+  failing = false;
+  const downloaded = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'CSV', exact: true }).click();
+  expect((await downloaded).suggestedFilename()).toBe('todoer-list.csv');
+  await expect(dialog).not.toBeVisible();
+  expect(requests).toEqual(['csv', 'csv']);
+});
+
+test('workspace actions preserve two-stage deletion and recover from a wrong name', async ({
+  page,
+}) => {
+  await signin(page);
+  const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
+  const title = `Alpine workspace ${randomUUID()}`;
+  const response = await page.request.post('/api/v1/workspaces', {
+    headers: { 'X-CSRF-Token': csrf },
+    data: { title },
+  });
+  expect(response.ok()).toBeTruthy();
+  const space = await response.json();
+  await navigate(page, '/spaces?archived=true');
+  const row = page.locator(`[data-workspace="${space.id}"]`);
+  await row.getByRole('button', { name: 'Archive', exact: true }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Archive', exact: true })
+    .click();
+  await expect(row.getByRole('button', { name: 'Restore', exact: true })).toBeVisible();
+  await row.getByRole('button', { name: 'Delete…', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(dialog.getByLabel('Workspace name confirmation')).toBeFocused();
+  await dialog.getByLabel('Workspace name confirmation').fill('wrong');
+  await dialog.getByRole('button', { name: 'Delete workspace', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('exact workspace name');
+  await dialog.getByLabel('Workspace name confirmation').fill(title);
+  await dialog.getByRole('button', { name: 'Delete workspace', exact: true }).click();
+  await expect(row).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });

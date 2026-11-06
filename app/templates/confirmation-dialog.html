@@ -1,0 +1,8 @@
+<dialog class="quick-dialog confirmation-dialog" data-confirmation-dialog x-data="confirmationDialog" aria-labelledby="confirmation-heading" aria-describedby="confirmation-message" x-on:close="closed">
+  <h2 id="confirmation-heading" x-text="title"></h2>
+  <p id="confirmation-message" x-text="message"></p>
+  <form method="dialog" class="confirmation-actions">
+    <button type="submit" value="cancel" autofocus>Cancel</button>
+    <button type="submit" value="confirm" class="primary" x-bind:class="{ destructive: destructive }" x-text="acceptLabel"></button>
+  </form>
+</dialog>

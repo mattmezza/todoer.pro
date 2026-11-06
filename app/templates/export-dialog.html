@@ -1,0 +1,6 @@
+<dialog class="quick-dialog export-dialog" data-export-dialog x-data="exportDialog" aria-labelledby="export-heading" x-on:click.document="openFromTrigger" x-on:pointerdown="backdropPress" x-on:click="backdropClick" x-on:close="closed">
+  <h2 id="export-heading">Export</h2>
+  <p>Choose a format to download.</p>
+  <div class="export-formats"><template x-for="format in formats" x-bind:key="format"><button type="button" x-bind:data-format="format" x-on:click="download" x-bind:disabled="busy" x-text="format.toUpperCase()"></button></template></div>
+  <button type="button" class="dialog-close" aria-label="Close export" x-on:click="close"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg></button>
+</dialog>

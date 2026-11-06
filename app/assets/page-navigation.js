@@ -311,7 +311,7 @@ document.addEventListener('htmx:before:swap', (event) => {
   if (header && nextHeader) header.replaceChildren(...nextHeader.childNodes);
   for (const selector of [
     '[data-notification-bell]',
-    '#list-create-dialog',
+    '[data-app-dialogs]',
     '.list-archive-banner',
   ]) {
     document.querySelector(selector)?.remove();
