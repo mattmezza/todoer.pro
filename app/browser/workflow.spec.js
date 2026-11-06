@@ -373,9 +373,10 @@ test('live row replacement waits until a pointer click opens details', async ({
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   const swapped = await page.evaluate(() => {
-    const detail = { target: document.querySelector('#task-list'), shouldSwap: true };
-    document.body.dispatchEvent(new CustomEvent('htmx:beforeSwap', { detail }));
-    return detail.shouldSwap;
+    const detail = { ctx: { target: document.querySelector('#task-list') } };
+    return document.body.dispatchEvent(
+      new CustomEvent('htmx:before:swap', { detail, cancelable: true }),
+    );
   });
   expect(swapped).toBe(false);
   await page.mouse.up();

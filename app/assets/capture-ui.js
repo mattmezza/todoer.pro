@@ -43,7 +43,7 @@ export function mountCaptures({
     }
   }
   restore();
-  document.body.addEventListener('htmx:afterSwap', restore);
+  document.body.addEventListener('htmx:after:swap', restore);
   document.addEventListener('input', (event) => {
     const form = event.target.closest('.inline-capture');
     if (form) persist(form);

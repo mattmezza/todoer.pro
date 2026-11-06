@@ -324,7 +324,7 @@ function applyEntityColors() {
     );
 }
 applyEntityColors();
-document.body.addEventListener('htmx:afterSwap', applyEntityColors);
+document.body.addEventListener('htmx:after:swap', applyEntityColors);
 
 document.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-workspace-settings-open]');

@@ -22,7 +22,7 @@ function restoreMainCapture() {
     slot.append(document.querySelector('#main-capture-template').content.cloneNode(true));
 }
 restoreMainCapture();
-document.body.addEventListener('htmx:afterSwap', restoreMainCapture);
+document.body.addEventListener('htmx:after:swap', restoreMainCapture);
 const taskPanel = createTaskPanel({
   csrf,
   onChanged: () => refresh(true),
@@ -140,26 +140,28 @@ $('#refresh-now').onclick = () => {
     notice('Finish or close the task editor first.');
   else refresh(true);
 };
-document.body.addEventListener('htmx:beforeSwap', (e) => {
-  if (e.detail.target?.id === 'task-list' && draftActive()) {
-    e.detail.shouldSwap = false;
+document.body.addEventListener('htmx:before:swap', (e) => {
+  if (e.detail.ctx?.swap === 'none') return;
+  const target = e.detail.ctx?.target;
+  if (target?.id === 'task-list' && draftActive()) {
+    e.preventDefault();
     pendingRefresh = true;
     $('#refresh-notice').hidden = false;
-  } else if (e.detail.target?.id === 'task-list' && e.detail.shouldSwap) {
+  } else if (target?.id === 'task-list') {
     const incoming = document.createElement('div');
-    incoming.innerHTML = e.detail.serverResponse;
-    reconcileTasks(e.detail.target, incoming);
-    e.detail.shouldSwap = false;
-    e.detail.target.dispatchEvent(
-      new CustomEvent('htmx:afterSwap', {
+    incoming.innerHTML = e.detail.ctx.text;
+    reconcileTasks(target, incoming);
+    e.preventDefault();
+    target.dispatchEvent(
+      new CustomEvent('htmx:after:swap', {
         bubbles: true,
-        detail: { target: e.detail.target },
+        detail: { ctx: { target } },
       }),
     );
     $('#task-count').textContent = document.querySelectorAll('#task-list .task').length;
   }
 });
-document.body.addEventListener('htmx:afterSwap', (e) => {
+document.body.addEventListener('htmx:after:swap', (e) => {
   if (e.target.id === 'task-list')
     $('#task-count').textContent = $$('#task-list .task').length;
   if (
@@ -174,7 +176,7 @@ document.body.addEventListener('htmx:afterSwap', (e) => {
   }
 });
 const $$ = (s) => [...document.querySelectorAll(s)];
-document.body.addEventListener('htmx:responseError', () =>
+document.body.addEventListener('htmx:response:error', () =>
   notice('Could not refresh tasks. Try again.', true),
 );
 // One preference per account, shared by every list in this browser.
