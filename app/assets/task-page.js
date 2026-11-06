@@ -79,7 +79,7 @@ function checkIcon(button, complete) {
   button.append(svg);
 }
 
-export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
+export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask } = {}) {
   const lifecycle = new AbortController();
   const get = (selector) => root.querySelector(selector);
   const id = root.dataset.taskId,
@@ -743,6 +743,30 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
       !nextCursor && counts[1] ? `${Math.round((counts[0] / counts[1]) * 100)}%` : '';
     get('[data-load-more]').hidden = !nextCursor;
   }
+  get('[data-children]').addEventListener(
+    'click',
+    (event) => {
+      if (
+        !onOpenTask ||
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey ||
+        event.target.closest('a,button,input,textarea,select,summary,details,form') ||
+        window.getSelection()?.toString()
+      )
+        return;
+      const row = event.target.closest('.task-page-child[data-child-id]');
+      const link = row?.querySelector(':scope > .task-page-child-line > a');
+      if (!link) return;
+      event.preventDefault();
+      onOpenTask(link.href);
+    },
+    { signal: lifecycle.signal },
+  );
+
   async function loadChildren(cursor = null) {
     const page = await api(
       `/tasks/${encodeURIComponent(id)}/subtree/query`,
@@ -1480,9 +1504,14 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
   cleanup.ready = Promise.all([ready, discussion.ready, scheduling.ready]);
   return cleanup;
 }
-onPageLoad(() => {
+onPageLoad(async (scope) => {
   const taskPage = document.querySelector('main[data-task-page]');
   if (!taskPage) return;
+  // Load the shared panel after this module so its shared task controller is ready.
+  const { createTaskPanel } = await import('./task-panel.js');
+  if (scope.signal.aborted) return;
+  const panel = createTaskPanel({ csrf: taskPage.dataset.csrf });
+  scope.cleanup(() => panel.destroy());
   mountBreakdown(taskPage);
-  return mountTaskPage(taskPage);
+  return mountTaskPage(taskPage, { onOpenTask: (url) => panel.open(url) });
 });

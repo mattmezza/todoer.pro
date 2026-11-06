@@ -11,6 +11,11 @@ export function createTaskPanel({
   onClose = () => {},
   dismissAfter,
 } = {}) {
+  const pagePath = location.pathname;
+  let activeURL;
+  let destroyed = false;
+  let dismissing = false;
+  const ownsHistory = () => history.state?.todoerTaskPanel?.page === pagePath;
   let panel,
     selected,
     generation = 0,
@@ -26,7 +31,16 @@ export function createTaskPanel({
   dismiss.innerHTML =
     '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M14 3v18"/></svg>';
   dismiss.onclick = close;
-  function close(animate = true) {
+  function close(animate = true, updateHistory = true) {
+    if (updateHistory && panel && ownsHistory()) {
+      if (!dismissing) {
+        dismissing = true;
+        history.back();
+      }
+      return;
+    }
+    const wasOpen = Boolean(panel);
+    activeURL = null;
     generation++;
     reading?.abort();
     stop();
@@ -51,10 +65,25 @@ export function createTaskPanel({
     dismiss.remove();
     selected = null;
     document.body.classList.remove('planning-detail-open');
-    onClose();
-    onSelected(selected);
+    if (wasOpen) {
+      onClose();
+      onSelected(selected);
+    }
   }
-  async function open(url) {
+  async function open(url, updateHistory = true) {
+    if (destroyed) return;
+    url = new URL(url, location.href).href;
+    if (updateHistory) {
+      const state = {
+        ...history.state,
+        htmx: true,
+        todoerTaskPanel: { page: pagePath, url },
+      };
+      // Changing the preview replaces its single entry; Back always dismisses it.
+      if (ownsHistory()) history.replaceState(state, '', location.href);
+      else history.pushState(state, '', location.href);
+    }
+    activeURL = url;
     const version = ++generation;
     reading?.abort();
     reading = new AbortController();
@@ -184,6 +213,7 @@ export function createTaskPanel({
       content.append(task);
       stop = mountTaskPage(task, {
         embedded: true,
+        onOpenTask: open,
         onSchedule: (value) => {
           if (version === generation && priorityVersion === 0)
             selectPriority(value.schedule.priority ?? 3);
@@ -226,19 +256,13 @@ export function createTaskPanel({
     }
   }
 
-  function clicked(event) {
-    const link = event.target.closest('.planning-detail-content a[href^="/tasks/"]');
-    if (
-      !link ||
-      link.hasAttribute('data-full-task') ||
-      event.metaKey ||
-      event.ctrlKey ||
-      event.shiftKey ||
-      event.altKey
-    )
-      return;
-    event.preventDefault();
-    open(link.href);
+  function restoreHistory() {
+    if (destroyed) return;
+    dismissing = false;
+    const saved = history.state?.todoerTaskPanel;
+    if (location.pathname === pagePath && saved?.page === pagePath) {
+      if (activeURL !== saved.url) open(saved.url, false);
+    } else close(true, false);
   }
   function keydown(event) {
     if (
@@ -263,7 +287,8 @@ export function createTaskPanel({
     close();
     onChanged();
   }
-  document.addEventListener('click', clicked);
+  window.addEventListener('popstate', restoreHistory);
+  if (ownsHistory()) queueMicrotask(restoreHistory);
   document.addEventListener('keydown', keydown);
   document.addEventListener('todoer:task-trashed', trashed);
   return {
@@ -275,8 +300,9 @@ export function createTaskPanel({
     contains: (node) => Boolean(panel?.contains(node)),
     refreshTags: () => refreshPanelTags(),
     destroy() {
-      close(false);
-      document.removeEventListener('click', clicked);
+      destroyed = true;
+      close(false, false);
+      window.removeEventListener('popstate', restoreHistory);
       document.removeEventListener('keydown', keydown);
       document.removeEventListener('todoer:task-trashed', trashed);
     },

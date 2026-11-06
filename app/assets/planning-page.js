@@ -178,9 +178,8 @@ onPageLoad((scope) => {
         row.classList.toggle('is-selected', row.dataset.planningTask === selected);
     }
     scope.listen(document, 'click', (event) => {
-      let link = event.target.closest(
-        '[data-planning-rows] a[href^="/tasks/"],.planning-detail-content a[href^="/tasks/"]',
-      );
+      if (event.defaultPrevented || taskPanel.contains(event.target)) return;
+      let link = event.target.closest('[data-planning-rows] a[href^="/tasks/"]');
       if (
         !link &&
         !event.target.closest('button, input, select, textarea, a, summary, details')
