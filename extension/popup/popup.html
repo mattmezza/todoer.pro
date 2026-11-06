@@ -97,6 +97,7 @@
             <input
               type="text"
               id="task-title"
+              aria-label="Task name"
               name="title"
               class="form-input"
               placeholder="Task name"
@@ -107,6 +108,7 @@
           <div class="form-group">
             <textarea
               id="task-descr"
+              aria-label="Description or URL (optional)"
               name="descr"
               class="form-textarea"
               placeholder="Description or URL (optional)"
@@ -115,20 +117,20 @@
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">Space</label>
+              <label class="form-label" for="space-select">Space</label>
               <select id="space-select" class="form-select">
                 <option value="">Loading...</option>
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label">List</label>
+              <label class="form-label" for="list-select">List</label>
               <select id="list-select" class="form-select">
                 <option value="">Loading...</option>
               </select>
             </div>
           </div>
           <div class="form-group">
-            <label class="form-label">Section</label>
+            <label class="form-label" for="section-select">Section</label>
             <select id="section-select" class="form-select">
               <option value="">Loading...</option>
             </select>
@@ -153,7 +155,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
         </svg>
-        <input type="search" id="search-input" placeholder="Search tasks, lists, spaces...">
+        <input type="search" id="search-input" aria-label="Search tasks, lists and spaces" placeholder="Search tasks, lists, spaces...">
       </div>
       <div id="search-results" class="search-results">
         <div class="search-empty">Type to search...</div>
