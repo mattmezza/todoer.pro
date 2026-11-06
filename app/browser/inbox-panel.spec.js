@@ -186,7 +186,7 @@ test('Today uses the same task-page panel', async ({ page }) => {
   await page.goto('/inbox');
   const csrf = await page.locator('meta[name="csrf-token"]').getAttribute('content');
   const inbox = await (await page.request.get('/api/v1/inbox')).json();
-  const title = `Today panel ${randomUUID()}`;
+  const title = `Scheduled panel ${randomUUID()}`;
   const created = await page.request.post('/api/v1/capture', {
     headers: { 'x-csrf-token': csrf, 'Idempotency-Key': randomUUID() },
     data: { list_id: inbox.list_id, tasks: [{ title }] },
