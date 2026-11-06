@@ -5,6 +5,7 @@ import { reconcileTasks } from './task-list-refresh.js';
 
 import { stowInfo } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
+import { taskCompletionChange } from './task-completion.js';
 import { mountCaptures } from './capture-ui.js';
 import './site.js';
 import { mountListUi } from './list-ui.js';
@@ -291,17 +292,20 @@ onPageLoad((scope) => {
       if (button.disabled) return;
       const complete = row.dataset.complete !== 'true';
       button.disabled = true;
-      row.classList.toggle('is-complete', complete);
-      button.setAttribute('aria-pressed', String(complete));
       const previous = button.innerHTML;
-      button.innerHTML = complete
-        ? '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#check"/></svg>'
-        : '';
       try {
-        const task = await api(`/tasks/${row.dataset.id}`, 'PATCH', {
+        const change = await taskCompletionChange(api, {
+          id: row.dataset.id,
           revision: Number(row.dataset.revision),
-          complete,
+          complete: !complete,
         });
+        if (!change || scope.signal.aborted) return;
+        row.classList.toggle('is-complete', complete);
+        button.setAttribute('aria-pressed', String(complete));
+        button.innerHTML = complete
+          ? '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#check"/></svg>'
+          : '';
+        const task = await api(`/tasks/${row.dataset.id}`, 'PATCH', change);
         row.dataset.revision = task.revision;
         row.dataset.complete = task.complete;
         const section = row.closest('.task-section');
@@ -328,6 +332,7 @@ onPageLoad((scope) => {
           `${task.complete ? 'Reopen' : 'Complete'} ${task.title}`,
         );
         notice('');
+        if (change.complete_subtree) refresh(true);
       } catch (err) {
         row.classList.toggle('is-complete', !complete);
         button.setAttribute('aria-pressed', String(!complete));

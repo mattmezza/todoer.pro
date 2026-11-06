@@ -10,6 +10,7 @@ import { preferredTimeFormatter } from './preferred-time.js';
 import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
 import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
+import { taskCompletionChange } from './task-completion.js';
 import './site.js';
 import { mountBreakdown } from './task-breakdown.js';
 
@@ -628,8 +629,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
           `${child.complete ? 'Reopen' : 'Complete'} ${child.title}`,
         );
         complete.setAttribute('aria-pressed', String(child.complete));
-        complete.onclick = () =>
-          toggleComplete(child, (byParent.get(child.id) || []).length > 0);
+        complete.onclick = () => toggleComplete(child);
         const link = document.createElement('a');
         link.href = `/tasks/${encodeURIComponent(child.public_reference || child.id)}`;
         link.textContent = child.title;
@@ -858,25 +858,17 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
     for (const link of document.querySelectorAll('.account-menu a[href^="/workspaces/"]'))
       link.remove();
   }
-  async function toggleComplete(target, hasChildren = false, forceSubtree = false) {
+  async function toggleComplete(target, forceSubtree = false) {
     if (!canWrite || busy) return;
-    const complete = forceSubtree || !target.complete;
-    const subtree =
-      complete && (forceSubtree || hasChildren || (target.id === id && !!nextCursor));
-    if (
-      subtree &&
-      !(await confirmAction(
-        'Complete this task and every unfinished item in its sub-tasks?',
-      ))
-    )
-      return;
     const release = beginWrite();
     try {
-      const updated = await api(`/tasks/${encodeURIComponent(target.id)}`, 'PATCH', {
-        revision: target.revision,
-        complete,
-        complete_subtree: subtree,
-      });
+      const change = await taskCompletionChange(api, target, forceSubtree);
+      if (!change || !alive) return;
+      const updated = await api(
+        `/tasks/${encodeURIComponent(target.id)}`,
+        'PATCH',
+        change,
+      );
       if (target.id === id) {
         saved(target.revision, updated.revision);
         task = { ...task, ...updated };
@@ -1004,8 +996,8 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
     closeEditor();
     notice('');
   };
-  get('[data-root-complete]').onclick = () => toggleComplete(task, children.size > 0);
-  get('[data-complete-all]').onclick = () => toggleComplete(task, true, true);
+  get('[data-root-complete]').onclick = () => toggleComplete(task);
+  get('[data-complete-all]').onclick = () => toggleComplete(task, true);
   get('[data-permalink]').onclick = async () => {
     try {
       await navigator.clipboard.writeText(new URL(`/tasks/${id}`, location.origin).href);
@@ -1408,7 +1400,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
         childTitle.focus();
       } else if (event.key === 'x') {
         event.preventDefault();
-        toggleComplete(task, children.size > 0);
+        toggleComplete(task);
       } else if (event.key === 'Escape' && editOpen) {
         event.preventDefault();
         closeEditor();

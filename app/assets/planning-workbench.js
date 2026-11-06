@@ -1,8 +1,10 @@
+import { taskCommentCount } from './task-comment-count.js';
 import { inference } from './ai-transaction.js';
 import { beginLoading } from './loading.js';
 
 import { setSaveState } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
+import { taskCompletionChange } from './task-completion.js';
 import { onPageLoad } from './page-lifecycle.js';
 
 onPageLoad(async (scope) => {
@@ -551,12 +553,14 @@ onPageLoad(async (scope) => {
     const check = button(
       t.complete ? '✓' : '',
       (b) =>
-        write(b, () =>
-          api(`tasks/${encodeURIComponent(t.id)}`, 'PATCH', {
-            revision: t.revision,
-            complete: !t.complete,
-          }),
-        ),
+        write(b, async () => {
+          const change = await taskCompletionChange(
+            (path, method, body) => api(path.slice(1), method, body),
+            t,
+          );
+          if (!change || scope.signal.aborted) return false;
+          return api(`tasks/${encodeURIComponent(t.id)}`, 'PATCH', change);
+        }),
       'workbench-check',
     );
     check.setAttribute('aria-label', t.complete ? 'Mark incomplete' : 'Complete task');
@@ -584,6 +588,8 @@ onPageLoad(async (scope) => {
         ),
       );
     row.append(check, text);
+    const comments = taskCommentCount(entry.comment_count);
+    if (comments) row.append(comments);
     if (intake) {
       row.classList.add('inbox-task');
       if (rollObserver) rollObserver.observe(row);

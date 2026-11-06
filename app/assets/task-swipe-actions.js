@@ -1,3 +1,5 @@
+import { taskCompletionChange } from './task-completion.js';
+
 // Shared mutations and Undo for list tasks and task-page subtasks.
 export function createTaskSwipeActions({
   canWrite,
@@ -28,14 +30,15 @@ export function createTaskSwipeActions({
     try {
       release = beginWrite?.();
       const title = task.title || 'Task';
+      const change =
+        action === 'archive' ? { archive: true } : await taskCompletionChange(api, task);
+      if (!change || !active) return;
       const result = await api(
         action === 'archive'
           ? `/cli/lifecycle/${kind}/${encodeURIComponent(id)}`
           : `/tasks/${encodeURIComponent(id)}`,
         action === 'archive' ? 'POST' : 'PATCH',
-        action === 'archive'
-          ? { archive: true }
-          : { revision: task.revision, complete: true },
+        change,
       );
       if (!active) return;
       const element = document.createElement('div');

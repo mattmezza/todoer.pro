@@ -62,6 +62,7 @@ const STATIC = [
   '/assets/search-omnibar.js',
   '/assets/search-dialog.js',
   '/assets/confirm.js',
+  '/assets/task-completion.js',
   '/assets/toast.js',
   '/assets/quiet-info.js',
   '/assets/capture-ui.js',
