@@ -313,6 +313,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/tasks/{id}/move-preview", get(move_preview))
         .route("/api/v1/tasks/{id}", get(get_task).patch(update))
         .route("/api/v1/tasks/{id}/subtree", get(subtree))
+        .route("/api/v1/tasks/{id}/structured-edit", post(structured_edit))
         .route("/api/v1/tasks/{id}/subtree/query", post(subtree_query))
         .route("/api/v1/tasks/{id}/move", post(move_task))
         .route("/api/v1/changes", get(changes))
@@ -1253,6 +1254,39 @@ async fn update(
 ) -> Result<Json<Task>, ApiError> {
     let actor = s.auth(&h, true)?;
     Ok(Json(s.run(move |db| db.update(&actor, &id, c)).await?))
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StructuredEdit {
+    revision: i64,
+    title: String,
+    description: Option<String>,
+    metadata: crate::capture_at::CaptureMetadata,
+}
+async fn structured_edit(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+    Input(c): Input<StructuredEdit>,
+) -> Result<Json<Task>, ApiError> {
+    let actor = s.auth(&h, true)?;
+    Ok(Json(
+        s.run(move |db| {
+            db.edit_with_metadata(
+                &actor,
+                &id,
+                Change {
+                    revision: c.revision,
+                    title: Some(c.title),
+                    description: c.description,
+                    complete: None,
+                    complete_subtree: false,
+                },
+                c.metadata,
+            )
+        })
+        .await?,
+    ))
 }
 async fn subtree_query(
     State(s): State<AppState>,

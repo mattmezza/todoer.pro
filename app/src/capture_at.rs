@@ -17,6 +17,58 @@ pub struct CaptureMetadata {
 }
 
 impl Store {
+    /// Edit the brief and explicitly supplied metadata in one revision-checked transaction.
+    pub fn edit_with_metadata(
+        &mut self,
+        actor: &str,
+        id: &str,
+        change: crate::core::Change,
+        metadata: CaptureMetadata,
+    ) -> Result<Task, Error> {
+        let mut write = crate::agent_ops::StoreWrite::new(self)?;
+        let mut item = write.update(actor, id, change)?;
+        if metadata.priority.is_some()
+            || metadata.due_date.is_some()
+            || metadata.planned_date.is_some()
+            || metadata.duration_minutes.is_some()
+        {
+            let mut schedule = write.get_schedule(actor, &item.id)?.schedule;
+            if let Some(priority) = metadata.priority {
+                schedule.priority = Some(priority);
+            }
+            if let Some(date) = metadata.due_date {
+                schedule.due = Some(crate::scheduling::Moment::Date { date });
+            }
+            if let Some(date) = metadata.planned_date {
+                schedule.planned = Some(crate::scheduling::Moment::Date { date });
+            }
+            write.set_schedule_with_duration(
+                actor,
+                &item.id,
+                item.revision,
+                schedule,
+                metadata.duration_minutes.map(Some),
+            )?;
+            item = crate::core::task(&write.conn, &item.id)?;
+        }
+        if !metadata.tags.is_empty() {
+            let mut tags: Vec<_> = write
+                .task_tags(actor, &item.id)?
+                .into_iter()
+                .map(|tag| crate::taxonomy::TagSelector::Id { id: tag.id })
+                .collect();
+            tags.extend(
+                metadata
+                    .tags
+                    .into_iter()
+                    .map(crate::taxonomy::TagSelector::Name),
+            );
+            item = write.set_task_tags(actor, &item.id, item.revision, tags)?;
+        }
+        write.commit()?;
+        Ok(item)
+    }
+
     /// Capture and metadata are one durable idempotent operation.
     pub fn capture_with_metadata(
         &mut self,
@@ -770,5 +822,76 @@ mod tests {
             db.create_list_with_color("credential:list-create-scope", input(), Some("blue".into())),
             Err(Error::Forbidden)
         ));
+    }
+}
+
+#[cfg(test)]
+mod structured_edit_tests {
+    use super::*;
+    #[test]
+    fn metadata_edit_rolls_back_and_checks_revision() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let item = db
+            .capture_at(
+                "dev",
+                "structured-edit-test",
+                crate::core::Capture {
+                    list_id: "inbox".into(),
+                    tasks: vec![crate::core::NewTask {
+                        title: "Original".into(),
+                        description: "Keep brief".into(),
+                        parent_id: None,
+                    }],
+                },
+                None,
+            )
+            .unwrap()
+            .remove(0);
+        let change = || crate::core::Change {
+            revision: item.revision,
+            title: Some("Edited".into()),
+            ..Default::default()
+        };
+        assert!(
+            db.edit_with_metadata(
+                "dev",
+                &item.id,
+                change(),
+                CaptureMetadata {
+                    priority: Some(99),
+                    ..Default::default()
+                }
+            )
+            .is_err()
+        );
+        assert_eq!(
+            crate::core::task(&db.conn, &item.id).unwrap().title,
+            "Original"
+        );
+        let edited = db
+            .edit_with_metadata(
+                "dev",
+                &item.id,
+                change(),
+                CaptureMetadata {
+                    priority: Some(1),
+                    tags: vec!["work".into()],
+                    duration_minutes: Some(45),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(edited.description, "Keep brief");
+        assert_eq!(
+            db.get_schedule("dev", &item.id).unwrap().schedule.priority,
+            Some(1)
+        );
+        assert_eq!(db.task_duration("dev", &item.id).unwrap(), Some(45));
+        assert_eq!(db.task_tags("dev", &item.id).unwrap()[0].name, "work");
+        assert!(
+            db.edit_with_metadata("dev", &item.id, change(), CaptureMetadata::default())
+                .is_err()
+        );
     }
 }

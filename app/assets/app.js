@@ -1,3 +1,4 @@
+import { mountStructuredEdit } from './structured-edit.js';
 import { reconcileTasks } from './task-list-refresh.js';
 import { loadingDialog } from './loading.js';
 import { request as fetch } from './request.js';
@@ -26,6 +27,7 @@ function restoreMainCapture() {
 restoreMainCapture();
 document.body.addEventListener('htmx:afterSwap', restoreMainCapture);
 const dialog = $('#task-editor');
+const saveStructuredEditor = mountStructuredEdit($('#edit-title'));
 dialog.addEventListener('close', () => {
   discussionCleanup?.();
   discussionCleanup = null;
@@ -455,11 +457,12 @@ $('#edit-form').addEventListener('submit', async (e) => {
   const release = freezeEditor();
   let closed = false;
   try {
-    await api(`/tasks/${task.id}`, 'PATCH', {
+    const result = await saveStructuredEditor(api, task.id, {
       revision: task.revision,
       title,
       description,
     });
+    if (!result) return;
     sessionStorage.removeItem(`todoer:${account}:edit:${task.id}`);
     release();
     if (dialog.open && editor?.id === task.id) {
@@ -961,6 +964,7 @@ async function renameInline(row, snapshot) {
     display.hidden = true;
     form.append(input, save, cancel);
     display.before(form);
+    const saveStructuredInline = mountStructuredEdit(input);
     const close = () => {
       sessionStorage.removeItem(key);
       form.remove();
@@ -983,10 +987,11 @@ async function renameInline(row, snapshot) {
       cancel.disabled = true;
       form.setAttribute('aria-busy', 'true');
       try {
-        const result = await api(`/tasks/${id}`, 'PATCH', {
+        const result = await saveStructuredInline(api, id, {
           revision: task.revision,
           title: input.value,
         });
+        if (!result) return;
         display.textContent = result.title;
         row.dataset.revision = result.revision;
         close();
@@ -1001,7 +1006,7 @@ async function renameInline(row, snapshot) {
         form.removeAttribute('aria-busy');
       }
     };
-    $('#capture-title')?.focus();
+    input.focus();
     input.select();
   } catch (err) {
     if (inlineEditors.get(id) === null) inlineEditors.delete(id);

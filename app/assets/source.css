@@ -13365,3 +13365,23 @@ body > .planning-detail-dismiss {
   margin: 8px 0 0;
   font-size: 13px;
 }
+
+.structured-edit-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  white-space: normal;
+}
+.inline-editor {
+  flex-wrap: wrap;
+}
+.inline-editor .structured-edit-option {
+  flex-basis: 100%;
+}
+.structured-edit-option input {
+  flex: 0 0 auto;
+  width: 1rem;
+  min-height: 1rem;
+}
