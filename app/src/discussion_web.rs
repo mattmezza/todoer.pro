@@ -385,6 +385,9 @@ impl FileView {
             format!("{} B", self.record.size)
         }
     }
+    fn is_image(&self) -> bool {
+        preview_type(&self.record.filename).is_some_and(|mime| mime.starts_with("image/"))
+    }
     fn can_preview(&self) -> bool {
         preview_type(&self.record.filename).is_some()
     }
@@ -419,6 +422,11 @@ async fn fragment(
             let records = db.comments(&actor, &id, q.after_seq, q.limit)?;
             let task = crate::core::task(&db.conn, &id)?;
             let rank = db.list_permission(&actor, &task.list_id)?;
+            let rank = if crate::core::access_rank(&db.conn, &actor, &task.list_id, 2).is_ok() {
+                rank
+            } else {
+                rank.min(1)
+            };
             let (user, _) = crate::core::actor_identity(&db.conn, &actor)?;
             let all_files = db.attachments(&actor, &id)?;
             let file_view = |file: &Attachment| FileView {

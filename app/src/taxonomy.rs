@@ -1088,10 +1088,7 @@ pub fn render_references(
     }
     let mut html = String::new();
     pulldown_cmark::html::push_html(&mut html, events.into_iter());
-    Ok(ammonia::Builder::default()
-        .rm_tags(&["img"])
-        .clean(&html)
-        .to_string())
+    Ok(crate::markdown::sanitize(&html))
 }
 fn append_text_events(events: &mut Vec<Event<'static>>, raw: &str) {
     for event in Parser::new(raw) {

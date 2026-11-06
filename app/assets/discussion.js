@@ -341,6 +341,7 @@ export function mountDiscussion({
     const choose = form.querySelector('[data-file-choose]');
     const abandon = form.querySelector('[data-file-abandon]');
     if (!fileState) {
+      form.querySelector('[data-upload-progress]').hidden = true;
       description.textContent = hashing ? 'Calculating file checksum…' : '';
       description.hidden = !hashing;
       button.hidden = true;
@@ -350,7 +351,7 @@ export function mountDiscussion({
       return;
     }
     description.textContent = fileState.file
-      ? `${fileState.name} · ${fileState.size} bytes${fileState.commentId === 'new' ? ' · attached when you post the comment' : ''}`
+      ? `${fileState.name} · ${fileState.size} bytes${fileState.busy ? ' · uploading…' : ''}`
       : `Reselect ${fileState.name} (${fileState.size} bytes) to resume its saved attachment.`;
     description.hidden = false;
     choose.disabled = Boolean(fileState.busy) || hashing;
@@ -371,8 +372,8 @@ export function mountDiscussion({
   }
   function persistFile() {
     if (!fileState) return;
-    const { name, size, sha256, intent, phase, commentId } = fileState;
-    save('upload', { name, size, sha256, intent, phase, commentId });
+    const { name, size, sha256, intent, phase, commentId, markdown } = fileState;
+    save('upload', { name, size, sha256, intent, phase, commentId, markdown });
   }
   async function digest(file) {
     if (file.size > 25 * 1024 * 1024)
@@ -431,6 +432,45 @@ export function mountDiscussion({
     updateFileUi();
     return true;
   }
+  function markdownEditor(reference) {
+    return reference === 'new'
+      ? get('[data-new-comment-input]')
+      : all('[data-comment-id]')
+          .find((row) => row.dataset.commentId === reference)
+          ?.querySelector('[data-comment-input]');
+  }
+  function insertUploadedMarkdown(state, attachment) {
+    if (!state.markdown) return;
+    const input = markdownEditor(state.markdown.target);
+    if (!input) return;
+    const start = input.value.indexOf(state.markdown.placeholder);
+    if (start < 0) return; // The user explicitly removed the insertion while uploading.
+    const name = state.name.replace(/[\[\]\\]/g, '\\$&');
+    const image = /\.(png|jpe?g|gif|webp|svg)$/i.test(state.name);
+    const url = `/api/v1/attachments/${encodeURIComponent(attachment.id)}/${image ? 'preview' : 'download'}`;
+    const markdown = `${image ? '!' : ''}[${name}](${url})`;
+    input.setRangeText(
+      markdown,
+      start,
+      start + state.markdown.placeholder.length,
+      'preserve',
+    );
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  async function attachToEditor(file, input) {
+    const target = input
+      ? input.closest('[data-comment-id]')?.dataset.commentId || 'new'
+      : null;
+    if (!(await chooseFile(file, target === 'new' ? null : target))) return;
+    if (input && !fileState.markdown) {
+      const placeholder = `[Uploading ${file.name}… ${crypto.randomUUID().slice(0, 8)}]()`;
+      input.setRangeText(placeholder, input.selectionStart, input.selectionEnd, 'end');
+      fileState.markdown = { target, placeholder };
+      persistFile();
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    await sendFile();
+  }
   function uploadBytes(intent, file) {
     return new Promise((resolve, reject) => {
       const upload = new XMLHttpRequest();
@@ -488,10 +528,6 @@ export function mountDiscussion({
     }
     const state = fileState;
     if (!state) return;
-    if (state.commentId === 'new') {
-      notice('File selected. Post your comment to upload its attachment.');
-      return;
-    }
     state.busy = true;
     updateFileUi();
     try {
@@ -516,12 +552,13 @@ export function mountDiscussion({
         state.phase = 'finalize';
         persistFile();
       }
-      await request(
+      const attachment = await request(
         `/api/v1/uploads/${encodeURIComponent(state.intent.id)}/finalize`,
         'POST',
         { revision: state.intent.revision },
       );
       if (!active) return;
+      insertUploadedMarkdown(state, attachment);
       remove('upload');
       fileState = null;
       pendingRefresh = true;
@@ -590,8 +627,14 @@ export function mountDiscussion({
   async function onChange(event) {
     if (event.target.matches('[data-file-input]')) {
       try {
-        const commentId = event.target.dataset.commentTarget || null;
-        if (await chooseFile(event.target.files[0], commentId)) await sendFile();
+        const target = event.target.dataset.commentTarget;
+        const input =
+          target === 'new'
+            ? get('[data-new-comment-input]')
+            : all('[data-comment-id]')
+                .find((row) => row.dataset.commentId === target)
+                ?.querySelector('[data-comment-input]');
+        await attachToEditor(event.target.files[0], input);
         event.target.value = '';
       } catch (error) {
         notice(error.message, true);
@@ -608,6 +651,18 @@ export function mountDiscussion({
       sendFile();
       return;
     }
+    if (hashing || fileState?.busy) {
+      notice('Wait for the attachment upload to finish before posting or saving.', true);
+      return;
+    }
+    const draftTarget = form.closest('[data-comment-id]')?.dataset.commentId || 'new';
+    if (fileState?.markdown?.target === draftTarget) {
+      notice(
+        'Retry or discard the unfinished attachment before posting or saving.',
+        true,
+      );
+      return;
+    }
     const input = form.querySelector('textarea');
     const body = input.value;
     if (!body.trim() || new TextEncoder().encode(body).length > 100000) {
@@ -615,17 +670,6 @@ export function mountDiscussion({
       return;
     }
     if (form.matches('[data-new-comment]')) {
-      if (fileState?.commentId === 'new' && !fileState.file) {
-        notice(
-          'Reselect the comment attachment before posting, or discard its unfinished upload.',
-          true,
-        );
-        return;
-      }
-      if (hashing || fileState?.busy) {
-        notice('Wait for the attachment to finish preparing before posting.', true);
-        return;
-      }
       const existing = newDraftState || {};
       if (existing.submittedBody !== undefined && existing.submittedBody !== body) {
         notice(
@@ -641,18 +685,13 @@ export function mountDiscussion({
       };
       save('new', draft);
       mutation('new', form, async () => {
-        const comment = await request(
+        await request(
           `/api/v1/tasks/${encodeURIComponent(taskId)}/comments`,
           'POST',
           { body },
           false,
           { 'Idempotency-Key': draft.key },
         );
-        if (fileState?.commentId === 'new') {
-          fileState.commentId = comment.id;
-          persistFile();
-          await sendFile();
-        }
         remove('new');
         input.value = '';
         const composer = get('[data-comment-composer]');
@@ -687,6 +726,13 @@ export function mountDiscussion({
     if (attachmentButton) {
       const input = get('[data-file-input]');
       if (input) {
+        const row = attachmentButton.closest('[data-comment-id]');
+        if (row) {
+          const form = row.querySelector('[data-comment-form]');
+          form.dataset.revision ||= row.dataset.commentRevision;
+          form.hidden = false;
+          row.querySelector('[data-comment-rendered]').hidden = true;
+        }
         input.dataset.commentTarget = attachmentButton.matches('[data-comment-attach]')
           ? attachmentButton.closest('[data-comment-id]')?.dataset.commentId || 'new'
           : '';
@@ -746,6 +792,13 @@ export function mountDiscussion({
         ))
       )
         return;
+      if (fileState?.markdown) {
+        const editor = markdownEditor(fileState.markdown.target);
+        if (editor) {
+          editor.value = editor.value.replace(fileState.markdown.placeholder, '');
+          editor.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
       remove('upload');
       fileState = null;
       const input = get('[data-file-input]');
@@ -933,7 +986,8 @@ export function mountDiscussion({
     }
   }
   async function onPaste(event) {
-    const scope = dropTarget || container;
+    const scope =
+      dropTarget || (container.closest('[data-task-page]') ? document.body : container);
     if (!active || !scope.contains(event.target) || !get('[data-file-form]')) return;
     const files = [...(event.clipboardData?.files || [])];
     if (!files.length) return;
@@ -946,12 +1000,9 @@ export function mountDiscussion({
       notice('Wait for the current attachment to finish, then paste again.', true);
       return;
     }
-    const editor = event.target.closest('[data-new-comment],[data-comment-form]');
-    const commentId = editor
-      ? editor.closest('[data-comment-id]')?.dataset.commentId || 'new'
-      : null;
+    const input = event.target.closest('[data-new-comment-input],[data-comment-input]');
     try {
-      if (await chooseFile(files[0], commentId)) await sendFile();
+      await attachToEditor(files[0], input);
     } catch (error) {
       notice(error.message, true);
     }
@@ -963,7 +1014,13 @@ export function mountDiscussion({
   document.addEventListener('drop', onDrop);
   document.addEventListener('dragend', endDrag);
   const savedUpload = read('upload');
-  if (savedUpload?.name) fileState = { ...savedUpload, file: null, busy: false };
+  if (savedUpload?.name)
+    fileState = {
+      ...savedUpload,
+      commentId: savedUpload.commentId === 'new' ? null : savedUpload.commentId,
+      file: null,
+      busy: false,
+    };
   container.addEventListener('input', onInput);
   container.addEventListener('change', onChange);
   container.addEventListener('submit', onSubmit);
