@@ -36,6 +36,12 @@ creation, list updates and revision-checked color updates accept `emoji`. Omit i
 to preserve the current marker, or send an empty string to remove it. Native
 exports and backups retain it.
 
+Double-click or double-tap a task row or title to complete it. Pointer navigation
+waits 300 ms to distinguish a second tap; keyboard activation, modified links,
+completion controls and editors keep their normal behavior. The gesture invokes
+the existing completion control so subtree confirmations and permissions remain
+consistent.
+
 Local UI state belongs in Alpine components: shared dialogs, menus, search,
 filters, color pickers and preference forms. Keep their markup in templates and
 their data factories in external modules registered once in `assets/alpine.js`.

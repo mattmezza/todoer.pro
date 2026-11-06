@@ -17,12 +17,15 @@ onPageLoad(async (scope) => {
   let pointerHeld = false,
     deferredRefresh = false;
   const pendingSettles = new Set();
+  scope.listen(document, 'todoer:task-interaction-end', resumeRefresh);
   function resumeRefresh() {
     if (
       deferredRefresh &&
       !pointerHeld &&
       pendingSettles.size === 0 &&
-      !main?.querySelector('input:focus,textarea:focus,select:focus')
+      !main?.querySelector(
+        'input:focus,textarea:focus,select:focus,[data-activation-pending]',
+      )
     ) {
       deferredRefresh = false;
       load();
@@ -1495,7 +1498,9 @@ onPageLoad(async (scope) => {
         if (
           pointerHeld ||
           pendingSettles.size ||
-          main.querySelector('input:focus,textarea:focus,select:focus')
+          main.querySelector(
+            'input:focus,textarea:focus,select:focus,[data-activation-pending]',
+          )
         ) {
           deferredRefresh = true;
           return;

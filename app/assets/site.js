@@ -11,6 +11,7 @@ import './navigation.js';
 import './nav-overflow.js';
 import { hydratePreferredTimes } from './preferred-time.js';
 import './task-play.js';
+import './task-gestures.js';
 import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
 import { listPending, clearAccount } from './offline.js';

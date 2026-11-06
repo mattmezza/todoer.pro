@@ -115,7 +115,7 @@ onPageLoad((scope) => {
     return (
       (!ignorePointer && taskPointerDown) ||
       inlineEditors.size > 0 ||
-      Boolean($('#task-list .task-actions[open]')) ||
+      Boolean($('#task-list .task-actions[open],#task-list [data-activation-pending]')) ||
       taskPanel.isOpen ||
       [
         ...document.querySelectorAll(
@@ -126,6 +126,9 @@ onPageLoad((scope) => {
       Boolean(window.getSelection()?.toString())
     );
   }
+  scope.listen(document, 'todoer:task-interaction-end', () => {
+    if (pendingRefresh && !draftActive()) refresh();
+  });
   function refresh(force = false) {
     if (scope.signal.aborted) return;
     if (inlineEditors.size || taskPanel.isOpen || (!force && draftActive())) {

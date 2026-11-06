@@ -254,7 +254,11 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
   let pointerHeld = false;
   const interacting = () =>
     pointerHeld ||
-    Boolean(root.querySelector('.task-child-menu[open], [data-child-inline]'));
+    Boolean(
+      root.querySelector(
+        '.task-child-menu[open], [data-child-inline], [data-activation-pending]',
+      ),
+    );
   root.addEventListener(
     'pointerdown',
     () => {
@@ -271,6 +275,9 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
       },
       { capture: true, signal: lifecycle.signal },
     );
+  document.addEventListener('todoer:task-interaction-end', releaseSoon, {
+    signal: lifecycle.signal,
+  });
   root.addEventListener('toggle', releaseSoon, {
     capture: true,
     signal: lifecycle.signal,
