@@ -5,6 +5,14 @@ const center = document.querySelector('[data-notification-center]');
 if (bell) {
   const mobile = matchMedia('(max-width: 640px)');
   function placeBell() {
+    const panelTools = document.body.classList.contains('planning-detail-open')
+      ? document.querySelector('.planning-detail-panel .panel-heading-tools')
+      : null;
+    if (mobile.matches && panelTools) {
+      if (bell.parentElement !== panelTools) panelTools.append(bell);
+      bell.classList.add('notification-bell-inline');
+      return;
+    }
     const action = document.querySelector(
       '.workbench-export, .page-heading > .entity-menu, .task-page-heading > .task-context-menu, .workspace-header > .workspace-menu',
     );
@@ -27,6 +35,7 @@ if (bell) {
   const resizeDock = new ResizeObserver(() => queueDock());
   function positionBell() {
     dockFrame = null;
+    placeBell();
     let edge = innerWidth;
     const panels = [
       ...document.querySelectorAll(

@@ -43,6 +43,13 @@ for (const width of [390, 1280]) {
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     ).toBe(true);
+    if (width === 390) {
+      const bell = await page.locator('[data-notification-toggle]').boundingBox();
+      const close = await page
+        .getByRole('button', { name: 'Close task details', exact: true })
+        .boundingBox();
+      expect(bell.x + bell.width).toBeLessThanOrEqual(close.x);
+    }
     await page.getByRole('button', { name: 'Close task details', exact: true }).click();
     await expect(panel).toHaveCount(0);
     await row.getByLabel('Actions for Edited inline', { exact: true }).click();
