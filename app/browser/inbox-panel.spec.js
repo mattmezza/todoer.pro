@@ -189,6 +189,7 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
   await panel.getByRole('link', { name: 'Open task page' }).click();
   await expect(page).toHaveURL(/\/tasks\//);
   await expect(page.locator('main[data-task-page]')).toBeVisible();
+  await page.unrouteAll({ behavior: 'wait' });
 });
 
 test('Today uses the same task-page panel', async ({ page }) => {

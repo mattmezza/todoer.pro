@@ -646,7 +646,9 @@ for (const width of [390, 1280]) {
     const bounds = await panel.boundingBox();
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     // The desktop layout reserves a scrollbar gutter outside the panel.
-    const viewport = await page.evaluate(() => document.documentElement.clientWidth);
+    const viewport = await page.evaluate(
+      () => document.documentElement.getBoundingClientRect().right,
+    );
     expect(Math.abs(bounds.x + bounds.width - viewport)).toBeLessThanOrEqual(1);
     expect(await panel.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
     expect(
