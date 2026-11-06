@@ -12588,6 +12588,21 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   }
 }
 
+/* Keep both mobile omnibars above the keyboard, including capture's loader. */
+@media (max-width: 640px) {
+  :is(dialog.capture-omnibar, dialog.search-omnibar):modal {
+    position: fixed;
+    inset: calc(16px + env(safe-area-inset-top)) auto auto 50%;
+    transform: translateX(-50%);
+    height: fit-content;
+    margin: 0;
+    max-height: calc(
+      100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+    );
+    overflow-y: auto;
+  }
+}
+
 /* Section ordering remains available to touch and keyboard users. */
 .section-drag {
   cursor: grab;
