@@ -314,6 +314,7 @@ const MIGRATIONS: &[(i64, &str)] = &[
         55,
         include_str!("../migrations/055_comment_draft_uploads.sql"),
     ),
+    (56, include_str!("../migrations/056_list_emoji.sql")),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {

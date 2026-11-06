@@ -234,6 +234,7 @@ mod tests {
                 "dev",
                 &l.id,
                 ListChange {
+                    emoji: None,
                     color: None,
                     revision: l.revision + 2,
                     title: Some("Café Reading".into()),
@@ -249,6 +250,7 @@ mod tests {
                 "dev",
                 &l.id,
                 ListChange {
+                    emoji: None,
                     color: None,
                     revision: 1,
                     title: Some("bad stale name".into()),

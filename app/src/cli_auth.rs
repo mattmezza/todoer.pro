@@ -360,6 +360,7 @@ mod tests {
                 &actor,
                 &first.id,
                 ListChange {
+                    emoji: None,
                     revision: first.revision,
                     title: Some("not allowed".into()),
                     description: None,

@@ -97,6 +97,7 @@ pub struct CreateList {
 #[serde(deny_unknown_fields)]
 pub struct ListChange {
     pub color: Option<String>,
+    pub emoji: Option<String>,
     pub revision: i64,
     pub title: Option<String>,
     pub description: Option<String>,
@@ -617,6 +618,7 @@ impl Store {
             tx.execute("UPDATE lists SET archived_by=CASE WHEN ?2 THEN ?3 ELSE NULL END,archived_at=CASE WHEN ?2 THEN datetime('now') ELSE NULL END WHERE id=?1 AND archived!=?2",params![id,archived,user])?;
         }
         crate::navigation::validate_list_color(&change.color)?;
+        crate::navigation::validate_list_emoji(&change.emoji)?;
         let title = change.title.unwrap_or_else(|| old.title.clone());
         let description = change.description.unwrap_or(old.description);
         validate_existing_title(&title, &description, &old.title)?;
@@ -626,6 +628,9 @@ impl Store {
         )?;
         if let Some(color) = change.color {
             tx.execute("UPDATE lists SET color=CASE WHEN substr(?1,1,1)='#' THEN NULL ELSE ?1 END,color_hex=CASE WHEN substr(?1,1,1)='#' THEN ?1 ELSE NULL END WHERE id=?2", params![color, id])?;
+        }
+        if let Some(emoji) = change.emoji {
+            tx.execute("UPDATE lists SET emoji=?2 WHERE id=?1", params![id, emoji])?;
         }
         crate::slugs::list(&tx, id)?;
         let result = bump_list(&tx, id)?;
@@ -1484,6 +1489,7 @@ mod tests {
         let space = workspace(&mut db);
         let list = list(&mut db, &space.id, false);
         let change = |revision, archived| ListChange {
+            emoji: None,
             revision,
             archived: Some(archived),
             title: None,
@@ -2747,6 +2753,7 @@ mod lifecycle_tests {
             "dev",
             "groceries",
             ListChange {
+                emoji: None,
                 color: None,
                 revision: rev,
                 title: Some("New groceries".into()),

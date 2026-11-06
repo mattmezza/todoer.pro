@@ -29,6 +29,13 @@ schedule read, and load metadata when the Tags tab opens. Account timezone reads
 are shared within the current page scope. Editable task snapshots remain fresh
 on each opening, and switching panels cancels abandoned reads.
 
+The list color picker also accepts an optional emoji. It is stored separately
+from color, shared with everyone who can access the list, and rendered as escaped
+text over its badge. `GET /api/v1/lists/{id}/color` returns `color` and `emoji`;
+creation, list updates and revision-checked color updates accept `emoji`. Omit it
+to preserve the current marker, or send an empty string to remove it. Native
+exports and backups retain it.
+
 Local UI state belongs in Alpine components: shared dialogs, menus, search,
 filters, color pickers and preference forms. Keep their markup in templates and
 their data factories in external modules registered once in `assets/alpine.js`.

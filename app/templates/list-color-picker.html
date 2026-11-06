@@ -1,5 +1,5 @@
 <details class="list-color-picker" x-data="listColorPicker" x-on:click.outside="close" x-on:keydown.escape="escape">
-  <summary x-ref="summary" x-bind:aria-label="label" x-bind:title="label"><span class="list-color-preview" x-bind:style="previewStyle"></span></summary>
+  <summary x-ref="summary" x-bind:aria-label="label" x-bind:title="label"><span class="list-color-preview" x-bind:style="previewStyle" aria-hidden="true"><span class="list-emoji" x-text="emoji"></span></span></summary>
   <div class="list-color-menu" aria-label="List colors">
     <div class="list-color-grid">
       <template x-for="choice in colors" x-bind:key="choice.color">
@@ -7,5 +7,14 @@
       </template>
     </div>
     <label class="list-color-custom">Custom color<input type="color" name="color" value="#4e89f7" aria-label="Custom list color" x-ref="input" x-on:input="customInput" x-on:change="customChange"></label>
+    <div class="list-emoji-field">
+      <label>Emoji (optional)<input type="text" name="emoji" maxlength="32" placeholder="Paste an emoji" aria-label="List emoji" x-ref="emoji" x-bind:value="emoji" x-on:input="emojiInput" x-on:change="emojiChange"></label>
+      <div class="list-emoji-grid" aria-label="Suggested emojis">
+        <template x-for="choice in emojiChoices" x-bind:key="choice.name">
+          <button type="button" x-bind:data-emoji="choice.emoji" x-bind:aria-label="choice.name" x-bind:aria-pressed="emoji === choice.emoji ? 'true' : 'false'" x-on:click="chooseEmoji" x-text="choice.emoji"></button>
+        </template>
+      </div>
+      <button type="button" class="list-emoji-clear" data-emoji="" x-on:click="chooseEmoji">No emoji</button>
+    </div>
   </div>
 </details>

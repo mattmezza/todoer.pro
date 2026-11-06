@@ -2746,7 +2746,7 @@ input[type='color'] {
   flex: 1;
   min-width: 0;
 }
-#list-create-dialog .list-color-field input {
+#list-create-dialog .list-color-field input[type='color'] {
   width: 44px;
   height: 44px;
   padding: 4px;
@@ -13625,4 +13625,66 @@ html.page-loading::after {
   border-radius: 8px;
   background: var(--sidebar);
   color: var(--text);
+}
+
+/* An optional emoji sits over the list's existing color badge. */
+:is(.list-dot, .entity-color, .list-color-preview):has(> .list-emoji) {
+  position: relative;
+}
+.list-emoji {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+  font-size: 14px;
+  line-height: 1;
+  letter-spacing: 0;
+  text-indent: 0;
+  pointer-events: none;
+}
+.list-emoji:empty {
+  display: none;
+}
+.list-dot > .list-emoji {
+  font-size: 12px;
+}
+.list-emoji-field {
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+.list-emoji-field label {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+}
+.list-emoji-field input {
+  width: 100%;
+  padding: 8px;
+}
+.list-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 8px;
+}
+.list-emoji-grid button {
+  min-width: 0;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 6px;
+  font-size: 20px;
+}
+.list-emoji-grid button:hover,
+.list-emoji-grid button[aria-pressed='true'] {
+  background: var(--hover);
+}
+.list-emoji-clear {
+  min-height: 36px;
+  margin-top: 4px;
+  padding: 4px 8px;
+  color: var(--muted);
+  font-size: 13px;
 }

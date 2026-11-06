@@ -6,13 +6,14 @@ import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
 import { openListSettings, setupTaskSettingsDock } from './list-settings.js';
 import { previewTaskMove } from './task-page.js';
-import { mountListColorPicker } from './list-color-picker.js';
+import { mountListColorPicker, setListBadgeEmoji } from './list-color-picker.js';
 export function mountListUi({ api, notice, listId }) {
   const scope = pageScope();
 
   setupTaskSettingsDock(document.querySelector('main'), 'list', listId);
   const canWrite = document.body.dataset.canWrite === 'true';
   const edit = document.querySelector('[data-list-edit]');
+  let editPalette;
   const sectionCreate = document.querySelector('[data-section-create]');
   if (sectionCreate && !sectionCreate.querySelector('[name="description"]')) {
     const label = document.createElement('label');
@@ -59,8 +60,10 @@ export function mountListUi({ api, notice, listId }) {
         : '#3b82f6');
     const title = edit.querySelector('[name="title"]');
     title.before(heading);
-    const palette = mountListColorPicker(picker);
-    heading.append(palette.element, title);
+    editPalette = mountListColorPicker(picker, {
+      emoji: document.body.dataset.listEmoji || '',
+    });
+    heading.append(editPalette.element, title);
   }
   const swatch = document.querySelector('[data-list-display] .entity-color');
   if (swatch && canWrite) {
@@ -80,9 +83,11 @@ export function mountListUi({ api, notice, listId }) {
     let savingColor = false;
     const palette = mountListColorPicker(current, {
       label: 'Change list color',
-      onChange: async (color) => {
+      emoji: document.body.dataset.listEmoji || '',
+      onChange: async (color, emoji) => {
         if (savingColor) {
           palette.setColor(current.dataset.savedColor);
+          palette.setEmoji(current.dataset.savedEmoji);
           return;
         }
         savingColor = true;
@@ -91,17 +96,21 @@ export function mountListUi({ api, notice, listId }) {
           const updated = await api(`/lists/${listId}/color`, 'PUT', {
             revision: list.revision,
             color,
+            emoji,
           });
           document.body.dataset.listColor = color;
+          document.body.dataset.listEmoji = emoji;
           document.body.style.setProperty('--list-color', color);
           for (const dot of document.querySelectorAll(
             `.list-navigation[href="/lists/${listId}"] .list-dot`,
           )) {
             dot.style.backgroundColor = color;
             dot.dataset.entityColor = color;
+            setListBadgeEmoji(dot, emoji);
           }
           if (edit) {
             edit.dataset.revision = updated.revision;
+            editPalette?.setEmoji(emoji);
             const editColor = edit.querySelector('[name="color"]');
             if (editColor) {
               editColor.value = color;
@@ -110,16 +119,28 @@ export function mountListUi({ api, notice, listId }) {
           }
         } catch (error) {
           palette.setColor(current.dataset.savedColor);
+          palette.setEmoji(current.dataset.savedEmoji);
           notice(error.message, true);
           return;
         } finally {
           savingColor = false;
         }
         current.dataset.savedColor = color;
+        current.dataset.savedEmoji = emoji;
         palette.setColor(color);
+        palette.setEmoji(emoji);
       },
     });
     current.dataset.savedColor = current.value;
+    current.dataset.savedEmoji = document.body.dataset.listEmoji || '';
+    scope.listen(document, 'todoer:list-appearance', ({ detail: { color, emoji } }) => {
+      palette.setColor(color);
+      palette.setEmoji(emoji);
+      editPalette?.setColor(color);
+      editPalette?.setEmoji(emoji);
+      current.dataset.savedColor = color;
+      current.dataset.savedEmoji = emoji;
+    });
     palette.element.classList.add('heading-list-color');
     swatch.replaceWith(palette.element);
   }
@@ -289,6 +310,7 @@ export function mountListUi({ api, notice, listId }) {
       title: data.get('title'),
       description: data.get('description'),
       color: data.get('color'),
+      emoji: data.get('emoji'),
     });
   });
   scope.listen(sectionCreate, 'submit', async (event) => {

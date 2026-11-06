@@ -22,6 +22,21 @@ export function listColorPicker() {
   let picker;
   return {
     color: '#4e89f7',
+    emoji: '',
+    emojiChoices: [
+      ['🛒', 'Shopping'],
+      ['🏠', 'Home'],
+      ['💼', 'Work'],
+      ['✈️', 'Travel'],
+      ['🎯', 'Goals'],
+      ['📚', 'Learning'],
+      ['💡', 'Ideas'],
+      ['🧹', 'Chores'],
+      ['❤️', 'Personal'],
+      ['🎮', 'Games'],
+      ['🌱', 'Garden'],
+      ['📋', 'Projects'],
+    ].map(([emoji, name]) => ({ emoji, name })),
     label: 'Choose list color',
     colors: LIST_COLORS.map(([name, color]) => ({
       name,
@@ -34,6 +49,7 @@ export function listColorPicker() {
       onChange = options?.onChange;
       this.label = options?.label || this.label;
       this.color = picker.querySelector('input').value.toLowerCase();
+      this.setEmoji(options?.emoji || picker.querySelector('[name=emoji]').value || '');
     },
     get previewStyle() {
       return { backgroundColor: this.color };
@@ -41,6 +57,34 @@ export function listColorPicker() {
     setColor(color) {
       this.$refs.input.value = color;
       this.color = this.$refs.input.value.toLowerCase();
+    },
+    setEmoji(value) {
+      this.emoji = value;
+      const input = picker.querySelector('[name=emoji]');
+      input.value = value;
+      input.setCustomValidity('');
+    },
+    chooseEmoji(event) {
+      this.setEmoji(event.currentTarget.dataset.emoji);
+      this.close();
+      this.$dispatch('list-color-change');
+      onChange?.(this.color, this.emoji);
+    },
+    emojiInput(event) {
+      const value = event.target.value.trim();
+      const single =
+        !value ||
+        ([...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(value)]
+          .length === 1 &&
+          /\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20e3/u.test(value));
+      event.target.setCustomValidity(single ? '' : 'Choose one emoji or leave it empty.');
+      if (single) {
+        this.emoji = value;
+        this.$dispatch('list-color-change');
+      }
+    },
+    emojiChange(event) {
+      if (event.target.reportValidity()) onChange?.(this.color, this.emoji);
     },
     close() {
       picker.open = false;
@@ -56,14 +100,14 @@ export function listColorPicker() {
       this.setColor(event.currentTarget.dataset.color);
       this.close();
       this.$dispatch('list-color-change');
-      onChange?.(this.color);
+      onChange?.(this.color, this.emoji);
     },
     customInput() {
       this.color = picker.querySelector('input').value.toLowerCase();
       this.$dispatch('list-color-change');
     },
     customChange() {
-      onChange?.(this.color);
+      onChange?.(this.color, this.emoji);
     },
   };
 }
@@ -82,6 +126,17 @@ export function mountListColorPicker(input, options = {}) {
   return {
     element,
     setColor: (color) => component.setColor(color),
+    setEmoji: (emoji) => component.setEmoji(emoji),
     close: () => component.close(),
   };
+}
+
+export function setListBadgeEmoji(badge, emoji) {
+  let marker = badge.querySelector('.list-emoji');
+  if (!marker) {
+    marker = document.createElement('span');
+    marker.className = 'list-emoji';
+    badge.append(marker);
+  }
+  marker.textContent = emoji;
 }

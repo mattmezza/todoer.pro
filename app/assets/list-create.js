@@ -74,6 +74,7 @@ export function listCreateDialog() {
             title: data.get('title'),
             description: data.get('description'),
             color: data.get('color'),
+            emoji: data.get('emoji'),
             restricted: false,
           }),
         });

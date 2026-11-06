@@ -231,6 +231,7 @@ impl Store {
                                 actor,
                                 &list.id,
                                 ListChange {
+                                    emoji: None,
                                     revision: list.revision,
                                     title: None,
                                     description: None,
@@ -276,6 +277,7 @@ impl Store {
                             actor,
                             &id,
                             ListChange {
+                                emoji: None,
                                 revision: info.list.revision,
                                 title: None,
                                 description: Some(list_description(title, space)),

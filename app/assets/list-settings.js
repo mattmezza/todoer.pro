@@ -1,3 +1,4 @@
+import { setListBadgeEmoji } from './list-color-picker.js';
 import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { mountPublicSharing } from './public-sharing.js';
@@ -466,9 +467,11 @@ async function openSettings(listId, selected, kind, taskRoot) {
         );
       }
       const color = form.querySelector('[name=color]')?.value;
+      const emoji = form.querySelector('[name=emoji]')?.value || '';
       await load();
       if (color && /^#[0-9a-f]{6}$/i.test(color)) {
         document.body.dataset.listColor = color;
+        document.body.dataset.listEmoji = emoji;
         document.body.style.setProperty('--list-color', color);
         for (const badge of document.querySelectorAll(
           `.entity-color,.list-navigation[href="/lists/${listId}"] .list-dot`,
@@ -478,9 +481,14 @@ async function openSettings(listId, selected, kind, taskRoot) {
           else {
             badge.dataset.entityColor = color;
             badge.style.backgroundColor = color;
+            setListBadgeEmoji(badge, emoji);
           }
         }
       }
+      if (color)
+        document.dispatchEvent(
+          new CustomEvent('todoer:list-appearance', { detail: { color, emoji } }),
+        );
       const edit = document.querySelector('[data-list-edit]');
       if (edit?.hidden) {
         const revision = doc.querySelector('input[name=revision]')?.value;

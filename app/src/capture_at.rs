@@ -202,13 +202,21 @@ impl Store {
         input: crate::workspace::CreateList,
         color: Option<String>,
     ) -> Result<crate::core::List, Error> {
+        self.create_list_with_appearance(actor, input, color, None)
+    }
+    pub fn create_list_with_appearance(
+        &mut self,
+        actor: &str,
+        input: crate::workspace::CreateList,
+        color: Option<String>,
+        emoji: Option<String>,
+    ) -> Result<crate::core::List, Error> {
         let mut write = crate::agent_ops::StoreWrite::new(self)?;
         let created = write.create_list(actor, input)?;
-        let result = match color {
-            Some(color) => {
-                write.set_list_color(actor, &created.id, created.revision, Some(color))?
-            }
-            None => created,
+        let result = if color.is_some() || emoji.is_some() {
+            write.set_list_appearance(actor, &created.id, created.revision, color, emoji)?
+        } else {
+            created
         };
         write.commit()?;
         Ok(result)

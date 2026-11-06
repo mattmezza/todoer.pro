@@ -328,6 +328,7 @@ struct CreateListWithColor {
     restricted: bool,
     #[serde(default)]
     color: Option<String>,
+    emoji: Option<String>,
 }
 async fn api_create_list(
     State(s): State<AppState>,
@@ -337,7 +338,7 @@ async fn api_create_list(
     let actor = s.auth(&h, true)?;
     Ok(Json(
         s.run(move |db| {
-            db.create_list_with_color(
+            db.create_list_with_appearance(
                 &actor,
                 CreateList {
                     workspace_id: input.workspace_id,
@@ -346,6 +347,7 @@ async fn api_create_list(
                     restricted: input.restricted,
                 },
                 input.color,
+                input.emoji,
             )
         })
         .await?,
@@ -596,6 +598,7 @@ struct WorkspacePage {
 #[template(path = "sharing.html")]
 struct SharingPage {
     color: String,
+    emoji: String,
     csrf: String,
     info: WorkspaceList,
     sections: Vec<Section>,
@@ -745,6 +748,7 @@ struct SpaceOverview {
     can_create: bool,
 }
 struct SpaceListCard {
+    emoji: String,
     archive_note: String,
     id: String,
     title: String,
@@ -778,11 +782,11 @@ async fn space_page(
         let reference = crate::defaults::public_id(&db.conn, "workspace", &id)?;
         // Aggregate only lists visible through the live actor view. Hidden lists
         // and their task totals never contribute to this overview.
-        let mut query = db.conn.prepare("SELECT l.id,l.title,l.description,coalesce(l.color_hex,l.color,'blue'),sum(CASE WHEN t.complete=0 THEN 1 ELSE 0 END),sum(CASE WHEN t.complete=1 THEN 1 ELSE 0 END),sum(CASE WHEN t.complete=0 AND json_extract(s.document,'$.priority')=0 THEN 1 ELSE 0 END),sum(CASE WHEN t.complete=0 AND json_extract(s.document,'$.priority')=1 THEN 1 ELSE 0 END) FROM lists l JOIN actor_list_access a ON a.list_id=l.id AND a.actor_id=?1 AND a.rank>=1 LEFT JOIN tasks t ON t.list_id=l.id AND t.deleted_at IS NULL LEFT JOIN task_schedule s ON s.task_id=t.id WHERE l.workspace_id=?2 GROUP BY l.id ORDER BY l.archived,l.position,l.id")?;
+        let mut query = db.conn.prepare("SELECT l.id,l.title,l.description,coalesce(l.color_hex,l.color,'blue'),sum(CASE WHEN t.complete=0 THEN 1 ELSE 0 END),sum(CASE WHEN t.complete=1 THEN 1 ELSE 0 END),sum(CASE WHEN t.complete=0 AND json_extract(s.document,'$.priority')=0 THEN 1 ELSE 0 END),sum(CASE WHEN t.complete=0 AND json_extract(s.document,'$.priority')=1 THEN 1 ELSE 0 END),l.emoji FROM lists l JOIN actor_list_access a ON a.list_id=l.id AND a.actor_id=?1 AND a.rank>=1 LEFT JOIN tasks t ON t.list_id=l.id AND t.deleted_at IS NULL LEFT JOIN task_schedule s ON s.task_id=t.id WHERE l.workspace_id=?2 GROUP BY l.id ORDER BY l.archived,l.position,l.id")?;
         let lists = query.query_map(rusqlite::params![actor,id], |r| {
             let description: String = r.get(2)?;
             let open: i64 = r.get(4)?; let completed: i64 = r.get(5)?;
-            Ok(SpaceListCard { archive_note:String::new(), id:r.get(0)?, title:r.get(1)?, description: if description.chars().count()>160 { format!("{}…",description.chars().take(160).collect::<String>()) } else {description},color:r.get(3)?,open,completed,total:open+completed,p0:r.get(6)?,p1:r.get(7)?,favorite:false })
+            Ok(SpaceListCard { emoji:r.get(8)?, archive_note:String::new(), id:r.get(0)?, title:r.get(1)?, description: if description.chars().count()>160 { format!("{}…",description.chars().take(160).collect::<String>()) } else {description},color:r.get(3)?,open,completed,total:open+completed,p0:r.get(6)?,p1:r.get(7)?,favorite:false })
         })?.collect::<Result<Vec<_>,_>>()?;
         let mut archived_lists = Vec::new();
         let mut active_lists = Vec::new();
@@ -886,7 +890,7 @@ async fn sharing_page(
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
     };
-    let (info, sections, grants, rank, owner, color) = s
+    let (info, sections, grants, rank, owner, color, emoji) = s
         .run(move |db| {
             let info = db.list_info(&actor, &id)?;
             let rank = db.list_permission(&actor, &id)?;
@@ -906,11 +910,13 @@ async fn sharing_page(
                 rank,
                 owner,
                 db.list_color(&actor, &id)?.unwrap_or_default(),
+                db.list_emoji(&actor, &id)?,
             ))
         })
         .await?;
     html(SharingPage {
         color,
+        emoji,
         csrf: s.csrf_for(&h),
         info,
         sections,
@@ -1163,6 +1169,7 @@ async fn list_edit_form(
             &actor,
             &id,
             ListChange {
+                emoji: None,
                 color: None,
                 revision: f.revision,
                 title: Some(f.title),

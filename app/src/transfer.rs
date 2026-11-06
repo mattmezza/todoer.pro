@@ -2782,7 +2782,7 @@ mod lifecycle_export_tests {
             )
             .unwrap();
         let list = db
-            .create_list_with_color(
+            .create_list_with_appearance(
                 "dev",
                 crate::workspace::CreateList {
                     workspace_id: w.id.clone(),
@@ -2791,6 +2791,7 @@ mod lifecycle_export_tests {
                     restricted: false,
                 },
                 Some("#123456".into()),
+                Some("🛒".into()),
             )
             .unwrap();
         let reference = db.list_reference("dev", &list.id).unwrap();
@@ -2829,6 +2830,15 @@ mod lifecycle_export_tests {
                     .get::<_, String>(0))
                 .unwrap(),
             "#123456"
+        );
+        assert_eq!(
+            target
+                .conn
+                .query_row("SELECT emoji FROM lists WHERE id=?1", [&list.id], |r| {
+                    r.get::<_, String>(0)
+                })
+                .unwrap(),
+            "🛒"
         );
         assert!(
             target

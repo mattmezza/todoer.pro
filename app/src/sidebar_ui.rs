@@ -6,6 +6,7 @@ pub(super) struct SidebarList {
     pub title: String,
     pub slug: String,
     pub color: String,
+    pub emoji: String,
 }
 #[derive(Clone)]
 pub(super) struct SidebarSpace {
@@ -20,6 +21,7 @@ pub(super) struct SidebarFavorite {
     pub title: String,
     pub slug: String,
     pub color: String,
+    pub emoji: String,
     pub initials: String,
 }
 pub(super) struct Sidebar {
@@ -120,11 +122,17 @@ pub(super) fn build_sidebar(
         })
         .collect::<Vec<_>>();
     let mut colors = std::collections::HashMap::<String, String>::new();
-    let mut q=db.conn.prepare("SELECT l.id,coalesce(l.color_hex,l.color,'blue') FROM lists l JOIN actor_list_access a ON a.list_id=l.id WHERE a.actor_id=?1")?;
+    let mut emojis = std::collections::HashMap::<String, String>::new();
+    let mut q=db.conn.prepare("SELECT l.id,coalesce(l.color_hex,l.color,'blue'),l.emoji FROM lists l JOIN actor_list_access a ON a.list_id=l.id WHERE a.actor_id=?1")?;
     for row in q.query_map([actor], |r| {
-        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, String>(1)?,
+            r.get::<_, String>(2)?,
+        ))
     })? {
-        let (id, color) = row?;
+        let (id, color, emoji) = row?;
+        emojis.insert(id.clone(), emoji);
         colors.insert(id, color);
     }
     let workspace: Option<String> = db
@@ -163,6 +171,7 @@ pub(super) fn build_sidebar(
                 .get(&l.id)
                 .cloned()
                 .unwrap_or_else(|| l.title.to_lowercase()),
+            emoji: emojis.get(&l.id).cloned().unwrap_or_default(),
             color: colors.remove(&l.id).unwrap_or_else(|| "blue".into()),
             title: l.title,
         })
@@ -207,7 +216,9 @@ pub(super) fn build_sidebar(
             } else {
                 String::new()
             };
+            let emoji = emojis.get(&f.id).cloned().unwrap_or_default();
             SidebarFavorite {
+                emoji,
                 kind: f.kind,
                 id: f.id,
                 title: f.title,

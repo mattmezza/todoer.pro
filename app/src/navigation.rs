@@ -183,6 +183,13 @@ impl Store {
             .optional()?
             .ok_or(Error::NotFound)
     }
+    pub fn list_emoji(&self, actor: &str, id: &str) -> Result<String, Error> {
+        access_rank(&self.conn, actor, id, 1)?;
+        self.conn
+            .query_row("SELECT emoji FROM lists WHERE id=?1", [id], |r| r.get(0))
+            .optional()?
+            .ok_or(Error::NotFound)
+    }
     pub fn set_list_color(
         &mut self,
         actor: &str,
@@ -190,12 +197,23 @@ impl Store {
         revision: i64,
         color: Option<String>,
     ) -> Result<crate::core::List, Error> {
+        self.set_list_appearance(actor, id, revision, color, None)
+    }
+    pub fn set_list_appearance(
+        &mut self,
+        actor: &str,
+        id: &str,
+        revision: i64,
+        color: Option<String>,
+        emoji: Option<String>,
+    ) -> Result<crate::core::List, Error> {
         validate_list_color(&color)?;
+        validate_list_emoji(&emoji)?;
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         access_rank(&tx, actor, id, 2)?;
         if tx.execute(
-            "UPDATE lists SET color=CASE WHEN substr(?1,1,1)='#' THEN NULL ELSE ?1 END,color_hex=CASE WHEN substr(?1,1,1)='#' THEN ?1 ELSE NULL END,revision=revision+1 WHERE id=?2 AND revision=?3",
-            params![color, id, revision],
+            "UPDATE lists SET color=CASE WHEN substr(?1,1,1)='#' THEN NULL ELSE ?1 END,color_hex=CASE WHEN substr(?1,1,1)='#' THEN ?1 ELSE NULL END,emoji=COALESCE(?4,emoji),revision=revision+1 WHERE id=?2 AND revision=?3",
+            params![color, id, revision, emoji],
         )? != 1
         {
             return Err(Error::Conflict(
@@ -205,6 +223,22 @@ impl Store {
         tx.commit()?;
         self.list_info(actor, id).map(|i| i.list)
     }
+}
+// A list marker is short Unicode text. Render it as escaped text everywhere;
+// the picker restricts custom input to one emoji grapheme without a new library.
+pub(crate) fn validate_list_emoji(emoji: &Option<String>) -> Result<(), Error> {
+    if emoji.as_ref().is_some_and(|value| {
+        value.chars().count() > 16
+            || value.chars().any(|c| {
+                c.is_control()
+                    || c.is_whitespace()
+                    || c.is_ascii_alphabetic()
+                    || matches!(c, '<' | '>' | '&')
+            })
+    }) {
+        return Err(Error::Invalid("Choose one emoji or leave it empty".into()));
+    }
+    Ok(())
 }
 pub(crate) fn validate_list_color(color: &Option<String>) -> Result<(), Error> {
     if color.as_ref().is_some_and(|c| {
@@ -363,5 +397,94 @@ mod tests {
             Some("blue")
         );
         assert!(db.set_list_color("dev", "groceries", rev, None).is_err());
+    }
+    #[test]
+    fn emoji_appearance_is_revision_checked_and_color_only_updates_preserve_it() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let rev = db.list_info("dev", "groceries").unwrap().list.revision;
+        let list = db
+            .set_list_appearance(
+                "dev",
+                "groceries",
+                rev,
+                Some("#123456".into()),
+                Some("👩🏽‍💻".into()),
+            )
+            .unwrap();
+        assert_eq!(db.list_emoji("dev", "groceries").unwrap(), "👩🏽‍💻");
+        assert!(
+            db.set_list_appearance("dev", "groceries", rev, None, Some("🛒".into()))
+                .is_err()
+        );
+        assert!(db.list_emoji("other", "groceries").is_err());
+        assert!(
+            db.set_list_appearance("other", "groceries", list.revision, None, Some("🛒".into()))
+                .is_err()
+        );
+        let list = db
+            .set_list_color("dev", "groceries", list.revision, Some("green".into()))
+            .unwrap();
+        assert_eq!(db.list_emoji("dev", "groceries").unwrap(), "👩🏽‍💻");
+        for invalid in [
+            "two words",
+            "ordinary text",
+            "\n",
+            "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+        ] {
+            assert!(
+                db.set_list_appearance(
+                    "dev",
+                    "groceries",
+                    list.revision,
+                    Some("red".into()),
+                    Some(invalid.into())
+                )
+                .is_err()
+            );
+        }
+        assert_eq!(
+            db.list_color("dev", "groceries").unwrap().as_deref(),
+            Some("green")
+        );
+        let changed = serde_json::from_value(
+            serde_json::json!({"revision":list.revision,"emoji":"","title":"Renamed"}),
+        )
+        .unwrap();
+        db.update_list("dev", "groceries", changed).unwrap();
+        assert_eq!(db.list_emoji("dev", "groceries").unwrap(), "");
+        assert_eq!(
+            db.list_color("dev", "groceries").unwrap().as_deref(),
+            Some("green")
+        );
+    }
+    #[test]
+    fn invalid_emoji_rolls_back_list_creation() {
+        let mut db = Store::memory().unwrap();
+        db.seed_dev().unwrap();
+        let before = db.lists("dev").unwrap().len();
+        let workspace = db
+            .create_workspace(
+                "dev",
+                crate::workspace::WorkspaceInput {
+                    title: "Emoji rollback".into(),
+                    description: String::new(),
+                },
+            )
+            .unwrap()
+            .id;
+        let result = db.create_list_with_appearance(
+            "dev",
+            crate::workspace::CreateList {
+                workspace_id: workspace,
+                title: "Invalid marker".into(),
+                description: String::new(),
+                restricted: false,
+            },
+            Some("blue".into()),
+            Some("invalid text".into()),
+        );
+        assert!(result.is_err());
+        assert_eq!(db.lists("dev").unwrap().len(), before);
     }
 }

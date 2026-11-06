@@ -42,6 +42,7 @@ async fn set_favorite(
 struct ColorInput {
     revision: i64,
     color: Option<String>,
+    emoji: Option<String>,
 }
 async fn color(
     State(s): State<AppState>,
@@ -50,7 +51,10 @@ async fn color(
 ) -> Result<Json<Value>, ApiError> {
     let a = s.auth(&h, false)?;
     Ok(Json(
-        json!({"color":s.run(move|db|db.list_color(&a,&id)).await?}),
+        s.run(move |db| {
+            Ok(json!({"color": db.list_color(&a, &id)?, "emoji": db.list_emoji(&a, &id)?}))
+        })
+        .await?,
     ))
 }
 async fn set_color(
@@ -61,7 +65,7 @@ async fn set_color(
 ) -> Result<Json<List>, ApiError> {
     let a = s.auth(&h, true)?;
     Ok(Json(
-        s.run(move |db| db.set_list_color(&a, &id, input.revision, input.color))
+        s.run(move |db| db.set_list_appearance(&a, &id, input.revision, input.color, input.emoji))
             .await?,
     ))
 }
@@ -106,6 +110,7 @@ struct ColorForm {
     csrf: String,
     revision: i64,
     color: String,
+    emoji: Option<String>,
 }
 async fn color_form(
     State(s): State<AppState>,
@@ -123,7 +128,7 @@ async fn color_form(
     let a = s.auth(&h, true)?;
     let target = id.clone();
     s.run(move |db| {
-        db.set_list_color(
+        db.set_list_appearance(
             &a,
             &id,
             f.revision,
@@ -132,6 +137,7 @@ async fn color_form(
             } else {
                 Some(f.color)
             },
+            f.emoji,
         )
     })
     .await?;

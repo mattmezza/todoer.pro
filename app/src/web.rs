@@ -652,6 +652,7 @@ struct ListPage {
     groups: Vec<TaskGroup>,
     task_count: usize,
     color: String,
+    emoji: String,
     csrf: String,
     capture_key: String,
     account_id: String,
@@ -956,7 +957,7 @@ pub(super) async fn page(
         .find(|item| item.id == list.id)
         .map(|item| item.slug.clone())
         .unwrap_or_else(|| list.title.clone());
-    let (groups, task_count, can_write, color, change_cursor) = s
+    let (groups, task_count, can_write, color, emoji, change_cursor) = s
         .run(move |db| {
             let (groups, count) = grouped_rows(db, &actor, &id, hide_completed)?;
             Ok((
@@ -964,6 +965,7 @@ pub(super) async fn page(
                 count,
                 db.list_permission(&actor, &id)? >= 2 && db.list_archive_note(&actor, &id)?.is_none(),
                 db.list_color(&actor, &id)?.unwrap_or_else(|| "blue".into()),
+                db.list_emoji(&actor, &id)?,
                 db.conn.query_row("SELECT COALESCE(MAX(h.seq),0) FROM history h JOIN actor_list_access a ON a.list_id=h.list_id WHERE a.actor_id=?1",[&actor],|r|r.get::<_,i64>(0))?,
             ))
         })
@@ -984,6 +986,7 @@ pub(super) async fn page(
         sidebar,
         slug,
         color,
+        emoji,
         list,
         groups,
         task_count,
