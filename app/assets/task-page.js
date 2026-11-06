@@ -88,8 +88,8 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
   const prefix = `todoer:${account}:edit:${id}`,
     childKey = `${prefix}:child`;
   const form = get('[data-brief-form]'),
-    title = get('#task-page-title'),
-    description = get('#task-page-description');
+    title = get('[name=title]'),
+    description = get('[data-brief-form] [name=description]');
   for (const [selector, label, icon] of [
     ['[data-context-edit]', 'Edit task…', 'edit'],
     ['[data-open-move]', 'Move task and sub-tasks…', 'move'],
@@ -1060,8 +1060,8 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
     }
   };
   const childForm = get('[data-child-form]'),
-    childTitle = get('#task-child-title'),
-    childDescription = get('#task-child-description');
+    childTitle = get('[data-child-form] [name=title]'),
+    childDescription = get('[data-child-form] [name=description]');
   if (childDraft) {
     childTitle.value = childDraft.title || '';
     childDescription.value = childDraft.description || '';
@@ -1162,8 +1162,8 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
   };
   const moveDialog = get('[data-move-dialog]'),
     moveForm = get('[data-move-form]'),
-    moveList = get('#task-move-list'),
-    moveSection = get('#task-move-section');
+    moveList = get('[data-move-form] [name=list_id]'),
+    moveSection = get('[data-move-form] [name=section_id]');
   async function inspectDestination() {
     const sequence = ++moveSequence;
     get('[data-move-error]').textContent = '';

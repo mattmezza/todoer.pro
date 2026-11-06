@@ -7,9 +7,9 @@ export function mountBreakdown(root, { inline = false } = {}) {
   const menu = root.querySelector('.task-context-menu');
   const dialog = document.createElement('dialog');
   dialog.className = 'breakdown-dialog';
-  dialog.setAttribute('aria-labelledby', 'breakdown-title');
   const heading = document.createElement('h2');
-  heading.id = 'breakdown-title';
+  heading.id = `breakdown-title-${crypto.randomUUID()}`;
+  dialog.setAttribute('aria-labelledby', heading.id);
   heading.innerHTML =
     '<span class="modal-heading-icon" aria-hidden="true"><svg class="ui-icon" width="20" height="20"><use href="/assets/icons.svg#sparkles"/></svg></span>Break down task';
   const close = document.createElement('button');

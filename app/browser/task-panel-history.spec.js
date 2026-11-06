@@ -91,6 +91,18 @@ for (const width of [390, 1280]) {
       .locator(`main [data-child-id="${child.id}"] > [data-child-description]`)
       .click();
     await assertPanel(child.id);
+    await panel.locator('[data-child-composer] > summary').click();
+    await panel
+      .getByLabel('New sub-task', { exact: true })
+      .fill('Panel-only child draft');
+    await expect(page.locator('body > main [data-child-form] [name=title]')).toHaveValue(
+      '',
+    );
+    const duplicateIds = await page.evaluate(() => {
+      const ids = [...document.querySelectorAll('[id]')].map((el) => el.id);
+      return ids.filter((id, index) => ids.indexOf(id) !== index);
+    });
+    expect(duplicateIds).toEqual([]);
     await page.goBack();
     await expect(panel).toHaveCount(0);
     await expect(page).toHaveURL(taskURL);
@@ -100,3 +112,71 @@ for (const width of [390, 1280]) {
     );
   });
 }
+
+test('Inbox, Today and calendar panel history keeps the rendered background', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
+  const api = async (path, method = 'GET', data) => {
+    const response = await page.request.fetch(`/api/v1/${path}`, {
+      method,
+      headers: { 'x-csrf-token': csrf, 'Idempotency-Key': randomUUID() },
+      data,
+    });
+    expect(response.ok(), await response.text()).toBeTruthy();
+    return response.json();
+  };
+  const inbox = await api('inbox');
+  const title = `History ${randomUUID()}`;
+  const [task] = await api('capture', 'POST', {
+    list_id: inbox.list_id,
+    tasks: [{ title }],
+  });
+  await page.goto('/today');
+  const date = await page
+    .locator('[data-planning-today]')
+    .getAttribute('data-planning-today');
+  const schedule = await api(`tasks/${task.id}/schedule`);
+  await api(`tasks/${task.id}/schedule`, 'PUT', {
+    revision: schedule.task_revision,
+    schedule: { ...schedule.schedule, planned: { kind: 'date', date } },
+  });
+  const panel = page.getByRole('complementary', { name: 'Task details', exact: true });
+  for (const path of ['/inbox', '/today', '/plan']) {
+    await page.goto(path);
+    const link = page
+      .locator('#main a[href^="/tasks/"]')
+      .filter({ hasText: title })
+      .first();
+    await expect(link).toBeVisible();
+    await page.evaluate(() => {
+      window.panelBackground = document.querySelector('#main');
+    });
+    const backgroundURL = page.url();
+    await link.click();
+    await expect(panel.locator('[data-task-page]')).toHaveAttribute(
+      'data-task-id',
+      task.id,
+    );
+    await page.goBack();
+    await expect(panel).toHaveCount(0);
+    await expect(page).toHaveURL(backgroundURL);
+    // Wait through HTMX's asynchronous history hook before checking identity.
+    await expect(page.locator('#main')).not.toHaveAttribute('aria-busy', 'true');
+    expect(
+      await page.evaluate(
+        () => window.panelBackground === document.querySelector('#main'),
+      ),
+    ).toBe(true);
+    await page.goForward();
+    await expect(panel.locator('[data-task-page]')).toHaveAttribute(
+      'data-task-id',
+      task.id,
+    );
+    await page.getByRole('button', { name: 'Close task details', exact: true }).click();
+    await expect(panel).toHaveCount(0);
+  }
+});

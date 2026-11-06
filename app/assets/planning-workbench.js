@@ -1,3 +1,4 @@
+import { replacePageURL } from './page-navigation.js';
 import { taskIndicators } from './task-indicators.js';
 import { inference } from './ai-transaction.js';
 import { beginLoading } from './loading.js';
@@ -196,7 +197,7 @@ onPageLoad(async (scope) => {
       date: anchor,
       ...(view === 'custom' ? { from, to } : {}),
     });
-    history.replaceState({ ...history.state, htmx: true }, '', '?' + q);
+    replacePageURL('?' + q);
   }
   function dateInput(value, name) {
     const n = node('input');

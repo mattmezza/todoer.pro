@@ -1,3 +1,4 @@
+import { scopeElementIds } from './dom-ids.js';
 import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { preferredTimeFormatter } from './preferred-time.js';
@@ -134,6 +135,7 @@ export function mountDiscussion({
     template.innerHTML = html;
     const root = template.content.querySelector('[data-discussion-fragment]');
     if (!root) throw new Error('Discussion could not be rendered');
+    scopeElementIds(root);
     return root;
   }
   function editKey(id) {

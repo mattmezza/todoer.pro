@@ -123,6 +123,13 @@ export function navigate(
     });
 }
 
+// Calendar controls change the rendered range without replacing the page.
+export function replacePageURL(url) {
+  history.replaceState({ ...history.state, htmx: true }, '', url);
+  loadedPath = location.pathname;
+  loadedURL = location.pathname + location.search;
+}
+
 export function refreshPage() {
   return navigate(location.href, { replace: true, preserveScroll: true });
 }

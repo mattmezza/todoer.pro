@@ -1,3 +1,4 @@
+import { scopeElementIds } from './dom-ids.js';
 import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { setSaveState } from './quiet-info.js';
@@ -119,6 +120,7 @@ export function createTaskPanel({
       if (version !== generation) return;
       const task = doc.querySelector('[data-task-page]');
       if (!task) throw Error('Task is no longer accessible.');
+      scopeElementIds(task);
       const openPage = document.createElement('a');
       openPage.href = `/tasks/${encodeURIComponent(task.dataset.taskId)}`;
       openPage.className = 'planning-detail-open-page';

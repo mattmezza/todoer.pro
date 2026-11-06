@@ -35,6 +35,7 @@ const STATIC = [
   '/assets/section-collapse.js',
   '/assets/section-order.js',
   '/assets/task-panel.js',
+  '/assets/dom-ids.js',
   '/assets/task-gestures.js',
   '/assets/task-swipe-actions.js',
   '/assets/task-indicators.js',
