@@ -1052,7 +1052,7 @@ export function mountDiscussion({
   container.addEventListener('submit', onSubmit);
   container.addEventListener('click', onClick);
   container.addEventListener('keydown', onKey);
-  refresh();
+  const ready = refresh();
   const cleanup = () => {
     const input = get('[data-new-comment-input]');
     if (input?.value) save('new', { ...newDraftState, body: input.value });
@@ -1081,6 +1081,7 @@ export function mountDiscussion({
     container.removeEventListener('click', onClick);
     container.removeEventListener('keydown', onKey);
   };
+  cleanup.ready = ready;
   cleanup.refresh = refresh;
   return cleanup;
 }

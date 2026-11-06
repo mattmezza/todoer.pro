@@ -122,6 +122,7 @@ export function createTaskPanel({
       reprio.append(picker);
       tools.append(reprio, openPage, task.querySelector('.task-context-menu'));
       function selectPriority(priority) {
+        task.dataset.priority = String(priority);
         const labels = ['Highest', 'High', 'Medium', 'Low'];
         priorityCaption.textContent = `P${priority}`;
         priorityCaption.title = `${labels[priority]} priority`;
@@ -179,7 +180,8 @@ export function createTaskPanel({
       }
       if (task.dataset.canWrite !== 'true')
         priorityCaption.setAttribute('aria-disabled', 'true');
-      content.replaceChildren(task);
+      // Mount behind one loading state until all visible sections have settled.
+      content.append(task);
       stop = mountTaskPage(task, {
         embedded: true,
         onSchedule: (value) => {
@@ -216,7 +218,7 @@ export function createTaskPanel({
           // Keep the last successfully loaded tags during a transient failure.
         }
       };
-      refreshPanelTags();
+      await Promise.all([stop.ready, refreshPanelTags()]);
     } catch (error) {
       if (version === generation) pending.fail(error.message, () => open(url));
     } finally {

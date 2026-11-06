@@ -4,7 +4,7 @@ Server-rendered pages (Home, lists, spaces, search results, trash, sharing forms
 
 Client-loaded content uses `beginLoading` from `assets/loading.js`. The initial skeleton hides unconfirmed controls and makes them inert. Existing children reserve their real layout height; empty containers reserve an approximate height. Rows, forms, calendar columns, security cards, welcome choices, capture, discussion/files, activity and hierarchy have distinct structures. Skeletons contain no focusable controls, are hidden from accessibility tools and stop animating with reduced motion.
 
-Task side panels use a small spinner instead of predicting a task layout: descriptions, subtasks and attachments vary. The spinner appears after 150 ms to avoid flashing during fast loads, respects reduced motion, and leaves panel dimensions and the close control stable. The same loading owner handles cancellation, errors and retry.
+Task side panels use a small spinner instead of predicting a task layout: descriptions, subtasks and attachments vary. The spinner appears after 150 ms to avoid flashing during fast loads, respects reduced motion, and leaves panel dimensions and the close control stable. Keep that spinner until the initial subtask, discussion, planning and tag reads settle; mount their controllers behind it so nested skeletons never become a second loading phase. Failures reveal the affected section’s retry state. The same loading owner handles cancellation, errors and retry.
 
 Settings, welcome and notification templates include `data-loading-pending` so unconfirmed content cannot flash before their JavaScript module arrives. CSS provides a fine text-line fallback until the module replaces it with the appropriate structured skeleton.
 

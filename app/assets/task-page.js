@@ -1443,7 +1443,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
   if (!embedded) setupTaskSettingsDock(root);
   if (new URLSearchParams(location.search).get('move') === '1')
     get('[data-open-move]').click();
-  refresh(true);
+  const ready = refresh(true);
   if ('EventSource' in window) {
     eventSource = new EventSource(
       `/api/v1/events?after=${Number(root.dataset.cursor) || 0}&list_id=${encodeURIComponent(task.list_id)}`,
@@ -1497,6 +1497,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
     },
     { signal: lifecycle.signal },
   );
+  cleanup.ready = Promise.all([ready, discussion.ready, scheduling.ready]);
   return cleanup;
 }
 onPageLoad(() => {

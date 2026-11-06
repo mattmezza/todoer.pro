@@ -121,10 +121,49 @@ for (const width of [390, 1280]) {
     await expect(spinner).toHaveCount(0);
     await expect(content).not.toHaveAttribute('aria-busy');
     fail = false;
+    let releaseChildren, releaseDiscussion;
+    const children = new Promise((resolve) => {
+      releaseChildren = resolve;
+    });
+    const discussion = new Promise((resolve) => {
+      releaseDiscussion = resolve;
+    });
+    await page.route(`**/api/v1/tasks/${task.id}/subtree/query`, async (route) => {
+      await children;
+      await route.continue();
+    });
+    await page.route(`**/fragments/tasks/${task.id}/discussion`, async (route) => {
+      await discussion;
+      await route.continue();
+    });
     await content.getByRole('button', { name: 'Try again' }).click();
+    await expect(panel.locator('[data-children]')).toHaveAttribute('aria-busy', 'true');
+    await expect(spinner).toBeVisible();
+    await expect(panel.locator('[data-task-page]')).toBeHidden();
+    await expect(panel.locator('.loading-skeleton:visible')).toHaveCount(1);
+    releaseChildren();
+    await expect(panel.locator('[data-children]')).not.toHaveAttribute('aria-busy');
+    await expect(spinner).toBeVisible();
+    await expect(panel.locator('[data-task-page]')).toBeHidden();
+    await expect(panel.locator('.loading-skeleton:visible')).toHaveCount(1);
+    releaseDiscussion();
+    await expect(panel.locator('[data-edit-title]')).toBeVisible();
     await expect(panel.locator('[data-edit-title]')).toHaveText(task.title);
+    await expect(panel.locator('.loading-skeleton:visible')).toHaveCount(0);
     await expect(content.locator('.loading-error, .loading-spinner')).toHaveCount(0);
     expect(await panel.boundingBox()).toEqual(geometry);
+    const priority = panel.getByLabel('Change priority');
+    await priority.click();
+    await panel.locator('.panel-priority-options button[data-priority="0"]').click();
+    await expect(priority).toHaveText('P0');
+    const priorityColor = await priority.evaluate((el) => getComputedStyle(el).color);
+    await expect(panel.locator('[data-edit-title]')).toHaveCSS('color', priorityColor);
+    await panel.locator('[data-edit-title]').click();
+    await expect(panel.locator('[data-brief-form] [name=title]')).toHaveCSS(
+      'color',
+      priorityColor,
+    );
+    await panel.locator('[data-cancel-edit]').click();
     await page.unrouteAll({ behavior: 'wait' });
   });
 }

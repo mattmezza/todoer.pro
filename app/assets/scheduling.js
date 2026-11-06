@@ -510,7 +510,7 @@ export function mountScheduling({
     updateVisibility();
     say('Recurrence draft discarded.');
   });
-  load();
+  const ready = load();
 
   function el(tag, attrs = {}, text) {
     const node = document.createElement(tag);
@@ -1071,6 +1071,7 @@ export function mountScheduling({
     for (const controller of requests) controller.abort();
     requests.clear();
   };
+  cleanup.ready = ready;
   cleanup.refresh = () => {
     if (!active || busy) return;
     if (scheduleDraft || recurrenceDraft) {
