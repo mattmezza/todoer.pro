@@ -110,21 +110,23 @@ test('task page shares metadata planning and discussion while keeping the brief 
   await page.getByLabel('Task title', { exact: true }).press('Escape');
   await page.locator('.task-context-menu > summary').click();
   await page.locator('[data-open-advanced]').click();
-  await page.getByText('Planning and recurrence', { exact: true }).click();
+  await page.getByText('Set planned date', { exact: true }).click();
   const planned = page.getByLabel('Planned date', { exact: true });
   await expect(planned).toBeEnabled();
   await planned.fill('2026-11-02');
-  await page.getByRole('button', { name: 'Save schedule', exact: true }).click();
+  await planned.press('Tab');
+  await expect
+    .poll(async () => (await api(`/tasks/${task.id}/schedule`)).schedule.planned?.date)
+    .toBe('2026-11-02');
   await expect(page.getByLabel('Task title', { exact: true })).toHaveValue(
     'Brief draft across module saves',
   );
-  await page.getByRole('tab', { name: 'Tags & references' }).click();
-  await page.getByText('Tags, structure and references', { exact: true }).click();
-  const tags = page.getByLabel('Add tags (space-separated +names)', { exact: true });
+  await page.getByRole('tab', { name: 'Tags', exact: true }).click();
+  const tags = page.getByLabel('Add tags, separated by spaces', { exact: true });
   await expect(tags).toBeEnabled();
   const tagName = `page-${randomUUID().slice(0, 8)}`;
   await tags.fill(`+${tagName}`);
-  await page.getByRole('button', { name: 'Save tags', exact: true }).click();
+  await tags.press('Enter');
   await expect
     .poll(async () =>
       (await api(`/tasks/${task.id}/tags`)).some((tag) => tag.name === tagName),
@@ -150,14 +152,12 @@ test('task page shares metadata planning and discussion while keeping the brief 
   await expect(page.locator('[data-comment-rendered] strong')).toHaveText('context');
   await page.locator('[data-child-composer] > summary').click();
   const childForm = page.locator('[data-child-form]');
+  await childForm.getByLabel('New sub-task', { exact: true }).fill('Linked child task');
   await childForm
-    .getByLabel('New checklist item', { exact: true })
-    .fill('Linked child task');
-  await childForm
-    .getByLabel('Checklist item description', { exact: true })
+    .getByLabel('Sub-task description', { exact: true })
     .fill('Child original description');
   await childForm
-    .getByLabel('Checklist item description', { exact: true })
+    .getByLabel('Sub-task description', { exact: true })
     .press('Control+Enter');
   const link = page
     .locator('[data-children]')
@@ -209,9 +209,7 @@ test('whole checklist move requires audience acknowledgement and atomically assi
   );
   await ready(page, task.id);
   await page.locator('.task-context-menu summary').click();
-  await page
-    .getByRole('button', { name: 'Move task and checklist', exact: true })
-    .click();
+  await page.locator('[data-open-move]').click();
   await page
     .getByLabel('Destination list', { exact: true })
     .selectOption(destinationList.id);
@@ -364,17 +362,13 @@ test('bounded checklist continuation retains brief and subtask drafts and report
   );
   await ready(page, task.id);
   await page.locator('[data-child-composer] > summary').click();
-  await page
-    .getByLabel('New checklist item', { exact: true })
-    .fill('Unsubmitted child draft');
-  await page.getByLabel('New checklist item', { exact: true }).press('Escape');
+  await page.getByLabel('New sub-task', { exact: true }).fill('Unsubmitted child draft');
+  await page.getByLabel('New sub-task', { exact: true }).press('Escape');
   await expect(page.locator('[data-child-composer]')).not.toHaveAttribute('open', '');
   await page.locator('[data-edit-title]').click();
   await page.getByLabel('Task title', { exact: true }).fill('Unsubmitted root draft');
   await expect(page.locator('[data-child-progress]')).toContainText('loaded items');
-  await page
-    .getByRole('button', { name: 'Load more checklist items', exact: true })
-    .click();
+  await page.getByRole('button', { name: 'Load more sub-tasks', exact: true }).click();
   await expect(page.locator('[data-children] > li')).toHaveCount(100);
   await expect(page.locator('[data-child-progress]')).toHaveText(
     '0/100 leaf items complete',
@@ -386,7 +380,7 @@ test('bounded checklist continuation retains brief and subtask drafts and report
   await expect(page.getByLabel('Task title', { exact: true })).toHaveValue(
     'Unsubmitted root draft',
   );
-  await expect(page.getByLabel('New checklist item', { exact: true })).toHaveValue(
+  await expect(page.getByLabel('New sub-task', { exact: true })).toHaveValue(
     'Unsubmitted child draft',
   );
   await expect(page.locator('[data-child-composer]')).toHaveAttribute('open', '');
