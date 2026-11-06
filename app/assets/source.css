@@ -5555,6 +5555,8 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
   background: #101827;
 }
 .planning-detail-panel {
+  display: block;
+  padding: 0;
   position: fixed;
   inset: 0 0 0 auto;
   z-index: 44;
@@ -13366,60 +13368,91 @@ body > .planning-detail-dismiss {
   font-size: 13px;
 }
 
-.structured-edit-option {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.8rem;
-  font-weight: 400;
-  white-space: normal;
-}
+/* Task and subtask brief editors share available row width on every screen. */
 .inline-editor {
   flex-wrap: wrap;
 }
-.inline-editor .structured-edit-option {
-  flex-basis: 100%;
+.inline-editor > :is(input, textarea) {
+  flex: 1 0 100%;
+  min-width: 0;
+  width: 100%;
 }
-.structured-edit-option input {
-  flex: 0 0 auto;
-  width: 1rem;
-  min-height: 1rem;
+.inline-editor > textarea {
+  resize: vertical;
 }
-
-/* Child title editors share the row width and wrap their actions on phones. */
-.task-page-child-line > .inline-editor,
-.subtask-row > .inline-editor {
+.task-page-child-line > .inline-editor {
   flex: 1 1 0;
   min-width: 0;
 }
-.subtask-row:has(.inline-editor) > .muted,
-.subtask-row:has(.inline-editor) > .subtask-edit {
+.task:has(.inline-editor) .task-description {
   display: none;
 }
-.subtask-edit {
-  min-height: 44px;
-  padding-inline: 8px;
-  color: var(--accent);
-  font-size: 12px;
+.reference-list-page .task.is-selected {
+  background: var(--hover);
+}
+.reference-list-page .task-content {
+  cursor: pointer;
+}
+@media (min-width: 1100px) {
+  .reference-list-page.planning-detail-open > main {
+    margin-right: min(600px, 48vw);
+  }
+}
+@media (max-width: 640px) {
+  .planning-detail-panel {
+    width: 100%;
+    overscroll-behavior: contain;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }
 
-/* List task details stay alongside the list on wide screens. */
-#task-editor {
-  inset: 0 0 0 auto;
-  margin: 0;
-  width: min(620px, 100%);
-  max-width: 100%;
-  height: 100dvh;
-  max-height: 100dvh;
-  border-radius: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-bottom: max(28px, env(safe-area-inset-bottom));
+.attachment-thumbnail {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--surface);
 }
-#task-editor .structured-edit-option {
+.markdown img {
+  display: block;
+  max-width: 100%;
+  max-height: 480px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.archived-section-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
 }
-#task-editor .structured-edit-option input {
-  width: 1rem;
+.archived-section-row > div {
+  min-width: 0;
+}
+.archived-section-name {
+  font-family: var(--font-mono, monospace);
+  overflow-wrap: anywhere;
+}
+.archived-section-row p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.archived-section-row > button {
+  flex-shrink: 0;
+  min-height: 44px;
+}
+.list-archive-banner [data-space-restore] {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  color: var(--accent);
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }

@@ -1,15 +1,12 @@
+import { createTaskPanel } from './task-panel.js';
 import { mountStructuredEdit } from './structured-edit.js';
 import { reconcileTasks } from './task-list-refresh.js';
-import { loadingDialog } from './loading.js';
 import { request as fetch } from './request.js';
 import { stowInfo } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
 import { mountCaptures } from './capture-ui.js';
 import './site.js';
 import { mountListUi } from './list-ui.js';
-import { mountDiscussion } from './discussion.js';
-import { mountScheduling } from './scheduling.js';
-import { mountTaskMetadata } from './task-metadata.js';
 import { mountTaskOrdering } from './task-order.js';
 import { mountSectionOrdering } from './section-order.js';
 import { replayCaptures, listPending, clearAccount, discardCapture } from './offline.js';
@@ -26,22 +23,17 @@ function restoreMainCapture() {
 }
 restoreMainCapture();
 document.body.addEventListener('htmx:afterSwap', restoreMainCapture);
-const dialog = $('#task-editor');
-const saveStructuredEditor = mountStructuredEdit($('#edit-title'));
-dialog.addEventListener('close', () => {
-  discussionCleanup?.();
-  discussionCleanup = null;
-  schedulingCleanup?.();
-  schedulingCleanup = null;
-  metadataCleanup?.();
-  metadataCleanup = null;
+const taskPanel = createTaskPanel({
+  csrf,
+  onChanged: () => refresh(true),
+  onSelected: (id) => {
+    for (const row of $$('#task-list .task'))
+      row.classList.toggle('is-selected', row.dataset.id === id);
+  },
+  onClose: () => {
+    if (pendingRefresh) refresh();
+  },
 });
-let editor = null;
-let discussionCleanup = null;
-let schedulingCleanup = null;
-let metadataCleanup = null;
-let editorBusy = false;
-let editorOpening = false;
 let taskPointerDown = false;
 // Do not replace a row between pointerdown and click. Firefox otherwise drops
 // a click when a live update removes its original event target.
@@ -63,7 +55,6 @@ for (const type of ['pointerup', 'pointercancel'])
     },
     true,
   );
-let editorOpenSequence = 0;
 let cursor = Number(document.body.dataset.cursor) || 0;
 let busy = false;
 let pendingRefresh = false;
@@ -110,10 +101,9 @@ async function api(path, method = 'GET', body, extra = {}) {
 function draftActive(ignorePointer = false) {
   return (
     (!ignorePointer && taskPointerDown) ||
-    editorOpening ||
     inlineEditors.size > 0 ||
     Boolean($('#task-list .task-actions[open]')) ||
-    dialog.open ||
+    taskPanel.isOpen ||
     [
       ...document.querySelectorAll(
         '.inline-capture:not([hidden]) input[name=title],.inline-capture:not([hidden]) textarea',
@@ -124,7 +114,7 @@ function draftActive(ignorePointer = false) {
   );
 }
 function refresh(force = false) {
-  if (inlineEditors.size || dialog.open || (!force && draftActive())) {
+  if (inlineEditors.size || taskPanel.isOpen || (!force && draftActive())) {
     pendingRefresh = true;
     $('#refresh-notice').hidden = false;
     return;
@@ -146,7 +136,8 @@ function refresh(force = false) {
   window.htmx.trigger('#task-list', 'tasks-refresh');
 }
 $('#refresh-now').onclick = () => {
-  if (dialog.open || inlineEditors.size) notice('Finish or close the task editor first.');
+  if (taskPanel.isOpen || inlineEditors.size)
+    notice('Finish or close the task editor first.');
   else refresh(true);
 };
 document.body.addEventListener('htmx:beforeSwap', (e) => {
@@ -236,7 +227,7 @@ document.addEventListener('keydown', (e) => {
     !e.metaKey &&
     !e.altKey &&
     !e.target.closest('input,textarea,[contenteditable="true"]') &&
-    !dialog.open
+    !taskPanel.isOpen
   ) {
     e.preventDefault();
     $('#capture-form').hidden = false;
@@ -391,96 +382,31 @@ $('#task-list').addEventListener('click', async (e) => {
   } else if (e.target.closest('[data-action="edit"]')) {
     row.querySelector('details')?.removeAttribute('open');
     await openTask(row.dataset.id);
+  } else if (
+    !e.metaKey &&
+    !e.ctrlKey &&
+    !e.shiftKey &&
+    !e.altKey &&
+    !e.target.closest('button,input,textarea,select,summary,details,form') &&
+    !window.getSelection()?.toString()
+  ) {
+    const link = e.target.closest('a');
+    if (link && !link.matches('.task-title')) return;
+    e.preventDefault();
+    await openTask(row.dataset.id);
   }
 });
-function saveEditorDraft() {
-  if (editor)
-    sessionStorage.setItem(
-      `todoer:${account}:edit:${editor.id}`,
-      JSON.stringify({
-        title: $('#edit-title').value,
-        description: $('#edit-description').value,
-        revision: editor.revision,
-      }),
-    );
-}
-$('#edit-title').addEventListener('input', saveEditorDraft);
-$('#edit-description').addEventListener('input', saveEditorDraft);
-function closeEditor() {
-  if (editorBusy) return;
-  releaseChildEditors();
-  editorOpenSequence++;
-  dialog.close();
-  if (location.search.includes('task=')) {
-    if (history.state?.todoerPanel) history.back();
-    else history.replaceState(null, '', location.pathname);
-  }
-  if (pendingRefresh) refresh();
-}
-$('#close-editor').onclick = closeEditor;
-$('#cancel-edit').onclick = closeEditor;
-dialog.addEventListener('cancel', (e) => {
-  e.preventDefault();
-  closeEditor();
+$('#task-list').addEventListener('contextmenu', (event) => {
+  const row = event.target.closest('.task');
+  if (
+    !canWrite ||
+    !row ||
+    event.target.closest('input,textarea,button,summary,details,a:not(.task-title)')
+  )
+    return;
+  event.preventDefault();
+  renameInline(row);
 });
-window.addEventListener('popstate', () => {
-  const id = new URLSearchParams(location.search).get('task');
-  if (id) openTask(id, false);
-  else {
-    editorOpenSequence++;
-    if (dialog.open) dialog.close();
-  }
-});
-function freezeEditor() {
-  editorBusy = true;
-  const controls = [...$('#edit-form').elements].map((el) => [el, el.disabled]);
-  for (const [el] of controls) el.disabled = true;
-  $('#edit-form').setAttribute('aria-busy', 'true');
-  let released = false;
-  return () => {
-    if (released) return;
-    released = true;
-    for (const [el, disabled] of controls) el.disabled = disabled;
-    editorBusy = false;
-    $('#edit-form').removeAttribute('aria-busy');
-  };
-}
-function settleEditorRoute() {
-  const id = new URLSearchParams(location.search).get('task');
-  if (id && (!dialog.open || editor?.id !== id)) openTask(id, false);
-}
-$('#edit-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  if (!editor || editorBusy) return;
-  const task = { ...editor };
-  const title = $('#edit-title').value;
-  const description = $('#edit-description').value;
-  const release = freezeEditor();
-  let closed = false;
-  try {
-    const result = await saveStructuredEditor(api, task.id, {
-      revision: task.revision,
-      title,
-      description,
-    });
-    if (!result) return;
-    sessionStorage.removeItem(`todoer:${account}:edit:${task.id}`);
-    release();
-    if (dialog.open && editor?.id === task.id) {
-      closeEditor();
-      closed = true;
-    }
-    notice('');
-    refresh(true);
-  } catch (err) {
-    $('#edit-error').textContent =
-      `${err.message}. Your draft is preserved. Close to review the latest task; copy your draft before discarding it.`;
-  } finally {
-    release();
-    if (!closed) settleEditorRoute();
-  }
-});
-
 if ('EventSource' in window) {
   const events = new EventSource(
     `/api/v1/events?after=${cursor}&list_id=${encodeURIComponent(list)}`,
@@ -488,7 +414,7 @@ if ('EventSource' in window) {
   events.addEventListener('changes', (e) => {
     const data = JSON.parse(e.data);
     if (data.resync || (data.cursor > cursor && data.count > 0)) {
-      discussionCleanup?.refresh?.();
+      taskPanel.refreshTags();
       cursor = data.cursor || cursor;
       refresh();
     }
@@ -497,20 +423,11 @@ if ('EventSource' in window) {
   });
   events.addEventListener('access-revoked', async () => {
     events.close();
-    saveEditorDraft();
+    taskPanel.close();
     await clearPwa(account);
     $('#task-list').replaceChildren();
-    dialog.close();
-    $('#edit-title').value = '';
-    $('#edit-description').value = '';
-    $('#subtask-list').replaceChildren();
-    $('#editor-reference').textContent = '';
-    $('#discussion-container').replaceChildren();
-    $('#schedule-container').replaceChildren();
-    $('#metadata-container').replaceChildren();
     document.querySelector('.list-description')?.remove();
     document.querySelector('.breadcrumbs').replaceChildren();
-    editor = null;
     $('#capture-form').hidden = true;
     $('#quick-add').disabled = true;
     document.querySelector('nav[aria-label="Lists"]').replaceChildren();
@@ -547,316 +464,13 @@ if ('EventSource' in window) {
   };
   poll();
 }
-// Direct URLs work even when the task is not currently in the rendered rows.
+// Preserve direct list task links while using the same task panel as Today.
 const taskId = new URLSearchParams(location.search).get('task');
-if (taskId) openTask(taskId, false);
-$('#trash-task').onclick = async () => {
-  if (!editor || editorBusy) return;
-  if (
-    !(await confirmAction(
-      'Move this task and all its sub-tasks to trash? Unsaved edits stay in your draft.',
-    ))
-  )
-    return;
-  const task = { ...editor };
-  const release = freezeEditor();
-  let closed = false;
-  try {
-    await api(`/tasks/${task.id}/trash`, 'POST', { revision: task.revision });
-    release();
-    if (dialog.open && editor?.id === task.id) {
-      closeEditor();
-      closed = true;
-    }
-    notice('');
-    refresh(true);
-  } catch (err) {
-    $('#edit-error').textContent = err.message;
-  } finally {
-    release();
-    if (!closed) settleEditorRoute();
-  }
-};
-
-function releaseChildEditors() {
-  for (const [id, form] of inlineEditors) {
-    if (form && dialog.contains(form)) inlineEditors.delete(id);
-  }
+if (taskId) openTask(taskId);
+function openTask(id) {
+  return taskPanel.open(`/tasks/${encodeURIComponent(id)}`);
 }
-async function openTask(id, push = true) {
-  if (editorBusy) return;
-  releaseChildEditors();
-  const sequence = ++editorOpenSequence;
-  editorOpening = true;
-  const pending = dialog.open ? null : loadingDialog('Loading task', 'capture-omnibar');
-  try {
-    const tasks = await api(`/tasks/${id}/subtree`);
-    if (sequence !== editorOpenSequence || (pending && !pending.dialog.open)) return;
-    discussionCleanup?.();
-    discussionCleanup = null;
-    schedulingCleanup?.();
-    schedulingCleanup = null;
-    metadataCleanup?.();
-    metadataCleanup = null;
-    editor = tasks.find((t) => t.id === id || t.reference === id) || tasks[0];
-    if (!editor) throw new Error('Task not found');
-    $('#edit-title').value = editor.title;
-    $('#edit-description').value = editor.description;
-    $('#editor-reference').textContent =
-      `${editor.parent_id ? '^' : '%'}${editor.reference}`;
-    $('#edit-error').textContent = '';
-    const saved = sessionStorage.getItem(`todoer:${account}:edit:${editor.id}`);
-    if (saved) {
-      const draft = JSON.parse(saved);
-      $('#edit-title').value = draft.title;
-      $('#edit-description').value = draft.description;
-      editor.revision = draft.revision;
-      $('#edit-error').textContent =
-        'Restored your unsaved draft. Saving checks its original revision.';
-    }
-    for (const control of dialog.querySelectorAll('input,textarea'))
-      control.readOnly = !canWrite;
-    for (const selector of [
-      '#add-subtask',
-      '#move-task',
-      '#trash-task',
-      '#edit-form button[type="submit"]',
-    ])
-      $(selector).hidden = !canWrite;
-    document.querySelector('.subtask-add').hidden = !canWrite;
-    renderChildren(tasks);
-    discussionCleanup = mountDiscussion({
-      taskId: editor.id,
-      csrf,
-      container: $('#discussion-container'),
-      dropTarget: dialog,
-      accountId: account,
-      onConflict: (err) => notice(err.message, true),
-    });
-    const scheduledTaskId = editor.id;
-    schedulingCleanup = mountScheduling({
-      taskId: scheduledTaskId,
-      accountId: account,
-      csrf,
-      canWrite,
-      container: $('#schedule-container'),
-      getRevision: () =>
-        editor?.id === scheduledTaskId && !editorBusy ? editor.revision : null,
-      onSaved: (expected, revision) => {
-        if (editor?.id !== scheduledTaskId || editor.revision !== expected) return false;
-        editor.revision = revision;
-        if (sessionStorage.getItem(`todoer:${account}:edit:${editor.id}`))
-          saveEditorDraft();
-        pendingRefresh = true;
-        return true;
-      },
-      beginWrite: () => {
-        if (editorBusy) throw new Error('Wait for the current save.');
-        return freezeEditor();
-      },
-      onConflict: (error) => notice(error.message || String(error), true),
-    });
-    metadataCleanup = mountTaskMetadata({
-      taskId: scheduledTaskId,
-      accountId: account,
-      csrf,
-      canWrite,
-      container: $('#metadata-container'),
-      getRevision: () =>
-        editor?.id === scheduledTaskId && !editorBusy ? editor.revision : null,
-      onSaved: (expected, revision) => {
-        if (editor?.id !== scheduledTaskId || editor.revision !== expected) return false;
-        editor.revision = revision;
-        if (sessionStorage.getItem(`todoer:${account}:edit:${editor.id}`))
-          saveEditorDraft();
-        pendingRefresh = true;
-        return true;
-      },
-      onTaskChanged: (task) => {
-        if (
-          editor?.id === scheduledTaskId &&
-          task.id === scheduledTaskId &&
-          task.revision === editor.revision
-        )
-          editor = { ...editor, ...task };
-      },
-      hasUnsavedBrief: () =>
-        editor?.id !== scheduledTaskId ||
-        $('#edit-title').value !== editor.title ||
-        $('#edit-description').value !== editor.description,
-      beginWrite: () => {
-        if (editorBusy) throw new Error('Wait for the current save.');
-        return freezeEditor();
-      },
-      onConflict: (error) => notice(error.message || String(error), true),
-    });
-    $('#move-destination').value = editor.list_id;
-    pending?.finish();
-    if (!dialog.open) dialog.showModal();
-    if (push)
-      history.pushState({ task: editor.id, todoerPanel: true }, '', `?task=${editor.id}`);
-    $('#edit-title').focus();
-  } catch (err) {
-    notice(err.message, true);
-  } finally {
-    pending?.finish();
-    if (sequence === editorOpenSequence) editorOpening = false;
-  }
-}
-function renderChildren(tasks) {
-  releaseChildEditors();
-  const children = tasks.filter((t) => t.parent_id === editor.id);
-  // Progress counts leaves in this subtree, once each. A parent container is not
-  // counted again when its descendants also appear.
-  const parents = new Set(tasks.map((t) => t.parent_id).filter(Boolean));
-  const leaves = tasks.filter((t) => t.id !== editor.id && !parents.has(t.id));
-  $('#subtask-progress').textContent = leaves.length
-    ? `${leaves.filter((t) => t.complete).length}/${leaves.length}`
-    : '';
-  $('#subtask-list').replaceChildren();
-  for (const child of children) {
-    const row = document.createElement('div');
-    row.className = 'subtask-row';
-    row.dataset.id = child.id;
-    row.dataset.revision = child.revision;
-    const complete = document.createElement('button');
-    complete.type = 'button';
-    complete.className = 'child-complete';
-    complete.disabled = !canWrite;
-    complete.textContent = child.complete ? '✓' : '○';
-    complete.setAttribute(
-      'aria-label',
-      `${child.complete ? 'Reopen' : 'Complete'} ${child.title}`,
-    );
-    complete.onclick = async () => {
-      if (!canWrite || editorBusy || inlineEditors.has(child.id)) return;
-      complete.disabled = true;
-      try {
-        await api(`/tasks/${child.id}`, 'PATCH', {
-          revision: child.revision,
-          complete: !child.complete,
-        });
-        renderChildren(await api(`/tasks/${editor.id}/subtree`));
-        pendingRefresh = true;
-      } catch (err) {
-        $('#edit-error').textContent = err.message;
-      } finally {
-        complete.disabled = false;
-      }
-    };
-    const title = document.createElement('button');
-    title.type = 'button';
-    title.className = 'subtask-open task-title';
-    title.textContent = child.title;
-    title.onclick = () => openTask(child.id);
-    const deeper = document.createElement('span');
-    deeper.textContent = tasks.some((t) => t.parent_id === child.id)
-      ? 'Open sub-tasks →'
-      : '→';
-    deeper.className = 'muted';
-    row.append(complete, title, deeper);
-    if (canWrite) {
-      const edit = document.createElement('button');
-      edit.type = 'button';
-      edit.textContent = 'Edit title';
-      edit.className = 'subtask-edit';
-      edit.setAttribute('aria-label', `Edit title for ${child.title}`);
-      edit.onclick = () => renameInline(row);
-      row.append(edit);
-    }
-    $('#subtask-list').append(row);
-    const saved = sessionStorage.getItem(`todoer:${account}:inline:${child.id}`);
-    if (canWrite && saved) {
-      try {
-        renameInline(row, JSON.parse(saved));
-      } catch {}
-    }
-  }
-}
-let childCapture = null;
-$('#add-subtask').onclick = async () => {
-  const title = $('#subtask-title').value.trim();
-  if (!editor || !title) return;
-  const parent = editor.id;
-  if (!childCapture || childCapture.title !== title || childCapture.parent !== parent)
-    childCapture = { title, parent, key: crypto.randomUUID() };
-  const button = $('#add-subtask');
-  button.disabled = true;
-  try {
-    await api(
-      '/capture',
-      'POST',
-      { list_id: editor.list_id, tasks: [{ title, parent_id: parent, description: '' }] },
-      { 'Idempotency-Key': childCapture.key },
-    );
-    if (editor?.id === parent && $('#subtask-title').value.trim() === title)
-      $('#subtask-title').value = '';
-    childCapture = null;
-    const children = await api(`/tasks/${parent}/subtree`);
-    if (editor?.id === parent) renderChildren(children);
-    pendingRefresh = true;
-  } catch (err) {
-    $('#edit-error').textContent = err.message;
-  } finally {
-    button.disabled = false;
-  }
-};
-$('#subtask-title').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    $('#add-subtask').click();
-  }
-});
-
-$('#move-task').onclick = async () => {
-  if (!editor || editorBusy) return;
-  if (
-    $('#edit-title').value !== editor.title ||
-    $('#edit-description').value !== editor.description
-  ) {
-    $('#edit-error').textContent = 'Save your edits before moving this task.';
-    return;
-  }
-  const destination = $('#move-destination').value;
-  if (destination === editor.list_id) {
-    $('#edit-error').textContent = 'Choose a different destination list.';
-    return;
-  }
-  const task = { ...editor };
-  const release = freezeEditor();
-  let closed = false;
-  try {
-    const preview = await api(
-      `/tasks/${task.id}/move-preview?destination=${encodeURIComponent(destination)}`,
-    );
-    let acknowledge_access_change = false;
-    if (preview.audience_broadens) {
-      acknowledge_access_change = await confirmAction(
-        preview.destination_public && !preview.source_public
-          ? 'This move makes this task and all its sub-tasks publicly viewable. Continue?'
-          : `This move gives ${preview.added_members} additional member(s) access to this task and all its sub-tasks. Allow this access change?`,
-      );
-      if (!acknowledge_access_change) return;
-    }
-    await api(`/tasks/${task.id}/move`, 'POST', {
-      destination,
-      revision: task.revision,
-      acknowledge_access_change,
-    });
-    release();
-    if (dialog.open && editor?.id === task.id) {
-      closeEditor();
-      closed = true;
-    }
-    notice('');
-    refresh(true);
-  } catch (err) {
-    $('#edit-error').textContent = err.message;
-  } finally {
-    release();
-    if (!closed) settleEditorRoute();
-  }
-};
+window.addEventListener('pagehide', () => taskPanel.destroy());
 
 const swipeUndo = [];
 const swipingTasks = new Set();
@@ -948,8 +562,7 @@ mountTaskOrdering({
   onError: (message) => notice(message, true),
   onSwipe: swipeTask,
   hasActiveDraft: () =>
-    dialog.open ||
-    editorOpening ||
+    taskPanel.isOpen ||
     inlineEditors.size > 0 ||
     Boolean(document.querySelector('#capture-title')?.value) ||
     Boolean(window.getSelection()?.toString()),
@@ -978,6 +591,14 @@ async function renameInline(row, snapshot) {
     input.required = true;
     input.maxLength = 500;
     input.setAttribute('aria-label', 'Task title');
+    const description = document.createElement('textarea');
+    description.value = task.description || '';
+    description.rows = 3;
+    description.maxLength = 100000;
+    description.placeholder = 'Description (Markdown supported)';
+    description.setAttribute('aria-label', 'Task description');
+    const previousDescription = row.querySelector('.task-description');
+    if (previousDescription) previousDescription.hidden = true;
     const save = document.createElement('button');
     save.type = 'submit';
     save.textContent = 'Save';
@@ -986,23 +607,28 @@ async function renameInline(row, snapshot) {
     cancel.textContent = 'Cancel';
     const key = `todoer:${account}:inline:${id}`;
     const stash = () =>
-      sessionStorage.setItem(key, JSON.stringify({ ...task, title: input.value }));
+      sessionStorage.setItem(
+        key,
+        JSON.stringify({ ...task, title: input.value, description: description.value }),
+      );
     input.oninput = stash;
+    description.oninput = stash;
     inlineEditors.set(id, form);
     display.hidden = true;
-    form.append(input, save, cancel);
+    form.append(input, description, save, cancel);
     display.before(form);
     const saveStructuredInline = mountStructuredEdit(input);
     const close = () => {
       sessionStorage.removeItem(key);
       form.remove();
       display.hidden = false;
+      if (previousDescription) previousDescription.hidden = false;
       inlineEditors.delete(id);
       display.focus();
       if (pendingRefresh) refresh();
     };
     cancel.onclick = close;
-    input.onkeydown = (e) => {
+    form.onkeydown = (e) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         close();
@@ -1013,12 +639,14 @@ async function renameInline(row, snapshot) {
       e.stopPropagation();
       save.disabled = true;
       input.disabled = true;
+      description.disabled = true;
       cancel.disabled = true;
       form.setAttribute('aria-busy', 'true');
       try {
         const result = await saveStructuredInline(api, id, {
           revision: task.revision,
           title: input.value,
+          description: description.value,
         });
         if (!result) return;
         display.textContent = result.title;
@@ -1027,6 +655,7 @@ async function renameInline(row, snapshot) {
           .querySelector('.subtask-edit')
           ?.setAttribute('aria-label', `Edit title for ${result.title}`);
         close();
+        refresh(true);
         notice('');
       } catch (err) {
         stash();
@@ -1034,6 +663,7 @@ async function renameInline(row, snapshot) {
       } finally {
         save.disabled = false;
         input.disabled = false;
+        description.disabled = false;
         cancel.disabled = false;
         form.removeAttribute('aria-busy');
       }
