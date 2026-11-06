@@ -1,156 +1,136 @@
-import { navigate, refreshPage } from './page-navigation.js';
+import { refreshPage } from './page-navigation.js';
 import { beginLoading } from './loading.js';
-
 import { toast } from './toast.js';
 import { setSaveState } from './quiet-info.js';
-import { onPageLoad } from './page-lifecycle.js';
+import { createScope } from './page-lifecycle.js';
 
-onPageLoad((scope) => {
-  if (!document.querySelector('[data-calendar-preferences]')) return;
-  const fetch = scope.request;
-  let preferenceWrite = Promise.resolve();
-  function serializePreferenceWrite(action) {
-    const next = preferenceWrite.then(action);
-    preferenceWrite = next.catch(() => {});
-    return next;
-  }
-  const form = document.querySelector('[data-calendar-preferences]');
-  if (form) {
-    const status = form.querySelector('[data-preference-status]');
-    const button = form.querySelector('button');
-    const zones = document.querySelector('#account-timezones');
-    for (const zone of ['UTC', ...(Intl.supportedValuesOf?.('timeZone') || [])]) {
-      const option = document.createElement('option');
-      option.value = zone;
-      zones.append(option);
-    }
-    async function preferences() {
-      const response = await fetch('/api/v1/notification-preferences', {
-        cache: 'no-store',
-      });
-      if (!response.ok) throw Error('Could not load preferences.');
-      return response.json();
-    }
-    const fields = [form.elements.timezone, form.elements.week_start];
-    fields.forEach((field) => (field.disabled = true));
-    button.disabled = true;
-    const skeleton = beginLoading(form, { variant: 'form' });
-    preferences()
-      .then((value) => {
-        form.elements.timezone.value = value.timezone;
-        form.elements.week_start.value = String(value.week_start ?? 1);
-        button.disabled = false;
-        fields.forEach((field) => (field.disabled = false));
-      })
-      .catch((error) => {
-        status.textContent = '';
+// Both preference forms update the same document. Read its latest version within
+// the queue so simultaneous changes cannot overwrite one another's fields.
+let preferenceWrite = Promise.resolve();
+async function preferences(scope) {
+  const response = await scope.request('/api/v1/notification-preferences', {
+    cache: 'no-store',
+  });
+  if (!response.ok) throw Error('Could not load preferences.');
+  return response.json();
+}
+function savePreferences(scope, choice) {
+  const next = preferenceWrite.then(async () => {
+    const value = { ...(await preferences(scope)), ...choice };
+    const response = await scope.request('/api/v1/notification-preferences', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content,
+      },
+      body: JSON.stringify(value),
+    });
+    if (!response.ok)
+      throw Error(
+        (await response.json()).error?.message || 'Could not save preferences.',
+      );
+    return value;
+  });
+  preferenceWrite = next.catch(() => {});
+  return next;
+}
+
+export function calendarPreferences() {
+  const scope = createScope();
+  return {
+    loaded: false,
+    busy: false,
+    timezone: '',
+    weekStart: '1',
+    timezones: ['UTC', ...(Intl.supportedValuesOf?.('timeZone') || [])],
+    async init() {
+      const skeleton = beginLoading(this.$el, { variant: 'form' });
+      scope.cleanup(() => skeleton.finish());
+      try {
+        const value = await preferences(scope);
+        if (scope.signal.aborted) return;
+        this.timezone = value.timezone;
+        this.weekStart = String(value.week_start ?? 1);
+        this.loaded = true;
+      } catch (error) {
+        if (scope.signal.aborted) return;
         skeleton.fail(error.message, () => refreshPage());
         setSaveState('preferences', 'error', error.message);
-      })
-      .finally(() => skeleton.finish());
-    scope.listen(form, 'submit', async (event) => {
-      event.preventDefault();
-      if (button.disabled) return;
-      const choice = {
-        timezone: form.elements.timezone.value.trim(),
-        week_start: Number(form.elements.week_start.value),
-      };
-      fields.forEach((field) => (field.disabled = true));
-      button.disabled = true;
-      status.textContent = '';
+      } finally {
+        skeleton.finish();
+      }
+    },
+    destroy() {
+      scope.dispose();
+    },
+    async save() {
+      if (!this.loaded || this.busy) return;
+      this.busy = true;
       setSaveState('preferences', 'saving');
       try {
-        await serializePreferenceWrite(async () => {
-          const value = { ...(await preferences()), ...choice };
-          const response = await fetch('/api/v1/notification-preferences', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content,
-            },
-            body: JSON.stringify(value),
-          });
-          if (!response.ok)
-            throw Error(
-              (await response.json()).error?.message || 'Could not save preferences.',
-            );
+        await savePreferences(scope, {
+          timezone: this.timezone.trim(),
+          week_start: Number(this.weekStart),
         });
-        status.textContent = '';
+        if (scope.signal.aborted) return;
         setSaveState('preferences', 'saved');
         toast('Preferences saved.');
       } catch (error) {
-        status.textContent = '';
-        setSaveState('preferences', 'error', error.message);
+        if (!scope.signal.aborted) setSaveState('preferences', 'error', error.message);
       } finally {
-        fields.forEach((field) => (field.disabled = false));
-        button.disabled = false;
+        this.busy = false;
       }
-    });
-  }
+    },
+  };
+}
 
-  const playForm = document.querySelector('[data-play-preferences]');
-  if (playForm) {
-    const enabled = playForm.elements.fun_animations,
-      style = playForm.elements.fun_animation;
-    const status = playForm.querySelector('[data-play-status]');
-    const controls = [enabled, style];
-    const options = playForm.querySelector('[data-play-options]');
-    controls.forEach((control) => (control.disabled = true));
-    async function load() {
-      const response = await fetch('/api/v1/notification-preferences', {
-        cache: 'no-store',
-      });
-      if (!response.ok) throw Error('Could not load preferences.');
-      return response.json();
-    }
-    const skeleton = beginLoading(playForm, { variant: 'form' });
-    load()
-      .then((value) => {
-        enabled.checked = value.fun_animations !== false;
-        style.value = value.fun_animation || 'tasks';
-        controls.forEach((control) => (control.disabled = false));
-        style.disabled = !enabled.checked;
-        options.hidden = !enabled.checked;
-      })
-      .catch((error) => {
+export function playPreferences() {
+  const scope = createScope();
+  return {
+    loaded: false,
+    busy: false,
+    enabled: false,
+    animation: 'tasks',
+    async init() {
+      const skeleton = beginLoading(this.$el, { variant: 'form' });
+      scope.cleanup(() => skeleton.finish());
+      try {
+        const value = await preferences(scope);
+        if (scope.signal.aborted) return;
+        this.enabled = value.fun_animations !== false;
+        this.animation = value.fun_animation || 'tasks';
+        this.loaded = true;
+      } catch (error) {
+        if (scope.signal.aborted) return;
         skeleton.fail(error.message, () => refreshPage());
         setSaveState('preferences', 'error', error.message);
-      })
-      .finally(() => skeleton.finish());
-    scope.listen(playForm, 'change', async () => {
-      const choice = { fun_animations: enabled.checked, fun_animation: style.value };
-      options.hidden = !enabled.checked;
-      controls.forEach((control) => (control.disabled = true));
-      status.textContent = '';
+      } finally {
+        skeleton.finish();
+      }
+    },
+    destroy() {
+      scope.dispose();
+    },
+    async save() {
+      if (!this.loaded || this.busy) return;
+      this.busy = true;
       setSaveState('preferences', 'saving');
       try {
-        const value = await serializePreferenceWrite(async () => {
-          const value = { ...(await load()), ...choice };
-          const response = await fetch('/api/v1/notification-preferences', {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content,
-            },
-            body: JSON.stringify(value),
-          });
-          if (!response.ok) throw Error('Could not save preferences. Try again.');
-          return value;
+        const value = await savePreferences(scope, {
+          fun_animations: this.enabled,
+          fun_animation: this.animation,
         });
+        if (scope.signal.aborted) return;
         document.dispatchEvent(
           new CustomEvent('todoer-play-preferences', { detail: value }),
         );
-        status.textContent = '';
         setSaveState('preferences', 'saved');
         toast('Preferences saved.');
       } catch (error) {
-        status.textContent = '';
-        setSaveState('preferences', 'error', error.message);
+        if (!scope.signal.aborted) setSaveState('preferences', 'error', error.message);
       } finally {
-        enabled.disabled = false;
-        style.disabled = !enabled.checked;
-        options.hidden = !enabled.checked;
+        this.busy = false;
       }
-    });
-  }
-});
+    },
+  };
+}

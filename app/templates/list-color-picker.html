@@ -1,0 +1,11 @@
+<details class="list-color-picker" x-data="listColorPicker" x-on:click.outside="close" x-on:keydown.escape="escape">
+  <summary x-ref="summary" x-bind:aria-label="label" x-bind:title="label"><span class="list-color-preview" x-bind:style="previewStyle"></span></summary>
+  <div class="list-color-menu" aria-label="List colors">
+    <div class="list-color-grid">
+      <template x-for="choice in colors" x-bind:key="choice.color">
+        <button type="button" class="list-color-choice" x-bind:style="choice.style" x-bind:title="choice.name" x-bind:aria-label="choice.name" x-bind:data-color="choice.color" x-bind:aria-pressed="color === choice.color" x-on:click="choose"></button>
+      </template>
+    </div>
+    <label class="list-color-custom">Custom color<input type="color" name="color" value="#4e89f7" aria-label="Custom list color" x-ref="input" x-on:input="customInput" x-on:change="customChange"></label>
+  </div>
+</details>

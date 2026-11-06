@@ -4,7 +4,7 @@ import { request } from './request.js';
 const controllers = [];
 let current;
 
-function createScope() {
+export function createScope() {
   const abort = new AbortController();
   const cleanups = new Set();
   const timers = new Set();

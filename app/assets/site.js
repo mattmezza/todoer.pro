@@ -8,7 +8,7 @@ import './favorite-order.js';
 import { beginLoading } from './loading.js';
 import './notification-center.js';
 
-import { mountListColorPicker } from './list-color-picker.js';
+import './alpine.js';
 import './home-filters.js';
 import './settings-feedback.js';
 import './export-menu.js';
@@ -189,84 +189,6 @@ onPageLoad(async (scope) => {
       }
     },
   );
-
-  const listDialog = document.querySelector('#list-create-dialog');
-  const createColorInput = listDialog?.querySelector('[name="color"]');
-  const createColorContainer = createColorInput?.parentElement;
-  let colorSuggestionRequest = 0;
-  const createColorPicker =
-    createColorInput &&
-    mountListColorPicker(createColorInput, {
-      onChange: () => colorSuggestionRequest++,
-    });
-  if (createColorPicker) createColorContainer.append(createColorPicker.element);
-  async function suggestListColor(form) {
-    const sequence = ++colorSuggestionRequest;
-    const space = form.elements.workspace_id.value;
-    if (!space) return;
-    try {
-      const response = await fetch(
-        `/api/v1/workspaces/${encodeURIComponent(space)}/list-color-suggestion`,
-      );
-      if (!response.ok) throw Error('Could not choose a list color');
-      const result = await response.json();
-      if (sequence === colorSuggestionRequest && listDialog.open)
-        createColorPicker.setColor(result.color);
-    } catch {
-      // A selected color remains usable if the suggestion cannot be loaded.
-    }
-  }
-  scope.listen(createColorInput, 'input', () => colorSuggestionRequest++);
-  scope.listen(listDialog?.querySelector('[name="workspace_id"]'), 'change', (event) =>
-    suggestListColor(event.target.form),
-  );
-  scope.listen(document, 'click', (event) => {
-    if (event.target.closest('[data-list-create-open]') && listDialog) {
-      event.preventDefault();
-      document.querySelector('.account-menu')?.removeAttribute('open');
-      const form = listDialog.querySelector('form');
-      if (!form.elements.workspace_id.value) {
-        navigate('/spaces');
-        return;
-      }
-      listDialog.showModal();
-      suggestListColor(form);
-      form.elements.title.focus();
-    }
-    if (event.target.closest('[data-list-create-close]')) listDialog?.close();
-  });
-  scope.listen(listDialog?.querySelector('form'), 'submit', async (event) => {
-    event.preventDefault();
-    const form = event.target,
-      button = form.querySelector('[type="submit"]');
-    if (button.disabled) return;
-    button.disabled = true;
-    const data = new FormData(form);
-    try {
-      const response = await fetch('/api/v1/lists', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content,
-        },
-        body: JSON.stringify({
-          workspace_id: data.get('workspace_id'),
-          title: data.get('title'),
-          description: data.get('description'),
-          color: data.get('color'),
-          restricted: false,
-        }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw Error(result.error?.message || 'Could not create list');
-      navigate(`/lists/${result.id}`);
-    } catch (error) {
-      form.querySelector('[role="alert"]').textContent = error.message;
-    } finally {
-      button.disabled = false;
-    }
-  });
 
   for (const image of document.querySelectorAll('[data-profile-avatar]')) {
     const fallback = () => {
