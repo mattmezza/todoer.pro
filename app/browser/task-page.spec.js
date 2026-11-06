@@ -554,6 +554,14 @@ for (const width of [390, 1280]) {
     const parent = await capture(`Panel parent ${randomUUID().slice(0, 8)}`);
     const child = await capture('Panel child title', '', parent.id);
     const before = await current(parent.id);
+    let releaseBootstrap;
+    const bootstrap = new Promise((resolve) => {
+      releaseBootstrap = resolve;
+    });
+    await page.route(`**/api/v1/tasks/${parent.id}/subtree/query`, async (route) => {
+      if (route.request().postDataJSON()?.limit === 100) await bootstrap;
+      await route.continue();
+    });
     await page.setViewportSize({ width, height: 844 });
     await page.goto('/lists/inbox');
     const taskRow = page.locator(`#task-list .task[data-id="${parent.id}"]`);
@@ -562,6 +570,13 @@ for (const width of [390, 1280]) {
     const panel = page.locator('.planning-detail-panel');
     await expect(panel).toBeVisible();
     const childRow = panel.locator(`[data-child-id="${child.id}"]`);
+    // Force the initial SSR/client bootstrap gap: no inert, unbound child link
+    // should be offered as an editable row while its subtree is still loading.
+    await expect(panel.locator('[data-children]')).toHaveAttribute('aria-busy', 'true');
+    await expect(
+      childRow.getByRole('link', { name: 'Panel child title', exact: true }),
+    ).toBeHidden();
+    releaseBootstrap();
     await childRow
       .getByRole('link', { name: 'Panel child title', exact: true })
       .click({ button: 'right' });

@@ -106,6 +106,10 @@ export function mountTaskPage(root, { embedded = false } = {}) {
   saveEdit.replaceChildren(document.createTextNode('Save'));
   editActions.prepend(cancelEdit, saveEdit);
   const canWrite = root.dataset.canWrite === 'true';
+  // SSR child links are navigable, but inline editing needs the revision-bound
+  // subtree. Do not expose rows until their handlers and descriptions are ready.
+  let childrenReady = false;
+  let childrenLoading = beginLoading(get('[data-children]'), { variant: 'rows' });
   fetch(`/api/v1/lists/${encodeURIComponent(root.dataset.listId)}/color`)
     .then((r) => (r.ok ? r.json() : null))
     .then((value) => {
@@ -712,7 +716,9 @@ export function mountTaskPage(root, { embedded = false } = {}) {
       throw new Error('Sub-tasks changed. Refresh before continuing.');
     for (const item of page.items) if (item.id !== id) children.set(item.id, item);
     nextCursor = page.next_cursor;
+    childrenLoading.finish();
     renderChildren();
+    childrenReady = true;
   }
   async function refresh() {
     if (!alive) return;
@@ -765,6 +771,11 @@ export function mountTaskPage(root, { embedded = false } = {}) {
       metadata?.refresh?.();
       get('[data-connection]').textContent = 'Up to date';
     } catch (error) {
+      if (!childrenReady && alive)
+        childrenLoading.fail('Could not load sub-tasks.', () => {
+          childrenLoading = beginLoading(get('[data-children]'), { variant: 'rows' });
+          refresh();
+        });
       if ([401, 403, 404].includes(error.status))
         revoke(
           error.status === 401
@@ -1356,6 +1367,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     remember();
     rememberChild();
     lifecycle.abort();
+    childrenLoading.finish();
     for (const panel of root.querySelectorAll('dialog[open]')) panel.close();
     discussion?.();
     scheduling?.();
