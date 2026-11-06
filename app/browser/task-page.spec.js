@@ -532,6 +532,9 @@ test('subtask title edits stay inline and recover after reload', async ({ page }
   ).toBeVisible();
   expect((await current(child.id)).title).toBe('Recovered child draft');
   expect((await current(child.id)).description).toBe('Recovered **child description**');
+  await expect(row.locator(':scope > [data-child-description] strong')).toHaveText(
+    'child description',
+  );
   await expect(page.locator('[data-task-page]')).toHaveAttribute(
     'data-task-id',
     parent.id,
@@ -552,7 +555,21 @@ for (const width of [390, 1280]) {
   }) => {
     const { capture, current } = await setup(page);
     const parent = await capture(`Panel parent ${randomUUID().slice(0, 8)}`);
-    const child = await capture('Panel child title', '', parent.id);
+    const child = await capture(
+      'Panel child title',
+      'Panel **saved description**',
+      parent.id,
+    );
+    const sibling = await capture(
+      'Second panel child',
+      'Second **description**',
+      parent.id,
+    );
+    const nested = await capture(
+      'Nested panel child',
+      'Nested **description**',
+      child.id,
+    );
     const before = await current(parent.id);
     let releaseBootstrap;
     const bootstrap = new Promise((resolve) => {
@@ -577,16 +594,33 @@ for (const width of [390, 1280]) {
       childRow.getByRole('link', { name: 'Panel child title', exact: true }),
     ).toBeHidden();
     releaseBootstrap();
+    await expect(childRow.locator(':scope > [data-child-description] strong')).toHaveText(
+      'saved description',
+    );
+    await expect(
+      panel.locator(`[data-child-id="${sibling.id}"] > [data-child-description] strong`),
+    ).toHaveText('description');
+    await expect(
+      panel.locator(`[data-child-id="${nested.id}"] > [data-child-description] strong`),
+    ).toHaveText('description');
     await childRow
       .getByRole('link', { name: 'Panel child title', exact: true })
       .click({ button: 'right' });
     const editor = childRow.locator('[data-child-inline]');
+    await expect(childRow.locator(':scope > [data-child-description]')).toBeHidden();
     await editor.getByLabel('Subtask title', { exact: true }).fill('Renamed panel child');
+    await editor
+      .getByLabel('Subtask description', { exact: true })
+      .fill('Updated **panel description**');
     await editor.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(
       panel.getByRole('link', { name: 'Renamed panel child', exact: true }),
     ).toBeVisible();
     expect((await current(child.id)).title).toBe('Renamed panel child');
+    await expect(childRow.locator(':scope > [data-child-description] strong')).toHaveText(
+      'panel description',
+    );
+    await expect(childRow.locator(':scope > [data-child-description]')).toHaveCount(1);
     expect((await current(parent.id)).revision).toBe(before.revision);
     const bounds = await panel.boundingBox();
     expect(bounds.x).toBeGreaterThanOrEqual(0);

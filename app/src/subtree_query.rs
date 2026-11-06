@@ -19,6 +19,7 @@ pub enum TaskField {
     ListId,
     Title,
     Description,
+    DescriptionHtml,
     Complete,
     Revision,
     Position,
@@ -30,7 +31,7 @@ impl TaskField {
             Self::PublicReference => "public_reference",
             Self::ListId => "list_id",
             Self::Title => "title",
-            Self::Description => "description",
+            Self::Description | Self::DescriptionHtml => "description",
             Self::Complete => "complete",
             Self::Revision => "revision",
             Self::Position => "position",
@@ -315,8 +316,13 @@ impl Store {
                 sizes.push_str(&format!("+octet_length({expression})"));
                 continue;
             }
+            let key = if *field == TaskField::DescriptionHtml {
+                "description_html"
+            } else {
+                col
+            };
             projection.push_str(&format!(
-                ",'{col}',{}",
+                ",'{key}',{}",
                 if *field == TaskField::Complete {
                     "json(CASE WHEN p.complete THEN 'true' ELSE 'false' END)".into()
                 } else {
@@ -380,8 +386,11 @@ impl Store {
             let item = item.ok_or_else(|| {
                 invalid("projected item exceeds response budget; omit large fields")
             })?;
-            let item: Value = serde_json::from_str(&item)
+            let mut item: Value = serde_json::from_str(&item)
                 .map_err(|_| invalid("invalid stored task projection"))?;
+            if let Some(raw) = item.get("description_html").and_then(Value::as_str) {
+                item["description_html"] = Value::String(crate::markdown::render(raw));
+            }
             let cursor = URL_SAFE_NO_PAD.encode(
                 serde_json::to_vec(&Cursor {
                     version: 1,
@@ -528,6 +537,44 @@ mod tests {
         ));
     }
     #[test]
+    fn description_html_is_opt_in_sanitized_and_keeps_raw_description() {
+        let mut s = store();
+        let raw =
+            "Saved **description** <script>alert('bad')</script> [unsafe](javascript:alert(1))";
+        let r = add(&mut s, "root", None, raw);
+        let default = s
+            .read_subtree("dev", &r.id, SubtreeRead::default())
+            .unwrap();
+        assert!(default.items[0].get("description_html").is_none());
+        let projected = s
+            .read_subtree(
+                "dev",
+                &r.id,
+                SubtreeRead {
+                    fields: vec![TaskField::Description, TaskField::DescriptionHtml],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(projected.items[0]["description"], raw);
+        let html = projected.items[0]["description_html"].as_str().unwrap();
+        assert!(html.contains("<strong>description</strong>"));
+        assert!(!html.contains("<script"));
+        assert!(!html.contains("javascript:"));
+        assert!(serde_json::to_vec(&projected).unwrap().len() <= MAX_PAGE_BYTES);
+        assert!(
+            s.read_subtree(
+                "other",
+                &r.id,
+                SubtreeRead {
+                    fields: vec![TaskField::DescriptionHtml],
+                    ..Default::default()
+                }
+            )
+            .is_err()
+        );
+    }
+    #[test]
     fn payload_budget_never_skips_large_items() {
         let mut s = store();
         let r = add(&mut s, "root", None, &"x".repeat(99_000));
@@ -548,7 +595,7 @@ mod tests {
                     &r.id,
                     SubtreeRead {
                         limit: 100,
-                        fields: vec![TaskField::Description],
+                        fields: vec![TaskField::Description, TaskField::DescriptionHtml],
                         cursor,
                     },
                 )

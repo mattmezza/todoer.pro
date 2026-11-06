@@ -13,6 +13,7 @@ struct Child {
     id: String,
     public_reference: String,
     title: String,
+    description_html: String,
     complete: bool,
     revision: i64,
     depth: usize,
@@ -153,7 +154,7 @@ async fn page(
                 &task.id,
                 SubtreeRead {
                     limit: 100,
-                    fields: vec![TaskField::Title, TaskField::Complete, TaskField::Revision],
+                    fields: vec![TaskField::Title, TaskField::DescriptionHtml, TaskField::Complete, TaskField::Revision],
                     cursor: None,
                 },
             )?;
@@ -176,6 +177,7 @@ async fn page(
                     public_reference: crate::defaults::public_id(&db.conn, "task", &id)?,
                     id,
                     title: x["title"].as_str().unwrap_or_default().into(),
+                    description_html: x["description_html"].as_str().unwrap_or_default().into(),
                     complete: x["complete"].as_bool().unwrap_or(false),
                     revision: x["revision"].as_i64().unwrap_or(0),
                     depth: x["depth"].as_u64().unwrap_or(0) as usize,

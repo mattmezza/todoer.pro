@@ -16748,9 +16748,11 @@
       "SubtreeField": {
         "enum": [
           "reference",
+          "public_reference",
           "list_id",
           "title",
           "description",
+          "description_html",
           "complete",
           "revision",
           "position"
@@ -16917,6 +16919,13 @@
           "position": {
             "type": "integer",
             "format": "int64"
+          },
+          "description_html": {
+            "type": "string",
+            "description": "Sanitized saved Markdown HTML. Opt-in; subject to the same authorization and response-byte budget as other projections."
+          },
+          "public_reference": {
+            "type": "string"
           }
         },
         "required": [

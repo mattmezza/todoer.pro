@@ -460,6 +460,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
       fields: [
         'title',
         'description',
+        'description_html',
         'complete',
         'revision',
         'position',
@@ -493,12 +494,16 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.textContent = 'Cancel';
+    row.querySelector(':scope > [data-child-description]')?.setAttribute('hidden', '');
     input.oninput = descriptionInput.oninput = () =>
       store(key, { ...base, title: input.value, description: descriptionInput.value });
     const close = () => {
       store(key, null);
       editor.remove();
       link.hidden = false;
+      const savedDescription = row.querySelector(':scope > [data-child-description]');
+      if (savedDescription)
+        savedDescription.hidden = !(children.get(child.id)?.description || '').trim();
       link.focus();
       releaseSoon();
     };
@@ -528,7 +533,9 @@ export function mountTaskPage(root, { embedded = false } = {}) {
           description: descriptionInput.value,
         });
         if (!updated) return;
-        children.set(child.id, { ...child, ...updated });
+        const saved = { ...child, ...updated, description_html: undefined };
+        children.set(child.id, saved);
+        renderChildDescription(row, saved);
         link.textContent = updated.title;
         close();
         pending = true;
@@ -544,6 +551,25 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     link.before(editor);
     input.focus();
     input.select();
+  }
+  function renderChildDescription(row, child) {
+    let saved = row.querySelector(':scope > [data-child-description]');
+    if (!child.description?.trim()) {
+      saved?.remove();
+      return;
+    }
+    if (!saved) {
+      saved = document.createElement('div');
+      saved.className = 'markdown task-child-description';
+      saved.dataset.childDescription = '';
+      row.querySelector(':scope > .task-page-child-line').after(saved);
+    }
+    // Only the authorized server Markdown renderer supplies HTML. Immediately
+    // after an edit, show safe saved text until the fresh projection arrives.
+    if (typeof child.description_html === 'string')
+      saved.innerHTML = child.description_html;
+    else saved.textContent = child.description;
+    saved.hidden = !!row.querySelector('[data-child-inline]');
   }
   function renderChildren() {
     const container = get('[data-children]');
@@ -657,6 +683,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         line.append(reference);
         if (childMenu) line.append(childMenu);
         row.append(line);
+        renderChildDescription(row, child);
         if (nested.length) {
           const list = document.createElement('ol');
           row.append(list);
