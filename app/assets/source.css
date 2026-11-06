@@ -13402,3 +13402,24 @@ body > .planning-detail-dismiss {
   color: var(--accent);
   font-size: 12px;
 }
+
+/* List task details stay alongside the list on wide screens. */
+#task-editor {
+  inset: 0 0 0 auto;
+  margin: 0;
+  width: min(620px, 100%);
+  max-width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  border-radius: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: max(28px, env(safe-area-inset-bottom));
+}
+#task-editor .structured-edit-option {
+  display: flex;
+  align-items: center;
+}
+#task-editor .structured-edit-option input {
+  width: 1rem;
+}
