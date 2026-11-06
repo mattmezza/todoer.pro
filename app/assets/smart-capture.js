@@ -1,10 +1,13 @@
-import { pageScope } from './page-lifecycle.js';
+import { onPageLoad, pageScope } from './page-lifecycle.js';
 import { captureToday } from './capture-dates.mjs';
 import { mountCaptureHelp } from './capture-help.js';
 import { beginLoading } from './loading.js';
 import { parseCapture } from './smart-capture-parser.mjs';
 import { request } from './request.js';
 let cached;
+onPageLoad(() => {
+  cached = undefined;
+});
 async function options() {
   if (!cached)
     cached = request('/api/v1/capture/options')

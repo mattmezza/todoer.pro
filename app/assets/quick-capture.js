@@ -1,5 +1,5 @@
-import { onPageLoad } from './page-lifecycle.js';
-import { navigate, refreshPage } from './page-navigation.js';
+import { onPageLoad, pageScope } from './page-lifecycle.js';
+import { refreshPage } from './page-navigation.js';
 import { loadingDialog } from './loading.js';
 import { request as fetch } from './request.js';
 import { enqueueCapture, replayCaptures } from './offline.js';
@@ -7,6 +7,7 @@ import { toast } from './toast.js';
 import { mountSmartCapture } from './smart-capture.js';
 let dialog;
 let loading = false;
+let draft;
 export async function openCapture(listId) {
   if (dialog?.open || loading) return;
   if (dialog) {
@@ -21,13 +22,26 @@ export async function openCapture(listId) {
     return;
   }
   loading = true;
+  const scope = pageScope();
   const pending = loadingDialog('Loading quick capture', 'capture-omnibar');
+  scope.cleanup(() => {
+    if (dialog) {
+      draft = {
+        title: dialog.querySelector('[name=title]').value,
+        description: dialog.querySelector('[name=description]').value,
+      };
+      dialog.remove();
+      dialog = null;
+    }
+    pending.finish();
+    loading = false;
+  });
   try {
     const list =
       listId ||
       document.body.dataset.list ||
       document.querySelector('[data-task-page]')?.dataset.listId;
-    const response = await fetch(
+    const response = await scope.request(
       '/capture' + (list ? `?list=${encodeURIComponent(list)}` : ''),
     );
     if (!pending.dialog.open) return;
@@ -123,13 +137,13 @@ export async function openCapture(listId) {
         updateRepeat();
       }
     });
-    document.addEventListener('keydown', (event) => {
+    scope.listen(document, 'keydown', (event) => {
       if (dialog.open && event.key === 'Shift' && !shiftHeld) {
         shiftHeld = true;
         updateRepeat();
       }
     });
-    document.addEventListener('keyup', (event) => {
+    scope.listen(document, 'keyup', (event) => {
       if (event.key === 'Shift' && shiftHeld) {
         shiftHeld = false;
         updateRepeat();
@@ -141,13 +155,18 @@ export async function openCapture(listId) {
         updateRepeat();
       }
     };
-    window.addEventListener('blur', releaseShift);
+    scope.listen(window, 'blur', releaseShift);
     dialog.addEventListener('close', releaseShift);
     actions.append(repeatLabel, submit);
     footer.append(smart.help, actions);
     const error = document.createElement('p');
     error.setAttribute('role', 'alert');
     dialog.append(close, heading, form, error);
+    if (draft) {
+      form.elements.title.value = draft.title;
+      form.elements.description.value = draft.description;
+      form.elements.title.dispatchEvent(new Event('input', { bubbles: true }));
+    }
     document.body.append(dialog);
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -158,6 +177,7 @@ export async function openCapture(listId) {
       try {
         const data = new FormData(form);
         await smart.ready;
+        if (scope.signal.aborted) return;
         const interpreted = { ...smart.get(), repeat: repeat.checked };
         const account = document.querySelector('meta[name=account-id]')?.content;
         if (!account) throw Error('Sign in again to capture this task.');
@@ -169,6 +189,10 @@ export async function openCapture(listId) {
           null,
           interpreted.metadata,
         );
+        if (scope.signal.aborted) {
+          draft = undefined;
+          return;
+        }
         form.elements.title.value = '';
         form.elements.description.value = '';
         description.style.height = '';
@@ -196,6 +220,7 @@ export async function openCapture(listId) {
           }
           return body;
         });
+        if (scope.signal.aborted) return;
         if (result.errors.length)
           toast('Task kept on this device. Open Inbox to retry syncing.');
         if (result.sent) document.dispatchEvent(new Event('todoer:workbench-refresh'));
@@ -206,6 +231,7 @@ export async function openCapture(listId) {
         )
           refreshPage();
       } catch (e) {
+        if (scope.signal.aborted) return;
         error.textContent = e.message;
         if (!dialog.open) dialog.showModal();
       } finally {
@@ -217,10 +243,10 @@ export async function openCapture(listId) {
     resize();
     form.elements.title.focus();
   } catch (error) {
-    toast(error.message);
+    if (!scope.signal.aborted) toast(error.message);
   } finally {
     pending.finish();
-    loading = false;
+    if (!scope.signal.aborted) loading = false;
   }
 }
 document.addEventListener('click', (event) => {

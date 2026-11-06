@@ -49,14 +49,15 @@ test('Inbox queues failed captures and retries refresh', async ({ page }) => {
     page.getByText('Task kept on this device. Open Inbox to retry syncing.'),
   ).toBeVisible();
   expect(calls).toBe(1);
-  await page.route('**/api/v1/inbox', (route) => route.abort('failed'));
+  const inboxRoute = /\/api\/v1\/inbox(?:\?.*)?$/;
+  await page.route(inboxRoute, (route) => route.abort('failed'));
   await page.evaluate(() =>
     document.dispatchEvent(new Event('todoer:workbench-refresh')),
   );
   await expect(
     page.getByRole('button', { name: 'Try again', exact: true }),
   ).toBeVisible();
-  await page.unroute('**/api/v1/inbox');
+  await page.unroute(inboxRoute);
   await page.getByRole('button', { name: 'Try again', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Try again', exact: true })).toHaveCount(
     0,

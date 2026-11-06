@@ -329,3 +329,46 @@ test('expired authentication keeps the current capture draft and offers sign-in'
   );
   await persistent(page);
 });
+
+test('quick capture keeps its draft and uses the new list after navigation', async ({
+  page,
+}) => {
+  await signin(page);
+  await page.evaluate(async () =>
+    (await import('/assets/quick-capture.js')).openCapture(),
+  );
+  const capture = page.locator('.capture-omnibar');
+  await capture.locator('[name=title]').fill('Quick capture navigation draft');
+  await capture.getByRole('button', { name: 'Close capture' }).click();
+  const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
+  const headers = { 'x-csrf-token': csrf };
+  const space = await (
+    await page.request.post('/api/v1/workspaces', {
+      headers,
+      data: { title: `Quick capture ${randomUUID()}` },
+    })
+  ).json();
+  const list = await (
+    await page.request.post('/api/v1/lists', {
+      headers,
+      data: { title: `Destination ${randomUUID()}`, workspace_id: space.id },
+    })
+  ).json();
+  await open(page, `/lists/${list.id}`);
+  await page.evaluate(async () =>
+    (await import('/assets/quick-capture.js')).openCapture(),
+  );
+  await expect(capture.locator('[name=title]')).toHaveValue(
+    'Quick capture navigation draft',
+  );
+  await expect(capture.locator('[name=list_id]')).toHaveValue(list.id);
+  const written = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/v1/capture') &&
+      response.request().method() === 'POST',
+  );
+  await capture.getByRole('button', { name: 'Add task', exact: true }).click();
+  const [task] = await (await written).json();
+  expect(task.list_id).toBe(list.id);
+  await persistent(page);
+});

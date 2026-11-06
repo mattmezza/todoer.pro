@@ -286,7 +286,12 @@ document.addEventListener('htmx:before:swap', (event) => {
     document.querySelector('#navigation .sidebar-scroll')?.scrollTop || 0;
   unmountPage();
   for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
+  // Page dialogs can be appended beside #main. Their close listeners are disposed.
+  for (const dialog of document.querySelectorAll('body > dialog')) dialog.remove();
   document.querySelectorAll('.list-settings-panel').forEach((panel) => panel.remove());
+  const skip = document.querySelector('a.skip');
+  const nextSkip = doc.querySelector('a.skip');
+  if (skip && nextSkip) skip.replaceWith(nextSkip);
   const sidebar = document.querySelector('#navigation');
   const nextSidebar = doc.querySelector('#navigation');
   copyAttributes(sidebar, nextSidebar);

@@ -57,7 +57,7 @@ test('inbox uses a skeleton initially and retains loaded content and actions dur
 }) => {
   await login(page);
   let delayed = gate();
-  await page.route('**/api/v1/inbox', async (route) => {
+  await page.route(/\/api\/v1\/inbox(?:\?.*)?$/, async (route) => {
     await delayed.wait;
     await route.continue();
   });
@@ -153,7 +153,7 @@ test('quick capture can be dismissed during a slow load without reopening later'
   await page.evaluate(() => {
     import('/assets/quick-capture.js').then((module) => module.openCapture());
   });
-  await expect(page.locator('.capture-omnibar input[name=title]')).toBeVisible();
+  await expect(page.locator('.capture-omnibar [name=title]')).toBeVisible();
 });
 
 test('search displays a visible skeleton for an empty results container and ignores stale responses', async ({
@@ -250,7 +250,7 @@ test('a background response cannot replace the row under an active pointer inter
   const initial = await (await page.request.get('/api/v1/inbox')).json();
   let changed = false;
   const delayed = gate();
-  await page.route('**/api/v1/inbox', async (route) => {
+  await page.route(/\/api\/v1\/inbox(?:\?.*)?$/, async (route) => {
     if (changed) await delayed.wait;
     const data = structuredClone(initial);
     if (changed)
