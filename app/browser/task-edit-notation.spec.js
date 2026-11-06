@@ -29,11 +29,10 @@ for (const width of [390, 1280]) {
       0,
     );
     await page.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(
-      page.getByRole('dialog', { name: 'Review task notation' }),
-    ).toContainText('Priority: 0');
-    await page.getByRole('button', { name: 'Save interpretation', exact: true }).click();
     await expect(page.locator('[data-edit-title]')).toHaveText('buy milk');
+    await expect(page.getByRole('dialog', { name: 'Review task notation' })).toHaveCount(
+      0,
+    );
     await expect(page.locator('[data-saved-description] strong')).toHaveText(
       'description',
     );

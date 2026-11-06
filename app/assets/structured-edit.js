@@ -1,7 +1,5 @@
 import { parseCapture } from './smart-capture-parser.mjs';
-import { confirmAction } from './confirm.js';
-// Every task editor uses the same notation parser as capture. Interpretation is
-// reviewed before saving so title and metadata change together.
+// Every task editor applies capture notation in the same atomic save as its brief.
 export function mountStructuredEdit(_input) {
   return async (api, id, change) => {
     const parsed = parseCapture(change.title);
@@ -19,24 +17,6 @@ export function mountStructuredEdit(_input) {
       duration_minutes: parsed.duration,
       tags: parsed.tags,
     };
-    const details = [
-      `Title: ${parsed.title}`,
-      parsed.priority !== null && `Priority: ${parsed.priority}`,
-      parsed.due && `Due: ${parsed.due}`,
-      parsed.planned && `Planned: ${parsed.planned}`,
-      parsed.duration !== null && `Duration: ${parsed.duration} minutes`,
-      parsed.tags.length && `Add tags: ${parsed.tags.join(', ')}`,
-      'Other task metadata will be preserved.',
-    ]
-      .filter(Boolean)
-      .join('\n');
-    if (
-      !(await confirmAction(details, {
-        title: 'Review task notation',
-        acceptLabel: 'Save interpretation',
-      }))
-    )
-      return null;
     return api(`/tasks/${id}/structured-edit`, 'POST', {
       ...change,
       title: parsed.title.trim(),

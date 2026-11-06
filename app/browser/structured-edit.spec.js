@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 for (const width of [375, 1280]) {
-  test(`structured edit always previews notation at ${width}px`, async ({ page }) => {
+  test(`structured edit automatically saves notation at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 850 });
     await page.route('https://editing.test/**', (route) => {
       const path = new URL(route.request().url()).pathname;
@@ -30,17 +30,14 @@ for (const width of [375, 1280]) {
     });
     await page.locator('#save').click();
     await expect(page.getByRole('checkbox')).toHaveCount(0);
-    await expect(page.getByRole('dialog')).toContainText('Add tags: work');
-    await page.getByRole('button', { name: 'Save interpretation' }).click();
     await expect(page.locator('output')).toContainText('structured-edit');
     const value = JSON.parse(await page.locator('output').textContent());
     expect(value.data.title).toBe('Call client');
     expect(value.data.metadata.duration_minutes).toBe(45);
+    expect(value.data.metadata.tags).toEqual(['work']);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     await page.getByRole('textbox', { name: 'Title' }).fill('buy milk .tomo !!!');
     await page.locator('#save').click();
-    await expect(page.getByRole('dialog')).toContainText('Priority: 0');
-    await expect(page.getByRole('dialog')).toContainText('Planned:');
-    await page.getByRole('button', { name: 'Save interpretation' }).click();
     await expect(page.locator('output')).toContainText('buy milk');
     const milk = JSON.parse(await page.locator('output').textContent());
     expect(milk.data.title).toBe('buy milk');
