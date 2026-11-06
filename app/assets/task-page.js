@@ -4,7 +4,6 @@ import { mountStructuredEdit } from './structured-edit.js';
 import { mountSmartCapture } from './smart-capture.js';
 import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
-import { editorAnchor, alignEditorField } from './seamless-editor.js';
 import { preferredTimeFormatter } from './preferred-time.js';
 import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
 import { toast } from './toast.js';
@@ -97,16 +96,19 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
     button.querySelector('span').textContent = label;
     button.querySelector('use').setAttribute('href', `/assets/icons.svg#${icon}`);
   }
+  form.classList.add('inline-editor');
   form.prepend(title);
   title.placeholder = 'Task name';
   const saveStructured = mountStructuredEdit(title);
   description.placeholder = 'Description (Markdown supported)';
+  description.rows = 3;
   const editActions = form.querySelector('.task-page-actions');
   const cancelEdit = form.querySelector('[data-cancel-edit]');
+  cancelEdit.classList.add('secondary');
   cancelEdit.replaceChildren(document.createTextNode('Cancel'));
   const saveEdit = form.querySelector('[type=submit]');
   saveEdit.replaceChildren(document.createTextNode('Save'));
-  editActions.prepend(cancelEdit, saveEdit);
+  editActions.prepend(saveEdit, cancelEdit);
   const canWrite = root.dataset.canWrite === 'true';
   // SSR child links are navigable, but inline editing needs the revision-bound
   // subtree. Do not expose rows until their handlers and descriptions are ready.
@@ -225,8 +227,6 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
   }
   function openEditor(field = 'title') {
     if (!canWrite || busy || !alive) return;
-    const titleAnchor = editorAnchor(get('[data-edit-title]'));
-    const descriptionAnchor = editorAnchor(get('.task-page-brief'));
     editOpen = true;
     root.dataset.editMode = 'combined';
     get('.task-context-menu').open = false;
@@ -239,8 +239,6 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
       description.value = draft.description;
       get('[data-discard]').hidden = false;
     }
-    alignEditorField(title, titleAnchor, { expand: true });
-    alignEditorField(description, descriptionAnchor);
     (field === 'description' ? description : title).focus();
     if (field === 'title') title.select();
   }

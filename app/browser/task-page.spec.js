@@ -624,11 +624,35 @@ for (const width of [390, 1280]) {
     await expect(detail).toHaveText('First detail');
     await expect(detail).toHaveCSS('display', 'list-item');
     await expect(detail).toHaveCSS('border-bottom-width', '0px');
+    await panel.locator('[data-edit-title]').click();
+    const brief = panel.locator('[data-brief-form]');
+    await expect(brief.locator('[name=title]')).toHaveCSS('font-size', '15px');
+    await expect(brief.locator('[name=title]')).toHaveCSS('border-top-width', '1px');
+    await expect(brief.locator('[name=description]')).toHaveCSS(
+      'border-top-width',
+      '1px',
+    );
+    await expect(brief.locator('.task-page-actions > button').first()).toHaveText('Save');
     await childRow
       .getByRole('link', { name: 'Panel child title', exact: true })
       .click({ button: 'right' });
     const editor = childRow.locator('[data-child-inline]');
     await expect(childRow.locator(':scope > [data-child-description]')).toBeHidden();
+    const saveBounds = await editor
+      .getByRole('button', { name: 'Save', exact: true })
+      .boundingBox();
+    const cancelBounds = await editor
+      .getByRole('button', { name: 'Cancel', exact: true })
+      .boundingBox();
+    const descriptionBounds = await editor
+      .getByLabel('Subtask description', { exact: true })
+      .boundingBox();
+    expect(saveBounds.width).toBeGreaterThan(44);
+    expect(cancelBounds.x).toBeGreaterThanOrEqual(saveBounds.x + saveBounds.width + 8);
+    expect(saveBounds.y).toBeGreaterThanOrEqual(
+      descriptionBounds.y + descriptionBounds.height + 8,
+    );
+    await page.screenshot({ path: `.local/rebuild/task-panel-editors-${width}.png` });
     await editor.getByLabel('Subtask title', { exact: true }).fill('Renamed panel child');
     await editor
       .getByLabel('Subtask description', { exact: true })

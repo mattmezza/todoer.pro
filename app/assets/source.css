@@ -1924,7 +1924,7 @@ input[type='checkbox'] {
 .task-page [data-children] small {
   display: none;
 }
-.task-page [data-children] button {
+.task-page [data-children] .task-child-complete {
   flex: 0 0 44px;
   min-height: 44px;
   margin-top: -8px;
@@ -4188,46 +4188,47 @@ form[data-list-edit] input.list-edit-color {
 .task-page[data-edit-mode='combined'] > .task-due-summary {
   display: none;
 }
+/* Match the compact fields and actions used by task-row inline editing. */
 .task-page[data-edit-mode='combined'] [data-brief-form] {
-  border: 1px solid var(--line);
-  padding: 12px;
-  margin: 0 0 48px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  border: 0;
+  padding: 0;
+  margin: 0 0 32px;
 }
 .task-page[data-edit-mode='combined'] [data-brief-form] > label {
   display: none;
 }
-.task-page[data-edit-mode='combined']
-  [data-brief-form]
-  > :is(input, textarea)[name='title'] {
-  width: 100%;
-  font: 600 30px/1.3 var(--font-sans);
-  border: 0;
-  border-radius: 0;
-  padding: 6px 0;
-  background: transparent;
-  margin: 0 0 12px;
-  outline: none;
-}
 .task-page[data-edit-mode='combined'] [data-brief-form] > textarea {
-  border: 0;
-  background: transparent;
-  padding: 6px 0;
-  margin: 0;
   width: 100%;
-  min-height: 80px;
-  outline: none;
+  font: 15px/1.55 var(--font-sans);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--field);
+  padding: 10px 12px;
+  margin: 0;
+  min-height: 92px;
+}
+.task-page[data-edit-mode='combined'] [data-brief-form] > [name='title'] {
+  padding: 6px 9px;
+  min-height: 38px;
 }
 .task-page[data-edit-mode='combined'] .task-page-actions {
   display: flex;
-  justify-content: flex-end;
+  flex: 1 0 100%;
+  justify-content: flex-start;
   gap: 10px;
   border: 0;
+  padding: 0;
+  margin: 0;
 }
 .task-page[data-edit-mode='combined'] .task-page-actions > button {
-  min-height: 38px;
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 14px;
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 9px 15px;
+  border-radius: 6px;
+  font-size: 13px;
 }
 
 [data-comment-form] .composer-actions,
@@ -7004,8 +7005,7 @@ body:has(.quiet-info) .task-play {
   }
 }
 
-/* Editors replace the text itself; actions follow below without framing it. */
-.task-page[data-edit-mode='combined'] [data-brief-form],
+/* List and space editors replace their displayed text. */
 form[data-list-edit],
 .space-inline-editor {
   border: 0;
@@ -7033,32 +7033,22 @@ form[data-list-edit] .list-edit-color {
   top: 10px;
 }
 form[data-list-edit] .inline-actions,
-.space-inline-editor > div,
-.task-page[data-edit-mode='combined'] .task-page-actions {
+.space-inline-editor > div {
   margin-top: 20px;
 }
-:is([data-list-edit-cancel], [data-space-edit-cancel], [data-cancel-edit]) {
+:is([data-list-edit-cancel], [data-space-edit-cancel]) {
   border-radius: 6px;
   background: var(--hover);
   color: var(--text);
 }
 @media (max-width: 640px) {
-  :is(
-    form[data-list-edit] .inline-actions,
-    .space-inline-editor > div,
-    .task-page .task-page-actions
-  ) {
+  :is(form[data-list-edit] .inline-actions, .space-inline-editor > div) {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     gap: 8px;
   }
-  :is(
-      form[data-list-edit] .inline-actions,
-      .space-inline-editor > div,
-      .task-page .task-page-actions
-    )
-    > button {
+  :is(form[data-list-edit] .inline-actions, .space-inline-editor > div) > button {
     flex: 1 1 calc(50% - 4px);
     min-width: 0;
     justify-content: center;
