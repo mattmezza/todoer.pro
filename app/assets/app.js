@@ -704,6 +704,7 @@ async function openTask(id, push = true) {
   }
 }
 function renderChildren(tasks) {
+  releaseChildEditors();
   const children = tasks.filter((t) => t.parent_id === editor.id);
   // Progress counts leaves in this subtree, once each. A parent container is not
   // counted again when its descendants also appear.
@@ -1022,6 +1023,9 @@ async function renameInline(row, snapshot) {
         if (!result) return;
         display.textContent = result.title;
         row.dataset.revision = result.revision;
+        row
+          .querySelector('.subtask-edit')
+          ?.setAttribute('aria-label', `Edit title for ${result.title}`);
         close();
         notice('');
       } catch (err) {
