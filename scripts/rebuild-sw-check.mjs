@@ -54,6 +54,7 @@ const pageHandlers = new Map();
 const stores = new Map();
 let pageScope = 'synthetic-page-user';
 let offline = false;
+let redirectedURL;
 const keyOf = (request) => typeof request === 'string' ? request : request.url;
 const cacheStore = (name) => {
   if (!stores.has(name)) stores.set(name, new Map());
@@ -73,9 +74,13 @@ const pageContext = vm.createContext({
   caches: { open: async (name) => cacheStore(name), delete: async (name) => stores.delete(name) },
   fetch: async () => {
     if (offline) throw Error('Offline fixture');
-    return new Response('<main id="main">Synthetic offline page</main>', {
+    const response = new Response('<main id="main">Synthetic offline page</main>', {
       headers: { 'Content-Type': 'text/html', 'X-Todoer-Account': pageScope },
     });
+    if (redirectedURL) Object.defineProperties(response, {
+      redirected: { value: true }, url: { value: redirectedURL },
+    });
+    return response;
   },
   self: {
     location: { origin: 'https://tasks.example.invalid' },
@@ -102,4 +107,12 @@ pageScope = 'another-synthetic-user';
 assert.equal((await pageFetch('/lists/example', fullPageHeaders)).status, 503);
 pageScope = null;
 assert.equal((await pageFetch('/lists/example', fullPageHeaders)).status, 503);
+pageScope = 'redirect-synthetic-user';
+offline = false;
+redirectedURL = 'https://tasks.example.invalid/lists/canonical';
+const redirect = await pageFetch('/lists/internal-id', fullPageHeaders);
+assert.equal(redirect.status, 303);
+assert.equal(redirect.headers.get('Location'), redirectedURL);
+offline = true;
+assert.equal((await pageFetch('/lists/internal-id', fullPageHeaders)).status, 503);
 console.log('Service-worker page requests: HTMX/navigation cache parity, fragment exclusion and account isolation passed');

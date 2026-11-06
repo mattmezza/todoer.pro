@@ -2,7 +2,9 @@ import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
 async function signin(page) {
-  await page.route('https://fonts.bunny.net/**', (route) => route.abort());
+  // Avoid request routing in Firefox while exercising service-worker redirects.
+  if (page.context().browser().browserType().name() === 'chromium')
+    await page.route('https://fonts.bunny.net/**', (route) => route.abort());
   await page.goto('/signin');
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
@@ -28,6 +30,18 @@ async function persistent(page) {
         window.navigationHeader === document.querySelector('.mobile-header'),
     ),
   ).toBe(true);
+}
+
+async function workerReady(page) {
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    if (!navigator.serviceWorker.controller)
+      await new Promise((resolve) =>
+        navigator.serviceWorker.addEventListener('controllerchange', resolve, {
+          once: true,
+        }),
+      );
+  });
 }
 
 test('navigation keeps the shell, URLs, titles and Back/Forward working', async ({
@@ -142,6 +156,7 @@ test('a remounted list sends capture to its own destination and its task permali
   page,
 }) => {
   await signin(page);
+  await workerReady(page);
   const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
   const headers = { 'x-csrf-token': csrf };
   const space = await (
@@ -253,15 +268,7 @@ test('cached lists open through HTMX offline and uncached screens keep the curre
   );
   await signin(page);
   const listURL = page.url();
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready;
-    if (!navigator.serviceWorker.controller)
-      await new Promise((resolve) =>
-        navigator.serviceWorker.addEventListener('controllerchange', resolve, {
-          once: true,
-        }),
-      );
-  });
+  await workerReady(page);
   await open(page, listURL);
   await expect
     .poll(() =>
@@ -299,12 +306,12 @@ test('Back restores page scroll and forward navigation starts at the top', async
     sheet.insertRule('#main { min-height: 2400px; }', sheet.cssRules.length);
   });
   await page.evaluate(() => scrollTo(0, 750));
-  await expect.poll(() => page.evaluate(() => scrollY)).toBe(750);
+  await expect.poll(() => page.evaluate(() => Math.abs(scrollY - 750))).toBeLessThan(1);
   await open(page, '/today');
   await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
   await page.goBack();
   await expect(page.locator('#task-list')).toBeVisible();
-  await expect.poll(() => page.evaluate(() => scrollY)).toBe(750);
+  await expect.poll(() => page.evaluate(() => Math.abs(scrollY - 750))).toBeLessThan(1);
   await persistent(page);
 });
 
@@ -340,6 +347,7 @@ test('quick capture keeps its draft and uses the new list after navigation', asy
   const capture = page.locator('.capture-omnibar');
   await capture.locator('[name=title]').fill('Quick capture navigation draft');
   await capture.getByRole('button', { name: 'Close capture' }).click();
+  await workerReady(page);
   const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
   const headers = { 'x-csrf-token': csrf };
   const space = await (

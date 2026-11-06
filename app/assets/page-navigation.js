@@ -27,7 +27,9 @@ let loadedURL = location.pathname + location.search;
 const scrollPositions = new Map();
 let scrollTimer;
 let errorNotice;
+let navigating = false;
 const submitting = new WeakSet();
+if (document.querySelector('#navigation')) history.scrollRestoration = 'manual';
 
 function navigationError(nav, message, signin = false) {
   errorNotice?.remove();
@@ -61,8 +63,11 @@ function rememberScroll() {
 window.addEventListener(
   'scroll',
   () => {
+    if (navigating) return;
     clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(rememberScroll, 80);
+    const url = location.href;
+    const position = [scrollX, scrollY];
+    scrollTimer = setTimeout(() => scrollPositions.set(url, position), 80);
   },
   { passive: true },
 );
@@ -87,6 +92,8 @@ export function navigate(
   }
   errorNotice?.remove();
   if (!restore) rememberScroll();
+  clearTimeout(scrollTimer);
+  navigating = true;
   pending?.abort();
   const abort = new AbortController();
   pending = abort;
@@ -110,7 +117,10 @@ export function navigate(
       replace: replace ? 'true' : false,
       todoerNavigation: nav,
     })
-    .then(() => nav.ready);
+    .then(() => nav.ready)
+    .finally(() => {
+      if (pending === abort) navigating = false;
+    });
 }
 
 export function refreshPage() {

@@ -240,6 +240,9 @@ self.addEventListener('fetch', (event) => {
         // Redirects can be sign-in screens and must never enter an account cache.
         if (eligible && (await currentScope(event.clientId)) === scope)
           await savePage(scope, request, response);
+        // Forward a fresh redirect; a followed response can stall HTMX fetches in Firefox.
+        if (response.redirected && request.headers.get('HX-Request') === 'true')
+          return Response.redirect(response.url, 303);
         return response;
       } catch {
         if (eligible && (await currentScope(event.clientId)) === scope) {
