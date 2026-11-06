@@ -49,7 +49,7 @@ fn change_archive(
         }
         let group = format!("section:{id}");
         let ids = if archive {
-            tx.prepare("SELECT t.id FROM tasks t JOIN task_locations loc ON loc.task_id=t.id WHERE t.list_id=?1 AND loc.section_id=?2 AND t.deleted_at IS NULL ORDER BY t.position,t.id")?
+            tx.prepare("WITH RECURSIVE tree(id) AS (SELECT t.id FROM tasks t JOIN task_locations loc ON loc.task_id=t.id WHERE t.list_id=?1 AND loc.section_id=?2 AND t.parent_id IS NULL AND t.deleted_at IS NULL UNION ALL SELECT t.id FROM tasks t JOIN tree ON t.parent_id=tree.id WHERE t.deleted_at IS NULL) SELECT id FROM tree")?
                 .query_map(params![section.0,id], |r| r.get::<_,String>(0))?.collect::<Result<Vec<_>,_>>()?
         } else {
             tx.prepare("SELECT id FROM tasks WHERE archive_group=?1 ORDER BY position,id")?
@@ -230,7 +230,22 @@ mod tests {
         .unwrap();
         change_archive(&mut db, "dev", "subtask", &child.id, false).unwrap();
         assert!(!crate::core::task(&db.conn, &root.id).unwrap().complete);
-        assert_eq!(db.task_section("dev", &child.id).unwrap(), Some(section.id));
+        assert_eq!(
+            db.task_section("dev", &child.id).unwrap(),
+            Some(section.id.clone())
+        );
+        let inherited = capture(
+            &mut db,
+            "section-inherited-child",
+            "Inherited child",
+            Some(root.id.clone()),
+        );
+        change_archive(&mut db, "dev", "section", &section.id, true).unwrap();
+        assert!(crate::core::task(&db.conn, &root.id).is_err());
+        assert!(crate::core::task(&db.conn, &inherited.id).is_err());
+        change_archive(&mut db, "dev", "section", &section.id, false).unwrap();
+        assert!(crate::core::task(&db.conn, &root.id).is_ok());
+        assert!(crate::core::task(&db.conn, &inherited.id).is_ok());
         assert!(change_archive(&mut db, "other", "task", &root.id, true).is_err());
     }
 }

@@ -54,9 +54,11 @@ test('list menus review completion and archive and restore sections on mobile', 
   expect(tasks.find((task) => task.id === child.id).complete).toBe(false);
   await group.locator('.entity-menu > summary').click();
   await group.getByRole('button', { name: 'Mark all tasks complete…' }).click();
-  await confirmation
-    .getByRole('button', { name: 'Mark all complete', exact: true })
-    .click();
+  await Promise.all([
+    page.waitForEvent('load'),
+    confirmation.getByRole('button', { name: 'Mark all complete', exact: true }).click(),
+  ]);
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await expect(group).toContainText('100%');
   await group.locator('.entity-menu > summary').click();
   await group.getByRole('button', { name: 'Archive section…' }).click();
@@ -65,6 +67,7 @@ test('list menus review completion and archive and restore sections on mobile', 
     .getByRole('button', { name: 'Archive section', exact: true })
     .click();
   await expect(group).toHaveCount(0);
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await page.locator('[data-list-display] .entity-menu > summary').click();
   await page.getByRole('button', { name: 'Archived sections…' }).click();
   await page.getByRole('button', { name: 'Restore section Review section' }).click();
