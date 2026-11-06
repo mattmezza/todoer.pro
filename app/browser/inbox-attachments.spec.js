@@ -1,6 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: 'wait' });
+});
+
 for (const mode of ['drop', 'paste', 'comment-paste', 'existing-comment-paste']) {
   test(`${mode} uploads a file and preserves the comment draft`, async ({ page }) => {
     let finalized = false;
@@ -9,6 +13,7 @@ for (const mode of ['drop', 'paste', 'comment-paste', 'existing-comment-paste'])
       const upload = route.request().postDataJSON();
       if (mode === 'existing-comment-paste') expect(upload.comment_id).toBeTruthy();
       else expect(upload.comment_id).toBeNull();
+      expect(upload.comment_draft).toBe(mode === 'comment-paste');
       expect(upload).toMatchObject({
         filename: 'notes.txt',
         size: 5,
@@ -32,7 +37,7 @@ for (const mode of ['drop', 'paste', 'comment-paste', 'existing-comment-paste'])
           '</section><h3',
           '<form data-file-form class="attachment-form"><input type="file" data-file-input hidden><button type="button" data-file-choose>Attach file</button><p data-file-selection hidden></p><progress data-upload-progress hidden></progress><button data-file-upload hidden></button><button data-file-abandon hidden></button></form></section><h3',
         );
-      if (finalized)
+      if (finalized && !mode.includes('comment-paste'))
         html = html.replace(
           '<div class="attachment-grid">',
           '<div class="attachment-grid"><div data-file-row class="attachment-card"><a class="attachment-card-main" href="/test"><span class="attachment-type">TXT</span><span class="attachment-card-info"><strong>notes.txt</strong><span>TXT · 5 B · Download</span></span></a><div class="attachment-card-actions"><a href="/test" aria-label="Download notes.txt">Download</a><button type="button" data-file-delete="test" aria-label="Remove notes.txt">Remove</button></div></div>',
@@ -102,7 +107,9 @@ for (const mode of ['drop', 'paste', 'comment-paste', 'existing-comment-paste'])
         element.dispatchEvent(event);
       }, data);
     }
-    await expect(panel.locator('.attachment-card')).toContainText('notes.txt');
+    if (mode.includes('comment-paste'))
+      await expect(panel.locator('.task-files .attachment-card')).toHaveCount(0);
+    else await expect(panel.locator('.attachment-card')).toContainText('notes.txt');
     await expect(panel.getByLabel('Add a comment')).toHaveValue(
       mode === 'comment-paste'
         ? 'Draft stays here[notes.txt](/api/v1/attachments/attached2345/download)'
@@ -114,8 +121,10 @@ for (const mode of ['drop', 'paste', 'comment-paste', 'existing-comment-paste'])
       );
     expect(uploaded).toBe(true);
     expect(finalized).toBe(true);
-    await expect(panel.getByRole('link', { name: 'Download notes.txt' })).toBeVisible();
-    await expect(panel.getByRole('button', { name: 'Remove notes.txt' })).toBeVisible();
+    if (!mode.includes('comment-paste')) {
+      await expect(panel.getByRole('link', { name: 'Download notes.txt' })).toBeVisible();
+      await expect(panel.getByRole('button', { name: 'Remove notes.txt' })).toBeVisible();
+    }
   });
 }
 
@@ -125,10 +134,14 @@ for (const width of [390, 1280]) {
   }) => {
     await page.setViewportSize({ width, height: 900 });
     let finalizeUpload;
+    let isCommentDraft = true;
+    let postedAttachmentIds;
     let uploading = false;
     let finalized = false;
     await page.route('**/api/v1/tasks/*/uploads', (route) => {
-      expect(route.request().postDataJSON().comment_id).toBeNull();
+      const upload = route.request().postDataJSON();
+      expect(upload.comment_id).toBeNull();
+      expect(upload.comment_draft).toBe(isCommentDraft);
       return route.fulfill({ json: { intent: { id: 'image-upload', revision: 1 } } });
     });
     await page.route('**/api/v1/uploads/image-upload/content?*', (route) => {
@@ -160,12 +173,23 @@ for (const width of [390, 1280]) {
           '</section><h3',
           '<form data-file-form><input type="file" data-file-input hidden><button type="button" data-file-choose>Attach file</button><p data-file-selection hidden></p><progress data-upload-progress hidden></progress><button data-file-upload hidden></button><button data-file-abandon hidden></button></form></section><h3',
         );
-      if (finalized)
+      if (finalized && !isCommentDraft)
         html = html.replace(
           '<div class="attachment-grid">',
           '<div class="attachment-grid"><div data-file-row class="attachment-card"><img class="attachment-thumbnail" src="/api/v1/attachments/image2345/preview" alt=""><span>image.png</span></div>',
         );
       await route.fulfill({ response, body: html });
+    });
+    await page.route('**/api/v1/tasks/*/comments', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      const payload = route.request().postDataJSON();
+      postedAttachmentIds = payload.attachment_ids;
+      // Upload transport is mocked; use the real comment renderer without claiming
+      // this fabricated attachment. Store tests verify the atomic attachment claim.
+      const response = await route.fetch({
+        postData: JSON.stringify({ body: payload.body }),
+      });
+      await route.fulfill({ response });
     });
     await page.goto('/signin');
     await page.getByRole('button', { name: 'Enter development workspace' }).click();
@@ -200,16 +224,24 @@ for (const width of [390, 1280]) {
     await expect(input).toHaveValue(
       'Before image ![image.png](/api/v1/attachments/image2345/preview) after image',
     );
+    await expect(page.locator('.task-files .attachment-card')).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByLabel('Add a comment')).toHaveValue(
+      'Before image ![image.png](/api/v1/attachments/image2345/preview) after image',
+    );
     await page.getByRole('button', { name: 'Post', exact: true }).click();
+    await expect.poll(() => postedAttachmentIds).toEqual(['image2345']);
     await expect(page.locator('[data-comment-rendered] img')).toHaveAttribute(
       'src',
       '/api/v1/attachments/image2345/preview',
     );
-    await expect(page.locator('.attachment-thumbnail')).toBeVisible();
+    await expect(page.locator('.task-files .attachment-card')).toHaveCount(0);
+    isCommentDraft = false;
     uploading = false;
     await paste(page.locator('body'));
     await expect.poll(() => uploading).toBe(true);
     await expect(page.locator('[data-file-selection]')).toBeHidden();
+    await expect(page.locator('.attachment-thumbnail')).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     ).toBe(true);

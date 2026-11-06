@@ -372,8 +372,18 @@ export function mountDiscussion({
   }
   function persistFile() {
     if (!fileState) return;
-    const { name, size, sha256, intent, phase, commentId, markdown } = fileState;
-    save('upload', { name, size, sha256, intent, phase, commentId, markdown });
+    const { name, size, sha256, intent, phase, commentId, markdown, commentDraft } =
+      fileState;
+    save('upload', {
+      name,
+      size,
+      sha256,
+      intent,
+      phase,
+      commentId,
+      markdown,
+      commentDraft,
+    });
   }
   async function digest(file) {
     if (file.size > 25 * 1024 * 1024)
@@ -456,12 +466,21 @@ export function mountDiscussion({
       'preserve',
     );
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    if (state.commentDraft) {
+      save('new', {
+        ...newDraftState,
+        attachmentIds: [
+          ...new Set([...(newDraftState?.attachmentIds || []), attachment.id]),
+        ],
+      });
+    }
   }
   async function attachToEditor(file, input) {
     const target = input
       ? input.closest('[data-comment-id]')?.dataset.commentId || 'new'
       : null;
     if (!(await chooseFile(file, target === 'new' ? null : target))) return;
+    fileState.commentDraft = (fileState.markdown?.target || target) === 'new';
     if (input && !fileState.markdown) {
       const placeholder = `[Uploading ${file.name}… ${crypto.randomUUID().slice(0, 8)}]()`;
       input.setRangeText(placeholder, input.selectionStart, input.selectionEnd, 'end');
@@ -540,6 +559,7 @@ export function mountDiscussion({
             size: state.size,
             sha256: state.sha256,
             comment_id: state.commentId,
+            comment_draft: Boolean(state.commentDraft),
           },
         );
         if (!active) return;
@@ -682,13 +702,16 @@ export function mountDiscussion({
         body,
         key: existing.key || crypto.randomUUID(),
         submittedBody: body,
+        attachmentIds: (existing.attachmentIds || []).filter((id) =>
+          body.includes(`/api/v1/attachments/${encodeURIComponent(id)}/`),
+        ),
       };
       save('new', draft);
       mutation('new', form, async () => {
         await request(
           `/api/v1/tasks/${encodeURIComponent(taskId)}/comments`,
           'POST',
-          { body },
+          { body, attachment_ids: draft.attachmentIds },
           false,
           { 'Idempotency-Key': draft.key },
         );
@@ -1018,6 +1041,7 @@ export function mountDiscussion({
     fileState = {
       ...savedUpload,
       commentId: savedUpload.commentId === 'new' ? null : savedUpload.commentId,
+      commentDraft: savedUpload.commentDraft || savedUpload.markdown?.target === 'new',
       file: null,
       busy: false,
     };
