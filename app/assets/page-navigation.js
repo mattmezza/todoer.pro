@@ -20,13 +20,14 @@ const modules = new Set([
   'delivery-settings',
 ]);
 const appPath =
-  /^\/(?:inbox|today|upcoming|plan|recurring|review|trash|search|spaces|space|workspaces|lists|tasks|settings|notifications|admin)(?:\/|$)/;
+  /^\/(?:(?:inbox|today|upcoming|plan|recurring|review|trash|search|spaces|space|workspaces|lists|tasks|settings|notifications|admin)(?:\/|$)|$)/;
 let pending;
 let loadedPath = location.pathname;
 let loadedURL = location.pathname + location.search;
 const scrollPositions = new Map();
 let scrollTimer;
 let errorNotice;
+const submitting = new WeakSet();
 
 function navigationError(nav, message, signin = false) {
   errorNotice?.remove();
@@ -36,21 +37,22 @@ function navigationError(nav, message, signin = false) {
   const text = document.createElement('span');
   text.textContent = message;
   const retry = document.createElement(signin ? 'a' : 'button');
-  retry.textContent = signin ? 'Sign in' : 'Try again';
+  retry.textContent = signin ? 'Sign in' : nav.form ? 'Reload saved data' : 'Try again';
   if (signin)
     retry.href =
       '/signin?next=' +
       encodeURIComponent(nav.destination.pathname + nav.destination.search);
   else {
     retry.type = 'button';
-    retry.onclick = () => navigate(nav.destination, { restore: nav.restore });
+    retry.onclick = () =>
+      navigate(nav.form ? nav.sourceURL : nav.destination, { restore: nav.restore });
   }
   const close = document.createElement('button');
   close.type = 'button';
   close.textContent = 'Dismiss';
   close.onclick = () => errorNotice.remove();
   errorNotice.append(text, retry, close);
-  document.body.append(errorNotice);
+  (document.querySelector('dialog[open]') || document.body).append(errorNotice);
 }
 
 function rememberScroll() {
@@ -67,7 +69,7 @@ window.addEventListener(
 
 export function navigate(
   url,
-  { replace = false, restore = false, preserveScroll = false } = {},
+  { replace = false, restore = false, preserveScroll = false, form, event } = {},
 ) {
   const destination = new URL(url, location.href);
   if (
@@ -88,15 +90,27 @@ export function navigate(
   pending?.abort();
   const abort = new AbortController();
   pending = abort;
-  return window.htmx.ajax('GET', destination.href, {
-    source: document.body,
-    target: '#main',
-    select: '#main',
-    swap: 'outerHTML',
-    push: restore || replace ? false : 'true',
-    replace: replace ? 'true' : false,
-    todoerNavigation: { destination, restore, preserveScroll, abort },
-  });
+  const nav = {
+    destination,
+    restore,
+    preserveScroll,
+    abort,
+    form,
+    submitter: event?.submitter,
+    sourceURL: location.href,
+  };
+  return window.htmx
+    .ajax(form ? 'POST' : 'GET', destination.href, {
+      source: form || document.body,
+      event,
+      target: '#main',
+      select: '#main',
+      swap: 'outerHTML',
+      push: restore || replace ? false : 'true',
+      replace: replace ? 'true' : false,
+      todoerNavigation: nav,
+    })
+    .then(() => nav.ready);
 }
 
 export function refreshPage() {
@@ -135,25 +149,42 @@ window.addEventListener('click', (event) => {
   navigate(url);
 });
 
-// Only ordinary GET forms opt into page navigation. Existing JS editors own their submits.
+// Existing JS editors own their submits; ordinary forms keep their server handlers.
 window.addEventListener('submit', (event) => {
   const form = event.target;
+  const method = (
+    event.submitter?.getAttribute('formmethod') || form.method
+  ).toLowerCase();
+  const target = event.submitter?.getAttribute('formtarget') || form.target;
   if (
     event.defaultPrevented ||
-    form.method.toLowerCase() !== 'get' ||
-    (form.target && form.target !== '_self')
+    !['get', 'post'].includes(method) ||
+    (target && target !== '_self') ||
+    form.closest('[data-full-navigation]') ||
+    (method === 'post' &&
+      (!form.hasAttribute('action') ||
+        form.enctype !== 'application/x-www-form-urlencoded'))
   )
     return;
-  const url = new URL(form.action, location.href);
+  const url = new URL(
+    event.submitter?.getAttribute('formaction') || form.action,
+    location.href,
+  );
   if (
+    !window.htmx ||
     url.origin !== location.origin ||
     !appPath.test(url.pathname) ||
     !document.querySelector('#navigation')
   )
     return;
-  url.search = new URLSearchParams(new FormData(form, event.submitter)).toString();
   event.preventDefault();
-  navigate(url);
+  if (submitting.has(form)) return;
+  if (method === 'get') {
+    url.search = new URLSearchParams(new FormData(form, event.submitter)).toString();
+    navigate(url);
+  } else {
+    navigate(url, { form, event });
+  }
 });
 
 document.addEventListener('htmx:before:history:restore', (event) => {
@@ -180,6 +211,10 @@ document.addEventListener('htmx:before:request', (event) => {
   }
   nav.abort.signal.addEventListener('abort', ctx.request.abort, { once: true });
   ctx.request.cache = 'no-store';
+  if (nav.form) {
+    submitting.add(nav.form);
+    if (nav.submitter) nav.submitter.disabled = true;
+  }
   document.querySelector('#main')?.setAttribute('aria-busy', 'true');
   nav.timer = setTimeout(
     () => document.documentElement.classList.add('page-loading'),
@@ -199,7 +234,9 @@ document.addEventListener('htmx:after:request', (event) => {
     event.preventDefault();
     navigationError(
       nav,
-      'Could not open this page. Check your connection and try again.',
+      nav.form
+        ? 'The save could not be confirmed. Check saved data before trying again.'
+        : 'Could not open this page. Check your connection and try again.',
     );
     return;
   }
@@ -282,18 +319,33 @@ document.addEventListener('htmx:before:swap', (event) => {
   }
 });
 
-document.addEventListener('htmx:after:swap', async (event) => {
+document.addEventListener('htmx:after:swap', (event) => {
   const nav = event.detail.ctx?.todoerNavigation;
   if (!nav?.document || nav.abort.signal.aborted) return;
   loadedPath = location.pathname;
   loadedURL = location.pathname + location.search;
-  mountPage();
-  for (const path of nav.scripts) await import(path);
+  nav.ready = activatePage(nav).catch(() => {
+    if (nav.abort.signal.aborted) return;
+    navigationError(
+      nav,
+      'Some controls could not load. Check your connection and try again.',
+    );
+  });
+});
+
+async function activatePage(nav) {
+  const main = document.querySelector('#main');
+  main.inert = true;
+  try {
+    mountPage();
+    for (const path of nav.scripts) await import(path);
+  } finally {
+    main.inert = false;
+  }
   if (nav.abort.signal.aborted) return;
   document.dispatchEvent(new Event('todoer:page-ready'));
   const sidebar = document.querySelector('#navigation .sidebar-scroll');
   if (sidebar) sidebar.scrollTop = nav.sidebarScroll;
-  const main = document.querySelector('#main');
   main.removeAttribute('aria-busy');
   main.setAttribute('tabindex', '-1');
   main.focus({ preventScroll: true });
@@ -305,14 +357,16 @@ document.addEventListener('htmx:after:swap', async (event) => {
       .getElementById(decodeURIComponent(nav.destination.hash.slice(1)))
       ?.scrollIntoView();
   }
-});
+}
 
 document.addEventListener('htmx:error', (event) => {
   const nav = event.detail.ctx?.todoerNavigation;
   if (nav && !nav.abort.signal.aborted)
     navigationError(
       nav,
-      'Could not open this page. Check your connection and try again.',
+      nav.form
+        ? 'The save could not be confirmed. Check saved data before trying again.'
+        : 'Could not open this page. Check your connection and try again.',
     );
 });
 
@@ -320,6 +374,10 @@ document.addEventListener('htmx:finally:request', (event) => {
   const nav = event.detail.ctx?.todoerNavigation;
   if (!nav) return;
   clearTimeout(nav.timer);
+  if (nav.form) {
+    submitting.delete(nav.form);
+    if (nav.submitter) nav.submitter.disabled = false;
+  }
   if (pending === nav.abort) {
     document.documentElement.classList.remove('page-loading');
     document.querySelector('#main')?.removeAttribute('aria-busy');

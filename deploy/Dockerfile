@@ -7,7 +7,8 @@ RUN npm ci --ignore-scripts
 COPY app/assets app/assets
 COPY app/templates app/templates
 COPY app/src app/src
-RUN npm run assets && cp node_modules/htmx.org/dist/htmx.min.js app/assets/htmx.min.js
+COPY scripts/prepare-htmx.mjs scripts/prepare-htmx.mjs
+RUN npm run assets && node scripts/prepare-htmx.mjs
 
 FROM rust:1.99.0-slim-bookworm@sha256:2c3a22f0a5533ea2dd5a16627bc841228151faa2d4de2644ac9987e4a2f1f2fa AS build
 RUN apt-get update && apt-get install --no-install-recommends -y pkg-config libssl-dev \

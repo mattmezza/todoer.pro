@@ -4,6 +4,9 @@
 !Cargo.lock
 !package.json
 !package-lock.json
+!scripts
+scripts/**
+!scripts/prepare-htmx.mjs
 !deploy
 deploy/**
 !deploy/healthcheck.rs

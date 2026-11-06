@@ -58,6 +58,9 @@ test('navigation keeps the shell, URLs, titles and Back/Forward working', async 
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await page.goForward();
   await expect(page.locator('h1')).toHaveText('Today');
+  await page.locator('#navigation a[href="/"]').click();
+  await expect(page).toHaveURL(/\/inbox$/);
+  await expect(page.locator('h1')).toHaveText('Inbox');
   await persistent(page);
   expect(errors).toEqual([]);
 });
@@ -195,5 +198,134 @@ test('mobile navigation closes the drawer and opens full task pages without relo
   await expect(page).toHaveURL(/\/tasks\//);
   await page.goBack();
   await expect(page.locator('h1')).toHaveText('Inbox');
+  await persistent(page);
+});
+
+test('ordinary forms submit once, keep CSRF and follow the server redirect in place', async ({
+  page,
+}) => {
+  await signin(page);
+  await open(page, '/spaces');
+  await page.locator('#main [data-workspace-create-open]').click();
+  const title = `Form navigation ${randomUUID()}`;
+  await page.locator('#workspace-title').fill(title);
+  let saves = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && new URL(request.url()).pathname === '/spaces')
+      saves++;
+  });
+  await page.getByRole('button', { name: 'Create space', exact: true }).click();
+  await expect(page).toHaveURL(/\/space\//);
+  await expect(page.locator('h1')).toContainText(title);
+  expect(saves).toBe(1);
+  await persistent(page);
+
+  await open(page, '/spaces');
+  await page.locator('#main [data-workspace-create-open]').click();
+  await page.locator('#workspace-title').fill('Keep an unconfirmed draft');
+  await page.route('**/spaces', (route) =>
+    route.request().method() === 'POST'
+      ? route.fulfill({ status: 503, body: 'Unavailable' })
+      : route.continue(),
+  );
+  await page.getByRole('button', { name: 'Create space', exact: true }).click();
+  await expect(page.locator('.navigation-error')).toContainText(
+    'save could not be confirmed',
+  );
+  await expect(page.locator('#workspace-title')).toHaveValue('Keep an unconfirmed draft');
+  await expect(
+    page.getByRole('button', { name: 'Create space', exact: true }),
+  ).toBeEnabled();
+  expect(saves).toBe(2);
+  await persistent(page);
+});
+
+test('cached lists open through HTMX offline and uncached screens keep the current page', async ({
+  page,
+  context,
+  browserName,
+}) => {
+  // Playwright's service-worker network emulation is supported on Chromium.
+  // https://playwright.dev/docs/service-workers
+  test.skip(
+    browserName !== 'chromium',
+    'Service-worker offline emulation requires Chromium',
+  );
+  await signin(page);
+  const listURL = page.url();
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    if (!navigator.serviceWorker.controller)
+      await new Promise((resolve) =>
+        navigator.serviceWorker.addEventListener('controllerchange', resolve, {
+          once: true,
+        }),
+      );
+  });
+  await open(page, listURL);
+  await expect
+    .poll(() =>
+      page.evaluate(async (url) => {
+        for (const key of await caches.keys()) {
+          if (
+            key.startsWith('todoer-page-') &&
+            (await (await caches.open(key)).match(url))
+          )
+            return true;
+        }
+        return false;
+      }, listURL),
+    )
+    .toBe(true);
+  await open(page, '/settings');
+  await context.setOffline(true);
+  await open(page, listURL);
+  await expect(page).toHaveURL(listURL);
+  await expect(page.locator('#task-list')).toBeVisible();
+  await open(page, '/today');
+  await expect(page).toHaveURL(listURL);
+  await expect(page.locator('.navigation-error')).toBeVisible();
+  await persistent(page);
+});
+
+test('Back restores page scroll and forward navigation starts at the top', async ({
+  page,
+}) => {
+  await signin(page);
+  await page.evaluate(() => {
+    const sheet = [...document.styleSheets].find(
+      (sheet) => sheet.href && new URL(sheet.href).origin === location.origin,
+    );
+    sheet.insertRule('#main { min-height: 2400px; }', sheet.cssRules.length);
+  });
+  await page.evaluate(() => scrollTo(0, 750));
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(750);
+  await open(page, '/today');
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
+  await page.goBack();
+  await expect(page.locator('#task-list')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(750);
+  await persistent(page);
+});
+
+test('expired authentication keeps the current capture draft and offers sign-in', async ({
+  page,
+  context,
+}) => {
+  await signin(page);
+  const listURL = page.url();
+  await page.locator('#capture-open').click();
+  await page.locator('#capture-title').fill('Draft across an expired session');
+  await context.clearCookies();
+  await open(page, '/today');
+  await expect(page).toHaveURL(listURL);
+  await expect(page.locator('#capture-title')).toHaveValue(
+    'Draft across an expired session',
+  );
+  await expect(page.locator('.navigation-error')).toContainText('Your session ended');
+  await expect(page.locator('.navigation-error a')).toHaveAttribute(
+    'href',
+    /\/signin\?next=/,
+  );
   await persistent(page);
 });
