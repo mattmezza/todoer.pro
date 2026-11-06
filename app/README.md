@@ -44,7 +44,8 @@ consistent.
 
 Task and subtask rows show quiet comment and subtask counts when nonzero, before
 the row menu where available. The same indicators appear in Inbox, Today,
-calendar, search, task pages and panels. Comments exclude deleted entries;
+calendar, search, and subtask rows within task pages and panels. Task detail
+headers do not show counts. Comments exclude deleted entries;
 subtasks count immediate live children, excluding archives and trash. Counts
 arrive with the existing row reads and update through the existing live refresh.
 Subtask rows support the same configured mobile swipe actions and Undo as lists.

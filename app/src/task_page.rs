@@ -23,8 +23,6 @@ struct Child {
 #[derive(Template)]
 #[template(path = "task-page.html")]
 struct TaskPage {
-    comment_count: u64,
-    subtask_count: u64,
     sidebar: Sidebar,
     task: Task,
     public_reference: String,
@@ -208,10 +206,7 @@ async fn page(
                 "SELECT COALESCE(MAX(h.seq),0) FROM history h JOIN actor_list_access a ON a.list_id=h.list_id WHERE a.actor_id=?1",
                 [&a], |row| row.get(0),
             )?;
-            let counts = db.task_counts(&a, &[task.id.as_str()])?.get(&task.id).copied().unwrap_or_default();
             Ok(TaskPage {
-                comment_count: counts.comments,
-                subtask_count: counts.subtasks,
                 list_color: db.list_color(&a, &task.list_id)?.unwrap_or_else(|| "blue".into()),
                 change_cursor,
                 public_reference,

@@ -66,16 +66,6 @@ for (const width of [390, 1280]) {
         Math.abs(badge.y + badge.height / 2 - menu.y - menu.height / 2),
       ).toBeLessThan(5);
     };
-    const assertRootPosition = async (root) => {
-      const badge = await root
-        .locator('[data-root-indicators] .task-comment-count')
-        .boundingBox();
-      const menu = await root.locator('.task-context-menu > summary').boundingBox();
-      expect(badge.x + badge.width).toBeLessThanOrEqual(menu.x + 1);
-      expect(
-        Math.abs(badge.y + badge.height / 2 - menu.y - menu.height / 2),
-      ).toBeLessThan(5);
-    };
     await assertPosition(row(parent), '.task-menu');
     // The indicator is part of the existing row hit area.
     await page.waitForFunction(() => document.body.dataset.ready === 'true');
@@ -87,16 +77,10 @@ for (const width of [390, 1280]) {
       subtask.getByRole('img', { name: '1 subtask', exact: true }),
     ).toBeVisible();
     await expect(
-      panel
-        .locator('[data-root-indicators]')
-        .getByRole('img', { name: '2 comments', exact: true }),
-    ).toBeVisible();
-    await expect(
-      panel
-        .locator('[data-root-indicators]')
-        .getByRole('img', { name: '1 subtask', exact: true }),
-    ).toBeVisible();
-    await assertRootPosition(panel);
+      panel.locator(
+        '.panel-heading-tools .task-indicators, .task-page-heading .task-indicators',
+      ),
+    ).toHaveCount(0);
     await assertPosition(
       subtask,
       ':scope > .task-page-child-line > .task-child-menu > summary',
@@ -115,12 +99,7 @@ for (const width of [390, 1280]) {
     await expect(
       pageChild.getByRole('img', { name: '1 subtask', exact: true }),
     ).toBeVisible();
-    await expect(
-      page
-        .locator('[data-root-indicators]')
-        .getByRole('img', { name: '1 subtask', exact: true }),
-    ).toBeVisible();
-    await assertRootPosition(page.locator('[data-task-page]'));
+    await expect(page.locator('.task-page-heading .task-indicators')).toHaveCount(0);
     await assertPosition(
       pageChild,
       ':scope > .task-page-child-line > .task-child-menu > summary',

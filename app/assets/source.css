@@ -13699,8 +13699,7 @@ html.page-loading::after {
 }
 
 /* Quiet indicators share one slot immediately before task actions. */
-.task-indicators,
-[data-root-indicators] {
+.task-indicators {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -13736,9 +13735,6 @@ html.page-loading::after {
   position: absolute;
   top: 0;
   right: 0;
-}
-[data-root-indicators]:empty {
-  display: none;
 }
 .calendar-month-task .task-indicators {
   margin-left: 6px;
@@ -13779,14 +13775,6 @@ html.page-loading::after {
   width: 12px;
   height: 12px;
 }
-@media (max-width: 640px) {
-  .dedicated-task-page .task-page-heading > [data-root-indicators] {
-    position: absolute;
-    top: calc(-63px - env(safe-area-inset-top));
-    right: 92px;
-  }
-}
-
 @media (max-width: 700px) {
   .calendar-month-task {
     flex-wrap: wrap;

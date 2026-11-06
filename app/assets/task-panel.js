@@ -120,12 +120,7 @@ export function createTaskPanel({
       choices.className = 'panel-priority-options';
       picker.append(choices);
       reprio.append(picker);
-      tools.append(
-        reprio,
-        openPage,
-        task.querySelector('[data-root-indicators]'),
-        task.querySelector('.task-context-menu'),
-      );
+      tools.append(reprio, openPage, task.querySelector('.task-context-menu'));
       function selectPriority(priority) {
         task.dataset.priority = String(priority);
         const labels = ['Highest', 'High', 'Medium', 'Low'];
