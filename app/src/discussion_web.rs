@@ -566,6 +566,86 @@ mod tests {
         (status, serde_json::from_slice(&bytes).unwrap())
     }
     #[tokio::test]
+    async fn posted_paste_renders_inline_and_never_appears_in_task_files() {
+        let (app, state, task) = app(None);
+        let attachment = {
+            let mut db = state.store.lock().unwrap();
+            let intent = db
+                .create_upload_intent(
+                    "dev",
+                    &task,
+                    UploadInput {
+                        comment_draft: true,
+                        comment_id: None,
+                        filename: "pasted.png".into(),
+                        size: 5,
+                        sha256: crate::object_storage::sha256_hex(b"hello"),
+                    },
+                )
+                .unwrap();
+            db.finalize_attachment(
+                "dev",
+                crate::object_storage::VerifiedObject::synthetic(&intent),
+            )
+            .unwrap()
+        };
+        let (_, files) = request(
+            &app,
+            "GET",
+            &format!("/api/v1/tasks/{task}/attachments"),
+            Value::Null,
+            None,
+        )
+        .await;
+        assert_eq!(files, json!([]));
+        let image_url = format!("/api/v1/attachments/{}/preview", attachment.id);
+        let payload = json!({"body":format!("Some context\n\n![pasted.png]({image_url})"),"attachment_ids":[attachment.id]});
+        let path = format!("/api/v1/tasks/{task}/comments");
+        let (status, comment) =
+            request(&app, "POST", &path, payload.clone(), Some("pasted-comment")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            request(&app, "POST", &path, payload, Some("pasted-comment"))
+                .await
+                .1["id"],
+            comment["id"]
+        );
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/fragments/tasks/{task}/discussion"))
+                    .header("authorization", format!("Bearer {TOKEN}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let html = String::from_utf8(
+            response
+                .into_body()
+                .collect()
+                .await
+                .unwrap()
+                .to_bytes()
+                .to_vec(),
+        )
+        .unwrap();
+        let task_files = html.split("</section><h3").next().unwrap();
+        assert!(!task_files.contains("pasted.png"), "{task_files}");
+        assert!(html.contains(&format!("src=\"{image_url}\"")), "{html}");
+        let (_, files) = request(
+            &routes().with_state(state),
+            "GET",
+            &format!("/api/v1/tasks/{task}/attachments"),
+            Value::Null,
+            None,
+        )
+        .await;
+        assert_eq!(files[0]["comment_id"], comment["id"]);
+    }
+
+    #[tokio::test]
     async fn comment_routes_are_idempotent_revision_checked_and_render_sanitized_markdown() {
         let (app, state, task) = app(None);
         let path = format!("/api/v1/tasks/{task}/comments");
