@@ -96,9 +96,10 @@ for (const mode of ['drop', 'paste', 'comment-paste', 'existing-comment-paste'])
             ? panel.getByLabel('Add a comment')
             : panel;
       await target.evaluate((element, clipboardData) => {
-        element.dispatchEvent(
-          new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }),
-        );
+        const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
+        // Firefox ignores clipboardData in the synthetic ClipboardEvent constructor.
+        Object.defineProperty(event, 'clipboardData', { value: clipboardData });
+        element.dispatchEvent(event);
       }, data);
       if (mode === 'comment-paste') {
         await expect(panel.locator('[data-file-selection]')).toContainText(
