@@ -42,13 +42,15 @@ impl Store {
             if let Some(date) = metadata.planned_date {
                 schedule.planned = Some(crate::scheduling::Moment::Date { date });
             }
-            write.set_schedule_with_duration(
-                actor,
-                &item.id,
-                item.revision,
-                schedule,
-                metadata.duration_minutes.map(Some),
-            )?;
+            write.set_schedule(actor, &item.id, item.revision, schedule)?;
+            if let Some(minutes) = metadata.duration_minutes {
+                if minutes > 5_256_000 {
+                    return Err(Error::Invalid(
+                        "Duration must be between 0 and 5256000 minutes".into(),
+                    ));
+                }
+                write.conn.execute("INSERT INTO task_durations(task_id,minutes) VALUES(?1,?2) ON CONFLICT(task_id) DO UPDATE SET minutes=excluded.minutes", params![item.id, minutes])?;
+            }
             item = crate::core::task(&write.conn, &item.id)?;
         }
         if !metadata.tags.is_empty() {
