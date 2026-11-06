@@ -1,0 +1,7 @@
+<dialog class="about-dialog" aria-label="About Todoer" x-data="aboutDialog" x-on:click.document="openFromTrigger" x-on:close="closed">
+  <button type="button" class="about-close" aria-label="Close About" x-on:click="close"><svg class="ui-icon" width="18" height="18" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg></button>
+  <div class="about-logo todoer-logo" aria-label="Todoer Pro"><span class="todoer-logo-word"><span class="logo-expanded">todoer</span><span class="logo-collapsed">t</span></span><span class="todoer-logo-pro">pro</span></div>
+  <p class="about-tagline">Get things done, like a pro!</p>
+  <p class="about-creator">Made with <span aria-label="love">♥</span> by <a href="https://matteo.merola.co" target="_blank" rel="noopener">Matteo Merola <span class="about-handle">(@mattmezza)</span></a></p>
+  <footer><a href="https://matteo.merola.co/software" target="_blank" rel="noopener">Merola Software &amp; Services</a><address>Wartauweg 19, 8049 Zurich<br>Switzerland</address><p class="about-release" aria-live="polite" x-ref="release"><span x-text="release"></span></p></footer>
+</dialog>

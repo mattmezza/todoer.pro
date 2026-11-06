@@ -24,6 +24,50 @@ async function navigate(page, path) {
   await expect(page.locator('#main')).not.toHaveAttribute('aria-busy', 'true');
 }
 
+test('About ignores a closed dialog response and remains usable after navigation', async ({
+  page,
+}) => {
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await signin(page);
+  let releaseFirst;
+  const waiting = new Promise((resolve) => (releaseFirst = resolve));
+  let requests = 0;
+  await page.route('**/api/v1/capabilities', async (route) => {
+    const request = ++requests;
+    if (request === 1) await waiting;
+    await route.fulfill({
+      status: request === 2 ? 503 : 200,
+      json: { version: request === 1 ? 'stale-version' : '9.8.7' },
+    });
+  });
+  const menu = page.locator('.account-menu > summary');
+  const dialog = page.getByRole('dialog', { name: 'About Todoer' });
+  const open = async () => {
+    await menu.click();
+    await page.getByRole('button', { name: 'About', exact: true }).click();
+    await expect(dialog).toBeVisible();
+  };
+  await open();
+  await expect(dialog.locator('.about-release')).toHaveAttribute('aria-busy', 'true');
+  await dialog.getByRole('button', { name: 'Close About' }).click();
+  await expect(menu).toBeFocused();
+  await open();
+  await expect(dialog).toContainText('Release information unavailable');
+  const lateResponse = page.waitForResponse('**/api/v1/capabilities');
+  releaseFirst();
+  await lateResponse;
+  await expect(dialog).toContainText('Release information unavailable');
+  await page.keyboard.press('Escape');
+  await navigate(page, '/spaces');
+  await open();
+  await expect(dialog).toContainText('Release v9.8.7');
+  await expect(dialog.locator('.about-release')).not.toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('.about-dialog')).toHaveCount(1);
+  expect(requests).toBe(3);
+  expect(errors).toEqual([]);
+});
+
 test('list dialog keeps manual colors, drafts and focus across errors and swaps', async ({
   page,
 }) => {

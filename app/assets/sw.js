@@ -18,6 +18,7 @@ const STATIC = [
   '/assets/app.js',
   '/assets/site.js',
   '/assets/alpine.js',
+  '/assets/about-dialog.js',
   '/assets/menu.js',
   '/assets/dialog.js',
   '/assets/confirmation-dialog.js',

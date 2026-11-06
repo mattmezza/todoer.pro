@@ -639,7 +639,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
           menu.className = 'entity-menu task-child-menu';
           menu.setAttribute('x-data', 'dismissibleMenu');
           menu.setAttribute('x-on:click.outside', 'close');
-          menu.setAttribute('x-on:keydown.escape.window', 'escape');
+          menu.setAttribute('x-on:keydown.escape.window.capture', 'escape');
           const summary = document.createElement('summary');
           summary.setAttribute('aria-label', `Actions for ${child.title}`);
           summary.innerHTML =
