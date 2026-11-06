@@ -195,44 +195,7 @@ onPageLoad((scope) => {
   scope.listen(document.body, 'htmx:response:error', () =>
     notice('Could not refresh tasks. Try again.', true),
   );
-  // One preference per account, shared by every list in this browser.
-  const completedPreferenceKey = `todoer:${account}:hide-completed`;
-  const completedFilter = $('#show-completed');
-  const completedCookieAccount = [...new TextEncoder().encode(account)]
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
-  function syncCompletedCookie(hidden) {
-    document.cookie = `todoer_completed=${completedCookieAccount}.${hidden ? '1' : '0'}; Path=/; Max-Age=31536000; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
-  }
-  function applyCompletedPreference(hidden) {
-    completedFilter.checked = !hidden;
-    $('#task-list').classList.toggle('hide-completed', hidden);
-  }
-  let initiallyHidden = false;
-  try {
-    initiallyHidden = localStorage.getItem(completedPreferenceKey) === 'true';
-    applyCompletedPreference(initiallyHidden);
-  } catch {
-    applyCompletedPreference(false);
-  }
-  syncCompletedCookie(initiallyHidden);
-  if ($('#task-list').dataset.hideCompleted === 'true' && !initiallyHidden) refresh();
-  completedFilter.onchange = () => {
-    const hidden = !completedFilter.checked;
-    applyCompletedPreference(hidden);
-    syncCompletedCookie(hidden);
-    try {
-      localStorage.setItem(completedPreferenceKey, String(hidden));
-    } catch {
-      // Keep filtering usable when browser storage is unavailable.
-    }
-    refresh();
-  };
-  scope.listen(window, 'storage', (event) => {
-    if (event.key !== completedPreferenceKey && event.key !== null) return;
-    applyCompletedPreference(event.newValue === 'true');
-    completedFilter.dispatchEvent(new Event('change'));
-  });
+  scope.listen(main, 'todoer:completed-filter', () => refresh());
 
   $('#quick-add').onclick = () => {
     $('#capture-form').hidden = false;

@@ -122,22 +122,6 @@ export function mountListUi({ api, notice, listId }) {
     palette.element.classList.add('heading-list-color');
     swatch.replaceWith(palette.element);
   }
-  const completedCheck = document.querySelector('#show-completed');
-  function updateCompletedLabel() {
-    for (const button of document.querySelectorAll('[data-toggle-completed]')) {
-      const icon = button.querySelector('svg');
-      button.replaceChildren();
-      if (icon) button.append(icon);
-      button.append(
-        document.createTextNode(
-          completedCheck.checked ? 'Hide completed' : 'Show completed',
-        ),
-      );
-      button.setAttribute('aria-pressed', String(completedCheck.checked));
-    }
-  }
-  scope.listen(completedCheck, 'change', updateCompletedLabel);
-  if (completedCheck) updateCompletedLabel();
   const closeMenus = () =>
     document
       .querySelectorAll('.entity-menu[open],.task-actions[open]')
@@ -198,12 +182,6 @@ export function mountListUi({ api, notice, listId }) {
     if (event.target.closest('[data-section-add-cancel]')) {
       sectionCreate.hidden = true;
       document.querySelector('[data-section-add-open]').hidden = false;
-    }
-    if (event.target.closest('[data-toggle-completed]')) {
-      const check = document.querySelector('#show-completed');
-      check.checked = !check.checked;
-      check.dispatchEvent(new Event('change'));
-      closeMenus();
     }
     if (event.target.closest('[data-list-settings-open],[data-list-sharing-open]')) {
       closeMenus();

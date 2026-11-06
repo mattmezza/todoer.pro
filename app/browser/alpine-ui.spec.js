@@ -146,6 +146,45 @@ test('confirmation requests stay queued and settle when their page is replaced',
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
+test('completed-task visibility persists, filters server HTML and synchronizes tabs', async ({
+  page,
+  context,
+}) => {
+  await signin(page);
+  const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
+  const title = `Alpine completed ${randomUUID()}`;
+  const captured = await page.request.post('/api/v1/capture', {
+    headers: { 'X-CSRF-Token': csrf, 'Idempotency-Key': randomUUID() },
+    data: { list_id: 'inbox', tasks: [{ title }] },
+  });
+  expect(captured.ok()).toBeTruthy();
+  const [task] = await captured.json();
+  const completed = await page.request.patch(`/api/v1/tasks/${task.id}`, {
+    headers: { 'X-CSRF-Token': csrf },
+    data: { revision: task.revision, complete: true },
+  });
+  expect(completed.ok()).toBeTruthy();
+  await navigate(page, '/lists/inbox');
+  const row = page.locator(`[data-id="${task.id}"]`);
+  await expect(row).toBeVisible();
+  await page.locator('.page-heading .entity-menu > summary').click();
+  await page.getByRole('button', { name: 'Hide completed', exact: true }).click();
+  await expect(row).not.toBeVisible();
+  const fragment = await page.request.get('/fragments/lists/inbox/tasks');
+  expect(await fragment.text()).not.toContain(title);
+
+  const other = await context.newPage();
+  await other.goto(new URL('/lists/inbox', page.url()).href);
+  await expect(other.locator('[data-toggle-completed]')).toHaveText('Show completed');
+  await expect(other.locator(`[data-id="${task.id}"]`)).toHaveCount(0);
+  await other.locator('.page-heading .entity-menu > summary').click();
+  await other.getByRole('button', { name: 'Show completed', exact: true }).click();
+  await expect(other.locator(`[data-id="${task.id}"]`)).toBeVisible();
+  await expect(row).toBeVisible();
+  await expect(page.locator('[data-toggle-completed]')).toHaveText('Hide completed');
+  await other.close();
+});
+
 test('search renders plain text, tracks keyboard selection and reopens after navigation', async ({
   page,
 }) => {

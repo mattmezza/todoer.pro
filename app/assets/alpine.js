@@ -1,4 +1,5 @@
 import Alpine from './alpine-csp.min.js';
+import { listPreferences } from './list-preferences.js';
 import { dismissibleMenu } from './menu.js';
 import { searchOmnibar } from './search-dialog.js';
 import { confirmationDialog } from './confirmation-dialog.js';
@@ -15,6 +16,7 @@ import { calendarPreferences, playPreferences } from './general-settings.js';
 
 Alpine.data('dismissibleMenu', dismissibleMenu);
 Alpine.data('searchOmnibar', searchOmnibar);
+Alpine.data('listPreferences', listPreferences);
 Alpine.data('listColorPicker', listColorPicker);
 Alpine.data('listCreateDialog', listCreateDialog);
 Alpine.data('calendarPreferences', calendarPreferences);
