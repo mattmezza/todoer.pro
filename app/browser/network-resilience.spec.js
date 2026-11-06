@@ -50,18 +50,34 @@ test('Inbox queues failed captures and retries refresh', async ({ page }) => {
   ).toBeVisible();
   expect(calls).toBe(1);
   const inboxRoute = /\/api\/v1\/inbox(?:\?.*)?$/;
-  await page.route(inboxRoute, (route) => route.abort('failed'));
+  // Keep background refreshes failed until the actual retry click. Otherwise
+  // polling can heal the error and remove the button between unroute and click.
+  await page.evaluate(() => {
+    window.allowInboxRetry = false;
+    document.addEventListener(
+      'click',
+      (event) => {
+        if (event.target.closest('button')?.textContent.trim() === 'Try again')
+          window.allowInboxRetry = true;
+      },
+      { capture: true },
+    );
+  });
+  await page.route(inboxRoute, async (route) => {
+    if (await page.evaluate(() => window.allowInboxRetry)) await route.continue();
+    else await route.abort('failed');
+  });
   await page.evaluate(() =>
     document.dispatchEvent(new Event('todoer:workbench-refresh')),
   );
   await expect(
     page.getByRole('button', { name: 'Try again', exact: true }),
   ).toBeVisible();
-  await page.unroute(inboxRoute);
   await page.getByRole('button', { name: 'Try again', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Try again', exact: true })).toHaveCount(
     0,
   );
+  await page.unrouteAll({ behavior: 'wait' });
 });
 test('network helper never retries an uncertain write and preserves cancellation', async ({
   page,
