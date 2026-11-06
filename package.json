@@ -15,6 +15,7 @@
     "tailwindcss": "4.3.1"
   },
   "dependencies": {
+    "@alpinejs/csp": "3.17.5",
     "htmx.org": "4.0.1"
   },
   "overrides": {

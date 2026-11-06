@@ -5,9 +5,10 @@ help: ## List commands
 setup: ## Install locked frontend dependencies and fetch Rust crates
 	npm ci
 	cargo fetch --locked
-assets: ## Compile app styles and self-host htmx
+assets: ## Compile app styles and self-host frontend libraries
 	npm run assets
 	node scripts/prepare-htmx.mjs
+	node scripts/prepare-alpine.mjs
 dev: dev-env assets ## Run local app (set TODOER_DEV_AUTH=1 and TODOER_DEV_TOKEN)
 	mkdir -p .local/rebuild
 	cargo run --locked --bin todoer-server

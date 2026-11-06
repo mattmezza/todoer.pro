@@ -10,6 +10,9 @@ license; the project license does not replace those terms.
   are retained in `app/assets/heroicons-LICENSE.txt` and `heroicons-sources.json`.
 - `app/assets/htmx.min.js`: htmx, copyright Big Sky Software, MIT;
   full notice retained in `app/assets/htmx.LICENSE`.
+- `app/assets/alpine-csp.min.js`: Alpine.js CSP build, copyright Caleb Porzio,
+  including Vue reactivity/shared, copyright Yuxi (Evan) You and Vue contributors,
+  MIT; full notices retained in `app/assets/alpine.LICENSE`.
 - Rust and npm dependencies retain the licenses and notices in their packages;
   exact versions are recorded in Cargo.lock and package-lock.json.
 - Legacy reference assets and browser-extension dependencies retain any upstream
