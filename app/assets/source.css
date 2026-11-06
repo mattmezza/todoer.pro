@@ -1782,7 +1782,7 @@ input[type='checkbox'] {
 .workspace-header h1 {
   overflow-wrap: anywhere;
 }
-.dedicated-task-page main {
+.dedicated-task-page > main {
   padding: 32px max(28px, calc((100vw - 248px - 1216px) / 2));
 }
 .task-page-heading {
@@ -1994,7 +1994,7 @@ input[type='checkbox'] {
   gap: 10px;
 }
 @media (max-width: 640px) {
-  .dedicated-task-page main {
+  .dedicated-task-page > main {
     padding: 28px 20px calc(100px + env(safe-area-inset-bottom));
   }
   .task-page .breadcrumbs {
@@ -5240,7 +5240,7 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
   margin-left: 0;
 }
 @media (max-width: 640px) {
-  .dedicated-task-page main.task-page {
+  .dedicated-task-page > main.task-page {
     padding-left: 52px;
   }
 }
@@ -5309,14 +5309,14 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
   border-left: 1px solid #1e293b;
   z-index: 45;
 }
-.dedicated-task-page main.task-page {
+.dedicated-task-page > main.task-page {
   padding-left: max(52px, calc((100vw - 248px - 1216px) / 2));
 }
 @media (min-width: 1000px) {
   .task-settings-docked-open {
     --task-dock-width: 440px;
   }
-  .task-settings-docked-open main.task-page {
+  .task-settings-docked-open > main.task-page {
     margin-right: var(--task-dock-width);
     padding-right: 28px;
   }
@@ -5598,6 +5598,7 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
 .planning-detail-content .task-page {
   padding: 22px 0 0 30px;
   margin: 0;
+  min-height: 0;
   width: auto;
   max-width: none;
   font-size: 14px;
@@ -6770,8 +6771,8 @@ body:has(dialog[open]) .fun-task-stack,
     width: var(--task-dock-width);
   }
   body.task-settings-docked-open > main,
-  body.task-settings-docked-open main.task-page,
-  body.task-settings-docked-open main:not(.task-page) {
+  body.task-settings-docked-open > main.task-page,
+  body.task-settings-docked-open > main:not(.task-page) {
     margin-left: var(--task-dock-width);
     margin-right: var(--task-dock-width);
     padding-left: max(64px, calc((100vw - 720px - 1100px) / 2));
@@ -6937,10 +6938,10 @@ body:has(.quiet-info) .task-play {
     transition: width 260ms cubic-bezier(0.22, 0.8, 0.25, 1);
   }
   body > main,
-  body main.task-page,
+  body > main.task-page,
   body.task-settings-docked-open > main,
-  body.task-settings-docked-open main.task-page,
-  body.task-settings-docked-open main:not(.task-page) {
+  body.task-settings-docked-open > main.task-page,
+  body.task-settings-docked-open > main:not(.task-page) {
     margin-left: var(--navigation-width);
     transition:
       margin-left 260ms cubic-bezier(0.22, 0.8, 0.25, 1),
@@ -6951,8 +6952,8 @@ body:has(.quiet-info) .task-play {
     --task-dock-width: 440px;
   }
   body.task-settings-docked-open > main,
-  body.task-settings-docked-open main.task-page,
-  body.task-settings-docked-open main:not(.task-page) {
+  body.task-settings-docked-open > main.task-page,
+  body.task-settings-docked-open > main:not(.task-page) {
     margin-right: var(--task-dock-width);
     padding-inline: max(52px, calc((100vw - 520px - 1100px) / 2));
   }
@@ -7028,7 +7029,7 @@ body:has(.quiet-info) .task-play {
 @media (prefers-reduced-motion: reduce) {
   body #navigation,
   body > main,
-  body main.task-page {
+  body > main.task-page {
     transition: none !important;
   }
 }
@@ -13177,24 +13178,24 @@ body > .planning-detail-dismiss {
 
 /* Phone task pages reserve a compact toolbar above the task title. */
 @media (max-width: 640px) {
-  .dedicated-task-page main.task-page {
+  .dedicated-task-page > main.task-page {
     position: relative;
     padding-top: calc(92px + env(safe-area-inset-top));
   }
-  .dedicated-task-page .task-page > .breadcrumbs {
+  .dedicated-task-page > .task-page > .breadcrumbs {
     display: none;
   }
-  .dedicated-task-page .task-page-heading > .task-context-menu {
+  .dedicated-task-page > .task-page .task-page-heading > .task-context-menu {
     position: absolute;
     top: calc(-72px - env(safe-area-inset-top));
     right: 40px;
   }
-  .dedicated-task-page .task-page-heading > .notification-bell-inline {
+  .dedicated-task-page > .task-page .task-page-heading > .notification-bell-inline {
     position: absolute;
     top: calc(-68px - env(safe-area-inset-top));
     right: 0;
   }
-  .dedicated-task-page .task-page > .task-due-summary:not([hidden]) {
+  .dedicated-task-page > .task-page > .task-due-summary:not([hidden]) {
     position: absolute;
     top: calc(28px + env(safe-area-inset-top));
     left: 20px;
@@ -13202,22 +13203,22 @@ body > .planning-detail-dismiss {
     min-height: 36px;
     justify-content: center;
   }
-  .dedicated-task-page .task-date-summary {
+  .dedicated-task-page > .task-page .task-date-summary {
     display: none;
   }
-  .dedicated-task-page .task-priority-summary {
+  .dedicated-task-page > .task-page .task-priority-summary {
     gap: 0;
     border-radius: 8px;
     font-size: 0;
   }
-  .dedicated-task-page .task-priority-summary .ui-icon {
+  .dedicated-task-page > .task-page .task-priority-summary .ui-icon {
     display: none;
   }
-  .dedicated-task-page .task-priority-summary::after {
+  .dedicated-task-page > .task-page .task-priority-summary::after {
     content: 'P' attr(data-priority);
     font-size: 14px;
   }
-  .dedicated-task-page .task-page .task-page-brief {
+  .dedicated-task-page > .task-page .task-page-brief {
     margin-top: 20px;
   }
 
@@ -13467,7 +13468,7 @@ body > .planning-detail-dismiss {
   cursor: pointer;
 }
 @media (min-width: 1100px) {
-  .reference-list-page.planning-detail-open > main {
+  :is(.reference-list-page, .dedicated-task-page).planning-detail-open > main {
     margin-right: min(600px, 48vw);
   }
 }
@@ -13955,6 +13956,24 @@ body form.entry-form:not([hidden]) :is(input, textarea):focus-visible {
     :is(input:not([type]), input[type='text'], textarea) {
     font-size: 16px;
   }
+}
+
+/* Subtask rows use the same hover affordance as task rows. */
+.task-page [data-children] .task-page-child {
+  padding-inline: 12px;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .task-page [data-children] .task-page-child:hover:not(:has(.task-page-child:hover)) {
+    background: var(--hover);
+    border-radius: 8px;
+  }
+}
+.task-page
+  [data-children]
+  .task-page-child:focus-within:not(:has(.task-page-child:focus-within)) {
+  background: var(--hover);
+  border-radius: 8px;
 }
 
 /* Reserve row width for active editors. */

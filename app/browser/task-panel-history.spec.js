@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
-for (const width of [390, 1280]) {
+for (const width of [390, 1280, 1680]) {
   test(`task panels use one history entry and subtask rows share the flow at ${width}px`, async ({
     page,
   }) => {
@@ -87,10 +87,71 @@ for (const width of [390, 1280]) {
     // The same row hit area opens a panel on the dedicated task page.
     await page.goto(`/tasks/${parent.id}`);
     const taskURL = page.url();
-    await page
-      .locator(`main [data-child-id="${child.id}"] > [data-child-description]`)
-      .click();
+    const childRow = page.locator(`body > main [data-child-id="${child.id}"]`);
+    await expect(childRow).toHaveAttribute('data-complete', 'false');
+    const grandchildRow = childRow.locator(`[data-child-id="${grandchild.id}"]`);
+    const canHover = await page.evaluate(() => matchMedia('(hover: hover)').matches);
+    const highlight = async (row) => {
+      if (canHover) await row.locator(':scope > [data-child-description]').hover();
+      else await row.locator(':scope > .task-page-child-line > a').focus();
+    };
+    await highlight(childRow);
+    await expect(childRow).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    const hoverColor = await childRow.evaluate(
+      (row) => getComputedStyle(row).backgroundColor,
+    );
+    await expect(childRow).toHaveCSS('border-top-left-radius', '8px');
+    await highlight(grandchildRow);
+    await expect(grandchildRow).toHaveCSS('background-color', hoverColor);
+    await expect(childRow).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await childRow.locator(':scope > [data-child-description]').click();
     await assertPanel(child.id);
+    // Embedded tasks must not inherit sidebar offsets or phone page toolbars.
+    const embedded = panel.locator('[data-task-page]');
+    await expect(embedded).toHaveCSS('margin-left', '0px');
+    await expect(embedded).toHaveCSS('margin-right', '0px');
+    await expect(embedded).toHaveCSS('padding-top', '0px');
+    await expect(embedded).toHaveCSS('min-height', '0px');
+    await expect
+      .poll(async () =>
+        panel.evaluate((aside) => {
+          const bounds = aside.getBoundingClientRect();
+          const title = aside
+            .querySelector('.task-page-heading h1')
+            .getBoundingClientRect();
+          return title.left - bounds.left;
+        }),
+      )
+      .toBeGreaterThanOrEqual(40);
+    await expect
+      .poll(async () =>
+        panel.evaluate((aside) => {
+          const bounds = aside.getBoundingClientRect();
+          const title = aside
+            .querySelector('.task-page-heading h1')
+            .getBoundingClientRect();
+          return title.left - bounds.left;
+        }),
+      )
+      .toBeLessThanOrEqual(80);
+    expect(await panel.evaluate((aside) => aside.scrollWidth <= aside.clientWidth)).toBe(
+      true,
+    );
+    if (width >= 1100) {
+      await expect
+        .poll(async () =>
+          page.evaluate(() => {
+            const background = document
+              .querySelector('body > main')
+              .getBoundingClientRect();
+            const panel = document
+              .querySelector('.planning-detail-panel')
+              .getBoundingClientRect();
+            return background.right - panel.left;
+          }),
+        )
+        .toBeLessThanOrEqual(1);
+    }
     await panel.locator('[data-child-composer] > summary').click();
     await panel
       .getByLabel('New sub-task', { exact: true })
