@@ -12572,7 +12572,7 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   }
 }
 @media (max-width: 640px) {
-  dialog:modal:not(.list-settings-panel):not(.search-omnibar) {
+  dialog:modal:not(.list-settings-panel):not(.search-omnibar):not(.capture-omnibar) {
     position: fixed;
     inset: 0;
     width: min(100% - 32px, 620px);
