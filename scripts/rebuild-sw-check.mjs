@@ -17,6 +17,21 @@ const context = vm.createContext({
   },
 });
 vm.runInContext(await readFile('app/assets/sw.js', 'utf8'), context);
+// Every static import needed by the shared UI must be available before offline
+// navigation, including components whose settings page has never been visited.
+const precached = new Set(vm.runInContext('STATIC', context));
+const moduleQueue = ['/assets/alpine.js'];
+const visitedModules = new Set();
+while (moduleQueue.length) {
+  const asset = moduleQueue.pop();
+  if (visitedModules.has(asset)) continue;
+  visitedModules.add(asset);
+  assert.ok(precached.has(asset), `Alpine dependency missing from precache: ${asset}`);
+  const source = await readFile(`app${asset}`, 'utf8');
+  for (const match of source.matchAll(/(?:from\s*|import\s*)['"](\.\/[^'"]+)['"]/g))
+    moduleQueue.push(new URL(match[1], `https://tasks.example.invalid${asset}`).pathname);
+}
+console.log(`Service-worker Alpine dependencies: all ${visitedModules.size} modules precached`);
 async function push(payload) {
   let work;
   handlers.get('push')({ data: { json: () => payload }, waitUntil: value => { work = value; } });

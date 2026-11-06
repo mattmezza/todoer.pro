@@ -27,6 +27,7 @@ const STATIC = [
   '/assets/alpine-csp.min.js',
   '/assets/list-create.js',
   '/assets/list-preferences.js',
+  '/assets/capture-preferences.js',
   '/assets/page-lifecycle.js',
   '/assets/page-navigation.js',
   '/assets/navigation.js',
