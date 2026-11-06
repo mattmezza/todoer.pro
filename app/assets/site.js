@@ -371,7 +371,7 @@ onPageLoad(async (scope) => {
       logo.classList.add('todoer-logo');
       logo.setAttribute('aria-label', 'Todoer Pro');
       logo.innerHTML =
-        '<span class="todoer-logo-word"><span class="logo-expanded">todoer</span><span class="logo-collapsed">t</span></span><span class="todoer-logo-pro">pro</span>';
+        '<span class="todoer-logo-word"><span class="logo-expanded">todoer</span><span class="logo-collapsed"><img src="/assets/icon192-v2.png" width="32" height="32" alt="" decoding="async"></span></span><span class="todoer-logo-pro">pro</span>';
     }
   }
   restoreOriginalLogos();

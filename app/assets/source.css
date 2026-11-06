@@ -6901,6 +6901,11 @@ body:has(.quiet-info) .task-play {
 .logo-collapsed {
   display: none;
 }
+.logo-collapsed img {
+  display: block;
+  width: 32px;
+  height: 32px;
+}
 
 .primary-navigation .nav-link,
 .settings-navigation .nav-link {
@@ -6969,7 +6974,7 @@ body:has(.quiet-info) .task-play {
     display: none;
   }
   .navigation-collapsed #navigation .logo-collapsed {
-    display: inline;
+    display: inline-block;
   }
   .navigation-collapsed #navigation .sidebar-scroll {
     padding-top: 48px;
