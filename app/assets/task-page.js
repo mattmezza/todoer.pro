@@ -155,9 +155,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
   let discussion,
     scheduling,
     metadata,
-    movePreview = null,
     moveTask = null,
-    moveKey = null,
     moveSequence = 0;
   const controllers = new Set();
   function notice(message, error = false) {
@@ -1136,28 +1134,14 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
   const moveDialog = get('[data-move-dialog]'),
     moveForm = get('[data-move-form]'),
     moveList = get('#task-move-list'),
-    moveSection = get('#task-move-section'),
-    ack = get('[data-move-ack]');
-  function invalidateMove() {
-    movePreview = null;
-    moveKey = null;
-    get('[data-apply-move]').hidden = true;
-    get('[data-move-error]').textContent = '';
-  }
+    moveSection = get('#task-move-section');
   async function inspectDestination() {
     const sequence = ++moveSequence;
-    invalidateMove();
-    ack.checked = false;
-    get('[data-move-ack-label]').hidden = true;
+    get('[data-move-error]').textContent = '';
     if (!moveList.value) return;
     const skeleton = beginLoading(moveForm, { variant: 'form' });
     try {
-      const [sections, audience] = await Promise.all([
-        api(`/lists/${encodeURIComponent(moveList.value)}/sections`),
-        api(
-          `/tasks/${encodeURIComponent(id)}/move-preview?destination=${encodeURIComponent(moveList.value)}`,
-        ),
-      ]);
+      const sections = await api(`/lists/${encodeURIComponent(moveList.value)}/sections`);
       if (sequence !== moveSequence || !alive) return;
       moveSection.replaceChildren(new Option('No section', ''));
       for (const section of sections)
@@ -1165,16 +1149,9 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
       const source = moveTask ?? task;
       if (moveList.value === source.list_id) moveSection.value = root.dataset.sectionId;
       moveSection.disabled = moveList.value === source.list_id && !!source.parent_id;
-      get('[data-move-audience]').textContent =
-        audience.destination_public && !audience.source_public
-          ? 'This move makes this task and all its sub-tasks publicly viewable. Review before moving.'
-          : audience.audience_broadens
-            ? `This destination adds access for ${audience.added_members} member(s). Review this before moving the all sub-tasks.`
-            : 'This destination adds no members who can access these sub-tasks.';
-      get('[data-move-ack-label]').hidden = !audience.audience_broadens;
-      if (moveSection.disabled)
-        get('[data-move-audience]').textContent +=
-          ' This child inherits its parent section. Choose another list, or use metadata to reparent it first.';
+      get('[data-move-audience]').textContent = moveSection.disabled
+        ? 'This child inherits its parent section. Choose another list, or use metadata to reparent it first.'
+        : '';
     } catch (error) {
       if (sequence === moveSequence) skeleton.fail(error.message, inspectDestination);
       get('[data-move-error]').textContent = error.message;
@@ -1184,7 +1161,6 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
   }
   get('[data-open-move]').onclick = async () => {
     if (busy || !canWrite) return;
-    invalidateMove();
     moveTask = { ...task };
     get('[data-move-error]').textContent = '';
     moveDialog.showModal();
@@ -1205,71 +1181,33 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
     }
   };
   moveList.addEventListener('change', inspectDestination);
-  moveSection.addEventListener('change', invalidateMove);
-  ack.addEventListener('change', invalidateMove);
   moveForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (busy || !canWrite) return;
-    if (!get('[data-move-ack-label]').hidden && !ack.checked) {
-      get('[data-move-error]').textContent =
-        'Review and acknowledge the added access before continuing.';
-      return;
-    }
     const release = beginWrite();
     try {
-      movePreview = await previewTaskMove(
+      const plan = await previewTaskMove(
         api,
         moveTask ?? task,
         moveList.value,
         moveSection.value,
-        ack.checked,
+        true,
       );
-      const audience = movePreview.steps.find(
-        (step) => step.access_change,
-      )?.access_change;
-      if (audience) {
-        get('[data-move-audience]').textContent =
-          audience.destination_public && !audience.source_public
-            ? 'This move makes this task and all its sub-tasks publicly viewable. Review before moving.'
-            : audience.audience_broadens
-              ? `Reviewed plan adds access for ${audience.added_members} member(s). Review this current audience before applying the exact plan.`
-              : 'The reviewed plan adds no members who can access these sub-tasks.';
-      }
-      moveKey = crypto.randomUUID();
-      get('[data-apply-move]').hidden = false;
-      get('[data-move-error]').textContent =
-        'Move reviewed. Apply this exact plan within ten minutes; changes to permissions or revisions require a new review.';
+      await api('/bulk/apply', 'POST', {
+        preview_id: plan.preview_id,
+        expected_hash: plan.expected_hash,
+        idempotency_key: crypto.randomUUID(),
+      });
+      remember();
+      moveDialog.close();
+      await refreshPage();
+      toast('Task moved.');
     } catch (error) {
-      invalidateMove();
       get('[data-move-error]').textContent = error.message;
     } finally {
       release();
     }
   });
-  get('[data-apply-move]').onclick = async () => {
-    if (busy || !movePreview) return;
-    if (!get('[data-move-ack-label]').hidden && !ack.checked) {
-      get('[data-move-error]').textContent =
-        'Acknowledge the reviewed audience before applying.';
-      return;
-    }
-    const plan = movePreview,
-      release = beginWrite();
-    try {
-      await api('/bulk/apply', 'POST', {
-        preview_id: plan.preview_id,
-        expected_hash: plan.expected_hash,
-        idempotency_key: moveKey,
-      });
-      remember();
-      navigate(`/tasks/${encodeURIComponent(id)}`);
-    } catch (error) {
-      get('[data-move-error]').textContent =
-        `${error.message} Review again if this plan is stale.`;
-    } finally {
-      release();
-    }
-  };
   get('.task-context-menu').addEventListener('click', (event) => {
     if (event.target.closest('button')) get('.task-context-menu').open = false;
   });

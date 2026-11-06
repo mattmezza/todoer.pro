@@ -37,34 +37,33 @@ async function fixture(request) {
   expect(r.ok(), await r.text()).toBe(true);
   return { source, destination, list, section, root, child };
 }
-async function review(page, f) {
+async function openMove(page, f) {
   await page.goto('/signin');
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
   await page.goto(`/lists/${f.list.id}/move`);
   await page
     .getByLabel('Destination workspace', { exact: true })
     .selectOption(f.destination.id);
-  await page.getByRole('button', { name: 'Preview move', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Move preview' })).toBeVisible();
 }
 for (const [name, width] of [
   ['phone', 390],
   ['desktop', 1440],
 ]) {
-  test(`${name}: native owner-reviewed move preserves nested tasks and section assignments`, async ({
+  test(`${name}: native move applies in one step and preserves nested tasks and section assignments`, async ({
     page,
     request,
   }) => {
     await page.setViewportSize({ width, height: 900 });
     const f = await fixture(request);
-    await review(page, f);
+    await openMove(page, f);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     ).toBe(true);
-    const button = page.getByRole('button', { name: 'Move list to reviewed workspace' });
+    const button = page.getByRole('button', { name: 'Move', exact: true });
     expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await button.click();
-    await expect(page).toHaveURL(new RegExp(`/lists/${f.list.id}/sharing$`));
+    await expect(page).toHaveURL(new RegExp(`/lists/${f.list.id}/move$`));
+    await expect(page.locator('.toast')).toHaveText('List moved.');
     const moved = await (
       await request.get(`/api/v1/lists/${f.list.id}`, { headers: auth })
     ).json();
@@ -86,24 +85,35 @@ for (const [name, width] of [
     expect(stale.status()).toBe(409);
   });
 }
-test('native stale review rejects new content and offers a fresh preview', async ({
+test('API move still rejects a stale snapshot; the form gets a fresh snapshot automatically', async ({
   page,
   request,
 }) => {
   const f = await fixture(request);
-  await review(page, f);
+  const preview = await post(request, `/lists/${f.list.id}/workspace-move/preview`, {
+    destination_workspace_id: f.destination.id,
+  });
   await post(request, '/capture', {
     list_id: f.list.id,
-    tasks: [{ title: 'Added after review', description: '', parent_id: null }],
+    tasks: [{ title: 'Added after snapshot', description: '', parent_id: null }],
   });
-  await page.getByRole('button', { name: 'Move list to reviewed workspace' }).click();
-  await expect(page.getByRole('heading', { name: 'Move not applied' })).toBeVisible();
+  const stale = await request.post(`/api/v1/lists/${f.list.id}/workspace-move`, {
+    headers: auth,
+    data: {
+      destination_workspace_id: f.destination.id,
+      list_revision: preview.list_revision,
+      source_workspace_revision: preview.source_workspace_revision,
+      destination_workspace_revision: preview.destination_workspace_revision,
+      policy_hash: preview.policy_hash,
+      acknowledge_access_change: true,
+    },
+  });
+  expect(stale.status()).toBe(409);
+  await openMove(page, f);
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await expect(page.locator('.toast')).toHaveText('List moved.');
   const current = await (
     await request.get(`/api/v1/lists/${f.list.id}`, { headers: auth })
   ).json();
-  expect(current.workspace_id).toBe(f.source.id);
-  await page.getByRole('link', { name: 'Review a fresh preview' }).click();
-  await expect(page.getByRole('region', { name: 'Move preview' })).toContainText(
-    '3 tasks',
-  );
+  expect(current.workspace_id).toBe(f.destination.id);
 });

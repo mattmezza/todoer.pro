@@ -560,23 +560,12 @@ export function mountListUi({ api, notice, listId }) {
     if (kind === 'task') field(form, 'Destination section', sections);
     const status = document.createElement('p');
     status.setAttribute('role', 'status');
-    const ackLabel = document.createElement('label');
-    const ack = document.createElement('input');
-    ack.type = 'checkbox';
-    ack.name = 'acknowledge_access_change';
-    ackLabel.append(
-      ack,
-      document.createTextNode(
-        'I reviewed the access change and want to share this content with the additional members.',
-      ),
-    );
-    ackLabel.hidden = true;
     const error = document.createElement('p');
     error.setAttribute('role', 'alert');
     const submit = document.createElement('button');
     submit.type = 'submit';
     submit.className = 'primary';
-    submit.textContent = 'Review move';
+    submit.textContent = 'Move';
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.textContent = 'Cancel';
@@ -584,13 +573,11 @@ export function mountListUi({ api, notice, listId }) {
     const actions = document.createElement('div');
     actions.className = 'inline-actions';
     actions.append(cancel, submit);
-    form.append(status, ackLabel, error, actions);
+    form.append(status, error, actions);
     dialog.append(form);
     dialog.showModal();
     const skeleton = beginLoading(form, { variant: 'form' });
-    let reviewed = null,
-      preview = null,
-      key = crypto.randomUUID();
+    const key = crypto.randomUUID();
     let choices = [];
     try {
       choices = await api(kind === 'list' ? '/workspaces' : '/lists');
@@ -615,11 +602,6 @@ export function mountListUi({ api, notice, listId }) {
       return;
     }
     async function changed() {
-      reviewed = null;
-      preview = null;
-      ack.checked = false;
-      ackLabel.hidden = true;
-      submit.textContent = 'Review move';
       status.textContent = '';
       if (kind === 'task') {
         const sectionLoading = beginLoading(form, { variant: 'form' });
@@ -652,101 +634,65 @@ export function mountListUi({ api, notice, listId }) {
       changed();
       if (!matches.length) status.textContent = 'No matching lists.';
     };
-    sections.onchange = () => {
-      reviewed = null;
-      preview = null;
-      submit.textContent = 'Review move';
-    };
     await changed();
     skeleton.finish();
     (kind === 'section' ? search : select).focus();
     form.onsubmit = async (event) => {
       event.preventDefault();
       if (submit.disabled) return;
+      const controls = [...form.querySelectorAll('input,select,button')].map(
+        (control) => [control, control.disabled],
+      );
+      for (const [control] of controls) control.disabled = true;
       submit.disabled = true;
       error.textContent = '';
       try {
-        if (!reviewed) {
-          const taskPlan =
-            kind === 'task'
-              ? await previewTaskMove(
-                  api,
-                  initialTask,
-                  select.value,
-                  sections.value || null,
-                  true,
-                )
-              : null;
-          if (kind === 'list')
-            preview = await api(`/lists/${entityId}/workspace-move/preview`, 'POST', {
-              destination_workspace_id: select.value,
-            });
-          else if (kind === 'section')
-            preview = await api(`/sections/${entityId}/move/preview`, 'POST', {
-              destination_list_id: select.value,
-            });
-          else
-            preview =
-              select.value === listId
-                ? { added_members: 0 }
-                : await api(
-                    `/tasks/${entityId}/move-preview?destination=${encodeURIComponent(select.value)}`,
-                  );
-          const broadens = Boolean(
-            preview.audience_broadens || preview.added_members > 0,
-          );
-          ackLabel.hidden = !broadens;
-          status.textContent =
-            preview.destination_public && !preview.source_public
-              ? 'This move makes this content publicly viewable. Review and acknowledge before moving.'
-              : broadens
-                ? 'This move adds people who can access this content. Review and acknowledge before moving.'
-                : 'The destination adds no new audience. Existing IDs, files and history are preserved.';
-          reviewed = {
-            destination: select.value,
-            section: sections.value,
-            plan: taskPlan,
-          };
-          submit.textContent = 'Move';
-          return;
-        }
-        if (!ackLabel.hidden && !ack.checked)
-          throw Error('Acknowledge the access change before moving');
+        const destination = select.value;
         if (kind === 'list') {
+          const preview = await api(`/lists/${entityId}/workspace-move/preview`, 'POST', {
+            destination_workspace_id: destination,
+          });
           await api(`/lists/${entityId}/workspace-move`, 'POST', {
-            destination_workspace_id: reviewed.destination,
+            destination_workspace_id: destination,
             list_revision: preview.list_revision,
             source_workspace_revision: preview.source_workspace_revision,
             destination_workspace_revision: preview.destination_workspace_revision,
             policy_hash: preview.policy_hash,
-            acknowledge_access_change: ack.checked,
+            acknowledge_access_change: true,
           });
-          refreshPage();
         } else if (kind === 'section') {
+          const preview = await api(`/sections/${entityId}/move/preview`, 'POST', {
+            destination_list_id: destination,
+          });
           await api(`/sections/${entityId}/move`, 'POST', {
-            destination_list_id: reviewed.destination,
+            destination_list_id: destination,
             section_revision: preview.section_revision,
             source_list_revision: preview.source_list_revision,
             destination_list_revision: preview.destination_list_revision,
             policy_hash: preview.policy_hash,
-            acknowledge_access_change: ack.checked,
+            acknowledge_access_change: true,
           });
-          navigate(`/lists/${reviewed.destination}`);
         } else {
-          const plan = reviewed.plan;
+          const plan = await previewTaskMove(
+            api,
+            initialTask,
+            destination,
+            sections.value || null,
+            true,
+          );
           await api('/bulk/apply', 'POST', {
             preview_id: plan.preview_id,
             expected_hash: plan.expected_hash,
             idempotency_key: key,
           });
-          navigate(`/lists/${reviewed.destination}`);
         }
+        dialog.close();
+        await refreshPage();
+        toast(`${kind[0].toUpperCase() + kind.slice(1)} moved.`);
       } catch (failure) {
-        error.textContent = `${failure.message}. Nothing was moved unless a prior request succeeded; close and refresh to check.`;
-        reviewed = null;
-        submit.textContent = 'Review move';
+        error.textContent = failure.message;
       } finally {
-        submit.disabled = false;
+        for (const [control, disabled] of controls) control.disabled = disabled;
       }
     };
   }

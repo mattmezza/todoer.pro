@@ -117,7 +117,11 @@ onPageLoad((scope) => {
     return (
       (!ignorePointer && taskPointerDown) ||
       inlineEditors.size > 0 ||
-      Boolean($('#task-list .task-actions[open],#task-list [data-activation-pending]')) ||
+      Boolean(
+        $(
+          '#task-list .task-actions[open],#task-list .entity-menu[open],#task-list [data-activation-pending]',
+        ),
+      ) ||
       taskPanel.isOpen ||
       [
         ...document.querySelectorAll(

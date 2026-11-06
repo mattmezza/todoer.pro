@@ -2,6 +2,7 @@ import { refreshPage } from './page-navigation.js';
 import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
 import { setSaveState, trackSave } from './quiet-info.js';
+import { toast } from './toast.js';
 async function request(id, body, endpoint = 'subtree/query') {
   const response = await fetch(`/api/v1/tasks/${encodeURIComponent(id)}/${endpoint}`, {
     method: 'POST',
@@ -127,93 +128,16 @@ export async function moveToParent(id) {
   if (moveOpen) return;
   moveOpen = true;
   const source = `structure:${id}`;
-  let dialog;
   try {
-    const first = await request(id, projection());
-    const selected = first.items[0];
-    if (!selected?.parent_id) throw Error('This task is already top-level.');
-    const breadcrumbs = first.context.breadcrumbs;
-    const currentParent = breadcrumbs.at(-2);
-    if (!currentParent || currentParent.id !== selected.parent_id)
-      throw Error('The parent is unavailable. Refresh and try again.');
-    const destinationId = currentParent.parent_id;
-    const destination = destinationId
-      ? breadcrumbs.find((item) => item.id === destinationId)
-      : null;
-    if (destinationId && !destination)
-      throw Error('The destination is unavailable. Refresh and try again.');
-    let items = [...first.items],
-      cursor = first.next_cursor;
-    while (cursor) {
-      const page = await request(id, projection(cursor));
-      if (JSON.stringify(page.snapshot) !== JSON.stringify(first.snapshot))
-        throw Error('The hierarchy changed. Review the move again.');
-      items.push(...page.items);
-      cursor = page.next_cursor;
-    }
-    dialog = document.createElement('dialog');
-    dialog.className = 'quick-dialog task-promote-dialog';
-    dialog.setAttribute('aria-labelledby', 'task-promote-heading');
-    const title = document.createElement('h2');
-    title.id = 'task-promote-heading';
-    title.textContent = 'Move to parent';
-    const description = document.createElement('p');
-    description.textContent = `Move “${selected.title}” and ${items.length - 1} descendant${items.length === 2 ? '' : 's'} out of “${currentParent.title || 'its current parent'}”? They will be appended ${destination ? `under “${destination.title}”` : 'at the top level of this list'}.`;
-    const hierarchy = document.createElement('div');
-    hierarchy.className = 'task-promote-tree';
-    const destinationLabel = document.createElement('strong');
-    destinationLabel.textContent = destination?.title || 'List · top-level tasks';
-    const explanation = document.createElement('p');
-    explanation.textContent = 'The new structure will look like this:';
-    const preview = tree(items, null);
-    for (const link of preview.querySelectorAll('a')) {
-      const label = document.createElement('span');
-      label.textContent = link.textContent;
-      label.className = link.className;
-      link.replaceWith(label);
-    }
-    hierarchy.append(explanation, destinationLabel, preview);
-    const actions = document.createElement('div');
-    actions.className = 'confirmation-actions';
-    const cancel = document.createElement('button');
-    cancel.type = 'button';
-    cancel.textContent = 'Cancel';
-    cancel.onclick = () => dialog.close();
-    const confirm = document.createElement('button');
-    confirm.type = 'button';
-    confirm.className = 'primary';
-    confirm.textContent = 'Move to parent';
-    confirm.onclick = async () => {
-      confirm.disabled = true;
-      cancel.disabled = true;
-      try {
-        await trackSave(source, () =>
-          request(id, { snapshot: first.snapshot }, 'promote'),
-        );
-        dialog.close();
-        refreshPage();
-      } catch (error) {
-        setSaveState(source, 'error', error.message);
-        confirm.disabled = false;
-        cancel.disabled = false;
-      }
-    };
-    actions.append(cancel, confirm);
-    dialog.append(title, description, hierarchy, actions);
-    document.body.append(dialog);
-    dialog.addEventListener(
-      'close',
-      () => {
-        moveOpen = false;
-        dialog.remove();
-      },
-      { once: true },
-    );
-    dialog.showModal();
-    cancel.focus();
+    const first = await request(id, { ...projection(), limit: 1 });
+    if (!first.items[0]?.parent_id) throw Error('This task is already top-level.');
+    await trackSave(source, () => request(id, { snapshot: first.snapshot }, 'promote'));
+    await refreshPage();
+    toast('Task moved to parent.');
   } catch (error) {
-    moveOpen = false;
     setSaveState(source, 'error', error.message);
+  } finally {
+    moveOpen = false;
   }
 }
 document.addEventListener('click', (event) => {

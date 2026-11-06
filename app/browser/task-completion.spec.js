@@ -143,3 +143,44 @@ test('planning card completion asks before completing unfinished subtasks', asyn
   await modal.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect.poll(async () => (await current(child.id)).complete).toBe(true);
 });
+
+test('swiping a parent task asks before completing its subtree', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', 'Uses Chromium touch input protocol');
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { capture, list, current } = await setup(page);
+  const parent = await capture('Swipe parent');
+  const child = await capture('Swipe child', parent.id);
+  await page.goto(`/lists/${list.id}`);
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  const row = page.locator(`.task[data-id="${parent.id}"]`);
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+  async function swipe() {
+    await row.scrollIntoViewIfNeeded();
+    const bounds = await row.boundingBox();
+    const x = bounds.x + 100,
+      y = bounds.y + bounds.height / 2;
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x, y }],
+    });
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x: x + 120, y }],
+    });
+    await expect(row).toHaveAttribute('data-swipe-action', 'done');
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  }
+  const modal = page.getByRole('dialog', { name: 'Confirm change' });
+  await swipe();
+  await expect(modal).toBeVisible();
+  await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect((await current(parent.id)).complete).toBe(false);
+  expect((await current(child.id)).complete).toBe(false);
+  await swipe();
+  await modal.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect.poll(async () => (await current(child.id)).complete).toBe(true);
+});

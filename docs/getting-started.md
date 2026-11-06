@@ -25,7 +25,7 @@ Use sections to group a list, and nested tasks to break a larger piece of work i
 
 ## Keep the context close
 
-Descriptions, comments and attachments keep the details beside the task. Sharing and moving work can change who has access; review those changes before confirming them.
+Descriptions, comments and attachments keep the details beside the task. Moving work can change who has access. Choose the destination and select **Move** to apply it immediately; the page stays in place and shows a confirmation toast.
 
 - [Discussion and attachments](rebuild/attachments.md)
 - [Sharing and moving lists](rebuild/sharing-moves.md)

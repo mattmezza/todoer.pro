@@ -172,7 +172,7 @@ test('task page shares metadata planning and discussion while keeping the brief 
   );
 });
 
-test('whole checklist move requires audience acknowledgement and atomically assigns destination section', async ({
+test('whole checklist move applies immediately, assigns the destination section and stays on the task', async ({
   page,
 }) => {
   const { api, capture, current } = await setup(page);
@@ -214,17 +214,11 @@ test('whole checklist move requires audience acknowledgement and atomically assi
   await page
     .getByLabel('Destination list', { exact: true })
     .selectOption(destinationList.id);
-  await expect(page.locator('[data-move-audience]')).toContainText('adds access');
   await page.getByLabel('Destination section', { exact: true }).selectOption(section.id);
-  await page.getByRole('button', { name: 'Review move', exact: true }).click();
-  await expect(page.locator('[data-move-error]')).toContainText('acknowledge');
-  expect((await current(task.id)).list_id).toBe(sourceList.id);
-  await page.locator('[data-move-ack]').check();
-  await page.getByRole('button', { name: 'Review move', exact: true }).click();
-  await expect(
-    page.getByRole('button', { name: 'Apply reviewed move', exact: true }),
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Apply reviewed move', exact: true }).click();
+  const originalUrl = page.url();
+  await page.getByRole('button', { name: 'Move', exact: true }).click();
+  await expect(page.locator('.toast')).toHaveText('Task moved.');
+  await expect(page).toHaveURL(originalUrl);
   await expect(page.locator('[data-connection]')).toHaveText('Up to date');
   await expect
     .poll(async () => (await current(task.id)).list_id)

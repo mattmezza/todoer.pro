@@ -22,6 +22,7 @@ import { onPageLoad } from './page-lifecycle.js';
 onPageLoad(async (scope) => {
   const fetch = scope.request;
   hydratePreferredTimes();
+  if (document.querySelector('[data-move-complete]')) toast('List moved.');
 
   const navigation = document.querySelector('#navigation');
   const toggle = document.querySelector('#nav-toggle');

@@ -19,10 +19,10 @@ Implementation references: SQLite documents [recursive queue ordering and LIMIT]
 `POST /api/v1/tasks/{id}/promote` accepts `{ "snapshot": ... }` from a subtree
 read. It promotes the selected task to its current parent's parent, or to list
 top level, appending after existing siblings while retaining all descendants.
-Write access is required. Confirmation checks the root revision, list revision
-and list history sequence in the same transaction as the move; changes since
-the preview return 409. Top-level tasks cannot be promoted.
+Write access is required. The move checks the root revision, list revision
+and list history sequence in the same transaction; changes since
+the snapshot return 409. Top-level tasks cannot be promoted.
 
 The Structure tab appears on sub-tasks and shows a read-only, paginated tree.
-Move to parent actions live in task menus and preview the complete moved subtree
-before confirmation.
+Move to parent actions live in task menus and apply immediately using a fresh
+snapshot. The current page stays in place and a toast confirms the move.
