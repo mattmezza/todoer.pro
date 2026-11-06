@@ -7,14 +7,15 @@
       </template>
     </div>
     <label class="list-color-custom">Custom color<input type="color" name="color" value="#4e89f7" aria-label="Custom list color" x-ref="input" x-on:input="customInput" x-on:change="customChange"></label>
-    <div class="list-emoji-field">
-      <label>Emoji (optional)<input type="text" name="emoji" maxlength="32" placeholder="Paste an emoji" aria-label="List emoji" x-ref="emoji" x-bind:value="emoji" x-on:input="emojiInput" x-on:change="emojiChange"></label>
+    <details class="list-emoji-field">
+      <summary>Emoji (optional)<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#chevron-down"/></svg></summary>
+      <label><span class="sr-only">Emoji</span><input type="text" name="emoji" maxlength="32" placeholder="Paste an emoji" aria-label="List emoji" x-ref="emoji" x-bind:value="emoji" x-on:input="emojiInput" x-on:change="emojiChange"></label>
       <div class="list-emoji-grid" aria-label="Suggested emojis">
         <template x-for="choice in emojiChoices" x-bind:key="choice.name">
           <button type="button" x-bind:data-emoji="choice.emoji" x-bind:aria-label="choice.name" x-bind:aria-pressed="emoji === choice.emoji ? 'true' : 'false'" x-on:click="chooseEmoji" x-text="choice.emoji"></button>
         </template>
       </div>
       <button type="button" class="list-emoji-clear" data-emoji="" x-on:click="chooseEmoji">No emoji</button>
-    </div>
+    </details>
   </div>
 </details>

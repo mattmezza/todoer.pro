@@ -88,6 +88,7 @@ export function listColorPicker() {
     },
     close() {
       picker.open = false;
+      picker.querySelector('.list-emoji-field').open = false;
     },
     escape(event) {
       if (!picker.open) return;

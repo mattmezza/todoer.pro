@@ -96,6 +96,8 @@ for (const width of [390, 1280]) {
         .first(),
     ).toHaveText('👩🏽‍💻');
     await picker.getByLabel('Change list color').click();
+    await expect(picker.getByLabel('List emoji', { exact: true })).toBeHidden();
+    await picker.locator('.list-emoji-field > summary').click();
     await picker.getByRole('button', { name: 'Shopping', exact: true }).click();
     await expect.poll(async () => (await appearance()).emoji).toBe('🛒');
     await picker.getByLabel('Change list color').click();
@@ -104,6 +106,8 @@ for (const width of [390, 1280]) {
     await page.reload();
     await expect(preview).toHaveText('🛒');
     await picker.getByLabel('Change list color').click();
+    await expect(picker.getByLabel('List emoji', { exact: true })).toBeHidden();
+    await picker.locator('.list-emoji-field > summary').click();
     await picker.getByLabel('List emoji', { exact: true }).fill('👨‍👩‍👧‍👦');
     await picker.getByLabel('List emoji', { exact: true }).press('Tab');
     await expect.poll(async () => (await appearance()).emoji).toBe('👨‍👩‍👧‍👦');
@@ -116,6 +120,7 @@ for (const width of [390, 1280]) {
     const dialog = page.locator('#list-create-dialog');
     await dialog.getByLabel('List name', { exact: true }).fill('Emoji created in picker');
     await dialog.getByLabel('Choose list color').click();
+    await dialog.locator('.list-emoji-field > summary').click();
     await dialog.getByRole('button', { name: 'Travel', exact: true }).click();
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.locator('.heading-list-color .list-emoji')).toHaveText('✈️');

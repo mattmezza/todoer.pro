@@ -13658,6 +13658,25 @@ html.page-loading::after {
   margin-top: 12px;
   padding-top: 12px;
 }
+.list-emoji-field > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.list-emoji-field > summary .ui-icon {
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
+}
+.list-emoji-field[open] > summary {
+  margin-bottom: 8px;
+}
+.list-emoji-field[open] > summary .ui-icon {
+  transform: rotate(180deg);
+}
 .list-emoji-field label {
   display: grid;
   gap: 8px;
