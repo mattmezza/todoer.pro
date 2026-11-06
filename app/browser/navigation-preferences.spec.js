@@ -1,11 +1,39 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
+const initial = new WeakMap();
+test.beforeEach(async ({ page }) => {
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  const response = await page.request.get('/api/v1/notification-preferences');
+  expect(response.ok()).toBeTruthy();
+  initial.set(page, { preferences: await response.json(), sections: [] });
+});
+test.afterEach(async ({ page }) => {
+  const state = initial.get(page);
+  if (!state) return;
+  const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
+  const current = await (
+    await page.request.get('/api/v1/notification-preferences')
+  ).json();
+  const response = await page.request.put('/api/v1/notification-preferences', {
+    headers: { 'X-CSRF-Token': csrf },
+    data: {
+      ...current,
+      show_favorites: state.preferences.show_favorites,
+      swipe_left: state.preferences.swipe_left,
+      swipe_right: state.preferences.swipe_right,
+      collapsed_sections: current.collapsed_sections.filter(
+        (id) => !state.sections.includes(id),
+      ),
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+});
+
 test('appearance saves sidebar visibility and independent swipe choices', async ({
   page,
 }) => {
-  await page.goto('/signin');
-  await page.getByRole('button', { name: 'Enter development workspace' }).click();
   await page.goto('/settings/appearance');
   await page.getByRole('checkbox', { name: 'Show favorites in the sidebar' }).uncheck();
   await page.getByLabel('Swipe left', { exact: true }).selectOption('complete');
@@ -21,6 +49,7 @@ test('appearance saves sidebar visibility and independent swipe choices', async 
   await expect(page.locator('#navigation')).toHaveAttribute('data-swipe-right', 'none');
   const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
   const id = randomUUID();
+  initial.get(page).sections.push(id);
   const response = await page.request.put(`/api/v1/section-preferences/${id}`, {
     headers: { 'X-CSRF-Token': csrf },
     data: { collapsed: true },
@@ -36,23 +65,12 @@ test('appearance saves sidebar visibility and independent swipe choices', async 
   expect(
     JSON.parse(await page.locator('#navigation').getAttribute('data-collapsed-sections')),
   ).toContain(id);
-  await page.request.put(`/api/v1/section-preferences/${id}`, {
-    headers: { 'X-CSRF-Token': csrf },
-    data: { collapsed: false },
-  });
-  await page.goto('/settings/appearance');
-  await page.getByRole('checkbox', { name: 'Show favorites in the sidebar' }).check();
-  await page.getByLabel('Swipe left', { exact: true }).selectOption('archive');
-  await page.getByLabel('Swipe right', { exact: true }).selectOption('complete');
-  await page.getByRole('button', { name: 'Save appearance' }).click();
 });
 
 test('section collapse survives reload and a second browser tab', async ({
   page,
   context,
 }) => {
-  await page.goto('/signin');
-  await page.getByRole('button', { name: 'Enter development workspace' }).click();
   const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
   async function post(path, data) {
     const response = await page.request.post(`/api/v1${path}`, {
@@ -68,6 +86,7 @@ test('section collapse survives reload and a second browser tab', async ({
     title: 'Remember sections',
   });
   const section = await post(`/lists/${list.id}/sections`, { title: 'Later' });
+  initial.get(page).sections.push(section.id);
   await page.goto(`/lists/${list.id}`);
   const disclosure = page.locator(`[data-section-id="${section.id}"] .section-collapse`);
   await expect(disclosure).toHaveAttribute('open', '');

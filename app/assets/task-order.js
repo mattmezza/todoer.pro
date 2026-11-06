@@ -352,7 +352,10 @@ export function mountTaskOrdering({
       const distance = Math.max(-120, Math.min(120, current.dx));
       const action = swipeAction(distance);
       current.row.dataset.swipeAction = action === 'complete' ? 'done' : action;
-      if (action === 'none') return;
+      if (action === 'none') {
+        current.row.style.removeProperty('--swipe-distance');
+        return;
+      }
       current.row.style.setProperty('--swipe-distance', `${distance}px`);
     } else if (current.mode === 'drag') {
       if (event.cancelable) event.preventDefault();
