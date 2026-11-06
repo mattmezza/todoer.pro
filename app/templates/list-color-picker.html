@@ -3,7 +3,7 @@
   <div class="list-color-menu" aria-label="List colors">
     <div class="list-color-grid">
       <template x-for="choice in colors" x-bind:key="choice.color">
-        <button type="button" class="list-color-choice" x-bind:style="choice.style" x-bind:title="choice.name" x-bind:aria-label="choice.name" x-bind:data-color="choice.color" x-bind:aria-pressed="color === choice.color" x-on:click="choose"></button>
+        <button type="button" class="list-color-choice" x-bind:style="choice.style" x-bind:title="choice.name" x-bind:aria-label="choice.name" x-bind:data-color="choice.color" x-bind:aria-pressed="color === choice.color ? 'true' : 'false'" x-on:click="choose"></button>
       </template>
     </div>
     <label class="list-color-custom">Custom color<input type="color" name="color" value="#4e89f7" aria-label="Custom list color" x-ref="input" x-on:input="customInput" x-on:change="customChange"></label>
