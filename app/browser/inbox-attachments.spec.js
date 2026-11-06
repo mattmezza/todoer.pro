@@ -57,7 +57,7 @@ for (const mode of ['drop', 'paste', 'comment-paste']) {
       .locator('.inbox-location')
       .click();
     const panel = page.getByLabel('Task details', { exact: true });
-    await expect(panel.locator('.attachment-drop-hint')).toBeVisible();
+    await expect(panel.locator('[data-file-choose]')).toBeVisible();
     await panel.locator('[data-comment-composer] > summary').click();
     await panel.getByLabel('Add a comment').fill('Draft stays here');
     const data = await page.evaluateHandle(() => {
@@ -75,7 +75,11 @@ for (const mode of ['drop', 'paste', 'comment-paste']) {
       await expect(page.locator('.attachment-drop-zone-panel')).toBeHidden();
     } else {
       const target = mode === 'comment-paste' ? panel.getByLabel('Add a comment') : panel;
-      await target.dispatchEvent('paste', { clipboardData: data });
+      await target.evaluate((element, clipboardData) => {
+        element.dispatchEvent(
+          new ClipboardEvent('paste', { clipboardData, bubbles: true, cancelable: true }),
+        );
+      }, data);
       if (mode === 'comment-paste') {
         await expect(panel.locator('[data-file-selection]')).toContainText(
           'attached when you post',

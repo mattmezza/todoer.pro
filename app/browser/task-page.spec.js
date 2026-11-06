@@ -38,7 +38,8 @@ async function ready(page, id) {
   await expect(page.locator('[data-connection]')).toHaveText('Up to date');
   await expect(page.locator('[data-task-page]')).toBeVisible();
   await expect(page.locator('#task-editor')).toHaveCount(0);
-  await expect(page).toHaveURL(new RegExp(`/tasks/${id}$`));
+  await expect(page.locator('[data-task-page]')).toHaveAttribute('data-task-id', id);
+  await expect(page).toHaveURL(/\/tasks\/[a-z0-9]+$/);
 }
 
 test('dedicated task preserves drafts across reload, remote CAS conflict and explicit rebase', async ({
@@ -55,7 +56,6 @@ test('dedicated task preserves drafts across reload, remote CAS conflict and exp
   );
   await page.locator('[data-edit-title]').click();
   await page.getByLabel('Task title', { exact: true }).fill('My preserved local title');
-  await page.locator('[data-saved-description]').click();
   await page
     .getByLabel('Description, Markdown supported', { exact: true })
     .fill('My **local draft** stays intact.');
@@ -77,7 +77,7 @@ test('dedicated task preserves drafts across reload, remote CAS conflict and exp
   await expect(
     page.getByLabel('Description, Markdown supported', { exact: true }),
   ).toHaveValue('My **local draft** stays intact.');
-  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('[data-conflict]')).not.toBeEmpty();
   expect((await current(task.id)).description).toBe('Remote saved description');
   await page
@@ -138,7 +138,7 @@ test('task page shares metadata planning and discussion while keeping the brief 
     page.getByRole('dialog', { name: 'Task details', exact: true }),
   ).toHaveCount(0);
   await page.locator('[data-edit-title]').click();
-  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('[data-edit-title]')).toHaveText(
     'Brief draft across module saves',
   );
@@ -232,7 +232,7 @@ test('whole checklist move requires audience acknowledgement and atomically assi
     .toBe(destinationList.id);
   expect((await current(child.id)).list_id).toBe(destinationList.id);
   expect((await api(`/tasks/${task.id}/section`)).section_id).toBe(section.id);
-  await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}$`));
+  await expect(page.locator('[data-task-page]')).toHaveAttribute('data-task-id', task.id);
 });
 
 test('mobile task page has a private read-only guest view and working shared navigation', async ({
@@ -534,7 +534,10 @@ test('subtask title edits stay inline and recover after reload', async ({ page }
     row.getByRole('link', { name: 'Recovered child draft', exact: true }),
   ).toBeVisible();
   expect((await current(child.id)).title).toBe('Recovered child draft');
-  await expect(page).toHaveURL(new RegExp(`/tasks/${parent.id}$`));
+  await expect(page.locator('[data-task-page]')).toHaveAttribute(
+    'data-task-id',
+    parent.id,
+  );
   await row.getByLabel('Actions for Recovered child draft', { exact: true }).click();
   await row.getByRole('button', { name: 'Edit title', exact: true }).click();
   await row.getByLabel('Subtask title', { exact: true }).fill('Cancelled change');
@@ -553,7 +556,10 @@ test('list task panel edits child titles inline on a phone without saving the pa
   const child = await capture('Panel child title', '', parent.id);
   const before = await current(parent.id);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`/lists/inbox?task=${parent.id}`);
+  await page.goto('/lists/inbox');
+  const taskRow = page.locator(`#task-list .task[data-id="${parent.id}"]`);
+  await taskRow.getByLabel(`Actions for ${parent.title}`, { exact: true }).click();
+  await taskRow.getByRole('button', { name: 'Open details', exact: true }).click();
   const panel = page.locator('#task-editor');
   await expect(panel).toBeVisible();
   await panel

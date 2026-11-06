@@ -571,7 +571,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         complete.onclick = () =>
           toggleComplete(child, (byParent.get(child.id) || []).length > 0);
         const link = document.createElement('a');
-        link.href = `/tasks/${encodeURIComponent(child.id)}`;
+        link.href = `/tasks/${encodeURIComponent(child.public_reference || child.id)}`;
         link.textContent = child.title;
         line.append(complete, link);
         if (canWrite) {
