@@ -567,7 +567,7 @@ for (const width of [390, 1280]) {
     );
     const nested = await capture(
       'Nested panel child',
-      'Nested **description**',
+      'Nested **description**\n\n- First detail\n- Second detail',
       child.id,
     );
     const before = await current(parent.id);
@@ -597,12 +597,33 @@ for (const width of [390, 1280]) {
     await expect(childRow.locator(':scope > [data-child-description] strong')).toHaveText(
       'saved description',
     );
+    await expect
+      .poll(() =>
+        panel.evaluate((el, childId) => {
+          const row = el.querySelector(`[data-child-id="${childId}"]`);
+          const line = row?.querySelector(':scope > .task-page-child-line');
+          const description = row?.querySelector(':scope > [data-child-description]');
+          return (
+            !!line &&
+            !!description &&
+            description.getBoundingClientRect().top >=
+              line.getBoundingClientRect().bottom - 1
+          );
+        }, child.id),
+      )
+      .toBe(true);
     await expect(
       panel.locator(`[data-child-id="${sibling.id}"] > [data-child-description] strong`),
     ).toHaveText('description');
     await expect(
       panel.locator(`[data-child-id="${nested.id}"] > [data-child-description] strong`),
     ).toHaveText('description');
+    const detail = panel
+      .locator(`[data-child-id="${nested.id}"] > [data-child-description] li`)
+      .first();
+    await expect(detail).toHaveText('First detail');
+    await expect(detail).toHaveCSS('display', 'list-item');
+    await expect(detail).toHaveCSS('border-bottom-width', '0px');
     await childRow
       .getByRole('link', { name: 'Panel child title', exact: true })
       .click({ button: 'right' });

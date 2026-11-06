@@ -1899,15 +1899,13 @@ input[type='checkbox'] {
   list-style: none;
   padding: 0;
 }
-.task-page [data-children] li {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+.task-page [data-children] .task-page-child {
+  display: block;
   padding: 18px 0;
   border-bottom: 1px solid var(--line);
   min-height: 62px;
 }
-.task-page [data-children] li > a {
+.task-page [data-children] .task-page-child-line > a {
   font-size: 17px;
   font-weight: 600;
 }
@@ -2003,7 +2001,7 @@ input[type='checkbox'] {
   .task-page-checklist {
     margin-top: 52px;
   }
-  .task-page [data-children] li > a {
+  .task-page [data-children] .task-page-child-line > a {
     font-size: 16px;
   }
   .task-page [data-brief-form] textarea {
@@ -2093,9 +2091,6 @@ input[type='checkbox'] {
 .task-menu .ui-icon {
   width: 18px;
   height: 18px;
-}
-.task-page [data-children] .task-page-child {
-  display: block;
 }
 .task-page-child-line {
   display: flex;
@@ -7224,7 +7219,7 @@ form[data-list-edit] [role='alert']:empty {
   display: none;
 }
 /* Nested rows share their ancestor's closing separator. */
-.task-page [data-children] ol > li:last-child {
+.task-page [data-children] .task-page-child > ol > .task-page-child:last-child {
   border-bottom: 0;
 }
 .task-promote-dialog .confirmation-actions {
@@ -7277,7 +7272,7 @@ form[data-list-edit] [role='alert']:empty {
 .task-subtask-completion-line::-moz-progress-bar {
   background: var(--list-color, #3b82f6);
 }
-.task-page [data-children] > li:last-child {
+.task-page [data-children] > .task-page-child:last-child {
   border-bottom: 0;
 }
 .task-page [data-child-composer] {
