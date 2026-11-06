@@ -484,6 +484,7 @@ mod tests {
                 "dev",
                 &task.id,
                 UploadInput {
+                    comment_draft: false,
                     comment_id: None,
                     filename: "test.txt".into(),
                     size: bytes.len() as u64,
@@ -538,6 +539,7 @@ mod tests {
                 "dev",
                 &task.id,
                 UploadInput {
+                    comment_draft: false,
                     comment_id: None,
                     filename: "proxy.txt".into(),
                     size: bytes.len() as u64,

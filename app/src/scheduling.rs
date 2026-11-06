@@ -1067,6 +1067,7 @@ mod tests {
             &first.id,
             "checklist-comment",
             crate::discussion::NewComment {
+                attachment_ids: Vec::new(),
                 body: "Historical discussion".into(),
             },
         )

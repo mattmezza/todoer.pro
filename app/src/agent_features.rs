@@ -276,7 +276,10 @@ pub(crate) async fn activity(
                     &actor,
                     &task_id,
                     &idempotency_key,
-                    NewComment { body },
+                    NewComment {
+                        attachment_ids: Vec::new(),
+                        body,
+                    },
                 )?),
                 ActivityAction::CommentEdit { id, revision, body } => {
                     value(db.update_comment(&actor, &id, EditComment { revision, body })?)
@@ -750,6 +753,7 @@ mod tests {
                 "dev",
                 &id,
                 UploadInput {
+                    comment_draft: false,
                     comment_id: None,
                     filename: "synthetic.txt".into(),
                     size: 0,

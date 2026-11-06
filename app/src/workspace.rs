@@ -2011,6 +2011,7 @@ mod tests {
                 &root.id,
                 "list-move-comment",
                 NewComment {
+                    attachment_ids: Vec::new(),
                     body: format!("Preserve %{}", root.reference),
                 },
             )
@@ -2020,6 +2021,7 @@ mod tests {
                 "dev",
                 &root.id,
                 UploadInput {
+                    comment_draft: false,
                     comment_id: Some(comment.id.clone()),
                     filename: "synthetic.txt".into(),
                     size: 3,
@@ -2192,6 +2194,7 @@ mod tests {
                 &task.id,
                 "move-preview-comment",
                 crate::discussion::NewComment {
+                    attachment_ids: Vec::new(),
                     body: "Before review".into(),
                 },
             )

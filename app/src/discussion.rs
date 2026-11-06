@@ -29,6 +29,8 @@ pub struct Comment {
 #[serde(deny_unknown_fields)]
 pub struct NewComment {
     pub body: String,
+    #[serde(default)]
+    pub attachment_ids: Vec<String>,
 }
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -39,6 +41,8 @@ pub struct EditComment {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UploadInput {
+    #[serde(default)]
+    pub comment_draft: bool,
     pub comment_id: Option<String>,
     pub filename: String,
     pub size: u64,
@@ -46,6 +50,7 @@ pub struct UploadInput {
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct UploadIntent {
+    pub comment_draft: bool,
     pub id: String,
     pub task_id: String,
     pub comment_id: Option<String>,
@@ -181,7 +186,7 @@ fn discussion_event(
     )?;
     Ok(())
 }
-const INTENT_COLUMNS: &str = "id,task_id,comment_id,filename,size,sha256,revision,expires_at,finalized_at IS NOT NULL,staging_key,object_key,creator_id";
+const INTENT_COLUMNS: &str = "id,task_id,comment_id,filename,size,sha256,revision,expires_at,finalized_at IS NOT NULL,staging_key,object_key,creator_id,comment_draft";
 fn intent_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<UploadIntent> {
     Ok(UploadIntent {
         id: r.get(0)?,
@@ -196,6 +201,7 @@ fn intent_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<UploadIntent> {
         staging_key: r.get(9)?,
         object_key: r.get(10)?,
         creator_id: r.get(11)?,
+        comment_draft: r.get(12)?,
     })
 }
 fn intent_raw(c: &Connection, id: &str) -> Result<UploadIntent, Error> {
@@ -210,6 +216,9 @@ fn intent_raw(c: &Connection, id: &str) -> Result<UploadIntent, Error> {
 fn intent_access(c: &Connection, actor: &str, id: &str) -> Result<(UploadIntent, Task), Error> {
     let intent = intent_raw(c, id)?;
     let task = task_access(c, actor, &intent.task_id, 2)?;
+    if intent.comment_draft && core::actor_identity(c, actor)?.0 != intent.creator_id {
+        return Err(Error::NotFound);
+    }
     owner_or_author(c, actor, &task, &intent.creator_id)?;
     comment_belongs(c, intent.comment_id.as_deref(), &intent.task_id)?;
     Ok((intent, task))
@@ -274,6 +283,18 @@ impl Store {
         input: NewComment,
     ) -> Result<Comment, Error> {
         body_valid(&input.body)?;
+        if input.attachment_ids.len() > 100
+            || input
+                .attachment_ids
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len()
+                != input.attachment_ids.len()
+        {
+            return Err(Error::Invalid(
+                "attach at most 100 distinct draft files".into(),
+            ));
+        }
         let tx = crate::agent_ops::begin_atomic(&mut self.conn)?;
         let task = task_access(&tx, actor, task, 2)?;
         if key.trim().is_empty() || key.len() > 200 {
@@ -282,9 +303,12 @@ impl Store {
             ));
         }
         let key = format!("comment:{key}");
-        let payload =
-            serde_json::json!({"operation":"comment.create","task_id":task.id,"body":input.body})
-                .to_string();
+        let mut payload =
+            serde_json::json!({"operation":"comment.create","task_id":task.id,"body":input.body});
+        if !input.attachment_ids.is_empty() {
+            payload["attachment_ids"] = serde_json::json!(input.attachment_ids);
+        }
+        let payload = payload.to_string();
         if let Some((previous, response)) = tx
             .query_row(
                 "SELECT payload,response FROM idempotency WHERE actor=?1 AND key=?2",
@@ -311,6 +335,33 @@ impl Store {
             "INSERT INTO comments(id,task_id,author_id,body) VALUES(?1,?2,?3,?4)",
             params![id, task.id, user, input.body],
         )?;
+        for attachment_id in &input.attachment_ids {
+            let file = attachment_raw(&tx, attachment_id)?;
+            let intent = intent_raw(&tx, &file.intent_id)?;
+            if file.task_id != task.id
+                || file.creator_id != user
+                || !intent.comment_draft
+                || !intent.finalized
+                || file.comment_id.is_some()
+            {
+                return Err(Error::Invalid(
+                    "only your unposted draft attachments for this task can be attached".into(),
+                ));
+            }
+            tx.execute(
+                "UPDATE attachments SET comment_id=?2,revision=revision+1 WHERE id=?1",
+                params![file.id, id],
+            )?;
+            tx.execute("UPDATE upload_intents SET comment_id=?2,comment_draft=0,revision=revision+1 WHERE id=?1", params![intent.id,id])?;
+            discussion_event(
+                &tx,
+                &task,
+                actor,
+                "attachment.create",
+                serde_json::json!({"id":file.id,"comment_id":id}),
+                None,
+            )?;
+        }
         let result = comment_raw(&tx, &id)?;
         crate::taxonomy::index_references(&tx, actor, "comment", &id, &result.body)?;
         tx.execute(
@@ -393,6 +444,11 @@ impl Store {
         task: &str,
         input: UploadInput,
     ) -> Result<UploadIntent, Error> {
+        if input.comment_draft && input.comment_id.is_some() {
+            return Err(Error::Invalid(
+                "a draft upload cannot already belong to a comment".into(),
+            ));
+        }
         let filename = safe_filename(&input.filename)?;
         if input.size > MAX_ATTACHMENT_BYTES {
             return Err(Error::Invalid("attachment exceeds 25 MiB".into()));
@@ -409,7 +465,7 @@ impl Store {
         let id = crate::defaults::entity_id(&tx, "upload_intents", "i")?;
         let staging = format!("staging/{}", Uuid::new_v4());
         let object = format!("objects/{}", Uuid::new_v4());
-        tx.execute("INSERT INTO upload_intents(id,task_id,comment_id,creator_id,client_id,filename,size,sha256,staging_key,object_key,expires_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",params![id,task.id,input.comment_id,user,client,filename,input.size as i64,input.sha256.to_ascii_lowercase(),staging,object,now()+INTENT_TTL_SECONDS])?;
+        tx.execute("INSERT INTO upload_intents(id,task_id,comment_id,creator_id,client_id,filename,size,sha256,staging_key,object_key,expires_at,comment_draft) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",params![id,task.id,input.comment_id,user,client,filename,input.size as i64,input.sha256.to_ascii_lowercase(),staging,object,now()+INTENT_TTL_SECONDS,input.comment_draft])?;
         let result = intent_raw(&tx, &id)?;
         tx.commit()?;
         Ok(result)
@@ -452,20 +508,22 @@ impl Store {
             [&intent.id],
         )?;
         let result = attachment_raw(&tx, &id)?;
-        discussion_event(
-            &tx,
-            &task,
-            actor,
-            "attachment.create",
-            serde_json::json!({"id":id,"comment_id":result.comment_id}),
-            None,
-        )?;
+        if !intent.comment_draft {
+            discussion_event(
+                &tx,
+                &task,
+                actor,
+                "attachment.create",
+                serde_json::json!({"id":id,"comment_id":result.comment_id}),
+                None,
+            )?;
+        }
         tx.commit()?;
         Ok(result)
     }
     pub fn attachments(&self, actor: &str, task: &str) -> Result<Vec<Attachment>, Error> {
         task_access(&self.conn, actor, task, 1)?;
-        let mut stmt=self.conn.prepare(&format!("SELECT {ATTACHMENT_COLUMNS} FROM attachments a LEFT JOIN comments c ON c.id=a.comment_id WHERE a.task_id=?1 AND a.deleted_at IS NULL AND (a.comment_id IS NULL OR c.deleted_at IS NULL) ORDER BY a.created_at,a.id LIMIT 1000"))?;
+        let mut stmt=self.conn.prepare(&format!("SELECT {ATTACHMENT_COLUMNS} FROM attachments a JOIN upload_intents u ON u.id=a.intent_id LEFT JOIN comments c ON c.id=a.comment_id WHERE u.comment_draft=0 AND a.task_id=?1 AND a.deleted_at IS NULL AND (a.comment_id IS NULL OR c.deleted_at IS NULL) ORDER BY a.created_at,a.id LIMIT 1000"))?;
         Ok(stmt
             .query_map([task], attachment_row)?
             .collect::<Result<_, _>>()?)
@@ -473,6 +531,10 @@ impl Store {
     pub fn attachment(&self, actor: &str, id: &str) -> Result<Attachment, Error> {
         let result = attachment_raw(&self.conn, id)?;
         task_access(&self.conn, actor, &result.task_id, 1)?;
+        let intent = intent_raw(&self.conn, &result.intent_id)?;
+        if intent.comment_draft && core::actor_identity(&self.conn, actor)?.0 != result.creator_id {
+            return Err(Error::NotFound);
+        }
         comment_belongs(&self.conn, result.comment_id.as_deref(), &result.task_id)?;
         Ok(result)
     }
@@ -568,12 +630,124 @@ mod tests {
     }
     fn upload(comment_id: Option<String>) -> UploadInput {
         UploadInput {
+            comment_draft: false,
             comment_id,
             filename: "../synthetic.txt".into(),
             size: 5,
             sha256: crate::object_storage::sha256_hex(b"hello"),
         }
     }
+    #[test]
+    fn comment_draft_files_are_private_until_atomic_post_and_render_as_images() {
+        let (mut db, task, list) = fixture();
+        let mut input = upload(None);
+        input.comment_draft = true;
+        input.filename = "paste.png".into();
+        let intent = db.create_upload_intent("dev", &task.id, input).unwrap();
+        let file = db
+            .finalize_attachment("dev", VerifiedObject::synthetic(&intent))
+            .unwrap();
+        assert!(db.attachments("dev", &task.id).unwrap().is_empty());
+        assert!(db.attachments("other", &task.id).unwrap().is_empty());
+        assert!(db.attachment("dev", &file.id).is_ok());
+        assert!(matches!(
+            db.attachment("other", &file.id),
+            Err(Error::NotFound)
+        ));
+        assert!(matches!(
+            db.upload_intent("other", &intent.id),
+            Err(Error::NotFound)
+        ));
+        let query = crate::search::Query {
+            entities: Some(vec!["attachment".into()]),
+            list_id: Some(list.clone()),
+            ..Default::default()
+        };
+        assert!(db.query("other", &query).unwrap().hits.is_empty());
+        assert!(
+            db.export_bundle("dev", crate::transfer::ExportScope::List(list))
+                .unwrap()
+                .tables["attachments"]
+                .is_empty()
+        );
+        let body = format!(
+            "Pasted image: ![paste.png](/api/v1/attachments/{}/preview)",
+            file.id
+        );
+        let post = || NewComment {
+            body: body.clone(),
+            attachment_ids: vec![file.id.clone()],
+        };
+        assert!(
+            db.create_comment("other", &task.id, "steal-draft", post())
+                .is_err()
+        );
+        assert!(db.comments("dev", &task.id, 0, 100).unwrap().is_empty());
+        let comment = db
+            .create_comment("dev", &task.id, "post-draft", post())
+            .unwrap();
+        let files = db.attachments("other", &task.id).unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].comment_id.as_deref(), Some(comment.id.as_str()));
+        assert!(!db.upload_intent("dev", &intent.id).unwrap().comment_draft);
+        assert_eq!(
+            db.create_comment("dev", &task.id, "post-draft", post())
+                .unwrap()
+                .id,
+            comment.id
+        );
+        assert_eq!(db.comments("dev", &task.id, 0, 100).unwrap().len(), 1);
+        let rendered =
+            crate::taxonomy::render_references(&db.conn, "other", "comment", &comment.id, &body)
+                .unwrap();
+        assert!(
+            rendered.contains(&format!("src=\"/api/v1/attachments/{}/preview\"", file.id)),
+            "{rendered}"
+        );
+        assert!(!db.query("other", &query).unwrap().hits.is_empty());
+    }
+
+    #[test]
+    fn comment_post_rolls_back_all_attachment_claims_on_invalid_file() {
+        let (mut db, task, _) = fixture();
+        let mut draft = upload(None);
+        draft.comment_draft = true;
+        let intent = db.create_upload_intent("dev", &task.id, draft).unwrap();
+        let file = db
+            .finalize_attachment("dev", VerifiedObject::synthetic(&intent))
+            .unwrap();
+        assert!(
+            db.create_comment(
+                "dev",
+                &task.id,
+                "failed-claim",
+                NewComment {
+                    body: "A comment".into(),
+                    attachment_ids: vec![file.id.clone(), "missing".into()]
+                }
+            )
+            .is_err()
+        );
+        assert!(db.comments("dev", &task.id, 0, 100).unwrap().is_empty());
+        assert!(db.attachments("dev", &task.id).unwrap().is_empty());
+        assert!(db.upload_intent("dev", &intent.id).unwrap().comment_draft);
+        let posted = db
+            .create_comment(
+                "dev",
+                &task.id,
+                "failed-claim",
+                NewComment {
+                    body: "A comment".into(),
+                    attachment_ids: vec![file.id.clone()],
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            db.attachment("dev", &file.id).unwrap().comment_id,
+            Some(posted.id)
+        );
+    }
+
     #[test]
     fn chronological_comments_have_independent_cas_and_author_or_owner_checks() {
         let (mut db, task, list) = fixture();
@@ -583,6 +757,7 @@ mod tests {
                 &task.id,
                 "fixture-comment-1",
                 NewComment {
+                    attachment_ids: Vec::new(),
                     body: "**Owner note**".into(),
                 },
             )
@@ -593,6 +768,7 @@ mod tests {
                 &task.id,
                 "fixture-comment-2",
                 NewComment {
+                    attachment_ids: Vec::new(),
                     body: "Other note".into(),
                 },
             )
@@ -659,6 +835,7 @@ mod tests {
                 &task.id,
                 "fixture-comment-3",
                 NewComment {
+                    attachment_ids: Vec::new(),
                     body: "Denied viewer".into()
                 }
             ),
@@ -700,6 +877,7 @@ mod tests {
                 &other_task.id,
                 "fixture-comment-4",
                 NewComment {
+                    attachment_ids: Vec::new(),
                     body: "Other task comment".into(),
                 },
             )
@@ -770,6 +948,7 @@ mod tests {
                 &task.id,
                 "fixture-comment-5",
                 NewComment {
+                    attachment_ids: Vec::new(),
                     body: "With attachment".into(),
                 },
             )
@@ -805,6 +984,7 @@ mod tests {
                 &task.id,
                 "retry-key",
                 NewComment {
+                    attachment_ids: Vec::new(),
                     body: "Original comment".into(),
                 },
             )
@@ -815,6 +995,7 @@ mod tests {
                 &task.id,
                 "retry-key",
                 NewComment {
+                    attachment_ids: Vec::new(),
                     body: "Original comment".into(),
                 },
             )
@@ -827,6 +1008,7 @@ mod tests {
                 &task.id,
                 "retry-key",
                 NewComment {
+                    attachment_ids: Vec::new(),
                     body: "Changed comment".into()
                 }
             ),
@@ -840,6 +1022,7 @@ mod tests {
                 &task.id,
                 "retry-key",
                 NewComment {
+                    attachment_ids: Vec::new(),
                     body: "Original comment".into()
                 }
             ),
@@ -856,6 +1039,7 @@ mod tests {
                 &task.id,
                 "retry-key",
                 NewComment {
+                    attachment_ids: Vec::new(),
                     body: "Original comment".into()
                 }
             ),
@@ -887,7 +1071,10 @@ mod tests {
                 "dev",
                 &task.id,
                 "reference-comment",
-                NewComment { body: text.clone() },
+                NewComment {
+                    attachment_ids: Vec::new(),
+                    body: text.clone(),
+                },
             )
             .unwrap();
         let links = db.reference_backlinks("dev", "task", &target.id).unwrap();
@@ -938,7 +1125,10 @@ mod tests {
                 "dev",
                 &task.id,
                 "fixture-comment-6",
-                NewComment { body: " ".into() }
+                NewComment {
+                    attachment_ids: Vec::new(),
+                    body: " ".into()
+                }
             )
             .is_err()
         );
@@ -948,6 +1138,7 @@ mod tests {
                 &task.id,
                 "fixture-comment-7",
                 NewComment {
+                    attachment_ids: Vec::new(),
                     body: "a".repeat(100001)
                 }
             )

@@ -310,6 +310,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
     (52, include_str!("../migrations/052_task_durations.sql")),
     (53, include_str!("../migrations/053_duration_range.sql")),
     (54, include_str!("../migrations/054_entity_archive.sql")),
+    (
+        55,
+        include_str!("../migrations/055_comment_draft_uploads.sql"),
+    ),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {

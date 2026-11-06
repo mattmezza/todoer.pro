@@ -13599,6 +13599,16 @@
         "properties": {
           "body": {
             "type": "string"
+          },
+          "attachment_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "uniqueItems": true,
+            "default": [],
+            "description": "Finalized uploads marked comment_draft, owned by the caller and belonging to this task. Claimed atomically when posting."
           }
         },
         "required": [
@@ -14732,6 +14742,11 @@
           "sha256": {
             "type": "string",
             "pattern": "^[A-Fa-f0-9]{64}$"
+          },
+          "comment_draft": {
+            "type": "boolean",
+            "default": false,
+            "description": "Keep upload private to its creator and out of task files until a new comment claims it."
           }
         },
         "required": [
@@ -14775,6 +14790,9 @@
             "format": "int64"
           },
           "finalized": {
+            "type": "boolean"
+          },
+          "comment_draft": {
             "type": "boolean"
           }
         },

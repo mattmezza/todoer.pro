@@ -256,7 +256,7 @@ impl Store {
         ] {
             tables.insert(
                 table.into(),
-                selected(rows(&self.conn, table, "", &[])?, key, allowed),
+                selected(rows(&self.conn, table, if table == "attachments" { "WHERE intent_id IN (SELECT id FROM upload_intents WHERE comment_draft=0)" } else { "" }, &[])?, key, allowed),
             );
         }
         tables.insert(
@@ -2062,6 +2062,7 @@ fn zip_restore_plan(
             let task = string(&row, "task_id")?.to_owned();
             let comment = row["comment_id"].as_str().map(str::to_owned);
             let intent = crate::discussion::UploadIntent {
+                comment_draft: false,
                 id: intent_id.clone(),
                 task_id: task.clone(),
                 comment_id: comment.clone(),
