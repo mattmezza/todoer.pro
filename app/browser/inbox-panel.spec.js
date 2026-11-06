@@ -129,9 +129,17 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
   expect(
     (await child.boundingBox()).y - (descriptionBox.y + descriptionBox.height),
   ).toBeGreaterThanOrEqual(20);
-  expect(
-    Math.abs((await child.boundingBox()).height - (await comment.boundingBox()).height),
-  ).toBeLessThan(2);
+  await expect
+    .poll(async () => {
+      const [childBox, commentBox] = await Promise.all([
+        child.boundingBox(),
+        comment.boundingBox(),
+      ]);
+      return childBox && commentBox
+        ? Math.abs(childBox.height - commentBox.height)
+        : Infinity;
+    })
+    .toBeLessThan(2);
   await child.click();
   await expect(panel.getByLabel('New sub-task')).toBeVisible();
   await expect(panel.getByLabel('New sub-task')).toHaveCSS('font-size', '16px');
