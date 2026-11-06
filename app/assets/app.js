@@ -408,6 +408,7 @@ $('#edit-title').addEventListener('input', saveEditorDraft);
 $('#edit-description').addEventListener('input', saveEditorDraft);
 function closeEditor() {
   if (editorBusy) return;
+  releaseChildEditors();
   editorOpenSequence++;
   dialog.close();
   if (location.search.includes('task=')) {
@@ -577,8 +578,14 @@ $('#trash-task').onclick = async () => {
   }
 };
 
+function releaseChildEditors() {
+  for (const [id, form] of inlineEditors) {
+    if (form && dialog.contains(form)) inlineEditors.delete(id);
+  }
+}
 async function openTask(id, push = true) {
   if (editorBusy) return;
+  releaseChildEditors();
   const sequence = ++editorOpenSequence;
   editorOpening = true;
   const pending = dialog.open ? null : loadingDialog('Loading task', 'capture-omnibar');
@@ -622,6 +629,7 @@ async function openTask(id, push = true) {
       taskId: editor.id,
       csrf,
       container: $('#discussion-container'),
+      dropTarget: dialog,
       accountId: account,
       onConflict: (err) => notice(err.message, true),
     });
@@ -708,6 +716,8 @@ function renderChildren(tasks) {
   for (const child of children) {
     const row = document.createElement('div');
     row.className = 'subtask-row';
+    row.dataset.id = child.id;
+    row.dataset.revision = child.revision;
     const complete = document.createElement('button');
     complete.type = 'button';
     complete.className = 'child-complete';
@@ -718,6 +728,7 @@ function renderChildren(tasks) {
       `${child.complete ? 'Reopen' : 'Complete'} ${child.title}`,
     );
     complete.onclick = async () => {
+      if (!canWrite || editorBusy || inlineEditors.has(child.id)) return;
       complete.disabled = true;
       try {
         await api(`/tasks/${child.id}`, 'PATCH', {
@@ -734,7 +745,7 @@ function renderChildren(tasks) {
     };
     const title = document.createElement('button');
     title.type = 'button';
-    title.className = 'subtask-open';
+    title.className = 'subtask-open task-title';
     title.textContent = child.title;
     title.onclick = () => openTask(child.id);
     const deeper = document.createElement('span');
@@ -743,7 +754,22 @@ function renderChildren(tasks) {
       : '→';
     deeper.className = 'muted';
     row.append(complete, title, deeper);
+    if (canWrite) {
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.textContent = 'Edit title';
+      edit.className = 'subtask-edit';
+      edit.setAttribute('aria-label', `Edit title for ${child.title}`);
+      edit.onclick = () => renameInline(row);
+      row.append(edit);
+    }
     $('#subtask-list').append(row);
+    const saved = sessionStorage.getItem(`todoer:${account}:inline:${child.id}`);
+    if (canWrite && saved) {
+      try {
+        renameInline(row, JSON.parse(saved));
+      } catch {}
+    }
   }
 }
 let childCapture = null;
@@ -928,6 +954,7 @@ mountTaskOrdering({
     Boolean(window.getSelection()?.toString()),
 });
 async function renameInline(row, snapshot) {
+  if (!canWrite) return;
   const id = row.dataset.id;
   if (inlineEditors.has(id)) return;
   inlineEditors.set(id, null);
@@ -982,6 +1009,7 @@ async function renameInline(row, snapshot) {
     };
     form.onsubmit = async (e) => {
       e.preventDefault();
+      e.stopPropagation();
       save.disabled = true;
       input.disabled = true;
       cancel.disabled = true;

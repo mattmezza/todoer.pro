@@ -515,3 +515,59 @@ test('mobile task toolbar and settings drawer fit the screen', async ({ page }) 
   expect(insets).toEqual([20, 0]);
   await expect(panel.getByText('Priority', { exact: true })).toBeVisible();
 });
+
+test('subtask title edits stay inline and recover after reload', async ({ page }) => {
+  const { capture, current } = await setup(page);
+  const parent = await capture(`Inline parent ${randomUUID().slice(0, 8)}`);
+  const child = await capture('Original child title', '', parent.id);
+  await ready(page, parent.id);
+  const row = page.locator(`[data-child-id="${child.id}"]`);
+  await row.getByLabel('Actions for Original child title', { exact: true }).click();
+  await row.getByRole('button', { name: 'Edit title', exact: true }).click();
+  await row.getByLabel('Subtask title', { exact: true }).fill('Recovered child draft');
+  await page.reload();
+  await expect(row.getByLabel('Subtask title', { exact: true })).toHaveValue(
+    'Recovered child draft',
+  );
+  await row.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(
+    row.getByRole('link', { name: 'Recovered child draft', exact: true }),
+  ).toBeVisible();
+  expect((await current(child.id)).title).toBe('Recovered child draft');
+  await expect(page).toHaveURL(new RegExp(`/tasks/${parent.id}$`));
+  await row.getByLabel('Actions for Recovered child draft', { exact: true }).click();
+  await row.getByRole('button', { name: 'Edit title', exact: true }).click();
+  await row.getByLabel('Subtask title', { exact: true }).fill('Cancelled change');
+  await row.getByLabel('Subtask title', { exact: true }).press('Escape');
+  await expect(
+    row.getByRole('link', { name: 'Recovered child draft', exact: true }),
+  ).toBeVisible();
+  expect((await current(child.id)).title).toBe('Recovered child draft');
+});
+
+test('list task panel edits child titles inline on a phone without saving the parent', async ({
+  page,
+}) => {
+  const { capture, current } = await setup(page);
+  const parent = await capture(`Panel parent ${randomUUID().slice(0, 8)}`);
+  const child = await capture('Panel child title', '', parent.id);
+  const before = await current(parent.id);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/lists/inbox?task=${parent.id}`);
+  const panel = page.locator('#task-editor');
+  await expect(panel).toBeVisible();
+  await panel
+    .getByRole('button', { name: 'Edit title for Panel child title', exact: true })
+    .click();
+  const editor = panel.locator('[class="inline-editor"]');
+  await editor.getByLabel('Task title', { exact: true }).fill('Renamed panel child');
+  await editor.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(
+    panel.getByRole('button', { name: 'Renamed panel child', exact: true }),
+  ).toBeVisible();
+  expect((await current(child.id)).title).toBe('Renamed panel child');
+  expect((await current(parent.id)).revision).toBe(before.revision);
+  const bounds = await panel.boundingBox();
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(391);
+});

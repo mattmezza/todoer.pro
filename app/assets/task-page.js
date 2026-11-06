@@ -1,3 +1,4 @@
+import { mountStructuredEdit } from './structured-edit.js';
 import { mountSmartCapture } from './smart-capture.js';
 import { beginLoading } from './loading.js';
 import { request as fetch } from './request.js';
@@ -96,6 +97,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
   }
   form.prepend(title);
   title.placeholder = 'Task name';
+  const saveStructured = mountStructuredEdit(title);
   description.placeholder = 'Description (Markdown supported)';
   const editActions = form.querySelector('.task-page-actions');
   const cancelEdit = form.querySelector('[data-cancel-edit]');
@@ -250,7 +252,8 @@ export function mountTaskPage(root, { embedded = false } = {}) {
   }
   let pointerHeld = false;
   const interacting = () =>
-    pointerHeld || Boolean(root.querySelector('.task-child-menu[open]'));
+    pointerHeld ||
+    Boolean(root.querySelector('.task-child-menu[open], [data-child-inline]'));
   root.addEventListener(
     'pointerdown',
     () => {
@@ -454,6 +457,71 @@ export function mountTaskPage(root, { embedded = false } = {}) {
       cursor,
     };
   }
+  function editChildTitle(child, row, link, snapshot = null) {
+    if (!canWrite || busy || row.querySelector('[data-child-inline]')) return;
+    row.querySelector('.task-child-menu')?.removeAttribute('open');
+    const key = `${prefix}:child-edit:${child.id}`;
+    const base = snapshot || child;
+    const editor = document.createElement('form');
+    editor.dataset.childInline = '';
+    editor.className = 'inline-editor';
+    const input = document.createElement('input');
+    input.value = base.title;
+    input.required = true;
+    input.maxLength = 500;
+    input.setAttribute('aria-label', 'Subtask title');
+    const save = document.createElement('button');
+    save.type = 'submit';
+    save.textContent = 'Save';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = 'Cancel';
+    input.oninput = () => store(key, { ...base, title: input.value });
+    const close = () => {
+      store(key, null);
+      editor.remove();
+      link.hidden = false;
+      link.focus();
+      releaseSoon();
+    };
+    cancel.onclick = close;
+    input.onkeydown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        close();
+      }
+    };
+    const saveTitle = mountStructuredEdit(input);
+    editor.onsubmit = async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (busy) return;
+      input.oninput();
+      const release = beginWrite();
+      try {
+        const updated = await saveTitle(api, encodeURIComponent(child.id), {
+          revision: base.revision,
+          title: input.value,
+        });
+        if (!updated) return;
+        children.set(child.id, { ...child, ...updated });
+        link.textContent = updated.title;
+        close();
+        pending = true;
+        notice('');
+      } catch (error) {
+        notice(`${error.message}. Your subtask title draft is preserved.`, true);
+      } finally {
+        release();
+      }
+    };
+    editor.append(input, save, cancel);
+    link.hidden = true;
+    link.before(editor);
+    input.focus();
+    input.select();
+  }
   function renderChildren() {
     const container = get('[data-children]');
     container.replaceChildren();
@@ -520,7 +588,11 @@ export function mountTaskPage(root, { embedded = false } = {}) {
           exportButton.textContent = 'Export…';
           exportButton.dataset.exportKind = 'task';
           exportButton.dataset.exportId = child.id;
-          actions.append(exportButton);
+          const edit = document.createElement('button');
+          edit.type = 'button';
+          edit.textContent = 'Edit title';
+          edit.onclick = () => editChildTitle(child, row, link);
+          actions.append(edit, exportButton);
           const promote = document.createElement('button');
           promote.type = 'button';
           promote.dataset.taskPromote = child.id;
@@ -555,6 +627,8 @@ export function mountTaskPage(root, { embedded = false } = {}) {
           append(child.id, list);
         }
         target.append(row);
+        const savedTitle = read(`${prefix}:child-edit:${child.id}`);
+        if (savedTitle) editChildTitle(child, row, link, savedTitle);
       }
     }
     append(id, container);
@@ -760,7 +834,8 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     };
     const release = beginWrite();
     try {
-      const result = await api(`/tasks/${encodeURIComponent(id)}`, 'PATCH', writing);
+      const result = await saveStructured(api, encodeURIComponent(id), writing);
+      if (!result) return;
       task = { ...task, ...result };
       draft = null;
       store(prefix, null);

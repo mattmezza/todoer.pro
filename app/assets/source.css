@@ -13385,3 +13385,20 @@ body > .planning-detail-dismiss {
   width: 1rem;
   min-height: 1rem;
 }
+
+/* Child title editors share the row width and wrap their actions on phones. */
+.task-page-child-line > .inline-editor,
+.subtask-row > .inline-editor {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.subtask-row:has(.inline-editor) > .muted,
+.subtask-row:has(.inline-editor) > .subtask-edit {
+  display: none;
+}
+.subtask-edit {
+  min-height: 44px;
+  padding-inline: 8px;
+  color: var(--accent);
+  font-size: 12px;
+}
