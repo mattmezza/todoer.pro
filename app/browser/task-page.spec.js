@@ -515,8 +515,12 @@ test('subtask title edits stay inline and recover after reload', async ({ page }
   const child = await capture('Original child title', '', parent.id);
   await ready(page, parent.id);
   const row = page.locator(`[data-child-id="${child.id}"]`);
-  await row.getByLabel('Actions for Original child title', { exact: true }).click();
-  await row.getByRole('button', { name: 'Edit title', exact: true }).click();
+  await row
+    .getByRole('link', { name: 'Original child title', exact: true })
+    .click({ button: 'right' });
+  await row
+    .getByLabel('Subtask description', { exact: true })
+    .fill('Recovered **child description**');
   await row.getByLabel('Subtask title', { exact: true }).fill('Recovered child draft');
   await page.reload();
   await expect(row.getByLabel('Subtask title', { exact: true })).toHaveValue(
@@ -527,12 +531,13 @@ test('subtask title edits stay inline and recover after reload', async ({ page }
     row.getByRole('link', { name: 'Recovered child draft', exact: true }),
   ).toBeVisible();
   expect((await current(child.id)).title).toBe('Recovered child draft');
+  expect((await current(child.id)).description).toBe('Recovered **child description**');
   await expect(page.locator('[data-task-page]')).toHaveAttribute(
     'data-task-id',
     parent.id,
   );
   await row.getByLabel('Actions for Recovered child draft', { exact: true }).click();
-  await row.getByRole('button', { name: 'Edit title', exact: true }).click();
+  await row.getByRole('button', { name: 'Edit task', exact: true }).click();
   await row.getByLabel('Subtask title', { exact: true }).fill('Cancelled change');
   await row.getByLabel('Subtask title', { exact: true }).press('Escape');
   await expect(
@@ -554,16 +559,17 @@ for (const width of [390, 1280]) {
     const taskRow = page.locator(`#task-list .task[data-id="${parent.id}"]`);
     await taskRow.getByLabel(`Actions for ${parent.title}`, { exact: true }).click();
     await taskRow.getByRole('button', { name: 'Open details', exact: true }).click();
-    const panel = page.locator('#task-editor');
+    const panel = page.locator('.planning-detail-panel');
     await expect(panel).toBeVisible();
-    await panel
-      .getByRole('button', { name: 'Edit title for Panel child title', exact: true })
-      .click();
-    const editor = panel.locator('[class="inline-editor"]');
-    await editor.getByLabel('Task title', { exact: true }).fill('Renamed panel child');
+    const childRow = panel.locator(`[data-child-id="${child.id}"]`);
+    await childRow
+      .getByRole('link', { name: 'Panel child title', exact: true })
+      .click({ button: 'right' });
+    const editor = childRow.locator('[data-child-inline]');
+    await editor.getByLabel('Subtask title', { exact: true }).fill('Renamed panel child');
     await editor.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(
-      panel.getByRole('button', { name: 'Renamed panel child', exact: true }),
+      panel.getByRole('link', { name: 'Renamed panel child', exact: true }),
     ).toBeVisible();
     expect((await current(child.id)).title).toBe('Renamed panel child');
     expect((await current(parent.id)).revision).toBe(before.revision);

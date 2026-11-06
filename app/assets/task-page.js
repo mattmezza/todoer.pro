@@ -453,7 +453,14 @@ export function mountTaskPage(root, { embedded = false } = {}) {
   function projection(cursor = null) {
     return {
       limit: 100,
-      fields: ['title', 'complete', 'revision', 'position', 'public_reference'],
+      fields: [
+        'title',
+        'description',
+        'complete',
+        'revision',
+        'position',
+        'public_reference',
+      ],
       cursor,
     };
   }
@@ -461,7 +468,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     if (!canWrite || busy || row.querySelector('[data-child-inline]')) return;
     row.querySelector('.task-child-menu')?.removeAttribute('open');
     const key = `${prefix}:child-edit:${child.id}`;
-    const base = snapshot || child;
+    const base = { ...child, ...snapshot };
     const editor = document.createElement('form');
     editor.dataset.childInline = '';
     editor.className = 'inline-editor';
@@ -470,13 +477,20 @@ export function mountTaskPage(root, { embedded = false } = {}) {
     input.required = true;
     input.maxLength = 500;
     input.setAttribute('aria-label', 'Subtask title');
+    const descriptionInput = document.createElement('textarea');
+    descriptionInput.value = base.description || '';
+    descriptionInput.rows = 3;
+    descriptionInput.maxLength = 100000;
+    descriptionInput.placeholder = 'Description';
+    descriptionInput.setAttribute('aria-label', 'Subtask description');
     const save = document.createElement('button');
     save.type = 'submit';
     save.textContent = 'Save';
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.textContent = 'Cancel';
-    input.oninput = () => store(key, { ...base, title: input.value });
+    input.oninput = descriptionInput.oninput = () =>
+      store(key, { ...base, title: input.value, description: descriptionInput.value });
     const close = () => {
       store(key, null);
       editor.remove();
@@ -485,7 +499,11 @@ export function mountTaskPage(root, { embedded = false } = {}) {
       releaseSoon();
     };
     cancel.onclick = close;
-    input.onkeydown = (event) => {
+    input.onkeydown = descriptionInput.onkeydown = (event) => {
+      if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault();
+        editor.requestSubmit();
+      }
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
@@ -503,6 +521,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         const updated = await saveTitle(api, encodeURIComponent(child.id), {
           revision: base.revision,
           title: input.value,
+          description: descriptionInput.value,
         });
         if (!updated) return;
         children.set(child.id, { ...child, ...updated });
@@ -516,7 +535,7 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         release();
       }
     };
-    editor.append(input, save, cancel);
+    editor.append(input, descriptionInput, save, cancel);
     link.hidden = true;
     link.before(editor);
     input.focus();
@@ -574,6 +593,16 @@ export function mountTaskPage(root, { embedded = false } = {}) {
         link.href = `/tasks/${encodeURIComponent(child.public_reference || child.id)}`;
         link.textContent = child.title;
         line.append(complete, link);
+        row.addEventListener('contextmenu', (event) => {
+          if (
+            !canWrite ||
+            event.target.closest('input,textarea,button,summary,[data-child-inline]')
+          )
+            return;
+          event.preventDefault();
+          event.stopPropagation();
+          editChildTitle(child, row, link);
+        });
         if (canWrite) {
           const menu = document.createElement('details');
           menu.className = 'entity-menu task-child-menu';
@@ -585,18 +614,21 @@ export function mountTaskPage(root, { embedded = false } = {}) {
           actions.className = 'menu-items';
           const exportButton = document.createElement('button');
           exportButton.type = 'button';
-          exportButton.textContent = 'Export…';
+          exportButton.innerHTML =
+            '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#download"/></svg><span>Export…</span>';
           exportButton.dataset.exportKind = 'task';
           exportButton.dataset.exportId = child.id;
           const edit = document.createElement('button');
           edit.type = 'button';
-          edit.textContent = 'Edit title';
+          edit.innerHTML =
+            '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#edit"/></svg><span>Edit task</span>';
           edit.onclick = () => editChildTitle(child, row, link);
           actions.append(edit, exportButton);
           const promote = document.createElement('button');
           promote.type = 'button';
           promote.dataset.taskPromote = child.id;
-          promote.textContent = 'Move to parent…';
+          promote.innerHTML =
+            '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#move"/></svg><span>Move to parent…</span>';
           actions.append(promote);
           menu.append(summary, actions);
           line.append(menu);
@@ -804,6 +836,22 @@ export function mountTaskPage(root, { embedded = false } = {}) {
   }
   for (const selector of ['[data-edit-title]', '[data-context-edit]'])
     get(selector).onclick = () => openEditor('title');
+  root.addEventListener('contextmenu', (event) => {
+    if (
+      !canWrite ||
+      !event.target.closest('.task-page-heading,.task-page-brief') ||
+      event.target.closest('input,textarea,button,summary,a')
+    )
+      return;
+    event.preventDefault();
+    openEditor('title');
+  });
+  for (const target of [get('[data-edit-title]'), get('[data-edit-description]')])
+    target?.addEventListener('contextmenu', (event) => {
+      if (!canWrite) return;
+      event.preventDefault();
+      openEditor('title');
+    });
   get('[data-edit-description]')?.addEventListener('click', () =>
     openEditor('description'),
   );

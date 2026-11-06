@@ -1,18 +1,9 @@
 import { parseCapture } from './smart-capture-parser.mjs';
 import { confirmAction } from './confirm.js';
-// Interpretation is opt-in for every edit; ordinary prose stays literal.
-export function mountStructuredEdit(input) {
-  const label = document.createElement('label');
-  label.className = 'structured-edit-option';
-  const enabled = document.createElement('input');
-  enabled.type = 'checkbox';
-  label.append(
-    enabled,
-    document.createTextNode(' Interpret task notation (+tags, !!, dates, duration)'),
-  );
-  input.after(label);
+// Every task editor uses the same notation parser as capture. Interpretation is
+// reviewed before saving so title and metadata change together.
+export function mountStructuredEdit(_input) {
   return async (api, id, change) => {
-    if (!enabled.checked) return api(`/tasks/${id}`, 'PATCH', change);
     const parsed = parseCapture(change.title);
     if (parsed.destination || parsed.section_id || /(^|\s)[@#$]/u.test(change.title))
       throw Error(
