@@ -475,11 +475,13 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
     editor.dataset.childInline = '';
     editor.className = 'inline-editor';
     const input = document.createElement('input');
+    input.name = 'title';
     input.value = base.title;
     input.required = true;
     input.maxLength = 500;
     input.setAttribute('aria-label', 'Subtask title');
     const descriptionInput = document.createElement('textarea');
+    descriptionInput.name = 'description';
     descriptionInput.value = base.description || '';
     descriptionInput.rows = 3;
     descriptionInput.maxLength = 100000;

@@ -67,6 +67,7 @@ export function mountListUi({ api, notice, listId }) {
     const rgb = getComputedStyle(swatch).backgroundColor.match(/\d+/g);
     const current = document.createElement('input');
     current.type = 'color';
+    current.name = 'color';
     current.setAttribute('aria-label', 'Custom list color');
     current.value =
       rgb?.length >= 3
@@ -520,6 +521,7 @@ export function mountListUi({ api, notice, listId }) {
     const dialog = modal(`Move ${kind}`);
     const form = document.createElement('form');
     const search = document.createElement('input');
+    search.name = 'destination_query';
     if (kind === 'section') {
       search.type = 'search';
       search.placeholder = 'Search lists…';
@@ -527,9 +529,11 @@ export function mountListUi({ api, notice, listId }) {
       field(form, 'Search destination lists', search);
     }
     const select = document.createElement('select');
+    select.name = kind === 'list' ? 'workspace_id' : 'list_id';
     select.required = true;
     field(form, kind === 'list' ? 'Destination space' : 'Destination list', select);
     const sections = document.createElement('select');
+    sections.name = 'section_id';
     sections.append(new Option('No section', ''));
     if (kind === 'task') field(form, 'Destination section', sections);
     const status = document.createElement('p');
@@ -537,6 +541,7 @@ export function mountListUi({ api, notice, listId }) {
     const ackLabel = document.createElement('label');
     const ack = document.createElement('input');
     ack.type = 'checkbox';
+    ack.name = 'acknowledge_access_change';
     ackLabel.append(
       ack,
       document.createTextNode(

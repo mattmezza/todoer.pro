@@ -52,6 +52,7 @@ export async function mountPublicSharing(section, kind, id) {
     const label = document.createElement('label');
     label.className = 'public-sharing-toggle';
     const toggle = document.createElement('input');
+    toggle.name = 'public_access';
     toggle.type = 'checkbox';
     toggle.checked = state.enabled;
     toggle.disabled = !state.can_manage;

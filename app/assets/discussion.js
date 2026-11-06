@@ -168,6 +168,7 @@ export function mountDiscussion({
     summary.textContent = title;
     summary.className = 'min-h-11 cursor-pointer';
     const text = document.createElement('textarea');
+    text.name = 'recovered_comment';
     text.value = draft.body;
     text.readOnly = true;
     text.rows = 4;

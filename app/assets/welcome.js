@@ -76,6 +76,7 @@ function listGroups() {
       const label = document.createElement('label');
       label.className = 'welcome-choice';
       const input = document.createElement('input');
+      input.name = `lists[${space}]`;
       input.type = 'checkbox';
       input.value = title;
       input.checked = selectedLists.get(space)?.has(title) || false;
@@ -108,6 +109,7 @@ function listGroups() {
     const label = document.createElement('label');
     label.textContent = `List name in @${space}`;
     const input = document.createElement('input');
+    input.name = `custom_list[${space}]`;
     input.type = 'text';
     input.maxLength = 64;
     input.autocomplete = 'off';

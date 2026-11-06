@@ -193,8 +193,9 @@ onPageLoad(async (scope) => {
     });
     history.replaceState({ ...history.state, htmx: true }, '', '?' + q);
   }
-  function dateInput(value) {
+  function dateInput(value, name) {
     const n = node('input');
+    n.name = name;
     n.type = 'date';
     n.value = value;
     return n;
@@ -251,9 +252,10 @@ onPageLoad(async (scope) => {
     prompt.append('When will you get “', node('strong', entry.task.title), '” done?');
     d.append(prompt);
     const form = node('form');
-    const date = dateInput(initial || entry.schedule.planned?.date || today);
+    const date = dateInput(initial || entry.schedule.planned?.date || today, 'date');
     date.required = true;
     const time = node('input');
+    time.name = 'time';
     time.type = 'time';
     time.value = entry.local_time || '';
     const dateLabel = node('label', 'Day');
@@ -326,6 +328,7 @@ onPageLoad(async (scope) => {
     }
     const durationLabel = node('label', 'Duration (min)');
     const duration = node('input');
+    duration.name = 'duration_minutes';
     duration.setAttribute('aria-label', 'Duration (minutes, optional)');
     duration.type = 'number';
     duration.min = '0';
@@ -434,6 +437,7 @@ onPageLoad(async (scope) => {
     d.classList.add('destination-dialog');
     d.append(node('h3', entry.task.title, 'destination-task-title'));
     const input = node('input');
+    input.name = 'destination_query';
     input.type = 'search';
     input.placeholder = 'Search lists or spaces…';
     input.setAttribute('aria-label', 'Search lists or spaces');
@@ -1052,6 +1056,10 @@ onPageLoad(async (scope) => {
       time = node('input'),
       priority = node('select'),
       description = node('textarea');
+    title.name = 'title';
+    time.name = 'time';
+    priority.name = 'priority';
+    description.name = 'description';
     title.placeholder = 'What would you like to do?';
     title.required = true;
     title.maxLength = 500;
@@ -1171,8 +1179,8 @@ onPageLoad(async (scope) => {
       }),
     );
     if (view === 'custom') {
-      const f = dateInput(from),
-        t = dateInput(to);
+      const f = dateInput(from, 'from'),
+        t = dateInput(to, 'to');
       f.setAttribute('aria-label', 'Start date');
       t.setAttribute('aria-label', 'End date');
       controls.append(
@@ -1186,7 +1194,7 @@ onPageLoad(async (scope) => {
         }),
       );
     } else {
-      const date = dateInput(anchor);
+      const date = dateInput(anchor, 'date');
       date.setAttribute('aria-label', 'Go to date');
       date.onchange = async () => {
         anchor = date.value;

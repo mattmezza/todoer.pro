@@ -109,6 +109,7 @@ export async function openCapture(listId) {
     const repeatLabel = document.createElement('label');
     repeatLabel.className = 'quick-capture-repeat';
     const repeat = document.createElement('input');
+    repeat.name = 'keep_adding';
     repeat.type = 'checkbox';
     repeat.setAttribute('aria-label', 'Keep adding');
     repeatLabel.append(repeat, document.createTextNode('Keep adding'));

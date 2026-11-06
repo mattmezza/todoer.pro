@@ -125,6 +125,7 @@ export function mountBreakdown(root, { inline = false } = {}) {
           const label = document.createElement('label');
           label.textContent = labelText;
           const field = document.createElement(key === 'title' ? 'input' : 'textarea');
+          field.name = key;
           field.value = entry[key];
           field.maxLength = key === 'title' ? 500 : 2000;
           field.oninput = () => {

@@ -577,11 +577,13 @@ onPageLoad((scope) => {
       const form = document.createElement('form');
       form.className = 'inline-editor';
       const input = document.createElement('input');
+      input.name = 'title';
       input.value = task.title;
       input.required = true;
       input.maxLength = 500;
       input.setAttribute('aria-label', 'Task title');
       const description = document.createElement('textarea');
+      description.name = 'description';
       description.value = task.description || '';
       description.rows = 3;
       description.maxLength = 100000;
