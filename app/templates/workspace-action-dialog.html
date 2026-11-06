@@ -2,7 +2,7 @@
   <h2 id="workspace-action-heading" x-text="heading"></h2>
   <p x-text="message"></p>
   <form x-on:submit.prevent="save">
-    <input placeholder="Type the exact workspace name" aria-label="Workspace name confirmation" autocomplete="off" hidden x-ref="confirmation" x-model="confirmation" x-bind:hidden="!confirmName" x-bind:required="confirmName">
+    <input id="workspace-name-confirmation" placeholder="Type the exact workspace name" aria-label="Workspace name confirmation" autocomplete="off" hidden x-ref="confirmation" x-model="confirmation" x-bind:hidden="!confirmName" x-bind:required="confirmName">
     <div class="confirmation-actions"><button type="button" x-on:click="close">Cancel</button><button type="submit" class="primary" x-bind:class="{ destructive: action !== 'restore' }" x-bind:disabled="busy" x-text="acceptLabel"></button></div>
     <p role="alert" x-text="error"></p>
   </form>

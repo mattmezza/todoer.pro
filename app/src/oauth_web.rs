@@ -675,7 +675,7 @@ async fn issue_form(
         },
     )
     .await?;
-    Ok(Html(format!("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Save your credential</title><link rel=\"stylesheet\" href=\"/assets/app.css\"><main><h1>Copy your credential now</h1><p>This is its only display. Store it securely. Anyone holding it can use the approved access until it expires or is revoked.</p><label>Credential<textarea readonly rows=\"3\" cols=\"72\">{}</textarea></label><p>ID: <code>{}</code></p><a href=\"/settings/ai/tools\">Return to connected tools</a></main></html>",escaped(&grant.token),escaped(&grant.id))).into_response())
+    Ok(Html(format!("<!doctype html><html lang=\"en\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Save your credential</title><link rel=\"stylesheet\" href=\"/assets/app.css\"><main><h1>Copy your credential now</h1><p>This is its only display. Store it securely. Anyone holding it can use the approved access until it expires or is revoked.</p><label>Credential<textarea id=\"created-credential\" readonly rows=\"3\" cols=\"72\">{}</textarea></label><p>ID: <code>{}</code></p><a href=\"/settings/ai/tools\">Return to connected tools</a></main></html>",escaped(&grant.token),escaped(&grant.id))).into_response())
 }
 async fn settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult {
     browser(&s, &h, false)?;

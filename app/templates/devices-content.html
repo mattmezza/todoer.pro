@@ -3,8 +3,8 @@
 {% if configured %}
 <p class="device-browser-status" data-push-status data-loading-pending="compact" role="status" aria-live="polite">Checking notification support…</p>
 <div class="device-browser-actions"><button type="button" data-push-enable hidden class="primary">Enable notifications</button><button type="button" data-push-disable hidden class="secondary">Disable this browser</button><button type="button" data-push-test hidden class="secondary">Test notification</button></div>
-<details class="device-name-option" data-push-name hidden><summary>Device name <span class="muted">· optional</span></summary><label>Name<input data-push-label maxlength="100" value="This browser" autocomplete="off"></label></details>
-<label class="settings-check device-account-toggle"><input type="checkbox" data-push-opt-in{% if opt_in %} checked{% endif %}><span>Allow push notifications on my devices<small>Turn off to pause push delivery everywhere.</small></span></label>
+<details class="device-name-option" data-push-name hidden><summary>Device name <span class="muted">· optional</span></summary><label>Name<input id="push-device-label" data-push-label maxlength="100" value="This browser" autocomplete="off"></label></details>
+<label class="settings-check device-account-toggle"><input type="checkbox" id="push-opt-in" data-push-opt-in{% if opt_in %} checked{% endif %}><span>Allow push notifications on my devices<small>Turn off to pause push delivery everywhere.</small></span></label>
 <noscript>JavaScript is needed to enable notifications. You can still disable registered devices below.</noscript>
 {% else %}
 <p class="muted">Push notifications aren’t available on this installation yet. Your updates are still in the notification center.</p>
