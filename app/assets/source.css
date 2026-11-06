@@ -1341,10 +1341,11 @@ input[type='checkbox'] {
   gap: 4px;
 }
 /* Clip the moving content and reveal the action within the row's own bounds. */
-.reference-list-page .task[data-swipe-action] {
+:is(.reference-list-page .task, .task-page-child)[data-swipe-action] {
+  position: relative;
   overflow: hidden;
 }
-.reference-list-page .task[data-swipe-action]::before {
+:is(.reference-list-page .task, .task-page-child)[data-swipe-action]::before {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -1357,23 +1358,23 @@ input[type='checkbox'] {
   font-weight: 600;
   pointer-events: none;
 }
-.reference-list-page .task[data-swipe-action='done']::before {
+:is(.reference-list-page .task, .task-page-child)[data-swipe-action='done']::before {
   content: 'Done';
   left: 0;
   background: #22a55a;
   clip-path: inset(0 calc(100% - var(--swipe-distance)) 0 0);
 }
-.reference-list-page .task[data-swipe-action='archive']::before {
+:is(.reference-list-page .task, .task-page-child)[data-swipe-action='archive']::before {
   content: 'Archive';
   right: 0;
   justify-content: flex-end;
   background: #3b9ed5;
   clip-path: inset(0 0 0 calc(100% + var(--swipe-distance)));
 }
-.reference-list-page .task[data-swipe-action] > * {
+:is(.reference-list-page .task, .task-page-child)[data-swipe-action] > * {
   transform: translateX(var(--swipe-distance));
 }
-.reference-list-page .task[data-swipe-action='done'] > * {
+:is(.reference-list-page .task, .task-page-child)[data-swipe-action='done'] > * {
   transform: translateX(calc(var(--swipe-distance) + 10px));
 }
 .reference-list-page .task-title {
@@ -11831,7 +11832,7 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
 }
 .inbox-undo {
   position: fixed;
-  z-index: 30;
+  z-index: 46;
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
@@ -13687,4 +13688,12 @@ html.page-loading::after {
   padding: 4px 8px;
   color: var(--muted);
   font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .task-page-child:not(:has([data-child-inline])) {
+    -webkit-touch-callout: none;
+    user-select: none;
+    touch-action: pan-y;
+  }
 }

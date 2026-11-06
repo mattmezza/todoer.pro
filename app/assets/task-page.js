@@ -1,3 +1,5 @@
+import { createTaskSwipeActions } from './task-swipe-actions.js';
+import { mountTaskOrdering } from './task-order.js';
 import { navigate, refreshPage } from './page-navigation.js';
 import { onPageLoad } from './page-lifecycle.js';
 import { mountStructuredEdit } from './structured-edit.js';
@@ -612,6 +614,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
       for (const child of byParent.get(parent) || []) {
         const row = document.createElement('li');
         row.dataset.childId = child.id;
+        row.dataset.complete = String(child.complete);
         row.className = 'task-page-child';
         const line = document.createElement('div');
         line.className = 'task-page-child-line';
@@ -1445,6 +1448,41 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
         : 'Restored your task draft with an older revision. Review the saved version before rebasing.',
     );
   } else draft = null;
+  const swipeChild = createTaskSwipeActions({
+    canWrite,
+    api,
+    notice,
+    beginWrite,
+    getTask: (row) => children.get(row.dataset.childId),
+    changed: () => {
+      pending = true;
+      releaseSoon();
+    },
+  });
+  const stopSwipes = mountTaskOrdering({
+    container: get('[data-children]'),
+    listId: task.list_id,
+    canWrite,
+    request: api,
+    rowSelector: '.task-page-child[data-child-id]',
+    reorder: false,
+    onSwipe: swipeChild,
+    hasActiveDraft: () =>
+      !childrenReady ||
+      editOpen ||
+      busy ||
+      dirty() ||
+      Boolean(root.querySelector('[data-child-inline],[data-child-composer][open]')),
+    onError: (message) => notice(message, true),
+  });
+  lifecycle.signal.addEventListener(
+    'abort',
+    () => {
+      stopSwipes();
+      swipeChild.destroy();
+    },
+    { once: true },
+  );
   mountControllers();
   if (embedded) mountBreakdown(root, { inline: true });
   if (!embedded) setupTaskSettingsDock(root);

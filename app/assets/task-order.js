@@ -19,6 +19,8 @@ export function mountTaskOrdering({
   onError,
   hasActiveDraft,
   onSwipe,
+  rowSelector = '.task[data-id]',
+  reorder = true,
 }) {
   if (!container || !listId || typeof request !== 'function')
     throw new Error('Ordering requires a list, container and request function');
@@ -47,7 +49,7 @@ export function mountTaskOrdering({
   function blocked() {
     if (hasActiveDraft?.()) {
       error(
-        'Finish or close the active editor, clear the capture draft or text selection, then reorder. Your draft is unchanged.',
+        'Finish or close the active editor, clear the capture draft or text selection, then try again. Your draft is unchanged.',
       );
       return true;
     }
@@ -303,7 +305,7 @@ export function mountTaskOrdering({
       return;
     }
     if (desktop.matches || !canWrite || busy) return;
-    const row = event.target.closest('.task[data-id]');
+    const row = event.target.closest(rowSelector);
     if (
       !row ||
       !container.contains(row) ||
@@ -320,14 +322,15 @@ export function mountTaskOrdering({
       after: false,
     };
     touchGesture = gesture;
-    gesture.timer = setTimeout(() => {
-      if (touchGesture !== gesture || blocked()) return;
-      gesture.mode = 'drag';
-      gesture.pending = snapshot();
-      gesture.pending.catch(() => {});
-      row.dataset.orderDragging = 'true';
-      navigator.vibrate?.(15);
-    }, 400);
+    if (reorder)
+      gesture.timer = setTimeout(() => {
+        if (touchGesture !== gesture || blocked()) return;
+        gesture.mode = 'drag';
+        gesture.pending = snapshot();
+        gesture.pending.catch(() => {});
+        row.dataset.orderDragging = 'true';
+        navigator.vibrate?.(15);
+      }, 400);
   }
   function touchMove(event) {
     const current = touchGesture;

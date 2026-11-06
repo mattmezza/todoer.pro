@@ -1,3 +1,4 @@
+import { createTaskSwipeActions } from './task-swipe-actions.js';
 import { createTaskPanel } from './task-panel.js';
 import { mountStructuredEdit } from './structured-edit.js';
 import { reconcileTasks } from './task-list-refresh.js';
@@ -462,76 +463,20 @@ onPageLoad((scope) => {
   }
   scope.listen(window, 'pagehide', () => taskPanel.destroy());
 
-  const swipeUndo = [];
-  const swipingTasks = new Set();
-  function showSwipeUndo() {
-    for (const item of swipeUndo) item.element.remove();
-    const latest = swipeUndo.at(-1);
-    if (latest) document.body.append(latest.element);
-  }
-  async function swipeTask(row, action) {
-    const id = row.dataset.id;
-    if (
-      !canWrite ||
-      swipingTasks.has(id) ||
-      (action === 'complete' && row.dataset.complete === 'true')
-    )
-      return;
-    swipingTasks.add(id);
-    row.setAttribute('aria-busy', 'true');
-    try {
-      const title = row.querySelector('.task-title')?.textContent.trim() || 'Task';
-      const result = await api(
-        action === 'archive'
-          ? `/cli/lifecycle/task/${encodeURIComponent(id)}`
-          : `/tasks/${encodeURIComponent(id)}`,
-        action === 'archive' ? 'POST' : 'PATCH',
-        action === 'archive'
-          ? { archive: true }
-          : { revision: Number(row.dataset.revision), complete: true },
-      );
-      const element = document.createElement('div');
-      element.className = 'inbox-undo';
-      element.setAttribute('role', 'status');
-      const text = document.createElement('span');
-      text.textContent = `${action === 'archive' ? 'Archived' : 'Completed'} · ${result.title || title}`;
-      const undo = document.createElement('button');
-      undo.type = 'button';
-      undo.textContent = 'Undo';
-      const item = { element };
-      undo.onclick = async () => {
-        undo.disabled = true;
-        try {
-          await api(
-            action === 'archive'
-              ? `/cli/lifecycle/task/${encodeURIComponent(id)}`
-              : `/tasks/${encodeURIComponent(id)}`,
-            action === 'archive' ? 'POST' : 'PATCH',
-            action === 'archive'
-              ? { archive: false }
-              : { revision: result.revision, complete: false },
-          );
-          swipeUndo.splice(swipeUndo.indexOf(item), 1);
-          element.remove();
-          showSwipeUndo();
-          refresh();
-        } catch (error) {
-          notice(`${error.message} The task could not be restored.`, true);
-          undo.disabled = false;
-        }
-      };
-      element.append(text, undo);
-      swipeUndo.push(item);
-      showSwipeUndo();
-      refresh();
-    } catch (error) {
-      notice(`${error.message} The task was not changed.`, true);
-      if (error.status === 409 || error.status === 404 || error.status === 403) refresh();
-    } finally {
-      row.removeAttribute('aria-busy');
-      swipingTasks.delete(id);
-    }
-  }
+  const swipeTask = createTaskSwipeActions({
+    canWrite,
+    api,
+    notice,
+    changed: () => refresh(),
+    getTask: (row) => ({
+      id: row.dataset.id,
+      parent_id: row.dataset.parentId,
+      revision: Number(row.dataset.revision),
+      complete: row.dataset.complete === 'true',
+      title: row.querySelector('.task-title')?.textContent.trim(),
+    }),
+  });
+  scope.cleanup(swipeTask.destroy);
 
   mountSectionOrdering({
     container: $('#task-list'),
