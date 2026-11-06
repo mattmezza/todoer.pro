@@ -84,6 +84,16 @@ for (const width of [390, 1280]) {
     });
     await expect(archiveDialog).toContainText('$Review section');
     await expect(archiveDialog).toContainText('A helpful section description');
+    const archivedName = await archiveDialog
+      .locator('.archived-section-name')
+      .filter({ hasText: '$Review section' })
+      .boundingBox();
+    const restoreAction = await archiveDialog
+      .getByRole('button', { name: 'Restore section Review section' })
+      .boundingBox();
+    expect(archivedName.x).toBeLessThan(restoreAction.x);
+    expect(restoreAction.x + restoreAction.width).toBeLessThanOrEqual(width);
+
     await archiveDialog
       .getByRole('button', { name: 'Restore section Review section' })
       .click();
@@ -111,10 +121,25 @@ for (const width of [390, 1280]) {
       page.getByRole('region', { name: 'Archived space', exact: true }),
     ).toBeVisible();
     await expect(page.locator('[data-space-edit-open]')).toHaveCount(0);
-    await expect(page.locator('[data-list-create-open]')).toHaveCount(0);
+    await expect(page.locator('main [data-list-create-open]')).toHaveCount(0);
     await expect(
       page.locator('.space-list-card a').filter({ hasText: '#Lifecycle list' }),
     ).toBeVisible();
+    const blockedWrite = await page.request.post(`/api/v1/lists/${list.id}/sections`, {
+      headers,
+      data: { title: 'Must restore first' },
+    });
+    expect(blockedWrite.status()).toBe(409);
+    await page.goto(`/lists/${list.id}`);
+    await expect(page.locator('body')).toHaveAttribute('data-can-write', 'false');
+    await expect(page.locator('[data-list-restore]')).toHaveCount(0);
+    const discussionHtml = await (
+      await page.request.get(`/fragments/tasks/${root.id}/discussion`)
+    ).text();
+    expect(discussionHtml).toContain('data-can-write="false"');
+    expect(discussionHtml).not.toContain('data-new-comment');
+    expect(discussionHtml).not.toContain('data-file-form');
+    await page.goto(`/space/${space.id}`);
     await page.getByRole('button', { name: 'Restore space…', exact: true }).click();
     await expect(
       page.getByRole('region', { name: 'Archived space', exact: true }),
