@@ -637,6 +637,9 @@ export function mountTaskPage(root, { embedded = false, onSchedule } = {}) {
         if (canWrite) {
           const menu = document.createElement('details');
           menu.className = 'entity-menu task-child-menu';
+          menu.setAttribute('x-data', 'dismissibleMenu');
+          menu.setAttribute('x-on:click.outside', 'close');
+          menu.setAttribute('x-on:keydown.escape.window', 'escape');
           const summary = document.createElement('summary');
           summary.setAttribute('aria-label', `Actions for ${child.title}`);
           summary.innerHTML =

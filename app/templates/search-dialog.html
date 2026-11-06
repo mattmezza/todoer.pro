@@ -1,0 +1,17 @@
+<dialog class="search-omnibar" data-search-dialog x-data="searchOmnibar" aria-label="Quick search" x-on:click.document="openFromTrigger" x-on:keydown.document.capture="shortcut" x-on:pointerdown="backdropPress" x-on:click="backdropClick" x-on:close="closed">
+  <div class="omnibar-heading">
+    <label class="sr-only" for="omnibar-query">Search everything</label>
+    <input id="omnibar-query" type="search" placeholder="Search everything…" maxlength="500" autocomplete="off" role="combobox" aria-autocomplete="list" aria-haspopup="grid" aria-controls="omnibar-results" aria-expanded="true" x-ref="input" x-model="query" x-bind:aria-activedescendant="selectedId" x-on:input="changed" x-on:keydown="searchKey">
+    <button type="button" aria-label="Close quick search" x-on:click="close"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg></button>
+  </div>
+  <p class="omnibar-status" role="status" x-bind:hidden="busy"><svg class="ui-icon omnibar-status-icon" aria-hidden="true"><use x-bind:href="statusIcon"/></svg><span x-text="status"></span></p>
+  <div id="omnibar-results" role="grid" aria-label="Quick search results" x-ref="results">
+    <template x-for="(hit, index) in hits" x-bind:key="hit.rowId">
+      <div class="omnibar-result" role="row" tabindex="-1" x-bind:id="hit.rowId" x-bind:data-index="index" x-bind:aria-selected="active === index ? 'true' : 'false'" x-on:mouseenter="hover">
+        <div role="gridcell"><a tabindex="-1" x-bind:href="hit.href" x-on:click="close"><strong x-text="hit.title"></strong><small x-text="hit.contextLabel"></small><span class="omnibar-snippet" x-bind:hidden="!hit.snippet" x-text="hit.snippet"></span></a></div>
+        <div role="gridcell" x-bind:hidden="!hit.reference"><button type="button" class="omnibar-copy-reference" x-bind:title="hit.copyLabel" x-bind:aria-label="hit.copyLabel" x-bind:data-index="index" x-bind:data-copied="copied === hit.rowId ? 'true' : null" x-on:click="copyReference"><span x-text="hit.reference"></span><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg></button></div>
+      </div>
+    </template>
+  </div>
+  <footer><a x-bind:href="overviewHref" x-on:click="close">View all results &amp; filters →</a></footer>
+</dialog>

@@ -146,6 +146,62 @@ test('confirmation requests stay queued and settle when their page is replaced',
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
+test('search renders plain text, tracks keyboard selection and reopens after navigation', async ({
+  page,
+}) => {
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await signin(page);
+  const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
+  const captured = await page.request.post('/api/v1/capture', {
+    headers: { 'X-CSRF-Token': csrf, 'Idempotency-Key': randomUUID() },
+    data: {
+      list_id: 'inbox',
+      tasks: [{ title: 'Search first' }, { title: 'Search second' }],
+    },
+  });
+  expect(captured.ok()).toBeTruthy();
+  const tasks = await captured.json();
+  await page.route('**/api/v1/query?**', (route) =>
+    route.fulfill({
+      json: {
+        total: 2,
+        hits: tasks.map((task, index) => ({
+          ...task,
+          kind: 'task',
+          title: index ? 'Second result' : 'First <b>plain text</b> result',
+        })),
+      },
+    }),
+  );
+  await page.mouse.move(0, 0);
+  await page.keyboard.press('Control+k');
+  const dialog = page.getByRole('dialog', { name: 'Quick search' });
+  const input = dialog.getByRole('combobox', { name: 'Search everything' });
+  await input.fill('search');
+  await expect(dialog.getByRole('row')).toHaveCount(2);
+  await expect(dialog.locator('strong').first()).toHaveText(
+    'First <b>plain text</b> result',
+  );
+  await expect(dialog.locator('b')).toHaveCount(0);
+  await expect(input).toHaveAttribute('aria-activedescendant', 'omnibar-result-0');
+  await input.press('ArrowDown');
+  await expect(input).toHaveAttribute('aria-activedescendant', 'omnibar-result-1');
+  await expect(dialog.getByRole('row').nth(1)).toHaveAttribute('aria-selected', 'true');
+  await input.press('Enter');
+  await expect(page.locator('[data-task-page]')).toHaveAttribute(
+    'data-task-id',
+    tasks[1].id,
+  );
+  await page.keyboard.press('/');
+  await expect(dialog).toBeVisible();
+  await expect(input).toHaveValue('');
+  await expect(dialog.getByRole('row')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('export keeps its format controls usable after errors and downloads the selected report', async ({
   page,
 }) => {

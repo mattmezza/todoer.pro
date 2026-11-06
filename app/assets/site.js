@@ -13,7 +13,6 @@ import './nav-overflow.js';
 import { hydratePreferredTimes } from './preferred-time.js';
 import './task-play.js';
 import { toast } from './toast.js';
-import './search-omnibar.js';
 import { confirmAction } from './confirm.js';
 import { listPending, clearAccount } from './offline.js';
 import { setupPwa, clearPwa } from './pwa.js';
@@ -63,12 +62,6 @@ onPageLoad(async (scope) => {
       event.target.closest('a, [data-open-search], [data-workspace-create-open]')
     )
       drawer(false);
-  });
-  scope.listen(document, 'click', (event) => {
-    for (const menu of document.querySelectorAll(
-      '.account-menu[open],.entity-menu[open],.task-actions[open],.workspace-menu[open]',
-    ))
-      if (!menu.contains(event.target)) menu.open = false;
   });
   scope.listen(document, 'keydown', (event) => {
     if (event.defaultPrevented) return;
@@ -127,14 +120,6 @@ onPageLoad(async (scope) => {
       } else if (form?.closest('.workspace-title-editor')) {
         event.preventDefault();
         form.closest('details').open = false;
-      } else {
-        for (const menu of document.querySelectorAll(
-          '.account-menu[open],.entity-menu[open],.task-actions[open],.workspace-menu[open]',
-        )) {
-          menu.open = false;
-          event.preventDefault();
-          menu.querySelector('summary')?.focus();
-        }
       }
     }
   });
