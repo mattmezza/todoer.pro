@@ -49,7 +49,27 @@ test('navigation keeps the shell, URLs, titles and Back/Forward working', async 
 }) => {
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  await page.addInitScript(() => {
+    window.styleViolations = [];
+    document.addEventListener('securitypolicyviolation', (event) => {
+      if (event.effectiveDirective.startsWith('style-src'))
+        window.styleViolations.push(event.blockedURI);
+    });
+  });
   await signin(page);
+  // Indicator visibility comes from our stylesheet, without HTMX injecting CSS.
+  expect(
+    await page.evaluate(() => {
+      const indicator = document.createElement('span');
+      indicator.className = 'htmx-indicator';
+      document.body.append(indicator);
+      const hidden = getComputedStyle(indicator).visibility;
+      indicator.classList.add('htmx-request');
+      const visible = getComputedStyle(indicator).visibility;
+      indicator.remove();
+      return { hidden, visible, injected: !!window.htmx.indicatorStyleSheet };
+    }),
+  ).toEqual({ hidden: 'hidden', visible: 'visible', injected: false });
   const listUrl = page.url();
   await page.locator('#navigation a[href="/today"]').click();
   await expect(page).toHaveURL(/\/today$/);
@@ -77,6 +97,7 @@ test('navigation keeps the shell, URLs, titles and Back/Forward working', async 
   await expect(page.locator('h1')).toHaveText('Inbox');
   await persistent(page);
   expect(errors).toEqual([]);
+  expect(await page.evaluate(() => window.styleViolations)).toEqual([]);
 });
 
 test('repeated swaps clean up live connections and restore list capture drafts', async ({

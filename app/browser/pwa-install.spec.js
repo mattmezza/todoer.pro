@@ -4,6 +4,10 @@ test('installation metadata and service worker work outside list pages', async (
   page,
 }) => {
   await page.goto('/signin');
+  await expect(page.locator('meta[name="mobile-web-app-capable"]')).toHaveAttribute(
+    'content',
+    'yes',
+  );
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
   await expect(page.locator('.pwa-install-notice')).toHaveCount(0);
   await page.goto('/settings/general');
@@ -27,6 +31,10 @@ test('installation metadata and service worker work outside list pages', async (
   for (const path of ['/today', '/notifications', '/settings/notifications', '/signin']) {
     await page.goto(path);
     await expect(page.locator('link[rel="manifest"]')).toHaveCount(1);
+    await expect(page.locator('meta[name="mobile-web-app-capable"]')).toHaveAttribute(
+      'content',
+      'yes',
+    );
   }
   await page.goto('/settings/notifications');
   await expect(page.locator('input[name="timezone"]')).toHaveCount(0);

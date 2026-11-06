@@ -27,6 +27,17 @@
 * {
   box-sizing: border-box;
 }
+/* HTMX's automatic indicator stylesheet is disabled in app-head.html for CSP. */
+.htmx-indicator {
+  opacity: 0;
+  visibility: hidden;
+}
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 200ms ease-in;
+}
 body {
   margin: 0;
   background-color: var(--bg);
@@ -10716,6 +10727,10 @@ main.auth-shell {
   gap: 0;
   overflow: hidden;
   pointer-events: none;
+}
+/* Absolute loading overlays need the same inset as the panel's loaded content. */
+.planning-detail-content > :is(.loading-skeleton, .loading-error) {
+  inset: 4px 20px 32px;
 }
 .skeleton-row {
   display: flex;

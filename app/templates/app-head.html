@@ -1,2 +1,3 @@
-<meta name="htmx-config" content='{"noSwap":[204,304,"4xx","5xx"]}'>
+{# Keep indicator CSS external under the CSP, including during upgrades from HTMX 2. #}
+<meta name="htmx-config" content='{"includeIndicatorCSS":false,"includeIndicatorStyles":false,"noSwap":[204,304,"4xx","5xx"]}'>
 <script src="/assets/htmx.min.js" defer></script>
