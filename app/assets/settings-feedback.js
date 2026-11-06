@@ -1,38 +1,42 @@
 import { toast } from './toast.js';
 import { setSaveState } from './quiet-info.js';
-import { onPageLoad } from './page-lifecycle.js';
+import { createScope } from './page-lifecycle.js';
 
-onPageLoad((scope) => {
-  const fetch = scope.request;
-  if (
-    location.pathname === '/settings/notifications' ||
-    location.pathname === '/notifications'
-  ) {
-    const form = document.querySelector('main form[method=post]');
-    scope.listen(form, 'submit', async (event) => {
-      event.preventDefault();
-      if (form.dataset.saving === 'true') return;
-      form.dataset.saving = 'true';
-      const button = event.submitter;
+export function notificationPreferences() {
+  const scope = createScope();
+  let form;
+  return {
+    busy: false,
+    init() {
+      form = this.$el;
+    },
+    destroy() {
+      scope.dispose();
+    },
+    async save() {
+      if (this.busy) return;
       const payload = new URLSearchParams(new FormData(form));
-      if (button) button.disabled = true;
+      this.busy = true;
       setSaveState('notification-preferences', 'saving');
       try {
-        const response = await fetch(form.action, { method: 'POST', body: payload });
+        const response = await scope.request(form.action, {
+          method: 'POST',
+          body: payload,
+        });
         if (!response.ok) {
           const data = await response.json().catch(() => null);
           throw Error(data?.error?.message || 'Could not save notification preferences.');
         }
-        if (new URL(response.url).pathname === '/signin')
-          throw Error('Sign in again to save preferences.');
-        setSaveState('notification-preferences', 'saved');
-        toast('Notification preferences saved.');
+        if (!scope.signal.aborted) {
+          setSaveState('notification-preferences', 'saved');
+          toast('Notification preferences saved.');
+        }
       } catch (error) {
-        setSaveState('notification-preferences', 'error', error.message);
+        if (!scope.signal.aborted)
+          setSaveState('notification-preferences', 'error', error.message);
       } finally {
-        delete form.dataset.saving;
-        if (button) button.disabled = false;
+        this.busy = false;
       }
-    });
-  }
-});
+    },
+  };
+}

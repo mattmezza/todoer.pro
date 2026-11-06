@@ -1,98 +1,84 @@
 import { beginLoading } from './loading.js';
-
 import { toast } from './toast.js';
-import { onPageLoad } from './page-lifecycle.js';
+import { createScope } from './page-lifecycle.js';
 
-onPageLoad((scope) => {
-  const request = scope.request;
-  const form = document.querySelector('[data-capture-preferences]');
-  if (form) {
-    const status = form.querySelector('[data-capture-preferences-status]');
-    const retry = form.querySelector('[data-capture-retry]');
-    const fields = [...form.querySelectorAll('input, textarea, button[type=submit]')];
-    const dates = form.querySelector('[data-date-options]');
-    const sync = () => {
-      dates.hidden = !form.elements.smart_enabled.checked;
-    };
-    const busy = (value) => {
-      form.setAttribute('aria-busy', String(value));
-      fields.forEach((field) => {
-        field.disabled = value;
-      });
-    };
-    async function load() {
+export function capturePreferences() {
+  const scope = createScope();
+  let form;
+  return {
+    loaded: false,
+    busy: true,
+    smartEnabled: false,
+    dateEnabled: false,
+    repeatCapture: false,
+    instructions: '',
+    instructionsOpen: false,
+    status: '',
+    init() {
+      form = this.$el;
+      return this.load();
+    },
+    destroy() {
+      scope.dispose();
+    },
+    async load() {
       const skeleton = beginLoading(form, { variant: 'form' });
-      busy(true);
-      retry.hidden = true;
-      status.textContent = '';
+      scope.cleanup(() => skeleton.finish());
+      this.busy = true;
+      this.status = '';
       try {
-        const response = await request('/api/v1/capture/preferences', {
+        const response = await scope.request('/api/v1/capture/preferences', {
           cache: 'no-store',
         });
         if (!response.ok) throw Error('Could not load preferences. Please try again.');
         const value = await response.json();
-        for (const key of ['smart_enabled', 'date_enabled', 'repeat_capture'])
-          form.elements[key].checked = value[key];
-        form.elements.ai_instructions.value = value.ai_instructions;
-        form.querySelector('[data-ai-instructions]').open = Boolean(
-          value.ai_instructions.trim(),
-        );
-        sync();
-        status.textContent = '';
-        busy(false);
+        if (scope.signal.aborted) return;
+        this.smartEnabled = value.smart_enabled;
+        this.dateEnabled = value.date_enabled;
+        this.repeatCapture = value.repeat_capture;
+        this.instructions = value.ai_instructions;
+        this.instructionsOpen = Boolean(value.ai_instructions.trim());
+        this.loaded = true;
       } catch (error) {
-        status.textContent = error.message;
-        form.setAttribute('aria-busy', 'false');
-        retry.hidden = false;
-        skeleton.fail(error.message, load);
+        if (scope.signal.aborted) return;
+        this.status = error.message;
+        skeleton.fail(error.message, () => this.load());
       } finally {
         skeleton.finish();
-        form.setAttribute('aria-busy', 'false');
+        this.busy = false;
       }
-    }
-    scope.listen(retry, 'click', load);
-    scope.listen(form.elements.smart_enabled, 'change', sync);
-    scope.listen(form, 'submit', async (event) => {
-      event.preventDefault();
-      if (form.getAttribute('aria-busy') === 'true') return;
-      const data = { ai_instructions: form.elements.ai_instructions.value };
-      for (const key of ['smart_enabled', 'date_enabled', 'repeat_capture'])
-        data[key] = form.elements[key].checked;
-      busy(true);
-      status.textContent = 'Saving…';
+    },
+    async save() {
+      if (!this.loaded || this.busy) return;
+      this.busy = true;
+      this.status = 'Saving…';
       try {
-        const response = await request('/api/v1/capture/preferences', {
+        const response = await scope.request('/api/v1/capture/preferences', {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             'X-CSRF-Token': document.querySelector('meta[name=csrf-token]').content,
           },
-          body: JSON.stringify(data),
+          body: JSON.stringify({
+            smart_enabled: this.smartEnabled,
+            date_enabled: this.dateEnabled,
+            repeat_capture: this.repeatCapture,
+            ai_instructions: this.instructions,
+          }),
         });
         if (!response.ok)
           throw Error(
             (await response.json()).error?.message ||
               'Could not save preferences. Your changes are still here.',
           );
-        status.textContent = '';
+        if (scope.signal.aborted) return;
+        this.status = '';
         toast('Preferences saved.');
       } catch (error) {
-        status.textContent = error.message;
+        if (!scope.signal.aborted) this.status = error.message;
       } finally {
-        busy(false);
+        this.busy = false;
       }
-    });
-    load();
-  }
-  for (const all of document.querySelectorAll('[data-credential-all]')) {
-    const lists = all.closest('form').querySelector('[data-credential-lists]');
-    const sync = () => {
-      lists.hidden = all.checked;
-      lists.querySelectorAll('input').forEach((input) => {
-        input.disabled = all.checked;
-      });
-    };
-    scope.listen(all, 'change', sync);
-    sync();
-  }
-});
+    },
+  };
+}

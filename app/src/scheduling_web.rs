@@ -662,7 +662,7 @@ async fn notification_page(State(s): State<AppState>, h: HeaderMap) -> Result<Re
     }
     let check = |v: bool| if v { "checked" } else { "" };
     let body = format!(
-        r#"<form method="post" class="notification-preferences"><input type="hidden" name="csrf" value="{csrf}">
+        r#"<form method="post" class="notification-preferences" x-data="notificationPreferences" x-on:submit.prevent="save" x-bind:aria-busy="busy ? 'true' : 'false'"><input type="hidden" name="csrf" value="{csrf}">
     <section class="security-card"><h2>In-app notifications</h2><p>Your bell and notification center work even when push is off.</p>
     <label class="notification-check"><input type="checkbox" name="inbox_due" {due}>Overdue tasks</label>
     <label class="notification-check"><input type="checkbox" name="inbox_reminders" {reminders}>Scheduled reminders</label>
@@ -674,7 +674,8 @@ async fn notification_page(State(s): State<AppState>, h: HeaderMap) -> Result<Re
     <label class="notification-check"><input type="checkbox" name="weekly_opt_in" {weekly}>Weekly email summary</label><label class="notification-check"><input type="checkbox" name="push_weekly_opt_in" {push_weekly}>Weekly push summary</label>
     <label>Weekly summary day (Monday = 1)<input type="number" name="weekly_day" min="1" max="7" value="{weekday}" required></label></section>
     <section class="security-card"><h2>Timing &amp; quiet hours</h2><p>Times use your account timezone: <strong>{timezone}</strong>. <a href="/settings/general">Change in General settings…</a></p><div class="notification-fields"><label>Quiet from<input type="time" name="quiet_start" value="{quiet_start}"></label><label>Until<input type="time" name="quiet_end" value="{quiet_end}"></label></div><p>Quiet hours delay email and push. Notifications still arrive silently in your inbox. Leave both times empty to turn quiet hours off; equal times mute delivery all day.</p></section>
-    <section class="security-card muted-lists-card"><div class="muted-lists-heading"><h2>Muted lists</h2><span data-muted-count hidden></span></div><p>Silence notifications from the lists you choose.</p><fieldset data-muted-lists><legend class="sr-only">Muted lists</legend><div data-mute-choices>{mutes}</div></fieldset></section><button class="primary">Save notification preferences</button></form>"#,
+    <section class="security-card muted-lists-card" x-data="mutedLists" x-on:focusout="focusOut"><div class="muted-lists-heading"><h2>Muted lists</h2><span data-muted-count hidden x-bind:hidden="!selected.length" x-text="countLabel"></span></div><p>Silence notifications from the lists you choose.</p><fieldset data-muted-lists><legend class="sr-only">Muted lists</legend><div data-mute-choices hidden>{mutes}</div>{muted_picker}</fieldset></section><button type="submit" class="primary" x-bind:disabled="busy">Save notification preferences</button></form>"#,
+        muted_picker = include_str!("../templates/muted-lists.html"),
         csrf = esc(&s.csrf_for(&h)),
         due = check(prefs.inbox_due),
         reminders = check(prefs.inbox_reminders),

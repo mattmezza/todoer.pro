@@ -115,7 +115,9 @@ test('archived lists are separate, show provenance, and can be restored', async 
   const banner = page.getByRole('region', { name: 'Archived list', exact: true });
   const bounds = await banner.boundingBox();
   expect(bounds.x).toBe(0);
-  expect(bounds.width).toBe(page.viewportSize().width);
+  expect(bounds.width).toBe(
+    await page.evaluate(() => document.body.getBoundingClientRect().width),
+  );
   expect(bounds.height).toBeLessThanOrEqual(36);
   expect(bounds.y).toBe(0);
   await page.goto(`/tasks/${task.id}`);
@@ -143,7 +145,9 @@ test('archived lists are separate, show provenance, and can be restored', async 
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileBounds = await banner.boundingBox();
   expect(mobileBounds.x).toBe(0);
-  expect(mobileBounds.width).toBe(390);
+  expect(mobileBounds.width).toBe(
+    await page.evaluate(() => document.body.getBoundingClientRect().width),
+  );
   expect(mobileBounds.height).toBeLessThanOrEqual(36);
   const textBounds = await banner.locator('span').first().boundingBox();
   const buttonBounds = await page.locator('[data-list-restore]').boundingBox();

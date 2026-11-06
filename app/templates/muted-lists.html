@@ -1,0 +1,24 @@
+<div class="muted-list-search" x-bind:hidden="!choices.length">
+  <svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#search"/></svg>
+  <label class="sr-only" for="muted-list-search">Find a list to mute</label>
+  <input type="search" id="muted-list-search" placeholder="Find a list to mute…" autocomplete="off" aria-controls="mute-search-results" x-ref="search" x-model="query" x-on:focus="showResults" x-on:input="showResults" x-on:keydown="searchKey">
+</div>
+<div id="mute-search-results" class="mute-search-results" hidden x-ref="results" x-bind:hidden="!resultsOpen">
+  <template x-for="choice in matches" x-bind:key="choice.name">
+    <button type="button" x-bind:aria-label="choice.muteLabel" x-bind:data-name="choice.name" x-on:click="mute">
+      <span class="muted-list-name"><strong x-text="choice.title"></strong><small x-text="choice.space"></small></span><span class="mute-list-action">Mute</span>
+    </button>
+  </template>
+  <p x-bind:hidden="!hint" x-text="hint"></p>
+</div>
+<div class="muted-list-selection" x-bind:hidden="!selected.length">
+  <template x-for="choice in selected" x-bind:key="choice.name">
+    <div class="muted-list-row">
+      <svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#bell"/></svg>
+      <span class="muted-list-name"><strong x-text="choice.title"></strong><small x-text="choice.space"></small></span>
+      <button type="button" x-bind:aria-label="choice.unmuteLabel" x-bind:data-name="choice.name" x-on:click="unmute">Unmute</button>
+    </div>
+  </template>
+</div>
+<p class="muted-list-empty" x-bind:hidden="selected.length > 0"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#bell"/></svg><span x-text="emptyLabel"></span></p>
+<span class="sr-only" role="status" x-text="announcement"></span>

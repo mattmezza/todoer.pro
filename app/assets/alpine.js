@@ -1,4 +1,7 @@
 import Alpine from './alpine-csp.min.js';
+import { capturePreferences } from './capture-preferences.js';
+import { mutedLists } from './notification-picker.js';
+import { notificationPreferences } from './settings-feedback.js';
 import { priorityFilters } from './home-filters.js';
 import { sectionCollapse } from './section-collapse.js';
 import { listColorPicker } from './list-color-picker.js';
@@ -11,4 +14,7 @@ Alpine.data('calendarPreferences', calendarPreferences);
 Alpine.data('playPreferences', playPreferences);
 Alpine.data('priorityFilters', priorityFilters);
 Alpine.data('sectionCollapse', sectionCollapse);
+Alpine.data('mutedLists', mutedLists);
+Alpine.data('notificationPreferences', notificationPreferences);
+Alpine.data('capturePreferences', capturePreferences);
 Alpine.start();

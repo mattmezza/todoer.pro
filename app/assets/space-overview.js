@@ -89,11 +89,6 @@ onPageLoad((scope) => {
       );
   }
 
-  const archivedToggle = document.querySelector('[data-show-archived]');
-  scope.listen(archivedToggle, 'change', () => {
-    document.querySelector('[data-archived-lists]').hidden = !archivedToggle.checked;
-  });
-
   // Reuse the space lifecycle endpoint and shared accessible confirmation dialog.
 
   scope.listen(root?.querySelector('[data-space-archive]'), 'click', async (event) => {

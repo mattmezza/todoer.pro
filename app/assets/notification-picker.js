@@ -1,137 +1,89 @@
-import { onPageLoad } from './page-lifecycle.js';
-
-onPageLoad((scope) => {
-  const field = document.querySelector('[data-muted-lists]');
-  if (field) {
-    const source = field.querySelector('[data-mute-choices]');
-    const choices = [...source.querySelectorAll('[data-mute-label]')].map((label) => ({
-      input: label.querySelector('input'),
-      title: label.querySelector('[data-mute-title]').textContent,
-      space: label.dataset.space,
-    }));
-    source.hidden = true;
-    const count = document.querySelector('[data-muted-count]');
-    const searchBox = document.createElement('div');
-    searchBox.className = 'muted-list-search';
-    searchBox.innerHTML =
-      '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#search"/></svg><label class="sr-only" for="muted-list-search">Find a list to mute</label>';
-    const search = document.createElement('input');
-    search.type = 'search';
-    search.id = 'muted-list-search';
-    search.placeholder = 'Find a list to mute…';
-    search.autocomplete = 'off';
-    search.setAttribute('aria-controls', 'mute-search-results');
-    searchBox.append(search);
-    const results = document.createElement('div');
-    results.id = 'mute-search-results';
-    results.className = 'mute-search-results';
-    const selectedRows = document.createElement('div');
-    selectedRows.className = 'muted-list-selection';
-    const empty = document.createElement('p');
-    empty.className = 'muted-list-empty';
-    empty.innerHTML =
-      '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#bell"/></svg><span></span>';
-    empty.querySelector('span').textContent = choices.length
-      ? 'All your lists can notify you.'
-      : 'No lists to mute yet.';
-    const announcement = document.createElement('span');
-    announcement.className = 'sr-only';
-    announcement.setAttribute('role', 'status');
-    field.append(searchBox, results, selectedRows, empty, announcement);
-    searchBox.hidden = !choices.length;
-    function name(choice) {
-      const info = document.createElement('span');
-      info.className = 'muted-list-name';
-      const title = document.createElement('strong');
-      title.textContent = choice.title;
-      const space = document.createElement('small');
-      space.textContent = choice.space;
-      info.append(title, space);
-      return info;
-    }
-    function change(choice, muted) {
-      choice.input.checked = muted;
-      choice.input.dispatchEvent(new Event('change', { bubbles: true }));
-      search.value = '';
-      selected();
-      results.hidden = true;
-      search.focus();
-      announcement.textContent = `${choice.title} ${muted ? 'muted' : 'unmuted'}. Save preferences to apply.`;
-    }
-    function selected() {
-      selectedRows.replaceChildren();
-      const muted = choices.filter((choice) => choice.input.checked);
-      for (const choice of muted) {
-        const row = document.createElement('div');
-        row.className = 'muted-list-row';
-        row.innerHTML =
-          '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#bell"/></svg>';
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.textContent = 'Unmute';
-        remove.setAttribute('aria-label', `Unmute ${choice.title} in ${choice.space}`);
-        scope.listen(remove, 'click', () => change(choice, false));
-        row.append(name(choice), remove);
-        selectedRows.append(row);
-      }
-      selectedRows.hidden = !muted.length;
-      empty.hidden = muted.length > 0;
-      count.hidden = !muted.length;
-      count.textContent = `${muted.length} muted`;
-    }
-    function showResults() {
-      results.replaceChildren();
-      const query = search.value.trim().toLocaleLowerCase();
-      const matches = choices.filter(
+export function mutedLists() {
+  let root;
+  return {
+    choices: [],
+    query: '',
+    resultsOpen: false,
+    announcement: '',
+    init() {
+      root = this.$el;
+      this.choices = [...root.querySelectorAll('[data-mute-label]')].map((label) => {
+        const input = label.querySelector('input');
+        const title = label.querySelector('[data-mute-title]').textContent;
+        const space = label.dataset.space;
+        return {
+          input,
+          name: input.name,
+          title,
+          space,
+          muted: input.checked,
+          muteLabel: `Mute ${title} in ${space}`,
+          unmuteLabel: `Unmute ${title} in ${space}`,
+        };
+      });
+    },
+    get selected() {
+      return this.choices.filter((choice) => choice.muted);
+    },
+    get matching() {
+      const query = this.query.trim().toLocaleLowerCase();
+      return this.choices.filter(
         (choice) =>
-          !choice.input.checked &&
+          !choice.muted &&
           `${choice.title} ${choice.space}`.toLocaleLowerCase().includes(query),
       );
-      for (const choice of matches.slice(0, 8)) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.setAttribute('aria-label', `Mute ${choice.title} in ${choice.space}`);
-        const action = document.createElement('span');
-        action.className = 'mute-list-action';
-        action.textContent = 'Mute';
-        button.append(name(choice), action);
-        scope.listen(button, 'click', () => change(choice, true));
-        results.append(button);
-      }
-      if (!matches.length || matches.length > 8) {
-        const hint = document.createElement('p');
-        hint.textContent =
-          matches.length > 8
-            ? 'Type to narrow down the results.'
-            : query
-              ? 'No matching lists.'
-              : 'All available lists are muted.';
-        results.append(hint);
-      }
-      results.hidden = false;
-    }
-    scope.listen(search, 'focus', showResults);
-    scope.listen(search, 'input', showResults);
-    scope.listen(search, 'keydown', (event) => {
+    },
+    get matches() {
+      return this.matching.slice(0, 8);
+    },
+    get hint() {
+      if (this.matching.length > 8) return 'Type to narrow down the results.';
+      if (this.matching.length) return '';
+      return this.query.trim() ? 'No matching lists.' : 'All available lists are muted.';
+    },
+    get countLabel() {
+      return `${this.selected.length} muted`;
+    },
+    get emptyLabel() {
+      return this.choices.length
+        ? 'All your lists can notify you.'
+        : 'No lists to mute yet.';
+    },
+    showResults() {
+      this.resultsOpen = true;
+    },
+    mute(event) {
+      this.change(event.currentTarget.dataset.name, true);
+    },
+    unmute(event) {
+      this.change(event.currentTarget.dataset.name, false);
+    },
+    change(name, muted) {
+      const choice = this.choices.find((choice) => choice.name === name);
+      choice.muted = muted;
+      choice.input.checked = muted;
+      choice.input.dispatchEvent(new Event('change', { bubbles: true }));
+      this.query = '';
+      this.$refs.search.focus();
+      this.resultsOpen = false;
+      this.announcement = `${choice.title} ${muted ? 'muted' : 'unmuted'}. Save preferences to apply.`;
+    },
+    focusOut(event) {
+      if (!root.contains(event.relatedTarget)) this.resultsOpen = false;
+    },
+    searchKey(event) {
       if (event.key === 'Enter') {
         event.preventDefault();
-        if (!results.hidden) results.querySelector('button')?.click();
+        if (this.resultsOpen) this.$refs.results.querySelector('button')?.click();
       } else if (event.key === 'ArrowDown') {
         event.preventDefault();
-        showResults();
-        results.querySelector('button')?.focus();
+        this.resultsOpen = true;
+        this.$nextTick(() => this.$refs.results.querySelector('button')?.focus());
       } else if (event.key === 'Escape') {
         event.preventDefault();
-        search.value = '';
-        results.hidden = true;
+        this.query = '';
+        this.resultsOpen = false;
       }
-    });
-    scope.listen(field, 'focusout', () => {
-      scope.timeout(() => {
-        if (!field.contains(document.activeElement)) results.hidden = true;
-      }, 0);
-    });
-    selected();
-    results.hidden = true;
-  }
-});
+    },
+  };
+}

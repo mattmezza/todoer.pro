@@ -8,7 +8,6 @@ import { beginLoading } from './loading.js';
 import './notification-center.js';
 
 import './alpine.js';
-import './settings-feedback.js';
 import './export-menu.js';
 import './navigation.js';
 import './nav-overflow.js';

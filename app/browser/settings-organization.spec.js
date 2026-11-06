@@ -68,5 +68,5 @@ test('Account and AI are separate; capture choices persist and preserve drafts a
     fullPage: true,
   });
   await page.goto('/settings/agents');
-  await expect(page).toHaveURL(/\/settings\/ai$/);
+  await expect(page).toHaveURL(/\/settings\/ai\/tools$/);
 });
