@@ -13598,20 +13598,22 @@ body > .planning-detail-dismiss {
   margin: 4px 0 0 46px;
 }
 
-/* Page navigation keeps the current screen visible until its replacement arrives. */
+/* A destination is pending immediately, independently of network latency. */
 @media (min-width: 641px) {
   html {
     scrollbar-gutter: stable;
   }
 }
-html.page-loading::after {
-  content: '';
-  position: fixed;
-  inset: 0 0 auto;
-  height: 2px;
-  background: var(--accent);
-  z-index: 10000;
-  pointer-events: none;
+#main.navigation-pending {
+  min-height: calc(100dvh - 120px);
+}
+#main.navigation-pending > :not(.loading-skeleton) {
+  display: none !important;
+}
+#main.navigation-pending > .skeleton-spinner {
+  position: relative;
+  min-height: min(60dvh, 480px);
+  animation: none;
 }
 #main:focus-visible {
   outline: none;

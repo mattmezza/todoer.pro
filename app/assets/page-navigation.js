@@ -1,4 +1,5 @@
 import { mountPage, unmountPage } from './page-lifecycle.js';
+import { beginLoading } from './loading.js';
 
 // Keep server URLs and full HTML responses as the navigation contract.
 const modules = new Set([
@@ -232,11 +233,24 @@ document.addEventListener('htmx:before:request', (event) => {
     submitting.add(nav.form);
     if (nav.submitter) nav.submitter.disabled = true;
   }
-  document.querySelector('#main')?.setAttribute('aria-busy', 'true');
-  nav.timer = setTimeout(
-    () => document.documentElement.classList.add('page-loading'),
-    180,
-  );
+  const main = document.querySelector('#main');
+  // Refreshes and saves retain useful content and drafts. A new destination gets
+  // immediate feedback, before either its HTML or its controllers arrive.
+  if (!nav.form && !nav.preserveScroll) {
+    main.classList.add('navigation-pending');
+    nav.loading = beginLoading(main, { variant: 'spinner' });
+    const status = document.createElement('p');
+    status.className = 'sr-only';
+    status.setAttribute('role', 'status');
+    status.textContent = 'Loading page';
+    document.body.append(status);
+    nav.status = status;
+    nav.abort.signal.addEventListener('abort', () => finishNavigation(nav), {
+      once: true,
+    });
+    window.scrollTo(0, 0);
+  }
+  main?.setAttribute('aria-busy', 'true');
 });
 
 document.addEventListener('htmx:after:request', (event) => {
@@ -284,6 +298,14 @@ document.addEventListener('htmx:after:request', (event) => {
   doc.querySelectorAll('script').forEach((script) => script.remove());
   ctx.text = doc.documentElement.outerHTML;
 });
+
+function finishNavigation(nav) {
+  nav.loading?.finish();
+  nav.status?.remove();
+  // A superseded request must never clear the next request's loading state.
+  if (pending === nav.abort)
+    document.querySelector('#main')?.classList.remove('navigation-pending');
+}
 
 function copyAttributes(current, next) {
   for (const attr of [...current.attributes]) current.removeAttribute(attr.name);
@@ -360,7 +382,7 @@ async function activatePage(nav) {
   main.inert = true;
   try {
     mountPage();
-    for (const path of nav.scripts) await import(path);
+    await Promise.all(nav.scripts.map((path) => import(path)));
   } finally {
     main.inert = false;
   }
@@ -395,13 +417,12 @@ document.addEventListener('htmx:error', (event) => {
 document.addEventListener('htmx:finally:request', (event) => {
   const nav = event.detail.ctx?.todoerNavigation;
   if (!nav) return;
-  clearTimeout(nav.timer);
+  finishNavigation(nav);
   if (nav.form) {
     submitting.delete(nav.form);
     if (nav.submitter) nav.submitter.disabled = false;
   }
   if (pending === nav.abort) {
-    document.documentElement.classList.remove('page-loading');
     document.querySelector('#main')?.removeAttribute('aria-busy');
   }
 });

@@ -163,7 +163,9 @@ test('failed navigation leaves the current screen and draft usable; latest navig
     import('/assets/page-navigation.js').then(({ navigate }) => navigate('/today'));
   });
   await expect(page.locator('#main')).toHaveAttribute('aria-busy', 'true');
-  await page.locator('#capture-title').fill('Still editable while loading');
+  await expect(page.locator('#capture-title')).toBeHidden();
+  await expect(page.locator('#main .loading-spinner')).toBeVisible();
+  expect(await page.locator('#main').evaluate((main) => main.inert)).toBe(true);
   await page.evaluate(() => {
     import('/assets/page-navigation.js').then(({ navigate }) => navigate('/inbox'));
   });
