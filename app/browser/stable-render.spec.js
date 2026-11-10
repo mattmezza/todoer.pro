@@ -38,6 +38,11 @@ async function holdScripts(page, url) {
   await page.route(/\/(?:static|assets)\/.*\.js$/, handler);
   await page.goto(url, { waitUntil: 'commit' });
   await expect(page.locator('#main')).toBeVisible();
+  await page.waitForFunction(() =>
+    getComputedStyle(document.body)
+      .getPropertyValue('--font-sans')
+      .includes('Todoer Numeric'),
+  );
   // Firefox's FontFaceSet.ready also waits for DOMContentLoaded, which the
   // deliberately stalled deferred scripts prevent. Load the faces directly.
   await page.evaluate(() =>

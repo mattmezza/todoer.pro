@@ -14059,7 +14059,7 @@ dialog.capture-omnibar {
   font-size: 16px;
   line-height: 1;
 }
-.space-list-card .list-dot:has(> .list-emoji:not(:empty)) {
+.space-list-card .list-dot {
   width: 24px !important;
   height: 24px;
   flex-basis: 24px;
