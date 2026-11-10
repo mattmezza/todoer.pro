@@ -227,15 +227,23 @@ export function createTaskPanel({
       tags.hidden = true;
       task.querySelector('.task-page-brief').after(tags);
       let tagsVersion = 0;
+      let initialTags = task.dataset.initialTags
+        ? JSON.parse(task.dataset.initialTags)
+        : null;
+      delete task.dataset.initialTags;
       refreshPanelTags = async () => {
         const requestVersion = ++tagsVersion;
         try {
-          const response = await read(
-            `/api/v1/tasks/${encodeURIComponent(task.dataset.taskId)}/tags`,
-            { cache: 'no-store' },
-          );
-          if (!response.ok) return;
-          const savedTags = await response.json();
+          let savedTags = initialTags;
+          initialTags = null;
+          if (!savedTags) {
+            const response = await read(
+              `/api/v1/tasks/${encodeURIComponent(task.dataset.taskId)}/tags`,
+              { cache: 'no-store' },
+            );
+            if (!response.ok) return;
+            savedTags = await response.json();
+          }
           if (version !== generation || requestVersion !== tagsVersion) return;
           tags.replaceChildren(
             ...savedTags.map((tag) => {

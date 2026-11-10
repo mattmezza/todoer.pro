@@ -335,6 +335,10 @@ pub fn router(state: AppState) -> Router {
             "/fragments/tasks/{id}/description",
             get(description_fragment),
         )
+        .route(
+            &format!("{}{{colors}}", static_assets::PALETTE_BASE),
+            get(static_assets::palette),
+        )
         .nest_service(
             static_assets::BASE.trim_end_matches('/'),
             ServeDir::new(static_assets::directory()),
@@ -651,6 +655,7 @@ async fn logout(
 #[derive(Template)]
 #[template(path = "list.html")]
 struct ListPage {
+    capture_html: String,
     hide_completed: bool,
     change_cursor: i64,
     reference: String,
@@ -662,7 +667,6 @@ struct ListPage {
     color: String,
     emoji: String,
     csrf: String,
-    capture_key: String,
     account_id: String,
     can_write: bool,
 }
@@ -754,8 +758,17 @@ fn rendered_tasks(db: &Store, actor: &str, list: &str) -> Result<Vec<RenderedTas
         .collect()
 }
 #[derive(Template)]
+#[template(path = "list-capture.html")]
+struct ListCapture<'a> {
+    can_write: bool,
+    csrf: &'a str,
+    list_id: &'a str,
+    capture_key: &'a str,
+}
+#[derive(Template)]
 #[template(path = "tasks.html")]
 struct TaskRows {
+    capture_html: String,
     groups: Vec<TaskGroup>,
     can_write: bool,
 }
@@ -1006,7 +1019,18 @@ pub(super) async fn page(
             crate::defaults::public_id(&db.conn, "list", &reference_list)
         })
         .await?;
+    let capture_key = uuid::Uuid::new_v4().to_string();
+    let capture_csrf = s.csrf_for(&h);
+    let capture_html = ListCapture {
+        can_write,
+        csrf: &capture_csrf,
+        list_id: &list.id,
+        capture_key: &capture_key,
+    }
+    .render()
+    .map_err(|_| Error::Invalid("cannot render capture".into()))?;
     let html = ListPage {
+        capture_html,
         hide_completed,
         can_write,
         change_cursor,
@@ -1020,7 +1044,6 @@ pub(super) async fn page(
         task_count,
         csrf: s.csrf_for(&h),
         account_id: account_id.clone(),
-        capture_key: uuid::Uuid::new_v4().to_string(),
     }
     .render()
     .map_err(|_| {
@@ -1082,15 +1105,21 @@ async fn task_fragment(
             ))
         })
         .await?;
-    Ok(Html(TaskRows { groups, can_write }.render().map_err(
-        |_| {
+    Ok(Html(
+        TaskRows {
+            groups,
+            can_write,
+            capture_html: String::new(),
+        }
+        .render()
+        .map_err(|_| {
             ApiError(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "template",
                 "Render failed".into(),
             )
-        },
-    )?))
+        })?,
+    ))
 }
 #[derive(Serialize)]
 struct ListOverview {
@@ -1867,7 +1896,10 @@ async fn response_security(req: axum::extract::Request, next: axum::middleware::
         .path_and_query()
         .map(|v| v.as_str().to_owned())
         .unwrap_or_else(|| "/".into());
-    let versioned_asset = req.uri().path().starts_with(static_assets::BASE);
+    let versioned_asset = req.uri().path().starts_with(static_assets::BASE)
+        || req.uri().path().starts_with(static_assets::PALETTE_BASE)
+        || req.uri().path() == env!("TODOER_ICONS_URL")
+        || req.uri().path() == env!("TODOER_ICON_URL");
     let public_asset =
         req.uri().path().starts_with("/assets/") || req.uri().path() == "/favicon.ico";
     let browser_page = method == "GET"
@@ -2264,6 +2296,7 @@ mod list_rows_tests {
         assert_eq!(group.slug, "shopping-today");
         assert_eq!((group.completed, group.total, group.progress), (1, 1, 100));
         let html = TaskRows {
+            capture_html: String::new(),
             groups,
             can_write: true,
         }

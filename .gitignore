@@ -401,3 +401,10 @@ dist
 **/*-plan.md
 **/*-plans.md
 **/*-prompts.md
+
+/app/assets/bundles/
+
+/app/assets/web-fonts.css
+/app/assets/fonts/*-wght-normal.woff2
+
+/app/assets/images/

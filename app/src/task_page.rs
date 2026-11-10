@@ -17,8 +17,7 @@ struct Child {
     title: String,
     description_html: String,
     complete: bool,
-    revision: i64,
-    depth: usize,
+    parent_id: String,
 }
 #[derive(Template)]
 #[template(path = "task-page.html")]
@@ -29,7 +28,19 @@ struct TaskPage {
     change_cursor: i64,
     description_html: String,
     crumbs: Vec<Crumb>,
-    children: Vec<Child>,
+    children_html: String,
+    initial_subtree: String,
+    initial_schedule: String,
+    initial_tags: String,
+    discussion_html: String,
+    progress_label: String,
+    progress_percent: String,
+    progress_complete: usize,
+    progress_total: usize,
+    priority: u8,
+    priority_label: &'static str,
+    date_label: String,
+    date_timezone: String,
     destinations: Vec<List>,
     csrf: String,
     account_id: String,
@@ -37,6 +48,66 @@ struct TaskPage {
     section_id: String,
     list_color: String,
     has_more: bool,
+}
+#[derive(Template)]
+#[template(path = "task-child.html")]
+struct ChildRow<'a> {
+    child: &'a Child,
+    children_html: String,
+    progress: String,
+    can_write: bool,
+}
+#[derive(Default)]
+struct RenderedChildren {
+    html: String,
+    complete: usize,
+    total: usize,
+    loaded_complete: usize,
+    loaded_total: usize,
+}
+fn render_children(
+    children: &[Child],
+    parent: &str,
+    can_write: bool,
+    has_more: bool,
+) -> Result<RenderedChildren, Error> {
+    let mut result = RenderedChildren::default();
+    for child in children.iter().filter(|child| child.parent_id == parent) {
+        let nested = render_children(children, &child.id, can_write, has_more)?;
+        let leaf = nested.total == 0;
+        let complete = if leaf {
+            usize::from(child.complete)
+        } else {
+            nested.complete
+        };
+        let total = if leaf { 1 } else { nested.total };
+        result.complete += complete;
+        result.total += total;
+        result.loaded_complete += nested.loaded_complete + usize::from(child.complete);
+        result.loaded_total += nested.loaded_total + 1;
+        let progress = if leaf {
+            String::new()
+        } else if has_more {
+            format!(
+                "{}/{} loaded items",
+                nested.loaded_complete + usize::from(child.complete),
+                nested.loaded_total + 1
+            )
+        } else {
+            format!("{complete}/{total} leaf items")
+        };
+        result.html.push_str(
+            &ChildRow {
+                child,
+                children_html: nested.html,
+                progress,
+                can_write,
+            }
+            .render()
+            .map_err(|_| Error::Invalid("Cannot render sub-task".into()))?,
+        );
+    }
+    Ok(result)
 }
 async fn legacy_page(
     State(s): State<AppState>,
@@ -85,7 +156,8 @@ async fn page(
         .await?;
     let csrf = s.csrf_for(&h);
     let a = actor.clone();
-    let page = s
+    let discussion_id = id.clone();
+    let mut page = s
         .run(move |db| {
             let task = crate::core::task(&db.conn, &id)?;
             crate::core::access_rank(&db.conn, &a, &task.list_id, 1)?;
@@ -157,7 +229,7 @@ async fn page(
                 &task.id,
                 SubtreeRead {
                     limit: 100,
-                    fields: vec![TaskField::Title, TaskField::DescriptionHtml, TaskField::CommentCount, TaskField::SubtaskCount, TaskField::Complete, TaskField::Revision],
+                    fields: vec![TaskField::Title, TaskField::Description, TaskField::DescriptionHtml, TaskField::CommentCount, TaskField::SubtaskCount, TaskField::Complete, TaskField::Revision, TaskField::Position, TaskField::PublicReference],
                     cursor: None,
                 },
             )?;
@@ -172,6 +244,29 @@ async fn page(
                     url: format!("/tasks/{}", crate::defaults::public_id(&db.conn, "task", &ancestor.id)?),
                 });
             }
+            let initial_subtree = serde_json::to_string(&subtree).map_err(|_| Error::Invalid("Cannot render sub-tasks".into()))?;
+            let schedule = db.get_schedule(&a, &task.id)?;
+            let priority = schedule.schedule.priority.unwrap_or(3);
+            let priority_label = ["P0 · Highest priority", "P1 · High priority", "P2 · Medium priority", "P3 · Low priority", "P4 · Lowest priority"][usize::from(priority.min(4))];
+            let date_timezone = db.notification_preferences(&a)?.timezone;
+            let date_label = schedule.schedule.due.as_ref().or(schedule.schedule.planned.as_ref()).map(|moment| {
+                let text = match moment {
+                    crate::scheduling::Moment::Date { date } => chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").map(|d| d.format("%b %-d, %Y").to_string()).unwrap_or_else(|_| date.clone()),
+                    crate::scheduling::Moment::Timed { local, timezone } => {
+                        let zone = timezone.parse::<chrono_tz::Tz>().unwrap_or(chrono_tz::UTC);
+                        let target = date_timezone.parse::<chrono_tz::Tz>().unwrap_or(chrono_tz::UTC);
+                        chrono::NaiveDateTime::parse_from_str(local, "%Y-%m-%dT%H:%M:%S")
+                            .or_else(|_| chrono::NaiveDateTime::parse_from_str(local, "%Y-%m-%dT%H:%M"))
+                            .ok().and_then(|date| date.and_local_timezone(zone).earliest())
+                            .map(|date| date.with_timezone(&target).format("%b %-d, %Y, %-I:%M:%S %p").to_string())
+                            .unwrap_or_else(|| local.replace('T', " "))
+                    },
+                };
+                format!("{} {}", if schedule.schedule.due.is_some() { "Due" } else { "Planned for" }, text)
+            }).unwrap_or_default();
+            let mut initial_schedule = serde_json::to_value(&schedule).map_err(|_| Error::Invalid("Cannot render planning".into()))?;
+            initial_schedule["duration_minutes"] = serde_json::json!(db.task_duration(&a, &task.id)?);
+            let initial_schedule = initial_schedule.to_string();
             let children = subtree
                 .items
                 .into_iter()
@@ -184,10 +279,14 @@ async fn page(
                     title: x["title"].as_str().unwrap_or_default().into(),
                     description_html: x["description_html"].as_str().unwrap_or_default().into(),
                     complete: x["complete"].as_bool().unwrap_or(false),
-                    revision: x["revision"].as_i64().unwrap_or(0),
-                    depth: x["depth"].as_u64().unwrap_or(0) as usize,
+                    parent_id: x["parent_id"].as_str().unwrap_or_default().into(),
                 })})
                 .collect::<Result<Vec<_>, _>>()?;
+            let rendered = render_children(&children, &task.id, can_write, subtree.has_more)?;
+            let progress_label = if rendered.total == 0 { String::new() } else if subtree.has_more {
+                format!("{}/{} loaded items complete; load remaining items for leaf progress", rendered.loaded_complete, rendered.loaded_total)
+            } else { format!("{}/{} tasks complete", rendered.complete, rendered.total) };
+            let progress_percent = if subtree.has_more || rendered.total == 0 { String::new() } else { format!("{}%", (100.0 * rendered.complete as f64 / rendered.total as f64).round() as usize) };
             let destinations = db
                 .lists(&a)?
                 .into_iter()
@@ -206,6 +305,7 @@ async fn page(
                 "SELECT COALESCE(MAX(h.seq),0) FROM history h JOIN actor_list_access a ON a.list_id=h.list_id WHERE a.actor_id=?1",
                 [&a], |row| row.get(0),
             )?;
+            let initial_tags = serde_json::to_string(&db.task_tags(&a, &task.id)?).map_err(|_| Error::Invalid("Cannot render task tags".into()))?;
             Ok(TaskPage {
                 list_color: db.list_color(&a, &task.list_id)?.unwrap_or_else(|| "blue".into()),
                 change_cursor,
@@ -214,7 +314,19 @@ async fn page(
                 task,
                 description_html,
                 crumbs,
-                children,
+                children_html: rendered.html,
+                initial_subtree,
+                initial_tags,
+                initial_schedule,
+                discussion_html: String::new(),
+                progress_label,
+                progress_percent,
+                progress_complete: rendered.complete,
+                progress_total: rendered.total,
+                priority,
+                priority_label,
+                date_label,
+                date_timezone,
                 destinations,
                 csrf,
                 account_id,
@@ -224,6 +336,7 @@ async fn page(
             })
         })
         .await?;
+    page.discussion_html = super::discussion_http::initial(s, h, discussion_id).await?;
     Ok(Html(
         page.render()
             .map_err(|_| ApiError::from(Error::Invalid("cannot render task page".into())))?,

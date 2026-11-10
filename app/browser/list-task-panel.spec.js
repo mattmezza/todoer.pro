@@ -137,15 +137,11 @@ for (const width of [390, 1280]) {
       await route.continue();
     });
     await content.getByRole('button', { name: 'Try again' }).click();
-    await expect(panel.locator('[data-children]')).toHaveAttribute('aria-busy', 'true');
-    await expect(spinner).toBeVisible();
-    await expect(panel.locator('[data-task-page]')).toBeHidden();
-    await expect(panel.locator('.loading-skeleton:visible')).toHaveCount(1);
-    releaseChildren();
     await expect(panel.locator('[data-children]')).not.toHaveAttribute('aria-busy');
-    await expect(spinner).toBeVisible();
-    await expect(panel.locator('[data-task-page]')).toBeHidden();
-    await expect(panel.locator('.loading-skeleton:visible')).toHaveCount(1);
+    await expect(panel.locator('[data-task-page]')).toBeVisible();
+    await expect(panel.locator('[data-discussion-fragment]')).toBeVisible();
+    await expect(spinner).toHaveCount(0);
+    releaseChildren();
     releaseDiscussion();
     await expect(panel.locator('[data-edit-title]')).toBeVisible();
     await expect(panel.locator('[data-edit-title]')).toHaveText(task.title);
@@ -202,13 +198,13 @@ test('switching task panels avoids duplicate reads and defers hidden metadata', 
     await expect(panel.locator('[data-discussion-fragment]')).toBeVisible();
     const opened = reads.slice(start);
     expect(opened.filter((path) => path.startsWith('/tasks/'))).toEqual([href]);
-    expect(opened.filter((path) => path.endsWith('/schedule'))).toHaveLength(1);
-    expect(opened.filter((path) => path.endsWith('/subtree/query'))).toHaveLength(1);
+    expect(opened.filter((path) => path.endsWith('/schedule'))).toHaveLength(0);
+    expect(opened.filter((path) => path.endsWith('/subtree/query'))).toHaveLength(0);
     // A live update may refresh the departing task during Playwright's click.
-    // The newly selected task still needs exactly one initial tag read.
+    // The newly selected task reuses its authorized tag snapshot.
     expect(
       opened.filter((path) => path === `/api/v1/tasks/${task.id}/tags`),
-    ).toHaveLength(1);
+    ).toHaveLength(0);
     expect(
       opened.filter((path) =>
         /\/subtree$|\/section$|\/sections$|\/references\/|\/description$|\/color$/.test(

@@ -31,6 +31,15 @@ export function mountScheduling({
   let scheduleDraft = read('schedule');
   let recurrenceDraft = read('recurrence');
   let storedSchedule = null;
+  const taskPage = container.closest('[data-task-page]');
+  let initialSchedule = taskPage?.dataset.initialSchedule
+    ? JSON.parse(taskPage.dataset.initialSchedule)
+    : null;
+  if (taskPage) delete taskPage.dataset.initialSchedule;
+  let initialSummary = initialSchedule
+    ? { ...initialSchedule.schedule, priority: initialSchedule.schedule.priority ?? 3 }
+    : null;
+
   let seriesCreated = false;
   let defaultZone = 'UTC';
   let formatPreferred;
@@ -791,12 +800,20 @@ export function mountScheduling({
       summary.type = 'button';
       summary.dataset.taskDue = '';
       summary.className = 'task-due-summary';
-      summary.addEventListener('click', async () => {
-        const { openTaskSettings } = await import('./list-settings.js');
-        openTaskSettings(page, 'planning');
-      });
+
       page.querySelector('.task-page-heading').after(summary);
     }
+    summary.onclick = async () => {
+      const { openTaskSettings } = await import('./list-settings.js');
+      openTaskSettings(page, 'planning');
+    };
+    if (
+      initialSummary &&
+      !unsaved &&
+      JSON.stringify(initialSummary) === JSON.stringify(schedule)
+    )
+      return;
+    initialSummary = null;
     page.dataset.priority = String(schedule?.priority ?? 3);
     summary.replaceChildren();
     summary.hidden = false;
@@ -872,7 +889,10 @@ export function mountScheduling({
       preserve: Boolean(storedSchedule || scheduleDraft || recurrenceDraft),
     });
     try {
-      const result = await request(`/tasks/${encodeURIComponent(taskId)}/schedule`);
+      const result =
+        initialSchedule ||
+        (await request(`/tasks/${encodeURIComponent(taskId)}/schedule`));
+      initialSchedule = null;
       if (!active || version !== loadVersion) return;
       storedSchedule = result;
       onLoaded?.(result);

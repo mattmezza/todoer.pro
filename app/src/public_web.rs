@@ -329,7 +329,14 @@ mod tests {
                 .to_vec(),
         )
         .unwrap();
-        assert!(html.contains(include_str!("../templates/favicon-head.html").trim()));
+        assert!(
+            html.contains(
+                super::static_assets::version_html(
+                    include_str!("../templates/favicon-head.html").trim()
+                )
+                .as_str()
+            )
+        );
         assert!(!html.contains("/legacy-assets/favicon"));
         assert!(html.contains("property=\"og:title\" content=\"Tiny forest sentinel\""));
         assert!(html.contains(&format!("http://127.0.0.1:8092/og/task/{reference}.png")));

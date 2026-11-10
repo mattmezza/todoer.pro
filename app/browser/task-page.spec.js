@@ -581,12 +581,12 @@ for (const width of [390, 1280]) {
     const panel = page.locator('.planning-detail-panel');
     await expect(panel).toBeVisible();
     const childRow = panel.locator(`[data-child-id="${child.id}"]`);
-    // Force the initial SSR/client bootstrap gap: no inert, unbound child link
-    // should be offered as an editable row while its subtree is still loading.
-    await expect(panel.locator('[data-children]')).toHaveAttribute('aria-busy', 'true');
+    // The HTML carries the authorized revision-bound subtree. Holding the API
+    // must not hide the initial child rows or postpone their controls.
+    await expect(panel.locator('[data-children]')).not.toHaveAttribute('aria-busy');
     await expect(
       childRow.getByRole('link', { name: 'Panel child title', exact: true }),
-    ).toBeHidden();
+    ).toBeVisible();
     releaseBootstrap();
     await expect(childRow.locator(':scope > [data-child-description] strong')).toHaveText(
       'saved description',

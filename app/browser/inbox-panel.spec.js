@@ -142,8 +142,8 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
     .toBeLessThan(2);
   await child.click();
   await expect(panel.getByLabel('New sub-task')).toBeVisible();
-  await expect(panel.getByLabel('New sub-task')).toHaveCSS('font-size', '16px');
-  await expect(panel.getByLabel('Sub-task description')).toHaveCSS('font-size', '13px');
+  await expect(panel.getByLabel('New sub-task')).toHaveCSS('font-size', '15px');
+  await expect(panel.getByLabel('Sub-task description')).toHaveCSS('font-size', '15px');
   const childTitle = await panel.getByLabel('New sub-task').boundingBox();
   const childDescription = await panel.getByLabel('Sub-task description').boundingBox();
   expect(childDescription.y - (childTitle.y + childTitle.height)).toBeLessThan(10);

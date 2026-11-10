@@ -114,10 +114,15 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
   saveEdit.replaceChildren(document.createTextNode('Save'));
   editActions.prepend(saveEdit, cancelEdit);
   const canWrite = root.dataset.canWrite === 'true';
-  // SSR child links are navigable, but inline editing needs the revision-bound
-  // subtree. Do not expose rows until their handlers and descriptions are ready.
+  let initialSubtree = root.dataset.initialSubtree
+    ? JSON.parse(root.dataset.initialSubtree)
+    : null;
+  delete root.dataset.initialSubtree;
   let childrenReady = false;
-  let childrenLoading = beginLoading(get('[data-children]'), { variant: 'spinner' });
+  let childrenLoading = beginLoading(get('[data-children]'), {
+    variant: 'spinner',
+    preserve: !!initialSubtree,
+  });
   {
     const color = root.dataset.listColor || 'blue';
     const dot = document.createElement('span');
@@ -387,9 +392,9 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
       label.type = 'button';
       label.className = 'task-completion-label';
       label.textContent = 'Completed · View activity';
-      label.onclick = () => openTaskSettings(root, 'activity');
       root.querySelector('.task-page-heading').after(label);
     }
+    label.onclick = () => openTaskSettings(root, 'activity');
     if (completionRevision === task.revision) return;
     completionRevision = task.revision;
     const revision = task.revision;
@@ -768,11 +773,15 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
   );
 
   async function loadChildren(cursor = null) {
-    const page = await api(
-      `/tasks/${encodeURIComponent(id)}/subtree/query`,
-      'POST',
-      projection(cursor),
-    );
+    const page =
+      !cursor && initialSubtree
+        ? initialSubtree
+        : await api(
+            `/tasks/${encodeURIComponent(id)}/subtree/query`,
+            'POST',
+            projection(cursor),
+          );
+    initialSubtree = null;
     if (!alive || busy || interacting()) {
       pending = true;
       return;

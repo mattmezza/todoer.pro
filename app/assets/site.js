@@ -1,3 +1,4 @@
+import { setupTaskSettingsDock } from './settings-dock.js';
 import { navigate, refreshPage } from './page-navigation.js';
 import './page-navigation.js';
 import './list-archive.js';
@@ -380,12 +381,10 @@ onPageLoad(async (scope) => {
 
   const spaceSettings = document.querySelector('[data-workspace-settings-open]');
   if (spaceSettings) {
-    import('./list-settings.js').then(({ setupTaskSettingsDock }) =>
-      setupTaskSettingsDock(
-        document.querySelector('main'),
-        'workspace',
-        spaceSettings.dataset.workspaceSettingsOpen,
-      ),
+    setupTaskSettingsDock(
+      document.querySelector('main'),
+      'workspace',
+      spaceSettings.dataset.workspaceSettingsOpen,
     );
   }
 

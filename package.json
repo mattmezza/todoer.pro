@@ -1,16 +1,19 @@
 {
   "private": true,
   "scripts": {
-    "assets": "tailwindcss -i app/assets/source.css -o app/assets/app.css --minify",
+    "assets": "node scripts/prepare-fonts.mjs && tailwindcss -i app/assets/source.css -o app/assets/app.css --minify",
     "test:browser": "playwright test",
     "format": "prettier --write \"app/assets/*.js\" app/assets/source.css \"app/browser/*.js\" playwright.config.js package.json",
     "format:check": "prettier --check \"app/assets/*.js\" app/assets/source.css \"app/browser/*.js\" playwright.config.js package.json"
   },
   "devDependencies": {
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource-variable/inter": "5.3.0",
     "@playwright/test": "1.56.1",
     "@tailwindcss/cli": "4.3.1",
     "@tailwindcss/forms": "0.5.11",
     "@tailwindcss/typography": "0.5.19",
+    "esbuild": "0.28.2",
     "prettier": "3.9.10",
     "tailwindcss": "4.3.1"
   },

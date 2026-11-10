@@ -410,6 +410,24 @@ struct Discussion {
     storage_enabled: bool,
     next_cursor: Option<i64>,
 }
+// Reuse the authorized fragment renderer in the first task response.
+pub(super) async fn initial(s: AppState, h: HeaderMap, id: String) -> Result<String, ApiError> {
+    let response = fragment(
+        State(s),
+        h,
+        Path(id),
+        Query(CommentQuery {
+            after_seq: 0,
+            limit: comment_limit(),
+        }),
+    )
+    .await?;
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .map_err(|_| ApiError::from(Error::Invalid("Cannot render discussion".into())))?;
+    String::from_utf8(bytes.to_vec())
+        .map_err(|_| ApiError::from(Error::Invalid("Cannot render discussion".into())))
+}
 async fn fragment(
     State(s): State<AppState>,
     h: HeaderMap,

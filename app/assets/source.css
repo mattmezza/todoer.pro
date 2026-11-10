@@ -1,4 +1,4 @@
-@import url('https://fonts.bunny.net/css?family=geist:400,500,600,700,800|inter:400,500,600,700,800&display=swap');
+@import './web-fonts.css';
 @import 'tailwindcss';
 @source "../templates";
 @font-face {
@@ -6,7 +6,7 @@
   src: url('./numeric-mono.woff2') format('woff2');
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: optional;
   unicode-range: U+0030-0039;
 }
 
@@ -10231,7 +10231,9 @@ main.auth-shell {
   border: 0;
 }
 .capture-omnibar .capture-entry {
-  margin-right: 42px;
+  margin-right: 0;
+  padding-right: 42px;
+  box-sizing: border-box;
 }
 .capture-omnibar .smart-capture-input > :is(input, textarea) {
   background: transparent;
@@ -13867,7 +13869,7 @@ body form.entry-form:not([hidden]) {
 body
   form.entry-form:not([hidden])
   > :is(
-    label,
+    label:not(.sr-only):not([for='capture-new-title']),
     .capture-entry,
     .capture-preview,
     .capture-result,
@@ -13999,4 +14001,99 @@ body form.entry-form:not([hidden]) :is(input, textarea):focus-visible {
 body form.entry-form .inline-actions > .entity-name-reference {
   order: 1;
   flex: 1 0 100%;
+}
+
+/* Reserve the complete color-picker hit area before its controller mounts. */
+.heading-list-color-slot {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Keep intrinsic text and flex bases within the capture dialog at every width. */
+dialog.capture-omnibar {
+  box-sizing: border-box;
+  max-width: calc(100dvw - 32px - env(safe-area-inset-left) - env(safe-area-inset-right));
+  min-width: 0;
+}
+.capture-omnibar
+  :is(
+    form,
+    .capture-entry,
+    .smart-capture-input,
+    .quick-capture-footer,
+    .quick-capture-actions
+  ) {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.capture-omnibar :is(input, textarea) {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.capture-omnibar .quick-capture-footer {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  dialog.capture-omnibar {
+    padding: 20px 16px;
+  }
+}
+
+/* Emoji glyphs use the badge's actual box, independent of surrounding line height. */
+:is(.list-dot, .entity-color, .list-color-preview) > .list-emoji {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+.space-list-card .list-dot:has(> .list-emoji:not(:empty)) {
+  width: 24px !important;
+  height: 24px;
+  flex-basis: 24px;
+}
+:is(.list-dot, .entity-color, .list-color-preview) > .list-emoji:empty {
+  display: none;
+}
+
+/* Named list colors also resolve before controllers hydrate their cards. */
+[data-list-color='blue'] {
+  --list-color: #4e89f7;
+}
+[data-list-color='green'] {
+  --list-color: #78b500;
+}
+[data-list-color='amber'] {
+  --list-color: #fbd919;
+}
+[data-list-color='red'] {
+  --list-color: #ff1818;
+}
+[data-list-color='violet'] {
+  --list-color: #8b67f7;
+}
+[data-list-color='pink'] {
+  --list-color: #ec4899;
+}
+[data-list-color='gray'] {
+  --list-color: #e2e8f0;
+}
+.task-completion-label {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

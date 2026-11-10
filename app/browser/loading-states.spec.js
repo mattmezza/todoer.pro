@@ -194,7 +194,7 @@ test('search displays a visible spinner for an empty results container and ignor
   await expect(page.locator('.omnibar-status')).toContainText('Search tasks, spaces');
 });
 
-test('planning and activity panels use placeholders while preserving task content', async ({
+test('planning reuses the initial snapshot and activity spins while its content is unknown', async ({
   page,
 }) => {
   await login(page);
@@ -226,9 +226,8 @@ test('planning and activity panels use placeholders while preserving task conten
   });
   const panel = page.locator('.list-settings-panel');
   const scheduling = panel.locator('.checklist[data-scheduling]');
-  await expect(scheduling).toHaveAttribute('data-loading-pending', 'planning');
-  await expect(scheduling.locator('[name=planned_date]')).toBeHidden();
-  await page.screenshot({ path: '.local/rebuild/planning-panel-skeleton.png' });
+  await expect(scheduling).not.toHaveAttribute('data-loading-pending');
+  await expect(scheduling.locator('[name=planned_date]')).toBeVisible();
   delayed.release();
   await expect(scheduling).not.toHaveAttribute('data-loading-pending');
   await expect(scheduling.getByText('Set planned date', { exact: true })).toBeVisible();

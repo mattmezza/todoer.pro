@@ -6,6 +6,9 @@ license; the project license does not replace those terms.
 
 - `app/assets/fonts/ReportSans*.ttf`: bundled report fonts, Apache License 2.0;
   the full upstream notice is retained in `app/assets/fonts/LICENSE.txt`.
+- `app/assets/fonts/{geist,inter}-*-wght-normal.woff2`: Geist and Inter variable
+  fonts, SIL Open Font License 1.1; upstream notices are retained in
+  `app/assets/fonts/geist-LICENSE.txt` and `inter-LICENSE.txt`.
 - `app/assets/icons.svg`: Heroicons, MIT; upstream notice and source inventory
   are retained in `app/assets/heroicons-LICENSE.txt` and `heroicons-sources.json`.
 - `app/assets/htmx.min.js`: htmx, copyright Big Sky Software, MIT;

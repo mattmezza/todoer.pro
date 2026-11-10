@@ -321,14 +321,12 @@ function finishNavigation(nav) {
   }
 }
 
-function basePath() {
-  return document.querySelector('meta[name="asset-base"]')?.content || '/assets/';
-}
-
 function copyAttributes(current, next) {
   for (const attr of [...current.attributes]) current.removeAttribute(attr.name);
   for (const attr of next.attributes) current.setAttribute(attr.name, attr.value);
 }
+
+let navigationPalette;
 
 document.addEventListener('htmx:before:swap', (event) => {
   const ctx = event.detail.ctx;
@@ -339,6 +337,28 @@ document.addEventListener('htmx:before:swap', (event) => {
     return;
   }
   const doc = nav.document;
+  // Constructed CSS is synchronous: freshly swapped badges never flash blue
+  // while a new palette stylesheet crosses a slow mobile connection.
+  const palette = new CSSStyleSheet();
+  const colors = new Set(
+    [...doc.querySelectorAll('[data-entity-color],[data-list-color]')]
+      .flatMap((node) => [node.dataset.entityColor, node.dataset.listColor])
+      .filter((color) => /^#[0-9a-f]{6}$/i.test(color || '')),
+  );
+  palette.replaceSync(
+    [...colors]
+      .map(
+        (color) =>
+          `[data-entity-color="${color}"]{background-color:${color}}[data-list-color="${color}"]{--list-color:${color}}`,
+      )
+      .join(''),
+  );
+  if (navigationPalette)
+    document.adoptedStyleSheets = document.adoptedStyleSheets.filter(
+      (sheet) => sheet !== navigationPalette,
+    );
+  navigationPalette = palette;
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, palette];
   nav.sidebarScroll =
     document.querySelector('#navigation .sidebar-scroll')?.scrollTop || 0;
   unmountPage();
@@ -372,7 +392,7 @@ document.addEventListener('htmx:before:swap', (event) => {
   for (const link of doc.querySelectorAll('link[rel="stylesheet"]')) {
     const href = link.getAttribute('href');
     if (
-      (href.startsWith(basePath()) || href === '/review.css') &&
+      (href.startsWith('/static/') || href === '/review.css') &&
       ![...document.querySelectorAll('link[rel="stylesheet"]')].some(
         (old) => old.getAttribute('href') === href,
       )

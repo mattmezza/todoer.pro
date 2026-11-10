@@ -1054,7 +1054,12 @@ export function mountDiscussion({
   container.addEventListener('submit', onSubmit);
   container.addEventListener('click', onClick);
   container.addEventListener('keydown', onKey);
-  const ready = refresh();
+  const ready = get('[data-discussion-fragment]')
+    ? Promise.resolve().then(() => {
+        restore();
+        requestAnimationFrame(growComments);
+      })
+    : refresh();
   const cleanup = () => {
     const input = get('[data-new-comment-input]');
     if (input?.value) save('new', { ...newDraftState, body: input.value });

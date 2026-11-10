@@ -1,7 +1,41 @@
 //! Release-specific URLs keep the entire ES module graph in one browser cache.
 use super::*;
 
+pub(super) const PALETTE_BASE: &str = concat!("/palette/", env!("TODOER_ASSET_VERSION"), "/");
+
 pub(super) const BASE: &str = concat!("/static/", env!("TODOER_ASSET_VERSION"), "/");
+
+pub(super) const SCRIPT_BASE: &str = concat!(
+    "/static/",
+    env!("TODOER_ASSET_VERSION"),
+    "/",
+    env!("TODOER_SCRIPT_PREFIX")
+);
+
+pub(super) fn fingerprinted_image(filename: &str) -> Option<&'static str> {
+    // Direct Cargo builds without the Node assets step retain revalidating aliases.
+    if env!("TODOER_BUNDLED_ENTRIES").is_empty() {
+        return None;
+    }
+    match filename {
+        "icons.svg" => Some(env!("TODOER_ICONS_URL")),
+        "icon192-v2.png" => Some(env!("TODOER_ICON_URL")),
+        _ => None,
+    }
+}
+
+pub(super) async fn palette(Path(colors): Path<String>) -> Response {
+    let colors = colors.split(',').collect::<Vec<_>>();
+    if colors.len() > 512
+        || colors
+            .iter()
+            .any(|color| color.len() != 6 || !color.bytes().all(|c| c.is_ascii_hexdigit()))
+    {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let css = colors.iter().map(|color| format!("[data-entity-color=\"#{color}\"]{{background-color:#{color}}}[data-list-color=\"#{color}\"]{{--list-color:#{color}}}")).collect::<String>();
+    ([(header::CONTENT_TYPE, "text/css; charset=utf-8")], css).into_response()
+}
 
 pub(super) fn directory() -> &'static str {
     if std::path::Path::new("app/assets").is_dir() {
@@ -13,7 +47,7 @@ pub(super) fn directory() -> &'static str {
 
 pub(super) fn version_html(html: &str) -> String {
     // Only asset attributes are rewritten. Task text and user-provided URLs keep
-    // their meaning; images and installation metadata retain their public URLs.
+    // their meaning; installation metadata retains its revalidating public URL.
     let mut result = html.to_owned();
     for attribute in ["src=\"/assets/", "href=\"/assets/"] {
         let mut output = String::with_capacity(result.len());
@@ -23,9 +57,22 @@ pub(super) fn version_html(html: &str) -> String {
             output.push_str(&rest[..start]);
             let path = rest[end..].split('"').next().unwrap_or_default();
             let filename = path.split(['?', '#']).next().unwrap_or_default();
-            if filename.ends_with(".js") || filename.ends_with(".css") {
+            if let Some(url) = fingerprinted_image(filename) {
                 output.push_str(&attribute[..attribute.len() - "/assets/".len()]);
-                output.push_str(BASE);
+                output.push_str(url);
+                rest = &rest[end + filename.len()..];
+                continue;
+            }
+            if filename.ends_with(".js")
+                || filename.ends_with(".css")
+                || filename.ends_with(".png")
+                || filename.ends_with(".svg")
+            {
+                output.push_str(&attribute[..attribute.len() - "/assets/".len()]);
+                let bundled = env!("TODOER_BUNDLED_ENTRIES")
+                    .split(',')
+                    .any(|entry| entry == filename);
+                output.push_str(if bundled { SCRIPT_BASE } else { BASE });
             } else {
                 output.push_str(attribute);
             }
@@ -34,9 +81,41 @@ pub(super) fn version_html(html: &str) -> String {
         output.push_str(rest);
         result = output;
     }
+    let mut colors = std::collections::BTreeSet::new();
+    for attribute in ["data-entity-color=\"#", "data-list-color=\"#"] {
+        for suffix in html.split(attribute).skip(1) {
+            if let Some(color) = suffix.split('"').next()
+                && color.len() == 6
+                && color.bytes().all(|c| c.is_ascii_hexdigit())
+            {
+                colors.insert(color);
+            }
+        }
+    }
+    let palette = colors
+        .into_iter()
+        .collect::<Vec<_>>()
+        .chunks(128)
+        .map(|colors| {
+            format!(
+                "<link rel=\"stylesheet\" href=\"{PALETTE_BASE}{}\">",
+                colors.join(",")
+            )
+        })
+        .collect::<String>();
+    let font = if html.contains("data-font=\"inter\"") {
+        "inter"
+    } else {
+        "geist"
+    };
+    let font_preload = format!(
+        "<link rel=\"preload\" as=\"font\" href=\"{BASE}fonts/{font}-latin-wght-normal.woff2\" type=\"font/woff2\" crossorigin>"
+    );
     result.replacen(
         "</head>",
-        &format!("<meta name=\"asset-base\" content=\"{BASE}\"></head>"),
+        &format!(
+            "{palette}{font_preload}<meta name=\"asset-base\" content=\"{SCRIPT_BASE}\"></head>"
+        ),
         1,
     )
 }
@@ -88,6 +167,26 @@ mod tests {
                 "public, max-age=31536000, immutable",
             ),
             (
+                env!("TODOER_ICONS_URL").into(),
+                StatusCode::OK,
+                "public, max-age=31536000, immutable",
+            ),
+            (
+                env!("TODOER_ICON_URL").into(),
+                StatusCode::OK,
+                "public, max-age=31536000, immutable",
+            ),
+            (
+                format!("{PALETTE_BASE}17ac6e,abcdef"),
+                StatusCode::OK,
+                "public, max-age=31536000, immutable",
+            ),
+            (
+                format!("{PALETTE_BASE}not-a-color"),
+                StatusCode::NOT_FOUND,
+                "no-store",
+            ),
+            (
                 "/assets/manifest.webmanifest".into(),
                 StatusCode::OK,
                 "public, no-cache",
@@ -118,6 +217,19 @@ mod tests {
             assert_eq!(response.status(), status, "{path}");
             assert_eq!(response.headers()[header::CACHE_CONTROL], policy, "{path}");
         }
+    }
+
+    #[test]
+    fn colors_and_icon_fragments_are_ready_in_the_initial_document() {
+        let html = version_html(
+            "<head></head><span data-entity-color=\"#17ac6e\"></span><article data-list-color=\"#17ac6e\"></article><svg><use href=\"/assets/icons.svg#check\"/></svg>",
+        );
+        assert!(html.contains(&format!("href=\"{PALETTE_BASE}17ac6e\"")));
+        let url = fingerprinted_image("icons.svg")
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("{BASE}icons.svg"));
+        assert!(html.contains(&format!("href=\"{url}#check\"")));
+        assert!(!html.contains("style="));
     }
 
     #[tokio::test]
@@ -161,11 +273,14 @@ mod tests {
         let html = version_html(
             "<head><script src=\"/assets/site.js\"></script><link href=\"/assets/app.css\"><link href=\"/assets/manifest.webmanifest\"></head><img src=\"/assets/icon192-v2.png\"><p>/assets/site.js</p>",
         );
-        assert!(html.contains(&format!("src=\"{BASE}site.js\"")));
+        assert!(html.contains(&format!("src=\"{SCRIPT_BASE}site.js\"")));
         assert!(html.contains(&format!("href=\"{BASE}app.css\"")));
         assert!(html.contains("href=\"/assets/manifest.webmanifest\""));
-        assert!(html.contains("src=\"/assets/icon192-v2.png\""));
+        let image = fingerprinted_image("icon192-v2.png")
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("{BASE}icon192-v2.png"));
+        assert!(html.contains(&format!("src=\"{image}\"")));
         assert!(html.contains("<p>/assets/site.js</p>"));
-        assert!(html.contains(&format!("name=\"asset-base\" content=\"{BASE}\"")));
+        assert!(html.contains(&format!("name=\"asset-base\" content=\"{SCRIPT_BASE}\"")));
     }
 }

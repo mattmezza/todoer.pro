@@ -20,21 +20,12 @@ const context = vm.createContext({
   },
 });
 vm.runInContext(workerSource, context);
-// Every static import needed by the shared UI must be available before offline
-// navigation, including components whose settings page has never been visited.
-const precached = new Set(vm.runInContext('STATIC', context));
-const moduleQueue = ['/assets/alpine.js'];
-const visitedModules = new Set();
-while (moduleQueue.length) {
-  const asset = moduleQueue.pop();
-  if (visitedModules.has(asset)) continue;
-  visitedModules.add(asset);
-  assert.ok(precached.has(asset.replace('/assets/', assetBase)), `Alpine dependency missing from precache: ${asset}`);
-  const source = await readFile(`app${asset}`, 'utf8');
-  for (const match of source.matchAll(/(?:from\s*|import\s*)['"](\.\/[^'"]+)['"]/g))
-    moduleQueue.push(new URL(match[1], `https://tasks.example.invalid${asset}`).pathname);
-}
-console.log(`Service-worker Alpine dependencies: all ${visitedModules.size} modules precached`);
+// Installation has a small fixed budget; unused feature JavaScript is cached
+// by its first real request instead of competing with a cold page load.
+const precached = [...vm.runInContext('STATIC', context)];
+assert.ok(precached.length <= 5, 'install must not preload the whole application');
+assert.ok(precached.every((path) => !path.endsWith('.js')), 'feature JavaScript is demand-cached');
+console.log(`Service-worker installation budget: ${precached.length} core assets, no speculative JavaScript`);
 async function push(payload) {
   let work;
   handlers.get('push')({ data: { json: () => payload }, waitUntil: value => { work = value; } });

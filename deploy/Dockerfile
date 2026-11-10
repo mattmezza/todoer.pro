@@ -9,7 +9,9 @@ COPY app/templates app/templates
 COPY app/src app/src
 COPY scripts/prepare-htmx.mjs scripts/prepare-htmx.mjs
 COPY scripts/prepare-alpine.mjs scripts/prepare-alpine.mjs
-RUN npm run assets && node scripts/prepare-htmx.mjs && node scripts/prepare-alpine.mjs
+COPY scripts/bundle-app.mjs scripts/bundle-app.mjs
+COPY scripts/prepare-fonts.mjs scripts/prepare-fonts.mjs
+RUN npm run assets && node scripts/prepare-htmx.mjs && node scripts/prepare-alpine.mjs && node scripts/bundle-app.mjs
 
 FROM rust:1.99.0-slim-bookworm@sha256:2c3a22f0a5533ea2dd5a16627bc841228151faa2d4de2644ac9987e4a2f1f2fa AS build
 RUN apt-get update && apt-get install --no-install-recommends -y pkg-config libssl-dev \

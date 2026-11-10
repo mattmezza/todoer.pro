@@ -5,6 +5,24 @@ fn main() {
         .unwrap_or_else(|_| std::env::var("CARGO_PKG_VERSION").expect("package version"));
     println!("cargo:rustc-env=TODOER_BUILD_VERSION={version}");
     println!("cargo:rerun-if-changed=assets");
+    let bundled_entries = std::fs::read_to_string("assets/bundles/entries.txt").unwrap_or_default();
+    let script_prefix = if bundled_entries.is_empty() {
+        ""
+    } else {
+        "bundles/"
+    };
+    println!("cargo:rustc-env=TODOER_SCRIPT_PREFIX={script_prefix}");
+    println!("cargo:rustc-env=TODOER_BUNDLED_ENTRIES={bundled_entries}");
+    for (filename, variable) in [
+        ("icons.svg", "TODOER_ICONS_URL"),
+        ("icon192-v2.png", "TODOER_ICON_URL"),
+    ] {
+        let bytes = std::fs::read(format!("assets/{filename}")).expect("read image asset");
+        let hash = format!("{:x}", Sha256::digest(bytes));
+        let (stem, extension) = filename.rsplit_once('.').expect("image extension");
+        let url = format!("/assets/images/{stem}-{}.{extension}", &hash[..16]);
+        println!("cargo:rustc-env={variable}={url}");
+    }
     let mut digest = Sha256::new();
     digest.update(version.as_bytes());
     fn collect(directory: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {

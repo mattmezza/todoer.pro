@@ -14,114 +14,13 @@ async function currentScope(clientId) {
   await scopeWrites;
   return scopes.get(clientId) || (await persistedScope());
 }
+// Cache features on demand. Installing must not download every settings/admin
+// screen and compete with the page the user is currently opening.
 const STATIC = [
-  '/assets/review.css',
-  '/assets/account-preferences.js',
-  '/assets/account-auth.js',
-  '/assets/account-security.js',
-  '/assets/admin-email.js',
-  '/assets/ai-account-picker.css',
-  '/assets/ai-billing.css',
-  '/assets/ai-billing.js',
-  '/assets/ai-transaction.js',
-  '/assets/cli-consent.js',
-  '/assets/delivery-settings.js',
-  '/assets/passkeys.js',
-  '/assets/planning-workbench.js',
-  '/assets/public-sharing.js',
-  '/assets/quick-capture.js',
-  '/assets/review.js',
-  '/assets/sharing-settings.css',
-  '/assets/task-structure.js',
-  '/assets/app.css',
-  '/assets/numeric-mono.woff2',
-  '/assets/app.js',
-  '/assets/site.js',
-  '/assets/alpine.js',
-  '/assets/about-dialog.js',
-  '/assets/menu.js',
-  '/assets/dialog.js',
-  '/assets/confirmation-dialog.js',
-  '/assets/export-dialog.js',
-  '/assets/workspace-dialogs.js',
-  '/assets/alpine-csp.min.js',
-  '/assets/list-create.js',
-  '/assets/list-preferences.js',
-  '/assets/capture-preferences.js',
-  '/assets/page-lifecycle.js',
-  '/assets/page-navigation.js',
-  '/assets/navigation.js',
-  '/assets/home-filters.js',
-  '/assets/section-collapse.js',
-  '/assets/section-order.js',
-  '/assets/task-panel.js',
-  '/assets/dom-ids.js',
-  '/assets/task-gestures.js',
-  '/assets/task-swipe-actions.js',
-  '/assets/task-indicators.js',
-  '/assets/task-list-refresh.js',
-  '/assets/structured-edit.js',
-  '/assets/settings-feedback.js',
-  '/assets/export-menu.js',
-  '/assets/list-archive.js',
-  '/assets/entity-name.js',
-  '/assets/reference-copy.js',
-  '/assets/favorite-order.js',
-  '/assets/nav-overflow.js',
-  '/assets/loading.js',
-  '/assets/request.js',
-  '/assets/reauth.js',
-  '/assets/notification-center.js',
-  '/assets/task-play.js',
-  '/assets/planning-page.js',
-  '/assets/general-settings.js',
-  '/assets/space-overview.js',
-  '/assets/space-list-order.js',
-  '/assets/notification-picker.js',
-  '/assets/activity-panel.js',
-  '/assets/preferred-time.js',
-  '/assets/search-omnibar.js',
-  '/assets/search-dialog.js',
-  '/assets/confirm.js',
-  '/assets/task-completion.js',
-  '/assets/toast.js',
-  '/assets/quiet-info.js',
-  '/assets/capture-ui.js',
-  '/assets/capture-page.js',
-  '/assets/smart-capture.js',
-  '/assets/capture-help.js',
-  '/assets/smart-capture-parser.mjs',
-  '/assets/capture-dates.mjs',
-  '/assets/list-ui.js',
-  '/assets/list-color-picker.js',
-  '/assets/list-settings.js',
-  '/assets/workspaces.js',
-  '/assets/icons.svg',
-  '/assets/task-page.js',
-  '/assets/task-breakdown.js',
-  '/assets/icons.svg',
-  '/assets/discussion.js',
-  '/assets/push.js',
-  '/assets/scheduling.js',
-  '/assets/task-metadata.js',
-  '/assets/task-order.js',
-  '/assets/section-order.js',
-  '/assets/offline.js',
-  '/assets/pwa.js',
-  '/assets/welcome.js',
-  '/assets/welcome-chase.js',
+  `${ASSET_BASE}app.css`,
+  `${ASSET_BASE}numeric-mono.woff2`,
   '/assets/manifest.webmanifest',
-  '/assets/icon192-v2.png',
-  '/assets/notification-badge-v2.png',
-  '/assets/apple-touch-icon-v2.png',
-  '/assets/icon512-v2.png',
-  '/assets/icon512-maskable-v2.png',
-  '/assets/htmx.min.js',
-  '/assets/favicon.svg?v=2',
-  '/favicon.ico?v=2',
-].map((path) =>
-  /\.(?:m?js|css|woff2)$/.test(path) ? ASSET_BASE + path.slice('/assets/'.length) : path,
-);
+];
 const scopes = new Map();
 const pageCache = (scope) => `todoer-page-${BUILD}-${scope}`;
 async function savePage(scope, request, response) {
@@ -261,9 +160,13 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
-  const assetBuild = url.pathname.match(
-    /^\/static\/([a-f0-9]{64}|__TODOER_BUILD__)\//,
-  )?.[1];
+  const assetBuild =
+    url.pathname.match(/^\/(?:static|palette)\/([a-f0-9]{64}|__TODOER_BUILD__)\//)?.[1] ||
+    (/^\/assets\/images\/(?:icons|icon192-v2)-[a-f0-9]{16}\.(?:svg|png)$/.test(
+      url.pathname,
+    )
+      ? BUILD
+      : null);
   if (assetBuild) {
     // Versioned assets never need a network round trip on a warm cache.
     event.respondWith(

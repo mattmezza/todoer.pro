@@ -33,7 +33,7 @@ test('search discards old results immediately and shows contextual empty icon', 
   await expect(page.locator('.omnibar-status')).toContainText('No matches');
   await expect(page.locator('.omnibar-status use')).toHaveAttribute(
     'href',
-    '/assets/icons.svg#search',
+    /\/icons-[a-f0-9]{16}\.svg#search$/,
   );
   expect(await input.evaluate((el) => getComputedStyle(el).textAlign)).toBe('left');
 });
@@ -134,6 +134,14 @@ test('settings serialize competing preference saves without losing either choice
     fun_animations: true,
     fun_animation: 'tasks',
   };
+  const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
+  // The initial form now uses fresh server preferences, so seed the same state
+  // as the intercepted read/modify/write endpoint.
+  const seeded = await page.request.put('/api/v1/notification-preferences', {
+    headers: { 'X-CSRF-Token': csrf },
+    data: saved,
+  });
+  expect(seeded.ok()).toBe(true);
   const writes = [];
   await page.route('**/api/v1/notification-preferences', async (route) => {
     if (route.request().method() === 'PUT') {
