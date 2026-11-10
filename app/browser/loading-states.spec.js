@@ -215,6 +215,9 @@ test('planning reuses the initial snapshot and activity spins while its content 
     await route.continue();
   });
   await page.goto(`/tasks/${task.id}`);
+  // Wait for the controller to bind the server-rendered page before calling
+  // its settings API directly; a user opens it through that bound handler.
+  await expect(page.locator('[data-task-page] [data-schedule-form]')).toBeAttached();
   await page.evaluate(async () => {
     const root = document.querySelector('[data-task-page]');
     (

@@ -91,8 +91,26 @@ content-hashed URLs in HTML, generated JS and install metadata; immutable cache
 headers avoid revalidation, while the manifest itself revalidates.
 
 In a fresh synthetic Chromium context, the same space-page setup fell from 182
-requests to 31 (Firefox: 33), with 22 script requests and no third-party font
+requests to 32 (Firefox: 34), with 23 script requests and no third-party font
 requests. Prior remote fonts attempted 121 requests across weights, subsets and
 fallback formats in this environment. The asset-budget browser test checks cold
 requests, immutable icon headers and zero icon transfer on reload. These figures
 are local synthetic measurements rather than a production traffic benchmark.
+The final Chromium measurement transferred approximately 196 KB of response
+bodies with compression enabled. Unversioned icon aliases deliberately revalidate;
+the application and manifest reference their immutable content-hashed URLs.
+
+Final verification: `make check`, `make test` (360 Rust tests passed, nine
+explicitly ignored probes), Clippy with warnings denied, formatting and the
+service-worker harness passed. Chromium and Firefox regressions cover stable
+first render with scripts held back, 320–1280px capture geometry, cold asset
+budgets, zero-transfer icon reloads, immediate navigation feedback and release
+handoff, settings, Inbox/task panels, task editing and structured editing.
+The final 72-case selection passed after correcting a settings test to wait for
+the controller before invoking its settings API (the corrected case was rerun
+successfully in both engines). The broader 130-case selection additionally
+exercised drafts/conflicts, access revocation, offline navigation and logout;
+its earlier failures were covered by that final regression selection.
+WebKit still cannot launch because required host shared libraries are missing.
+All browser checks used the isolated synthetic database, not the local Google
+authentication database or production data.
