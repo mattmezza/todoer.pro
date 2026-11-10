@@ -1,23 +1,27 @@
+import { pagePreferences } from './account-preferences.js';
 import { pageScope } from './page-lifecycle.js';
 
-let owner, pending;
+let owner, pending, timezone;
 // Share account preferences across task panels until this page is left.
 export function preferredTimeFormatter() {
   const scope = pageScope();
-  if (owner !== scope) {
+  if (owner !== scope || timezone !== pagePreferences()?.timezone) {
+    timezone = pagePreferences()?.timezone;
     owner = scope;
     pending = loadFormatter(scope);
   }
   return pending;
 }
 async function loadFormatter(scope) {
-  let timeZone = 'UTC';
-  try {
-    const response = await scope.request('/api/v1/notification-preferences', {
-      cache: 'no-store',
-    });
-    if (response.ok) timeZone = (await response.json()).timezone || 'UTC';
-  } catch {}
+  let timeZone = pagePreferences()?.timezone;
+  if (!timeZone)
+    try {
+      const response = await scope.request('/api/v1/notification-preferences', {
+        cache: 'no-store',
+      });
+      if (response.ok) timeZone = (await response.json()).timezone || 'UTC';
+    } catch {}
+  timeZone ||= 'UTC';
   const formatter = new Intl.DateTimeFormat(undefined, {
     timeZone,
     year: 'numeric',

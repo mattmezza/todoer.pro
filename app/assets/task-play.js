@@ -1,3 +1,4 @@
+import { pagePreferences } from './account-preferences.js';
 import { onPageLoad, pageScope } from './page-lifecycle.js';
 import { request as fetch } from './request.js';
 import { welcomeChase } from './welcome-chase.js';
@@ -406,12 +407,15 @@ onPageLoad((scope) => {
     }
     scope.cleanup(() => toy?.remove());
     scope.listen(document, 'todoer-play-preferences', (event) => apply(event.detail));
-    scope
-      .request('/api/v1/notification-preferences', { cache: 'no-store' })
-      .then((response) => (response.ok ? response.json() : null))
-      .then((value) => {
-        if (value && !scope.signal.aborted) apply(value);
-      })
-      .catch(() => {});
+    const initial = pagePreferences();
+    if (initial) apply(initial);
+    else
+      scope
+        .request('/api/v1/notification-preferences', { cache: 'no-store' })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((value) => {
+          if (value && !scope.signal.aborted) apply(value);
+        })
+        .catch(() => {});
   }
 });

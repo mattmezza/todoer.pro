@@ -25,7 +25,7 @@ sha2 = "0.10"
 hmac = "=0.12.1"
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
-tower-http = { version = "0.6", features = ["fs", "limit", "trace", "set-header"] }
+tower-http = { version = "0.6", features = ["fs", "limit", "trace", "set-header", "compression-gzip"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 clap = { version = "4", features = ["derive", "env"] }
 

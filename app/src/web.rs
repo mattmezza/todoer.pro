@@ -84,6 +84,8 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::sync::{Arc, Mutex};
 use tower_http::services::ServeDir;
+#[path = "static_assets.rs"]
+mod static_assets;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -333,7 +335,11 @@ pub fn router(state: AppState) -> Router {
             "/fragments/tasks/{id}/description",
             get(description_fragment),
         )
-        .nest_service("/assets", ServeDir::new("app/assets"))
+        .nest_service(
+            static_assets::BASE.trim_end_matches('/'),
+            ServeDir::new(static_assets::directory()),
+        )
+        .nest_service("/assets", ServeDir::new(static_assets::directory()))
         .nest_service("/legacy-assets", ServeDir::new("app/assets/icons"))
         .layer(DefaultBodyLimit::max(128 * 1024))
         .merge(activity_http::routes())
@@ -379,6 +385,8 @@ pub fn router(state: AppState) -> Router {
             public_http::metadata_layer,
         ))
         .layer(axum::middleware::from_fn(response_security))
+        // Compression wraps HTML versioning and excludes SSE by default.
+        .layer(tower_http::compression::CompressionLayer::new())
 }
 async fn home(State(s): State<AppState>, h: HeaderMap) -> Result<Redirect, ApiError> {
     Ok(Redirect::to(if s.auth(&h, false).is_ok() {
@@ -1859,6 +1867,9 @@ async fn response_security(req: axum::extract::Request, next: axum::middleware::
         .path_and_query()
         .map(|v| v.as_str().to_owned())
         .unwrap_or_else(|| "/".into());
+    let versioned_asset = req.uri().path().starts_with(static_assets::BASE);
+    let public_asset =
+        req.uri().path().starts_with("/assets/") || req.uri().path() == "/favicon.ico";
     let browser_page = method == "GET"
         && req
             .headers()
@@ -1883,8 +1894,21 @@ async fn response_security(req: axum::extract::Request, next: axum::middleware::
         "{}",
         json!({"event":"http","request_id":request_id,"method":method,"status":res.status().as_u16(),"duration_ms":started.elapsed().as_millis()})
     );
+    let cacheable = res.status().is_success() || res.status() == StatusCode::NOT_MODIFIED;
+    let cache_policy = if versioned_asset && cacheable {
+        "public, max-age=31536000, immutable"
+    } else if public_asset && cacheable {
+        "public, no-cache"
+    } else {
+        "no-store"
+    };
     res.headers_mut()
-        .insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
+        .insert(header::CACHE_CONTROL, cache_policy.parse().unwrap());
+    res.headers_mut().insert(
+        "x-todoer-build",
+        env!("TODOER_ASSET_VERSION").parse().unwrap(),
+    );
+    res = static_assets::version_response(res).await;
     res.headers_mut()
         .insert("x-content-type-options", "nosniff".parse().unwrap());
     res.headers_mut()

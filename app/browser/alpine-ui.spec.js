@@ -18,7 +18,10 @@ async function signin(page) {
 
 async function navigate(page, path) {
   await page.evaluate(async (path) => {
-    const { navigate } = await import('/assets/page-navigation.js');
+    const { navigate } = await import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'page-navigation.js'
+    );
     await navigate(path);
   }, path);
   await expect(page.locator('#main')).not.toHaveAttribute('aria-busy', 'true');
@@ -159,7 +162,10 @@ test('confirmation requests stay queued and settle when their page is replaced',
 }) => {
   await signin(page);
   await page.evaluate(async () => {
-    const { confirmAction } = await import('/assets/confirm.js');
+    const { confirmAction } = await import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'confirm.js'
+    );
     window.confirmed = [];
     void confirmAction('Apply the first change?', {
       title: 'First change',
@@ -176,7 +182,10 @@ test('confirmation requests stay queued and settle when their page is replaced',
   await page.keyboard.press('Escape');
   await expect.poll(() => page.evaluate(() => window.confirmed)).toEqual([true, false]);
   await page.evaluate(async () => {
-    const { confirmAction } = await import('/assets/confirm.js');
+    const { confirmAction } = await import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'confirm.js'
+    );
     void confirmAction('Keep waiting?', { title: 'Leaving this page' }).then((result) =>
       window.confirmed.push(result),
     );
@@ -300,7 +309,10 @@ test('export keeps its format controls usable after errors and downloads the sel
     );
   });
   await page.evaluate(async () => {
-    const { openExport } = await import('/assets/export-menu.js');
+    const { openExport } = await import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'export-menu.js'
+    );
     openExport({ kind: 'list', id: 'inbox' });
   });
   const dialog = page.getByRole('dialog', { name: 'Export', exact: true });

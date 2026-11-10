@@ -682,7 +682,7 @@ async function decorateMembers(section, id) {
     results.replaceChildren();
     const query = input.value.trim();
     if (query.length < 3) return;
-    const skeleton = (memberLoading = beginLoading(results, { variant: 'compact' }));
+    const skeleton = (memberLoading = beginLoading(results, { variant: 'spinner' }));
     timer = setTimeout(async () => {
       try {
         const response = await fetch(endpoint + '?q=' + encodeURIComponent(query));

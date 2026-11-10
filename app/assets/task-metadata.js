@@ -704,7 +704,7 @@ export function mountTaskMetadata({
     parentResultsLoading?.finish();
     parentChoices.replaceChildren();
     const skeleton = (parentResultsLoading = beginLoading(parentChoices, {
-      variant: 'compact',
+      variant: 'spinner',
     }));
     try {
       const result = await request('/query', 'POST', {
@@ -761,7 +761,7 @@ export function mountTaskMetadata({
     tagResultsLoading?.finish();
     tagSuggestions.replaceChildren();
     const skeleton = (tagResultsLoading = beginLoading(tagSuggestions, {
-      variant: 'compact',
+      variant: 'spinner',
     }));
     try {
       const items = await request(
@@ -799,7 +799,7 @@ export function mountTaskMetadata({
     referenceResultsLoading?.finish();
     referenceChoices.replaceChildren();
     const skeleton = (referenceResultsLoading = beginLoading(referenceChoices, {
-      variant: 'compact',
+      variant: 'spinner',
     }));
     try {
       const items = await request(

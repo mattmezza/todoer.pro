@@ -38,3 +38,38 @@ Limits: preference serialization is per page, not cross-tab compare-and-swap.
 Request deadlines and client-side checks cannot prove whether an interrupted
 write committed. Non-idempotent writes need explicit saved-state reconciliation
 before retry. These tests simulate failures/latency, not production load.
+
+## Mobile navigation and asset caching (2026-11-10)
+
+- A different destination immediately conceals old page content and shows a
+  spinner. Background refreshes and saves retain usable content. Aborts and
+  failures restore the previous page and its drafts; the newest navigation owns
+  loading feedback. Controllers load concurrently after a successful swap.
+- Spinners are the default for unknown sizes, including mixed Inbox content,
+  search results, task trees, activity, attachments/comments and fetched dialogs.
+  Skeletons are opt-in for known form controls, single-line values and calendar
+  grids. Initial HTML has a CSS spinner before its JavaScript arrives.
+- Page-rendered timezone and animation preferences are reused by controllers.
+  They refresh with every navigation and successful local preference save;
+  writes still fetch the latest document before merging changes.
+- Scripts, styles and their relative module/font dependencies use
+  `/static/<content-and-release-hash>/...` URLs, with one-year immutable HTTP
+  caching. The hash covers nested asset directories and the release version.
+  Shared dependency preloads reduce cold import waterfalls. Gzip compresses
+  eligible responses; SSE keeps the compression layer's streaming exclusion.
+- The worker serves immutable assets cache-first, validates build headers before
+  filling caches, and warms at most three assets concurrently using the existing
+  HTTP cache. The previous static build remains available for existing tabs.
+  Unversioned install metadata revalidates. `/sw.js` and private pages stay
+  `no-store`. Cache writes do not delay page responses.
+- Offline list copies are isolated by account and build, bounded to ten pages,
+  and cleared on logout/account changes. New-release HTML causes a full
+  navigation rather than mounting with old module instances.
+
+Checks: `make setup`, `make check`, `make test`;
+`navigation-performance.spec.js`, `app-navigation.spec.js`,
+`loading-states.spec.js`, `network-resilience.spec.js`,
+`list-task-panel.spec.js` and `planning-priority.spec.js` exercise these paths.
+The worker harness includes a stalled-network warm read, cold fill and mismatched
+release checks; Rust tests verify cache headers, missing-version errors, HTML
+rewrites and response compression. Browser checks use synthetic local data.

@@ -87,7 +87,10 @@ export function mountStructure(container, id) {
   more.hidden = true;
   container.append(heading, status, view, more);
   async function load(first = false) {
-    const skeleton = beginLoading(view, { variant: 'tree', preserve: items.length > 0 });
+    const skeleton = beginLoading(view, {
+      variant: 'spinner',
+      preserve: items.length > 0,
+    });
     more.disabled = true;
     try {
       if (first) {

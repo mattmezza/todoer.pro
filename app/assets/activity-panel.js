@@ -49,7 +49,7 @@ export function mountActivity(container, kind, id) {
   container.append(heading, message, entries, more);
   async function load(before) {
     const skeleton = beginLoading(entries, {
-      variant: 'activity',
+      variant: 'spinner',
       preserve: Boolean(entries.querySelector('.activity-item')),
     });
     message.textContent = '';

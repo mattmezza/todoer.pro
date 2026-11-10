@@ -1,0 +1,187 @@
+body.review {
+  display: block;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+.review-main {
+  max-width: 980px;
+  margin: auto;
+  padding: 24px 20px 60px;
+  min-width: 0;
+}
+.review nav {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 36px;
+}
+.review h1 {
+  font-size: 32px;
+  margin: 6px 0;
+}
+.review h2 {
+  font-size: 20px;
+  margin: 0 0 16px;
+}
+.review .muted {
+  color: var(--muted);
+  line-height: 1.6;
+}
+.review-form {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 24px 0;
+}
+.review-form label {
+  display: grid;
+  gap: 6px;
+}
+.review-form input {
+  max-width: 100%;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--sidebar);
+  color: var(--text);
+  color-scheme: dark light;
+}
+.review-form button {
+  padding: 10px 18px;
+  background: var(--accent);
+  color: #07121f;
+  border-radius: 6px;
+  min-height: 44px;
+}
+.review-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin: 32px 0;
+}
+.review-metrics div {
+  border-top: 1px solid var(--line);
+  padding: 20px 0;
+}
+.review-panel {
+  border-top: 1px solid var(--line);
+  padding: 24px 0;
+  background: transparent;
+}
+.review-metrics dt {
+  color: var(--muted);
+  font-size: 13px;
+}
+.review-metrics dd {
+  font-size: 34px;
+  margin: 8px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.review-panel {
+  margin-top: 18px;
+}
+.review-chart {
+  width: 100%;
+  height: 160px;
+  fill: var(--accent);
+}
+.review-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 0 1.25%;
+}
+.review-chart-axis span {
+  text-align: center;
+  flex: 1;
+}
+.review-chart-axis small {
+  display: block;
+}
+.review-observation-date {
+  white-space: nowrap;
+}
+.review-observation-date small {
+  display: block;
+  font-weight: normal;
+  font-size: 11px;
+  color: var(--muted);
+}
+.review time {
+  font-size: 12px;
+}
+.review table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+}
+.review caption {
+  text-align: left;
+  color: var(--muted);
+  padding-bottom: 12px;
+}
+.review th,
+.review td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.review-scroll {
+  overflow: auto;
+}
+.review-commitments {
+  list-style: none;
+  padding: 0;
+}
+.review-commitments li {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+.review-commitments a {
+  overflow-wrap: anywhere;
+}
+.review-commitments span {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.review details {
+  margin-top: 18px;
+}
+.review details ul {
+  line-height: 1.7;
+  padding-left: 20px;
+}
+@media (max-width: 600px) {
+  .review-main {
+    padding: 20px 14px 40px;
+  }
+  .review-metrics {
+    grid-template-columns: 1fr;
+  }
+  .review-metrics div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .review-metrics dd {
+    margin: 0;
+  }
+  .review-panel {
+    padding: 24px 0;
+  }
+  .review-form label {
+    flex: 1;
+    min-width: 130px;
+  }
+  .review-form button {
+    width: 100%;
+  }
+}

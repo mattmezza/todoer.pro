@@ -1,5 +1,7 @@
-// Bump this build version whenever precached asset contents change.
-const STATIC_CACHE = 'todoer-static-__TODOER_BUILD__';
+// The build hash includes every asset (including fonts) and the release version.
+const BUILD = '__TODOER_BUILD__';
+const ASSET_BASE = `/static/${BUILD}/`;
+const STATIC_CACHE = `todoer-static-${BUILD}`;
 const META_CACHE = 'todoer-offline-meta-v1';
 const SCOPE_KEY = '/__todoer_offline_scope__';
 let scopeWrites = Promise.resolve();
@@ -13,6 +15,24 @@ async function currentScope(clientId) {
   return scopes.get(clientId) || (await persistedScope());
 }
 const STATIC = [
+  '/assets/review.css',
+  '/assets/account-preferences.js',
+  '/assets/account-auth.js',
+  '/assets/account-security.js',
+  '/assets/admin-email.js',
+  '/assets/ai-account-picker.css',
+  '/assets/ai-billing.css',
+  '/assets/ai-billing.js',
+  '/assets/ai-transaction.js',
+  '/assets/cli-consent.js',
+  '/assets/delivery-settings.js',
+  '/assets/passkeys.js',
+  '/assets/planning-workbench.js',
+  '/assets/public-sharing.js',
+  '/assets/quick-capture.js',
+  '/assets/review.js',
+  '/assets/sharing-settings.css',
+  '/assets/task-structure.js',
   '/assets/app.css',
   '/assets/numeric-mono.woff2',
   '/assets/app.js',
@@ -99,9 +119,11 @@ const STATIC = [
   '/assets/htmx.min.js',
   '/assets/favicon.svg?v=2',
   '/favicon.ico?v=2',
-];
+].map((path) =>
+  /\.(?:m?js|css|woff2)$/.test(path) ? ASSET_BASE + path.slice('/assets/'.length) : path,
+);
 const scopes = new Map();
-const pageCache = (scope) => `todoer-page-${scope}`;
+const pageCache = (scope) => `todoer-page-${BUILD}-${scope}`;
 async function savePage(scope, request, response) {
   const url = new URL(typeof request === 'string' ? request : request.url);
   if (
@@ -110,6 +132,7 @@ async function savePage(scope, request, response) {
     !response.ok ||
     response.redirected ||
     response.headers.get('X-Todoer-Account') !== scope ||
+    response.headers.get('X-Todoer-Build') !== BUILD ||
     !response.headers.get('Content-Type')?.includes('text/html') ||
     (await persistedScope()) !== scope
   )
@@ -126,27 +149,44 @@ async function savePage(scope, request, response) {
   for (const old of keys.slice(0, Math.max(0, keys.length - 10))) await cache.delete(old);
 }
 self.addEventListener('install', (event) => {
-  // An update waits until the UI explicitly asks to activate it.
+  // An update waits until the UI explicitly asks to activate it. Limit warming
+  // to three concurrent requests so a slow mobile connection can serve the UI.
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) =>
-      Promise.all(
-        STATIC.map(async (path) => {
-          try {
-            const response = await fetch(path);
-            if (response.ok) await cache.put(path, response);
-          } catch {
-            /* Next online fetch can fill it. */
-          }
-        }),
-      ),
-    ),
+    (async () => {
+      const cache = await caches.open(STATIC_CACHE);
+      for (let offset = 0; offset < STATIC.length; offset += 3) {
+        await Promise.all(
+          STATIC.slice(offset, offset + 3).map(async (path) => {
+            try {
+              // Immutable URLs reuse the browser's HTTP cache after the first visit.
+              const response = await fetch(path);
+              if (response.ok && response.headers.get('X-Todoer-Build') === BUILD)
+                await cache.put(path, response);
+            } catch {
+              /* Next online fetch can fill it. */
+            }
+          }),
+        );
+      }
+    })(),
   );
 });
 self.addEventListener('activate', (event) =>
   event.waitUntil(
     (async () => {
-      for (const name of await caches.keys()) {
-        if (name.startsWith('todoer-static-') && name !== STATIC_CACHE)
+      const names = await caches.keys();
+      // Keep the preceding build for tabs still finishing work with old modules.
+      const previous = names
+        .filter((name) => name.startsWith('todoer-static-') && name !== STATIC_CACHE)
+        .at(-1);
+      for (const name of names) {
+        if (
+          name.startsWith('todoer-static-') &&
+          name !== STATIC_CACHE &&
+          name !== previous
+        )
+          await caches.delete(name);
+        if (name.startsWith('todoer-page-') && !name.startsWith(`todoer-page-${BUILD}-`))
           await caches.delete(name);
       }
       await self.clients.claim();
@@ -221,20 +261,41 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
-  if (STATIC.includes(url.pathname) || STATIC.includes(url.pathname + url.search)) {
+  const assetBuild = url.pathname.match(
+    /^\/static\/([a-f0-9]{64}|__TODOER_BUILD__)\//,
+  )?.[1];
+  if (assetBuild) {
+    // Versioned assets never need a network round trip on a warm cache.
     event.respondWith(
       (async () => {
+        const name = `todoer-static-${assetBuild}`;
+        const cache = await caches.open(name);
+        const saved = await cache.match(request);
+        if (saved) return saved;
         try {
           const response = await fetch(request);
-          if (response.ok) {
-            const cache = await caches.open(STATIC_CACHE);
-            await cache.put(request, response.clone());
-          }
+          if (response.ok && response.headers.get('X-Todoer-Build') === assetBuild)
+            event.waitUntil(cache.put(request, response.clone()).catch(() => {}));
           return response;
         } catch {
-          return (
-            (await (await caches.open(STATIC_CACHE)).match(request)) || unavailable()
-          );
+          return unavailable();
+        }
+      })(),
+    );
+    return;
+  }
+  if (STATIC.includes(url.pathname) || STATIC.includes(url.pathname + url.search)) {
+    // Public, unversioned installation metadata must still revalidate on releases.
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(STATIC_CACHE);
+        try {
+          const response = await fetch(request);
+          if (response.ok)
+            event.waitUntil(cache.put(request, response.clone()).catch(() => {}));
+          return response;
+        } catch {
+          return (await cache.match(request)) || unavailable();
         }
       })(),
     );
@@ -254,8 +315,12 @@ self.addEventListener('fetch', (event) => {
       try {
         const response = await fetch(request);
         // Redirects can be sign-in screens and must never enter an account cache.
-        if (eligible && (await currentScope(event.clientId)) === scope)
-          await savePage(scope, request, response);
+        if (
+          eligible &&
+          !response.redirected &&
+          (await currentScope(event.clientId)) === scope
+        )
+          event.waitUntil(savePage(scope, request, response.clone()).catch(() => {}));
         // Forward a fresh redirect; a followed response can stall HTMX fetches in Firefox.
         if (response.redirected && request.headers.get('HX-Request') === 'true')
           return Response.redirect(response.url, 303);

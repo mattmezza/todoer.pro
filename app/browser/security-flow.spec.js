@@ -4,7 +4,12 @@ import { readFile } from 'node:fs/promises';
 test('sign-out follows the successful redirect without an error', async ({ page }) => {
   await page.goto('/signin');
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
-  await page.evaluate(() => import('/assets/site.js').then(() => true));
+  await page.evaluate(() =>
+    import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'site.js'
+    ).then(() => true),
+  );
   await page.locator('.account-menu summary').click();
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(page).toHaveURL(/\/signin$/);

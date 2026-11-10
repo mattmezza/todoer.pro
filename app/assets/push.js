@@ -18,7 +18,7 @@ export function mountPushSettings(root) {
   let busy = false;
   let active = true;
   status.textContent = '';
-  const initialLoading = beginLoading(status, { variant: 'compact' });
+  const initialLoading = beginLoading(status, { variant: 'spinner' });
   const say = (text) => {
     initialLoading.finish();
     if (active) status.textContent = text;

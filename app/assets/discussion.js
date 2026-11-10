@@ -256,7 +256,7 @@ export function mountDiscussion({
     }
     loading = true;
     const skeleton = beginLoading(container, {
-      variant: 'discussion',
+      variant: 'spinner',
       preserve: Boolean(get('[data-discussion-fragment]')),
     });
     try {

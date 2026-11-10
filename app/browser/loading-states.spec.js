@@ -10,26 +10,24 @@ function gate() {
   });
   return { wait, release };
 }
-test('settings conceal unconfirmed values and retain their geometry during slow loads', async ({
+test('settings use fresh page preferences without waiting for another mobile round trip', async ({
   page,
 }) => {
   await login(page);
-  const delayed = gate();
+  const confirmed = await (
+    await page.request.get('/api/v1/notification-preferences')
+  ).json();
+  let requests = 0;
   await page.route('**/api/v1/notification-preferences', async (route) => {
-    await delayed.wait;
-    await route.continue();
+    requests++;
+    await route.abort();
   });
   await page.goto('/settings');
   const form = page.locator('[data-calendar-preferences]');
-  await expect(form).toHaveAttribute('data-loading-pending', 'form');
-  await expect(form.locator('[name=timezone]')).toBeHidden();
-  expect(await form.evaluate((el) => el.inert)).toBe(true);
-  const height = (await form.boundingBox()).height;
-  delayed.release();
   await expect(form).not.toHaveAttribute('data-loading-pending');
-  await expect(form.locator('[name=timezone]')).toBeVisible();
-  expect(Math.abs((await form.boundingBox()).height - height)).toBeLessThan(12);
+  await expect(form.locator('[name=timezone]')).toHaveValue(confirmed.timezone);
   await expect(form.locator('button[type=submit]')).toBeEnabled();
+  expect(requests).toBe(0);
 });
 test('failed initial loads stop shimmering, offer retry, and never expose editable defaults', async ({
   page,
@@ -52,7 +50,7 @@ test('failed initial loads stop shimmering, offer retry, and never expose editab
   await expect(form.locator('[name=smart_enabled]')).toBeVisible();
   await expect(form.locator('button[type=submit]')).toBeEnabled();
 });
-test('inbox uses a skeleton initially and retains loaded content and actions during refresh', async ({
+test('inbox uses a spinner initially and retains loaded content and actions during refresh', async ({
   page,
 }) => {
   await login(page);
@@ -63,7 +61,7 @@ test('inbox uses a skeleton initially and retains loaded content and actions dur
   });
   await page.goto('/inbox');
   const content = page.locator('[data-workbench-content]');
-  await expect(content).toHaveAttribute('data-loading-pending', 'rows');
+  await expect(content).toHaveAttribute('data-loading-pending', 'spinner');
   delayed.release();
   await expect(content).toHaveAttribute('data-loaded', 'true');
   const html = await content.innerHTML();
@@ -83,10 +81,13 @@ test('loading ownership, retry and reduced motion work across viewport sizes', a
 }) => {
   await page.goto('/signin');
   await page.evaluate(async () => {
-    const { beginLoading } = await import('/assets/loading.js');
+    const { beginLoading } = await import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'loading.js'
+    );
     const target = document.createElement('section');
     target.id = 'loading-test';
-    target.innerHTML = '<button>Real action</button>';
+    target.innerHTML = '<input aria-label="Real field"><button>Real action</button>';
     document.querySelector('main').append(target);
     const old = beginLoading(target);
     const current = beginLoading(target, { variant: 'form' });
@@ -110,7 +111,7 @@ test('loading ownership, retry and reduced motion work across viewport sizes', a
   expect(await target.evaluate((el) => el.inert)).toBe(false);
 });
 
-test('notifications show skeletons until a confirmed empty response arrives', async ({
+test('notifications show a spinner until a confirmed empty response arrives', async ({
   page,
 }) => {
   await login(page);
@@ -124,7 +125,7 @@ test('notifications show skeletons until a confirmed empty response arrives', as
   });
   await page.goto('/notifications');
   const items = page.locator('[data-notification-items]');
-  await expect(items).toHaveAttribute('data-loading-pending', 'rows');
+  await expect(items).toHaveAttribute('data-loading-pending', 'spinner');
   await expect(items.getByText('No notifications yet.')).toHaveCount(0);
   await page.screenshot({ path: '.local/rebuild/notifications-skeleton.png' });
   delayed.release();
@@ -142,7 +143,10 @@ test('quick capture can be dismissed during a slow load without reopening later'
     await route.continue();
   });
   await page.evaluate(() => {
-    import('/assets/quick-capture.js').then((module) => module.openCapture());
+    import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'quick-capture.js'
+    ).then((module) => module.openCapture());
   });
   const pending = page.getByRole('dialog', { name: 'Loading quick capture' });
   await expect(pending).toBeVisible();
@@ -151,12 +155,15 @@ test('quick capture can be dismissed during a slow load without reopening later'
   delayed.release();
   await expect(page.locator('.capture-omnibar')).toHaveCount(0);
   await page.evaluate(() => {
-    import('/assets/quick-capture.js').then((module) => module.openCapture());
+    import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'quick-capture.js'
+    ).then((module) => module.openCapture());
   });
   await expect(page.locator('.capture-omnibar [name=title]')).toBeVisible();
 });
 
-test('search displays a visible skeleton for an empty results container and ignores stale responses', async ({
+test('search displays a visible spinner for an empty results container and ignores stale responses', async ({
   page,
 }) => {
   await login(page);
@@ -169,12 +176,17 @@ test('search displays a visible skeleton for an empty results container and igno
     });
   });
   await page.evaluate(async () =>
-    (await import('/assets/search-omnibar.js')).openSearch(),
+    (
+      await import(
+        (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+          'search-omnibar.js'
+      )
+    ).openSearch(),
   );
   const input = page.getByRole('combobox', { name: 'Search everything' });
   await input.fill('test');
   const results = page.locator('#omnibar-results');
-  await expect(results).toHaveAttribute('data-loading-pending', 'rows');
+  await expect(results).toHaveAttribute('data-loading-pending', 'spinner');
   await expect(results).toBeVisible();
   await input.fill('');
   await expect(results).not.toHaveAttribute('data-loading-pending');
@@ -205,7 +217,12 @@ test('planning and activity panels use placeholders while preserving task conten
   await page.goto(`/tasks/${task.id}`);
   await page.evaluate(async () => {
     const root = document.querySelector('[data-task-page]');
-    (await import('/assets/list-settings.js')).openTaskSettings(root);
+    (
+      await import(
+        (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+          'list-settings.js'
+      )
+    ).openTaskSettings(root);
   });
   const panel = page.locator('.list-settings-panel');
   const scheduling = panel.locator('.checklist[data-scheduling]');
@@ -286,7 +303,7 @@ test('server HTML conceals initial settings before their JavaScript finishes dow
 }) => {
   await login(page);
   const delayed = gate();
-  await page.route('**/assets/general-settings.js', async (route) => {
+  await page.route('**/general-settings.js', async (route) => {
     await delayed.wait;
     await route.continue();
   });

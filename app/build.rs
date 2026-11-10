@@ -6,14 +6,22 @@ fn main() {
     println!("cargo:rustc-env=TODOER_BUILD_VERSION={version}");
     println!("cargo:rerun-if-changed=assets");
     let mut digest = Sha256::new();
-    let mut files = std::fs::read_dir("assets")
-        .expect("read frontend assets")
-        .map(|entry| entry.expect("read asset entry").path())
-        .filter(|path| path.is_file())
-        .collect::<Vec<_>>();
+    digest.update(version.as_bytes());
+    fn collect(directory: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(directory).expect("read frontend assets") {
+            let path = entry.expect("read asset entry").path();
+            if path.is_dir() {
+                collect(&path, files);
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    let mut files = Vec::new();
+    collect(std::path::Path::new("assets"), &mut files);
     files.sort();
     for path in files {
-        digest.update(path.file_name().expect("asset filename").as_encoded_bytes());
+        digest.update(path.as_os_str().as_encoded_bytes());
         digest.update(std::fs::read(&path).expect("read frontend asset"));
     }
     println!(

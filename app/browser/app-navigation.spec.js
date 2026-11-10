@@ -16,7 +16,10 @@ async function signin(page) {
 }
 async function open(page, path) {
   await page.evaluate(async (path) => {
-    const { navigate } = await import('/assets/page-navigation.js');
+    const { navigate } = await import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'page-navigation.js'
+    );
     await navigate(path);
   }, path);
   await expect(page.locator('#main')).not.toHaveAttribute('aria-busy', 'true');
@@ -160,14 +163,20 @@ test('failed navigation leaves the current screen and draft usable; latest navig
     await route.continue().catch(() => {});
   });
   await page.evaluate(() => {
-    import('/assets/page-navigation.js').then(({ navigate }) => navigate('/today'));
+    import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'page-navigation.js'
+    ).then(({ navigate }) => navigate('/today'));
   });
   await expect(page.locator('#main')).toHaveAttribute('aria-busy', 'true');
   await expect(page.locator('#capture-title')).toBeHidden();
   await expect(page.locator('#main .loading-spinner')).toBeVisible();
   expect(await page.locator('#main').evaluate((main) => main.inert)).toBe(true);
   await page.evaluate(() => {
-    import('/assets/page-navigation.js').then(({ navigate }) => navigate('/inbox'));
+    import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'page-navigation.js'
+    ).then(({ navigate }) => navigate('/inbox'));
   });
   release();
   await expect(page).toHaveURL(/\/inbox$/);
@@ -365,7 +374,12 @@ test('quick capture keeps its draft and uses the new list after navigation', asy
 }) => {
   await signin(page);
   await page.evaluate(async () =>
-    (await import('/assets/quick-capture.js')).openCapture(),
+    (
+      await import(
+        (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+          'quick-capture.js'
+      )
+    ).openCapture(),
   );
   const capture = page.locator('.capture-omnibar');
   await capture.locator('[name=title]').fill('Quick capture navigation draft');
@@ -387,7 +401,12 @@ test('quick capture keeps its draft and uses the new list after navigation', asy
   ).json();
   await open(page, `/lists/${list.id}`);
   await page.evaluate(async () =>
-    (await import('/assets/quick-capture.js')).openCapture(),
+    (
+      await import(
+        (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+          'quick-capture.js'
+      )
+    ).openCapture(),
   );
   await expect(capture.locator('[name=title]')).toHaveValue(
     'Quick capture navigation draft',

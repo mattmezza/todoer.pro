@@ -70,7 +70,12 @@ test('capture and search omnibars share input typography and corner radius', asy
   const captureRadius = await capture.evaluate((el) => getComputedStyle(el).borderRadius);
   await capture.getByRole('button', { name: 'Close capture' }).click();
   await page.evaluate(async () =>
-    (await import('/assets/search-omnibar.js')).openSearch(),
+    (
+      await import(
+        (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+          'search-omnibar.js'
+      )
+    ).openSearch(),
   );
   const search = page.locator('.search-omnibar');
   const searchStyles = await search.locator('#omnibar-query').evaluate((el) => {

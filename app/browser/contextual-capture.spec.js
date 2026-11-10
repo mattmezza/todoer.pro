@@ -28,7 +28,10 @@ test('contextual forms preserve locations and dates while parsing allowed metada
   page,
 }) => {
   const result = await page.evaluate(async () => {
-    const { mountSmartCapture } = await import('/assets/smart-capture.js');
+    const { mountSmartCapture } = await import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'smart-capture.js'
+    );
     document.querySelector('main').innerHTML =
       '<section class="task-section" data-section-id="veg" data-section-title="veggies"></section>';
     const results = [];
@@ -70,7 +73,10 @@ test('all contextual composers show parsed priority and tag badges without desti
   page,
 }) => {
   await page.evaluate(async () => {
-    const { mountSmartCapture } = await import('/assets/smart-capture.js');
+    const { mountSmartCapture } = await import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'smart-capture.js'
+    );
     for (const kind of ['main', 'section', 'child']) {
       const form = document.createElement('form');
       form.dataset.kind = kind;
@@ -125,7 +131,10 @@ test('refresh appends rows without remounting existing tasks or capture forms', 
 }) => {
   expect(
     await page.evaluate(async () => {
-      const { reconcileTasks } = await import('/assets/task-list-refresh.js');
+      const { reconcileTasks } = await import(
+        (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+          'task-list-refresh.js'
+      );
       const current = document.querySelector('main');
       const section = (rows) =>
         `<section class="task-section" data-section-id=""><div class="section-tasks">${rows.map((id) => `<article class="task" data-id="${id}">${id}</article>`).join('')}</div><form><input value="draft"></form></section>`;
@@ -152,7 +161,10 @@ test('capture tags stack beneath priority without separating title and descripti
     content: readFileSync('app/assets/app.css', 'utf8').replace(/@import[^;]+;/g, ''),
   });
   await page.evaluate(async () => {
-    const { mountSmartCapture } = await import('/assets/smart-capture.js');
+    const { mountSmartCapture } = await import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'smart-capture.js'
+    );
     document.body.className = 'reference-list-page';
     const main = document.querySelector('main');
     main.className = 'task-page';
@@ -218,7 +230,10 @@ test('quick capture close button stays clear of parsed metadata', async ({ page 
     content: readFileSync('app/assets/app.css', 'utf8').replace(/@import[^;]+;/g, ''),
   });
   await page.evaluate(async () => {
-    const { mountSmartCapture } = await import('/assets/smart-capture.js');
+    const { mountSmartCapture } = await import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'smart-capture.js'
+    );
     const dialog = document.createElement('dialog');
     dialog.className = 'capture-omnibar';
     dialog.innerHTML =
@@ -251,7 +266,10 @@ test('contextual dates parse separately, shortcuts navigate, and long titles wra
   await page.evaluate(async () => {
     document.querySelector('main').innerHTML =
       '<form class="inline-capture" id="capture-form" style="width:360px"><textarea name="title" rows="1"></textarea><textarea name="description"></textarea><div class="inline-actions"></div></form>';
-    const { mountSmartCapture } = await import('/assets/smart-capture.js');
+    const { mountSmartCapture } = await import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'smart-capture.js'
+    );
     window.capture = mountSmartCapture(document.querySelector('form'));
     await window.capture.ready;
   });
@@ -304,7 +322,10 @@ test('duration shortcuts are available in contextual task and subtask composers'
   page,
 }) => {
   const values = await page.evaluate(async () => {
-    const { mountSmartCapture } = await import('/assets/smart-capture.js');
+    const { mountSmartCapture } = await import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'smart-capture.js'
+    );
     const results = [];
     for (const child of [false, true]) {
       const form = document.createElement('form');

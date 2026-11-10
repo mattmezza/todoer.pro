@@ -1480,7 +1480,8 @@ onPageLoad(async (scope) => {
       main.dataset.workbench === 'inbox' ? 'inbox' : `${view}:${anchor}:${query}`;
     const sameSelection = content.dataset.selection === selection;
     const skeleton = beginLoading(content, {
-      variant: main.dataset.workbench === 'inbox' ? 'rows' : 'calendar',
+      variant:
+        main.dataset.workbench === 'inbox' || view === 'list' ? 'spinner' : 'calendar',
       preserve: sameSelection && content.dataset.loaded === 'true',
     });
     if (!sameSelection) content.dataset.loaded = 'false';

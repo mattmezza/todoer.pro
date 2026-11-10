@@ -3,6 +3,9 @@
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import assert from 'node:assert/strict';
+const build = 'a'.repeat(64);
+const workerSource = (await readFile('app/assets/sw.js', 'utf8')).replaceAll('__TODOER_BUILD__', build);
+const assetBase = `/static/${build}/`;
 const handlers = new Map();
 const notices = [], opened = [];
 let scope = 'synthetic-user';
@@ -16,7 +19,7 @@ const context = vm.createContext({
     clients: { matchAll: async () => [], openWindow: async (url) => opened.push(url) },
   },
 });
-vm.runInContext(await readFile('app/assets/sw.js', 'utf8'), context);
+vm.runInContext(workerSource, context);
 // Every static import needed by the shared UI must be available before offline
 // navigation, including components whose settings page has never been visited.
 const precached = new Set(vm.runInContext('STATIC', context));
@@ -26,7 +29,7 @@ while (moduleQueue.length) {
   const asset = moduleQueue.pop();
   if (visitedModules.has(asset)) continue;
   visitedModules.add(asset);
-  assert.ok(precached.has(asset), `Alpine dependency missing from precache: ${asset}`);
+  assert.ok(precached.has(asset.replace('/assets/', assetBase)), `Alpine dependency missing from precache: ${asset}`);
   const source = await readFile(`app${asset}`, 'utf8');
   for (const match of source.matchAll(/(?:from\s*|import\s*)['"](\.\/[^'"]+)['"]/g))
     moduleQueue.push(new URL(match[1], `https://tasks.example.invalid${asset}`).pathname);
@@ -90,7 +93,7 @@ const pageContext = vm.createContext({
   fetch: async () => {
     if (offline) throw Error('Offline fixture');
     const response = new Response('<main id="main">Synthetic offline page</main>', {
-      headers: { 'Content-Type': 'text/html', 'X-Todoer-Account': pageScope },
+      headers: { 'Content-Type': 'text/html', 'X-Todoer-Account': pageScope, 'X-Todoer-Build': build },
     });
     if (redirectedURL) Object.defineProperties(response, {
       redirected: { value: true }, url: { value: redirectedURL },
@@ -102,15 +105,19 @@ const pageContext = vm.createContext({
     addEventListener: (name, fn) => pageHandlers.set(name, fn),
   },
 });
-vm.runInContext(await readFile('app/assets/sw.js', 'utf8'), pageContext);
+vm.runInContext(workerSource, pageContext);
 async function pageFetch(path, headers = {}, mode = 'same-origin') {
   let response;
+  const work = [];
   pageHandlers.get('fetch')({
     request: { url: `https://tasks.example.invalid${path}`, method: 'GET', mode, headers: new Headers(headers) },
     clientId: 'synthetic-client',
     respondWith: (value) => { response = value; },
+    waitUntil: (value) => work.push(value),
   });
-  return response;
+  const result = await response;
+  await Promise.all(work);
+  return result;
 }
 const fullPageHeaders = { 'HX-Request': 'true', 'HX-Request-Type': 'full' };
 assert.equal((await pageFetch('/lists/example', fullPageHeaders)).status, 200);
@@ -131,3 +138,37 @@ assert.equal(redirect.headers.get('Location'), redirectedURL);
 offline = true;
 assert.equal((await pageFetch('/lists/internal-id', fullPageHeaders)).status, 503);
 console.log('Service-worker page requests: HTMX/navigation cache parity, fragment exclusion and account isolation passed');
+
+// A warm immutable asset must resolve even while the network never answers.
+const assetPath = `${assetBase}task-page.js`;
+const assetURL = `https://tasks.example.invalid${assetPath}`;
+await cacheStore(`todoer-static-${build}`).put(assetURL, new Response('cached module'));
+let networkRequests = 0;
+pageContext.fetch = () => { networkRequests++; return new Promise(() => {}); };
+assert.equal(await (await pageFetch(assetPath)).text(), 'cached module');
+assert.equal(networkRequests, 0, 'warm assets must not wait on mobile-network RTT');
+
+// A cold asset is filled once, then served locally; failed/wrong-build responses
+// never poison the immutable cache.
+const coldPath = `${assetBase}cold.js`;
+pageContext.fetch = async () => {
+  networkRequests++;
+  return new Response('cold module', { headers: { 'X-Todoer-Build': build } });
+};
+assert.equal(await (await pageFetch(coldPath)).text(), 'cold module');
+assert.equal(await (await pageFetch(coldPath)).text(), 'cold module');
+assert.equal(networkRequests, 1);
+pageContext.fetch = async () => new Response('wrong build', { headers: { 'X-Todoer-Build': 'b'.repeat(64) } });
+await pageFetch(`${assetBase}wrong.js`);
+assert.equal(await cacheStore(`todoer-static-${build}`).match(`https://tasks.example.invalid${assetBase}wrong.js`), undefined);
+
+// Cached offline documents are private to both the account and the release.
+vm.runInContext(`scopes.set('synthetic-client', 'release-user')`, pageContext);
+pageScope = 'release-user';
+pageContext.fetch = async () => new Response('new release page', {
+  headers: { 'Content-Type': 'text/html', 'X-Todoer-Account': pageScope, 'X-Todoer-Build': 'b'.repeat(64) },
+});
+await pageFetch('/lists/new-release', fullPageHeaders);
+pageContext.fetch = async () => { throw Error('Offline'); };
+assert.equal((await pageFetch('/lists/new-release', fullPageHeaders)).status, 503);
+console.log('Service-worker immutable assets: zero-network warm reads, cold fills and release isolation passed');

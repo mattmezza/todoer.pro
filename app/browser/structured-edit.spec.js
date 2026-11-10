@@ -17,7 +17,10 @@ for (const width of [375, 1280]) {
     });
     await page.goto('https://editing.test/');
     await page.evaluate(async () => {
-      const { mountStructuredEdit } = await import('/assets/structured-edit.js');
+      const { mountStructuredEdit } = await import(
+        (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+          'structured-edit.js'
+      );
       const save = mountStructuredEdit(document.querySelector('input'));
       document.querySelector('#save').onclick = async () => {
         const result = await save(

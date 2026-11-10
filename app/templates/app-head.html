@@ -1,3 +1,9 @@
 {# Keep indicator CSS external under the CSP, including during upgrades from HTMX 2. #}
 <meta name="htmx-config" content='{"includeIndicatorCSS":false,"includeIndicatorStyles":false,"noSwap":[204,304,"4xx","5xx"]}'>
 <script src="/assets/htmx.min.js" defer></script>
+{# Start shared dependencies before the browser discovers their import chains. #}
+<link rel="modulepreload" href="/assets/alpine-csp.min.js">
+<link rel="modulepreload" href="/assets/page-navigation.js">
+<link rel="modulepreload" href="/assets/page-lifecycle.js">
+<link rel="modulepreload" href="/assets/loading.js">
+<link rel="modulepreload" href="/assets/request.js">

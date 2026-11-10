@@ -157,9 +157,7 @@ test('Today filters update tasks in place and support browser history', async ({
     .getByRole('link', { name: 'Tomorrow' })
     .click();
   await requested;
-  await expect(
-    page.locator('[data-planning-rows] .skeleton-planning-list .skeleton-row'),
-  ).toHaveCount(3);
+  await expect(page.locator('[data-planning-rows] .loading-spinner')).toHaveCount(1);
   await expect(page.locator('[data-planning-rows]')).toHaveAttribute('aria-busy', 'true');
   release();
   await expect(page).toHaveURL(/range=tomorrow/);

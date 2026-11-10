@@ -1,3 +1,4 @@
+import { pagePreferences, updatePagePreferences } from './account-preferences.js';
 import { refreshPage } from './page-navigation.js';
 import { beginLoading } from './loading.js';
 import { toast } from './toast.js';
@@ -29,6 +30,7 @@ function savePreferences(scope, choice) {
       throw Error(
         (await response.json()).error?.message || 'Could not save preferences.',
       );
+    updatePagePreferences(value);
     return value;
   });
   preferenceWrite = next.catch(() => {});
@@ -47,7 +49,7 @@ export function calendarPreferences() {
       const skeleton = beginLoading(this.$el, { variant: 'form' });
       scope.cleanup(() => skeleton.finish());
       try {
-        const value = await preferences(scope);
+        const value = pagePreferences() || (await preferences(scope));
         if (scope.signal.aborted) return;
         this.timezone = value.timezone;
         this.weekStart = String(value.week_start ?? 1);
@@ -95,7 +97,7 @@ export function playPreferences() {
       const skeleton = beginLoading(this.$el, { variant: 'form' });
       scope.cleanup(() => skeleton.finish());
       try {
-        const value = await preferences(scope);
+        const value = pagePreferences() || (await preferences(scope));
         if (scope.signal.aborted) return;
         this.enabled = value.fun_animations !== false;
         this.animation = value.fun_animation || 'tasks';

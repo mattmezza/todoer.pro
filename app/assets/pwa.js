@@ -2,7 +2,10 @@ import { onPageLoad } from './page-lifecycle.js';
 export async function setupPwa(scope, onLogout) {
   if (!('serviceWorker' in navigator)) return null;
   try {
-    const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    const registration = await navigator.serviceWorker.register('/sw.js', {
+      scope: '/',
+      updateViaCache: 'none',
+    });
     const notify = () =>
       navigator.serviceWorker.controller?.postMessage({ type: 'SET_SCOPE', scope });
     navigator.serviceWorker.addEventListener('controllerchange', notify);
@@ -45,7 +48,8 @@ export async function clearPwa(scope) {
   navigator.serviceWorker?.controller?.postMessage({ type: 'CLEAR_SCOPE', scope });
   // Delete directly too; a worker may be stopped or an update may be waiting.
   if ('caches' in window) {
-    await caches.delete(`todoer-page-${scope}`);
+    for (const name of await caches.keys())
+      if (name.startsWith('todoer-page-')) await caches.delete(name);
     await caches.delete('todoer-offline-meta-v1');
   }
 }

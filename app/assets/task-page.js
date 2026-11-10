@@ -117,7 +117,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
   // SSR child links are navigable, but inline editing needs the revision-bound
   // subtree. Do not expose rows until their handlers and descriptions are ready.
   let childrenReady = false;
-  let childrenLoading = beginLoading(get('[data-children]'), { variant: 'rows' });
+  let childrenLoading = beginLoading(get('[data-children]'), { variant: 'spinner' });
   {
     const color = root.dataset.listColor || 'blue';
     const dot = document.createElement('span');
@@ -846,7 +846,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
     } catch (error) {
       if (!childrenReady && alive)
         childrenLoading.fail('Could not load sub-tasks.', () => {
-          childrenLoading = beginLoading(get('[data-children]'), { variant: 'rows' });
+          childrenLoading = beginLoading(get('[data-children]'), { variant: 'spinner' });
           refresh();
         });
       if ([401, 403, 404].includes(error.status))

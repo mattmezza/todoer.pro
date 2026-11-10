@@ -110,7 +110,7 @@ onPageLoad((scope) => {
     actionTrigger = undefined;
     const priorContent = trigger ? [...trigger.childNodes] : [];
     const priorDisabled = trigger?.getAttribute('aria-disabled');
-    const loading = beginLoading(root, { variant: 'cards', preserve: initialized });
+    const loading = beginLoading(root, { variant: 'spinner', preserve: initialized });
     const loadingLabel = trigger?.matches('[data-ai-reload]')
       ? 'Refreshing…'
       : trigger?.type === 'submit'

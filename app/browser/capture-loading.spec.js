@@ -34,7 +34,12 @@ test('mobile capture and its loader use the same top position as search', async 
   await page.goto('/signin');
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
   await page.evaluate(async () =>
-    (await import('/assets/search-omnibar.js')).openSearch(),
+    (
+      await import(
+        (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+          'search-omnibar.js'
+      )
+    ).openSearch(),
   );
   const search = page.locator('.search-omnibar');
   await expect(search).toBeVisible();
@@ -50,7 +55,10 @@ test('mobile capture and its loader use the same top position as search', async 
     await route.continue();
   });
   await page.evaluate(() => {
-    import('/assets/quick-capture.js').then((module) => module.openCapture());
+    import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'quick-capture.js'
+    ).then((module) => module.openCapture());
   });
   const pending = page.getByRole('dialog', { name: 'Loading quick capture' });
   await expect(pending).toBeVisible();

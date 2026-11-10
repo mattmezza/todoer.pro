@@ -13,7 +13,10 @@ test('mobile dialogs center and scroll within the viewport', async ({ page }) =>
   expect(bounds.height).toBeLessThanOrEqual(812);
   await page.evaluate(() => document.querySelector('#list-create-dialog').close());
   await page.evaluate(async () => {
-    const { confirmAction } = await import('/assets/confirm.js');
+    const { confirmAction } = await import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'confirm.js'
+    );
     void confirmAction('Delete this test item?');
   });
   const confirmation = page.locator('.confirmation-dialog[open]');

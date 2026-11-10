@@ -3,7 +3,7 @@
 @source "../templates";
 @font-face {
   font-family: 'Todoer Numeric';
-  src: url('/assets/numeric-mono.woff2') format('woff2');
+  src: url('./numeric-mono.woff2') format('woff2');
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -10703,7 +10703,7 @@ main.auth-shell {
 }
 [data-loading-pending='spinner'],
 [data-load-failed='spinner'] {
-  min-height: 380px;
+  min-height: 80px;
 }
 [data-loading-pending='capture'],
 [data-load-failed='capture'] {
@@ -10721,22 +10721,19 @@ main.auth-shell {
 [data-load-failed] > :not(.loading-error) {
   visibility: hidden !important;
 }
-/* Fine text-line fallback is visible even before the loading module arrives. */
+/* Initial HTML also shows a spinner before its controller can download. */
 [data-loading-pending]:not(:has(> .loading-skeleton))::before {
   content: '';
   position: absolute;
-  inset: 8px 0;
-  border-radius: 4px;
+  top: 50%;
+  left: calc(50% - 12px);
+  width: 24px;
+  height: 24px;
+  border: 2px solid color-mix(in srgb, var(--muted) 20%, transparent);
+  border-top-color: var(--muted);
+  border-radius: 50%;
   pointer-events: none;
-  background: color-mix(in srgb, var(--muted) 14%, transparent);
-  mask: repeating-linear-gradient(
-      to bottom,
-      #000 0 12px,
-      transparent 12px 26px,
-      #000 26px 34px,
-      transparent 34px 76px
-    )
-    0 0 / 70% 100% no-repeat;
+  animation: quiet-saving-spin 800ms linear infinite;
 }
 .loading-skeleton {
   position: absolute;
@@ -10976,6 +10973,7 @@ form[data-load-failed],
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  [data-loading-pending]::before,
   .skeleton-spinner,
   .loading-skeleton * {
     animation: none !important;
@@ -13614,6 +13612,16 @@ body > .planning-detail-dismiss {
   position: relative;
   min-height: min(60dvh, 480px);
   animation: none;
+}
+body:has(#main.navigation-pending)
+  > :is(
+    .planning-detail-panel,
+    .planning-detail-dismiss,
+    .list-settings-panel,
+    .list-archive-banner
+  ) {
+  visibility: hidden !important;
+  pointer-events: none;
 }
 #main:focus-visible {
   outline: none;

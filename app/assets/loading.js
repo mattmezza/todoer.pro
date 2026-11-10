@@ -90,8 +90,18 @@ function placeholder(variant, target) {
 }
 // Initial loads conceal unconfirmed values; refreshes keep usable content intact.
 const owners = new WeakMap();
-export function beginLoading(target, { variant = 'rows', preserve = false } = {}) {
+export function beginLoading(target, { variant = 'spinner', preserve = false } = {}) {
   if (!target) return { finish() {}, fail() {} };
+  // Only fixed, known structures may opt into a skeleton. Dynamic content uses
+  // a spinner, including forms whose controls have not arrived yet.
+  if (
+    !['spinner', 'text', 'calendar', 'planning', 'form', 'capture'].includes(variant) ||
+    (variant === 'form' &&
+      ![...target.querySelectorAll('input:not([type=hidden]),select,textarea')].some(
+        (control) => control.getClientRects().length,
+      ))
+  )
+    variant = 'spinner';
   owners.get(target)?.finish();
   target.querySelector(':scope > .loading-error')?.remove();
   delete target.dataset.loadFailed;
@@ -157,7 +167,7 @@ export function loadingDialog(label, className = 'quick-dialog') {
     '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg>';
   close.onclick = () => dialog.close();
   const body = document.createElement('div');
-  const skeleton = beginLoading(body, { variant: 'capture' });
+  const skeleton = beginLoading(body, { variant: 'spinner' });
   dialog.append(close, body);
   document.body.append(dialog);
   dialog.showModal();

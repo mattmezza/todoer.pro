@@ -18,7 +18,12 @@ test('search discards old results immediately and shows contextual empty icon', 
     });
   });
   await page.evaluate(async () =>
-    (await import('/assets/search-omnibar.js')).openSearch(),
+    (
+      await import(
+        (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+          'search-omnibar.js'
+      )
+    ).openSearch(),
   );
   const input = page.locator('#omnibar-query');
   await input.fill('first');
@@ -84,7 +89,10 @@ test('network helper never retries an uncertain write and preserves cancellation
 }) => {
   await page.goto('/signin');
   const result = await page.evaluate(async () => {
-    const { request } = await import('/assets/request.js');
+    const { request } = await import(
+      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
+        'request.js'
+    );
     const original = globalThis.fetch;
     let calls = 0;
     globalThis.fetch = async () => {

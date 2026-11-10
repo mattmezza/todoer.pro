@@ -66,7 +66,7 @@ onPageLoad((scope) => {
       const version = ++rowsGeneration;
       filterLoading = true;
       main.querySelector('.planning-filter-error')?.remove();
-      const skeleton = beginLoading(rows, { variant: 'planning-list' });
+      const skeleton = beginLoading(rows, { variant: 'spinner' });
       try {
         const response = await fetch(url, {
           cache: 'no-store',

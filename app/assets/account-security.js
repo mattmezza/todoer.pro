@@ -319,7 +319,7 @@ onPageLoad((scope) => {
     });
   }
   if (root) {
-    const skeleton = beginLoading(root, { variant: 'cards' });
+    const skeleton = beginLoading(root, { variant: 'spinner' });
     load()
       .then(() => {
         const section = [...root.querySelectorAll('.security-card')].find(

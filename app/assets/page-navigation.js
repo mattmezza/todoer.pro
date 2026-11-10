@@ -92,7 +92,7 @@ export function navigate(
     preserveScroll = true;
   }
   errorNotice?.remove();
-  if (!restore) rememberScroll();
+  if (!restore && !navigating) rememberScroll();
   clearTimeout(scrollTimer);
   navigating = true;
   pending?.abort();
@@ -279,6 +279,14 @@ document.addEventListener('htmx:after:request', (event) => {
     else location.assign(ctx.response.raw.url);
     return;
   }
+  const base = document.querySelector('meta[name="asset-base"]')?.content;
+  if (base !== doc.querySelector('meta[name="asset-base"]')?.content) {
+    // Never mount new-release HTML with old controllers. Full navigation keeps
+    // drafts (persisted by their editors) and loads one consistent module graph.
+    event.preventDefault();
+    location.assign(ctx.response.raw.url);
+    return;
+  }
   const account = doc.querySelector('meta[name="account-id"]')?.content;
   if (account !== document.querySelector('meta[name="account-id"]')?.content) {
     event.preventDefault();
@@ -291,7 +299,7 @@ document.addEventListener('htmx:after:request', (event) => {
     .filter(
       (url) =>
         url.origin === location.origin &&
-        modules.has(url.pathname.match(/^\/assets\/(.+)\.js$/)?.[1]),
+        modules.has(url.pathname.slice((base || '/assets/').length).replace(/\.js$/, '')),
     )
     .map((url) => url.pathname);
   // Controllers are imported explicitly once and mounted by page-lifecycle.
@@ -303,8 +311,15 @@ function finishNavigation(nav) {
   nav.loading?.finish();
   nav.status?.remove();
   // A superseded request must never clear the next request's loading state.
-  if (pending === nav.abort)
+  if (pending === nav.abort) {
     document.querySelector('#main')?.classList.remove('navigation-pending');
+    if (!nav.document && nav.loading)
+      window.scrollTo(...(scrollPositions.get(nav.sourceURL) || [0, 0]));
+  }
+}
+
+function basePath() {
+  return document.querySelector('meta[name="asset-base"]')?.content || '/assets/';
 }
 
 function copyAttributes(current, next) {
@@ -354,7 +369,7 @@ document.addEventListener('htmx:before:swap', (event) => {
   for (const link of doc.querySelectorAll('link[rel="stylesheet"]')) {
     const href = link.getAttribute('href');
     if (
-      (href.startsWith('/assets/') || href === '/review.css') &&
+      (href.startsWith(basePath()) || href === '/review.css') &&
       ![...document.querySelectorAll('link[rel="stylesheet"]')].some(
         (old) => old.getAttribute('href') === href,
       )
