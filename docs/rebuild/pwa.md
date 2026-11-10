@@ -41,9 +41,13 @@ consider offline cached copies a revocation mechanism.
 
 A worker update waits for the user. `Update ready` activates new assets; reload
 when drafts are safe. Static cache names are derived at Rust build time from the
-bundled asset contents. Old build caches are cleared on activation, not while an
-older worker still controls pages. This development workflow requires assets to
-be compiled before the Rust build (`make rust-build` does this).
+bundled asset contents and release version. Activation retains the current and
+preceding static build; offline pages are isolated by account and build and
+bounded to ten lists. Installation warms only CSS, the numeric font and manifest;
+feature modules are cached on demand. Compile assets before Rust (`make build`
+and `make dev` do this). In-app icons use content-hashed URLs and one-year
+immutable caching. The revalidating install manifest references fingerprinted
+images, so updates cannot leave an indefinitely cached old icon.
 
 Browser evidence recorded on 2026-10-26 (not rerun by the later documentation audit): Chromium and Firefox desktop engines at emulated
 390×844, 820×1180 and 1440×1000 sizes. Tests exercise offline reload, an actual Chromium browser restart through an isolated loopback network outage, and one-time capture replay. These are not physical-device tests. WebKit cannot launch on

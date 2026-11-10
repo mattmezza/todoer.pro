@@ -445,7 +445,7 @@ test('task composers and contextual actions retain the reference layout', async 
   await expect(create.locator('select')).toHaveCount(0);
   await expect(create.locator('[name=workspace_id]')).not.toHaveValue('');
   await expect(create.locator('.inline-actions')).toHaveCSS('border-top-width', '0px');
-  await expect(create.locator('[name=title]')).toHaveCSS('font-size', '16px');
+  await expect(create.locator('[name=title]')).toHaveCSS('font-size', '15px');
 });
 
 test('mobile task toolbar and settings drawer fit the screen', async ({ page }) => {

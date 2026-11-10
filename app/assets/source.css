@@ -6,7 +6,7 @@
   src: url('./numeric-mono.woff2') format('woff2');
   font-style: normal;
   font-weight: 400;
-  font-display: optional;
+  font-display: swap;
   unicode-range: U+0030-0039;
 }
 

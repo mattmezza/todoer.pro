@@ -73,3 +73,26 @@ Checks: `make setup`, `make check`, `make test`;
 The worker harness includes a stalled-network warm read, cold fill and mismatched
 release checks; Rust tests verify cache headers, missing-version errors, HTML
 rewrites and response compression. Browser checks use synthetic local data.
+
+## Stable first render and cold-page request budget (2026-11-10)
+
+Task HTML includes authorized subtree/planning/tag snapshots and rendered files
+and discussion. The controllers consume snapshots once, then use live reads for
+refreshes. List controls and logo markup are server rendered; heading swatches
+reserve the final picker footprint. Palette CSS colors custom badges before JS,
+including favorites and sidebar lists. Navigation installs validated color rules
+synchronously. Emoji overlays share their badge's actual bounds.
+
+The build bundles named page controllers and shares minified modules. Geist and
+Inter are local variable fonts with subset ranges, optional display and a preload
+for the selected Latin face; the existing numeric face retains swap display. The
+worker no longer speculatively downloads unused feature modules. App icons use
+content-hashed URLs in HTML, generated JS and install metadata; immutable cache
+headers avoid revalidation, while the manifest itself revalidates.
+
+In a fresh synthetic Chromium context, the same space-page setup fell from 182
+requests to 31 (Firefox: 33), with 22 script requests and no third-party font
+requests. Prior remote fonts attempted 121 requests across weights, subsets and
+fallback formats in this environment. The asset-budget browser test checks cold
+requests, immutable icon headers and zero icon transfer on reload. These figures
+are local synthetic measurements rather than a production traffic benchmark.

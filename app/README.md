@@ -79,12 +79,18 @@ Check for the controller's page root before mounting, and use the supplied scope
 for listeners, requests, timers and observers. Return or register cleanup for
 other resources. The controller runs again after each page swap; module imports
 run only once. Shared helpers can use `pageScope()` to register their cleanup.
-New top-level page modules belong in the navigation module allowlist and new
-offline dependencies in the service worker's static asset list.
+New top-level page modules belong in the navigation allowlist and the named
+entries in `scripts/bundle-app.mjs`. Assets are cached on demand; do not preload
+unused feature modules from the service worker.
 
 HTMX and Alpine are pinned and self-hosted. `make assets` copies Alpine's CSP
 distribution and applies the documented HTMX browser
 compatibility patch in `scripts/prepare-htmx.mjs`; review it when upgrading.
 `app/browser/app-navigation.spec.js` and `app/browser/alpine-ui.spec.js` check
 navigation, component lifecycles and interaction behavior against a synthetic
-server. Add every new offline component dependency to `assets/sw.js`.
+server. `make assets` also prepares local Geist/Inter variable fonts, builds
+shared minified ES modules with esbuild, and fingerprints the app icons. Run it
+before building Rust; Docker uses the same steps. Generated fonts, image copies,
+CSS and bundles are ignored. Preserve the upstream font notices when upgrading.
+Scripts/styles/fonts use release-specific immutable URLs; icon URLs hash their
+own contents. The install manifest revalidates and points at versioned images.
