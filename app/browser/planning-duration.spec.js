@@ -28,7 +28,7 @@ test('task duration is shared between the planning dialog and task settings', as
   ).toBeVisible();
   await expect(dialog.locator('h2 use')).toHaveAttribute(
     'href',
-    '/assets/icons.svg#clock',
+    /\/icons-[a-f0-9]{16}\.svg#clock$/,
   );
   const desktopFields = await dialog
     .locator('.workbench-date-fields input')

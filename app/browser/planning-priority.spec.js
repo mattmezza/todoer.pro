@@ -71,7 +71,10 @@ test('Today and all-day calendar entries follow priority and keep actions aligne
   const clock = cards
     .first()
     .getByRole('button', { name: `Plan date and time for ${prefix} P0` });
-  await expect(clock.locator('use')).toHaveAttribute('href', '/assets/icons.svg#clock');
+  await expect(clock.locator('use')).toHaveAttribute(
+    'href',
+    /\/icons-[a-f0-9]{16}\.svg#clock$/,
+  );
   await clock.click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('dialog').press('Escape');

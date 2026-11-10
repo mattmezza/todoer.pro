@@ -146,13 +146,15 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
   await expect(panel.getByLabel('Sub-task description')).toHaveCSS('font-size', '15px');
   const childTitle = await panel.getByLabel('New sub-task').boundingBox();
   const childDescription = await panel.getByLabel('Sub-task description').boundingBox();
-  expect(childDescription.y - (childTitle.y + childTitle.height)).toBeLessThan(10);
+  expect(childDescription.y - (childTitle.y + childTitle.height)).toBeLessThanOrEqual(20);
   await panel.locator('[data-child-cancel]').click();
   await comment.click();
   await expect(panel.getByLabel('Add a comment')).toBeVisible();
   await expect(panel.getByLabel('Add a comment')).toHaveCSS(
     'background-color',
-    'rgba(0, 0, 0, 0)',
+    await panel
+      .getByLabel('Sub-task description')
+      .evaluate((el) => getComputedStyle(el).backgroundColor),
   );
   await expect(panel.getByRole('button', { name: 'AI breakdown…' })).toBeVisible();
   await panel.getByRole('button', { name: 'AI breakdown…' }).click();

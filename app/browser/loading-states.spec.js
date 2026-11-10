@@ -227,7 +227,7 @@ test('planning reuses the initial snapshot and activity spins while its content 
   const panel = page.locator('.list-settings-panel');
   const scheduling = panel.locator('.checklist[data-scheduling]');
   await expect(scheduling).not.toHaveAttribute('data-loading-pending');
-  await expect(scheduling.locator('[name=planned_date]')).toBeVisible();
+  await expect(scheduling.getByText('Set planned date', { exact: true })).toBeVisible();
   delayed.release();
   await expect(scheduling).not.toHaveAttribute('data-loading-pending');
   await expect(scheduling.getByText('Set planned date', { exact: true })).toBeVisible();

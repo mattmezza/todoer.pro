@@ -43,6 +43,8 @@ const entries = [
   'request',
   'list-settings',
   'search-omnibar',
+  'export-menu',
+  'structured-edit',
 ];
 const outdir = 'app/assets/bundles';
 await rm(outdir, { recursive: true, force: true });
