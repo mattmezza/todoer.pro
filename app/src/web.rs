@@ -343,6 +343,7 @@ pub fn router(state: AppState) -> Router {
             static_assets::BASE.trim_end_matches('/'),
             ServeDir::new(static_assets::directory()),
         )
+        .route("/assets/manifest.webmanifest", get(static_assets::manifest))
         .nest_service("/assets", ServeDir::new(static_assets::directory()))
         .nest_service("/legacy-assets", ServeDir::new("app/assets/icons"))
         .layer(DefaultBodyLimit::max(128 * 1024))

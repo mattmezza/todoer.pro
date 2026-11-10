@@ -24,6 +24,20 @@ pub(super) fn fingerprinted_image(filename: &str) -> Option<&'static str> {
     }
 }
 
+pub(super) async fn manifest() -> Response {
+    let icon = fingerprinted_image("icon192-v2.png")
+        .map(str::to_owned)
+        .unwrap_or_else(|| format!("{BASE}icon192-v2.png"));
+    let json = include_str!("../assets/manifest.webmanifest")
+        .replace("/assets/icon192-v2.png", &icon)
+        .replace("/assets/icon512-v2.png", &format!("{BASE}icon512-v2.png"))
+        .replace(
+            "/assets/icon512-maskable-v2.png",
+            &format!("{BASE}icon512-maskable-v2.png"),
+        );
+    ([(header::CONTENT_TYPE, "application/manifest+json")], json).into_response()
+}
+
 pub(super) async fn palette(Path(colors): Path<String>) -> Response {
     let colors = colors.split(',').collect::<Vec<_>>();
     if colors.len() > 512
@@ -230,6 +244,19 @@ mod tests {
             .unwrap_or_else(|| format!("{BASE}icons.svg"));
         assert!(html.contains(&format!("href=\"{url}#check\"")));
         assert!(!html.contains("style="));
+    }
+
+    #[tokio::test]
+    async fn install_manifest_revalidates_but_its_images_are_fingerprinted() {
+        let response = manifest().await;
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let value: Value = serde_json::from_slice(&body).unwrap();
+        for icon in value["icons"].as_array().unwrap() {
+            let src = icon["src"].as_str().unwrap();
+            assert!(src.starts_with(BASE) || src.starts_with("/assets/images/"));
+        }
     }
 
     #[tokio::test]
