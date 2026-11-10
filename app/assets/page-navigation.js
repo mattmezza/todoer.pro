@@ -132,6 +132,9 @@ export function replacePageURL(url) {
 }
 
 export function refreshPage() {
+  // A late save or live update from the departing page must not cancel the
+  // destination the user just selected.
+  if (navigating) return Promise.resolve();
   return navigate(location.href, { replace: true, preserveScroll: true });
 }
 

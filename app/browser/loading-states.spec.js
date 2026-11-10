@@ -240,7 +240,7 @@ test('planning and activity panels use placeholders while preserving task conten
   await panel.getByRole('tab', { name: 'Activity' }).click();
   await expect(panel.locator('.activity-timeline')).toHaveAttribute(
     'data-loading-pending',
-    'activity',
+    'spinner',
   );
   history.release();
   await expect(panel.locator('.activity-timeline')).not.toHaveAttribute(

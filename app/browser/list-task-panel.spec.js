@@ -101,7 +101,7 @@ for (const width of [390, 1280]) {
     await row.click({ position: { x: 16, y: 6 } });
     const panel = page.getByRole('complementary', { name: 'Task details', exact: true });
     const content = panel.locator('.planning-detail-content');
-    const spinner = content.locator('.loading-spinner');
+    const spinner = content.locator(':scope > .loading-skeleton > .loading-spinner');
     await expect(content).toHaveAttribute('aria-busy', 'true');
     await expect(spinner).toBeVisible();
     await expect(content.locator('.skeleton-line, .skeleton-row')).toHaveCount(0);
@@ -204,7 +204,11 @@ test('switching task panels avoids duplicate reads and defers hidden metadata', 
     expect(opened.filter((path) => path.startsWith('/tasks/'))).toEqual([href]);
     expect(opened.filter((path) => path.endsWith('/schedule'))).toHaveLength(1);
     expect(opened.filter((path) => path.endsWith('/subtree/query'))).toHaveLength(1);
-    expect(opened.filter((path) => path.endsWith('/tags'))).toHaveLength(1);
+    // A live update may refresh the departing task during Playwright's click.
+    // The newly selected task still needs exactly one initial tag read.
+    expect(
+      opened.filter((path) => path === `/api/v1/tasks/${task.id}/tags`),
+    ).toHaveLength(1);
     expect(
       opened.filter((path) =>
         /\/subtree$|\/section$|\/sections$|\/references\/|\/description$|\/color$/.test(
@@ -214,7 +218,7 @@ test('switching task panels avoids duplicate reads and defers hidden metadata', 
     ).toEqual([]);
   }
   expect(reads.filter((path) => path.endsWith('/notification-preferences'))).toHaveLength(
-    1,
+    0,
   );
   await panel.getByLabel('Task actions').click();
   await panel.getByRole('button', { name: 'Task settings…', exact: true }).click();

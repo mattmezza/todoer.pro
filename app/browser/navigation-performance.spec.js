@@ -55,6 +55,11 @@ test('a mobile tap shows a spinner before any destination HTML arrives', async (
   await page.screenshot({
     path: `.local/rebuild/snappy-navigation-${test.info().project.name}.png`,
   });
+  await page.evaluate(async () => {
+    const base = document.querySelector('meta[name="asset-base"]').content;
+    await (await import(base + 'page-navigation.js')).refreshPage();
+  });
+  await expect(page.locator('#main')).toHaveClass(/navigation-pending/);
   delayed.release();
   await expect(page).toHaveURL(/\/today$/);
   await expect(page.locator('#main')).not.toHaveClass(/navigation-pending/);
