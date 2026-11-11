@@ -51,3 +51,37 @@ reviewed bulk plan. It performs no object-storage requests and neither copies no
 deletes file bytes: attachments continue referencing the same immutable objects.
 Tests use synthetic metadata to verify identity/key preservation, not an external
 object-storage transfer claim.
+
+## Move a section's tasks without moving the section
+
+The section menu's **Move all tasks to…** opens a destination-list picker with an
+optional section. The destination may be another section in the same list, another
+list's section, or the destination list without a section. Completed tasks and all
+nested descendants move together. The source section keeps its identity, title,
+description and position, and the browser stays on the current list after success.
+
+POST `/api/v1/sections/{id}/tasks/move/preview` accepts
+`{"destination_list_id":"…","destination_section_id":null}` (or a section ID).
+It returns the existing section-move snapshot fields plus `root_task_count` and
+`destination_section_id`. POST `/api/v1/sections/{id}/tasks/move` accepts the same
+destination fields, the returned `policy_hash`, and
+`acknowledge_access_change` (default false). Cookie requests require CSRF, and
+unknown JSON fields are rejected. The browser supplies acknowledgment when the
+user selects Move, consistently with the other move dialogs.
+
+The contents-only plan also binds the destination section and its revision and
+uses a distinct operation hash. It checks current write access on both active
+lists, rejects sections outside the destination list and the source section as its
+own destination, and recomputes the plan under one immediate transaction. A
+concurrent subtree, permission, section or list change rejects the stale plan.
+A later-root failure rolls back all earlier moves and history. It uses the same
+500-affected-task bound and trashed-standalone-root checks described above, without
+the generic bulk API's 50-operation limit. Hidden descendants retain their trash
+state and receive the destination section too. Task IDs, nested parent links,
+comments, files and tag remapping follow the existing subtree mover.
+
+Domain and HTTP tests cover cross-list and same-list destinations, optional section,
+completed and hidden descendants, more than 50 roots, stale plans, permissions,
+access acknowledgment, strict fields, CSRF and rollback. Browser checks cover the
+phone dialog, each destination type, preservation of the source section, completed
+tasks and subtasks, and retrying a rejected move.

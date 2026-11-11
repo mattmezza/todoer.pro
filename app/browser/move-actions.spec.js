@@ -132,3 +132,106 @@ test('move to parent applies immediately and stays on the task', async ({ page }
   expect((await f.api(`/tasks/${grandchild.id}`)).parent_id).toBe(f.child.id);
   await expect(page.locator('dialog[open]')).toHaveCount(0);
 });
+
+for (const mode of [
+  'same-list-section',
+  'other-list-section',
+  'other-list-unsectioned',
+]) {
+  test(`section contents move together to ${mode}, leaving the section in place`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const f = await fixture(page);
+    const listId = mode === 'same-list-section' ? f.list.id : f.target.id;
+    const targetSection = await f.api(`/lists/${listId}/sections`, 'POST', {
+      title: 'Next section',
+    });
+    await f.api(`/tasks/${f.task.id}/section`, 'PUT', {
+      revision: f.task.revision,
+      section_id: f.section.id,
+    });
+    const [completed, outside] = await f.api('/capture', 'POST', {
+      list_id: f.list.id,
+      tasks: [{ title: 'Completed task' }, { title: 'Untouched task' }],
+    });
+    const assigned = await f.api(`/tasks/${completed.id}/section`, 'PUT', {
+      revision: completed.revision,
+      section_id: f.section.id,
+    });
+    await f.api(`/tasks/${completed.id}`, 'PATCH', {
+      revision: assigned.revision,
+      complete: true,
+    });
+    await page.goto(`/lists/${f.list.id}`);
+    await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+    const originalUrl = page.url();
+    const sourceSection = page.locator(`[data-section-id="${f.section.id}"]`);
+    await sourceSection.locator('.entity-menu > summary').click();
+    await sourceSection
+      .getByRole('button', { name: 'Move all tasks to…', exact: true })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Move all tasks', exact: true });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('select[name=list_id]')).toHaveValue(f.list.id);
+    await expect(
+      dialog.locator(`select[name=section_id] option[value="${f.section.id}"]`),
+    ).toHaveCount(0);
+    await dialog.locator('select[name=list_id]').selectOption(listId);
+    const sectionId = mode === 'other-list-unsectioned' ? '' : targetSection.id;
+    if (sectionId)
+      await dialog.locator('select[name=section_id]').selectOption(sectionId);
+    await expect(dialog.getByRole('button', { name: 'Move', exact: true })).toBeEnabled();
+    expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await dialog.getByRole('button', { name: 'Move', exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    await expect(page.locator('.toast')).toHaveText('All tasks moved.');
+    await expect(page).toHaveURL(originalUrl);
+    await expect(sourceSection).toHaveCount(1);
+    for (const task of [f.task, f.child, completed]) {
+      const moved = await f.api(`/tasks/${task.id}`);
+      expect(moved.list_id).toBe(listId);
+      expect((await f.api(`/tasks/${task.id}/section`)).section_id).toBe(
+        sectionId || null,
+      );
+    }
+    expect((await f.api(`/tasks/${f.child.id}`)).parent_id).toBe(f.task.id);
+    expect((await f.api(`/tasks/${completed.id}`)).complete).toBe(true);
+    expect((await f.api(`/tasks/${outside.id}`)).list_id).toBe(f.list.id);
+    expect(
+      (await f.api(`/lists/${f.list.id}/sections`)).some((s) => s.id === f.section.id),
+    ).toBe(true);
+  });
+}
+
+test('a stale section contents move leaves every task untouched and can be retried', async ({
+  page,
+}) => {
+  const f = await fixture(page);
+  await f.api(`/tasks/${f.task.id}/section`, 'PUT', {
+    revision: f.task.revision,
+    section_id: f.section.id,
+  });
+  await page.goto(`/lists/${f.list.id}`);
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  const sourceSection = page.locator(`[data-section-id="${f.section.id}"]`);
+  await sourceSection.locator('.entity-menu > summary').click();
+  await sourceSection.locator('[data-section-tasks-move-open]').click();
+  const dialog = page.getByRole('dialog', { name: 'Move all tasks', exact: true });
+  await dialog.locator('select[name=list_id]').selectOption(f.target.id);
+  await page.route('**/api/v1/sections/*/tasks/move', async (route) => {
+    await route.fulfill({
+      status: 409,
+      json: { error: { message: 'Section tasks changed; try the move again.' } },
+    });
+  });
+  await dialog.getByRole('button', { name: 'Move', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('Section tasks changed');
+  await expect(dialog).toBeVisible();
+  expect((await f.api(`/tasks/${f.task.id}`)).list_id).toBe(f.list.id);
+  expect((await f.api(`/tasks/${f.child.id}`)).list_id).toBe(f.list.id);
+  await page.unroute('**/api/v1/sections/*/tasks/move');
+  await dialog.getByRole('button', { name: 'Move', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  expect((await f.api(`/tasks/${f.child.id}`)).list_id).toBe(f.target.id);
+});

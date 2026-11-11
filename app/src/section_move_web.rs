@@ -1,11 +1,18 @@
 //! Thin JSON adapter over the reviewed, atomic section-move domain operation.
 use super::*;
-use crate::workspace::{Section, SectionMoveInput, SectionMovePreview};
+use crate::workspace::{
+    Section, SectionMoveInput, SectionMovePreview, SectionTasksMoveInput, SectionTasksMovePreview,
+};
 
 pub(super) fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/v1/sections/{id}/move/preview", post(preview))
         .route("/api/v1/sections/{id}/move", post(apply))
+        .route(
+            "/api/v1/sections/{id}/tasks/move/preview",
+            post(tasks_preview),
+        )
+        .route("/api/v1/sections/{id}/tasks/move", post(tasks_apply))
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -33,6 +40,44 @@ async fn apply(
     let actor = s.auth(&h, true)?;
     Ok(Json(
         s.run(move |db| db.move_section(&actor, &id, input)).await?,
+    ))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TasksDestination {
+    destination_list_id: String,
+    destination_section_id: Option<String>,
+}
+async fn tasks_preview(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+    Input(input): Input<TasksDestination>,
+) -> Result<Json<SectionTasksMovePreview>, ApiError> {
+    let actor = s.auth(&h, true)?;
+    Ok(Json(
+        s.run(move |db| {
+            db.section_tasks_move_preview(
+                &actor,
+                &id,
+                &input.destination_list_id,
+                input.destination_section_id.as_deref(),
+            )
+        })
+        .await?,
+    ))
+}
+async fn tasks_apply(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+    Input(input): Input<SectionTasksMoveInput>,
+) -> Result<Json<SectionTasksMovePreview>, ApiError> {
+    let actor = s.auth(&h, true)?;
+    Ok(Json(
+        s.run(move |db| db.move_section_tasks(&actor, &id, input))
+            .await?,
     ))
 }
 
@@ -232,6 +277,65 @@ mod tests {
         assert_eq!(
             send(&app, &apply_path, input(&p, true), &headers).await.0,
             StatusCode::OK
+        );
+    }
+    #[tokio::test]
+    async fn contents_move_http_enforces_auth_csrf_ack_and_strict_inputs() {
+        let (app, state, id) = app();
+        let preview = format!("/api/v1/sections/{id}/tasks/move/preview");
+        let apply = format!("/api/v1/sections/{id}/tasks/move");
+        let body = json!({"destination_list_id":"groceries", "destination_section_id":null});
+        assert_eq!(
+            send(&app, &preview, body.clone(), &[]).await.0,
+            StatusCode::UNAUTHORIZED
+        );
+        let session = "synthetic-browser-contents-move";
+        let hash: [u8; 32] = Sha256::digest(session.as_bytes()).into();
+        state
+            .sessions
+            .lock()
+            .unwrap()
+            .insert(hash, std::time::Instant::now());
+        let cookie = format!("todoer_dev={session}");
+        assert_eq!(
+            send(&app, &preview, body.clone(), &[("cookie", &cookie)])
+                .await
+                .0,
+            StatusCode::FORBIDDEN
+        );
+        let headers = [
+            ("cookie", cookie.as_str()),
+            ("x-csrf-token", state.csrf.as_str()),
+        ];
+        let (status, p) = send(&app, &preview, body, &headers).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(p["affected_task_count"], 1);
+        let mut body = json!({"destination_list_id":"groceries", "destination_section_id":null, "policy_hash":p["policy_hash"]});
+        assert_eq!(
+            send(&app, &apply, body.clone(), &headers).await.0,
+            StatusCode::CONFLICT
+        );
+        body["acknowledge_access_change"] = json!(true);
+        assert_eq!(
+            send(&app, &apply, body.clone(), &[("cookie", &cookie)])
+                .await
+                .0,
+            StatusCode::FORBIDDEN
+        );
+        let mut bad = body.clone();
+        bad["ignored_extra_field"] = json!(true);
+        assert_eq!(
+            send(&app, &apply, bad, &headers).await.0,
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
+        assert_eq!(send(&app, &apply, body, &headers).await.0, StatusCode::OK);
+        let db = state.store.lock().unwrap();
+        assert!(db.tasks("dev", "inbox").unwrap().is_empty());
+        assert!(
+            db.sections("dev", "inbox")
+                .unwrap()
+                .iter()
+                .any(|s| s.id == id)
         );
     }
 }

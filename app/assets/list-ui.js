@@ -282,7 +282,7 @@ export function mountListUi({ api, notice, listId }) {
       }
     }
     const move = event.target.closest(
-      '[data-list-move-open],[data-section-move-open],[data-task-move-open]',
+      '[data-list-move-open],[data-section-move-open],[data-section-tasks-move-open],[data-task-move-open]',
     );
     if (move && canWrite) {
       closeMenus();
@@ -291,6 +291,12 @@ export function mountListUi({ api, notice, listId }) {
       } catch (error) {
         notice(error.message, true);
       }
+    }
+  });
+  scope.listen(document.querySelector('.list-description'), 'keydown', (event) => {
+    if (canWrite && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      event.currentTarget.click();
     }
   });
   scope.listen(edit, 'submit', (event) => {
@@ -516,13 +522,17 @@ export function mountListUi({ api, notice, listId }) {
   async function openMove(trigger) {
     const kind = trigger.hasAttribute('data-list-move-open')
       ? 'list'
-      : trigger.hasAttribute('data-section-move-open')
-        ? 'section'
-        : 'task';
+      : trigger.hasAttribute('data-section-tasks-move-open')
+        ? 'section-tasks'
+        : trigger.hasAttribute('data-section-move-open')
+          ? 'section'
+          : 'task';
     const entityId =
       kind === 'list'
         ? listId
-        : trigger.dataset[kind === 'section' ? 'sectionMoveOpen' : 'taskMoveOpen'];
+        : kind === 'section-tasks'
+          ? trigger.dataset.sectionTasksMoveOpen
+          : trigger.dataset[kind === 'section' ? 'sectionMoveOpen' : 'taskMoveOpen'];
     const originalRow = kind === 'task' ? trigger.closest('[data-id]') : null;
     const initialTask = originalRow
       ? {
@@ -532,11 +542,12 @@ export function mountListUi({ api, notice, listId }) {
           revision: Number(originalRow.dataset.revision),
         }
       : null;
-    const dialog = modal(`Move ${kind}`);
+    const movingTasks = kind === 'task' || kind === 'section-tasks';
+    const dialog = modal(kind === 'section-tasks' ? 'Move all tasks' : `Move ${kind}`);
     const form = document.createElement('form');
     const search = document.createElement('input');
     search.name = 'destination_query';
-    if (kind === 'section') {
+    if (kind === 'section' || kind === 'section-tasks') {
       search.type = 'search';
       search.placeholder = 'Search lists…';
       search.autocomplete = 'off';
@@ -549,7 +560,14 @@ export function mountListUi({ api, notice, listId }) {
     const sections = document.createElement('select');
     sections.name = 'section_id';
     sections.append(new Option('No section', ''));
-    if (kind === 'task') field(form, 'Destination section', sections);
+    if (movingTasks) field(form, 'Destination section (optional)', sections);
+    if (kind === 'section-tasks') {
+      const explanation = document.createElement('p');
+      explanation.className = 'muted';
+      explanation.textContent =
+        'Moves every task in this section, including completed tasks and sub-tasks. The source section stays here.';
+      form.append(explanation);
+    }
     const status = document.createElement('p');
     status.setAttribute('role', 'status');
     const error = document.createElement('p');
@@ -583,7 +601,7 @@ export function mountListUi({ api, notice, listId }) {
         skeleton.finish();
         return;
       }
-      if (kind === 'task') select.value = listId;
+      if (movingTasks) select.value = listId;
     } catch (failure) {
       error.textContent = failure.message;
       submit.disabled = true;
@@ -593,16 +611,26 @@ export function mountListUi({ api, notice, listId }) {
       });
       return;
     }
+    let destinationGeneration = 0;
     async function changed() {
+      const generation = ++destinationGeneration;
       status.textContent = '';
-      if (kind === 'task') {
+      error.textContent = '';
+      if (movingTasks) {
+        submit.disabled = true;
         const sectionLoading = beginLoading(form, { variant: 'form' });
         sections.replaceChildren(new Option('No section', ''));
         try {
-          for (const section of await api(`/lists/${select.value}/sections`))
+          if (!select.value) return;
+          const choices = await api(`/lists/${select.value}/sections`);
+          if (generation !== destinationGeneration || !dialog.open) return;
+          for (const section of choices) {
+            if (kind === 'section-tasks' && section.id === entityId) continue;
             sections.append(new Option(section.title, section.id));
+          }
           submit.disabled = false;
         } catch (failure) {
+          if (generation !== destinationGeneration || !dialog.open) return;
           submit.disabled = true;
           sectionLoading.fail(failure.message, changed);
           error.textContent = failure.message;
@@ -616,7 +644,9 @@ export function mountListUi({ api, notice, listId }) {
       const previous = select.value;
       const query = search.value.trim().toLocaleLowerCase();
       const matches = choices.filter(
-        (value) => value.id !== listId && value.title.toLocaleLowerCase().includes(query),
+        (value) =>
+          (kind !== 'section' || value.id !== listId) &&
+          value.title.toLocaleLowerCase().includes(query),
       );
       select.replaceChildren(
         ...matches.map((value) => new Option(value.title, value.id)),
@@ -628,7 +658,7 @@ export function mountListUi({ api, notice, listId }) {
     };
     await changed();
     skeleton.finish();
-    (kind === 'section' ? search : select).focus();
+    (kind === 'section' || kind === 'section-tasks' ? search : select).focus();
     form.onsubmit = async (event) => {
       event.preventDefault();
       if (submit.disabled) return;
@@ -664,6 +694,21 @@ export function mountListUi({ api, notice, listId }) {
             policy_hash: preview.policy_hash,
             acknowledge_access_change: true,
           });
+        } else if (kind === 'section-tasks') {
+          const target = {
+            destination_list_id: destination,
+            destination_section_id: sections.value || null,
+          };
+          const preview = await api(
+            `/sections/${entityId}/tasks/move/preview`,
+            'POST',
+            target,
+          );
+          await api(`/sections/${entityId}/tasks/move`, 'POST', {
+            ...target,
+            policy_hash: preview.policy_hash,
+            acknowledge_access_change: true,
+          });
         } else {
           const plan = await previewTaskMove(
             api,
@@ -680,7 +725,11 @@ export function mountListUi({ api, notice, listId }) {
         }
         dialog.close();
         await refreshPage();
-        toast(`${kind[0].toUpperCase() + kind.slice(1)} moved.`);
+        toast(
+          kind === 'section-tasks'
+            ? 'All tasks moved.'
+            : `${kind[0].toUpperCase() + kind.slice(1)} moved.`,
+        );
       } catch (failure) {
         error.textContent = failure.message;
       } finally {

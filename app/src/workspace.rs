@@ -1208,12 +1208,13 @@ fn section_move_plan(
     actor: &str,
     id: &str,
     destination: &str,
+    allow_same_list: bool,
 ) -> Result<SectionMovePlan, Error> {
     use sha2::{Digest, Sha256};
     let section = section_raw(c, id)?;
     require_list(c, actor, &section.list_id, 2)?;
     require_list(c, actor, destination, 2)?;
-    if section.list_id == destination {
+    if section.list_id == destination && !allow_same_list {
         return Err(Error::Invalid("choose a different destination list".into()));
     }
     let source_list = list_raw(c, &section.list_id)?;
@@ -1382,7 +1383,7 @@ impl Store {
         destination: &str,
     ) -> Result<SectionMovePreview, Error> {
         let tx = self.conn.unchecked_transaction()?;
-        let plan = section_move_plan(&tx, actor, id, destination)?;
+        let plan = section_move_plan(&tx, actor, id, destination, false)?;
         tx.commit()?;
         Ok(plan.preview)
     }
@@ -1393,7 +1394,7 @@ impl Store {
         input: SectionMoveInput,
     ) -> Result<Section, Error> {
         let mut write = crate::agent_ops::StoreWrite::new(self)?;
-        let plan = section_move_plan(&write.conn, actor, id, &input.destination_list_id)?;
+        let plan = section_move_plan(&write.conn, actor, id, &input.destination_list_id, false)?;
         let p = &plan.preview;
         if p.section_revision != input.section_revision
             || p.source_list_revision != input.source_list_revision
@@ -1431,6 +1432,140 @@ impl Store {
         bump_list(&write.conn, &p.source_list_id)?;
         bump_list(&write.conn, &p.destination_list_id)?;
         let result = section_raw(&write.conn, id)?;
+        write.commit()?;
+        Ok(result)
+    }
+}
+
+/// Move section contents without relocating or renaming the source section.
+#[derive(Debug, Serialize)]
+pub struct SectionTasksMovePreview {
+    #[serde(flatten)]
+    pub section: SectionMovePreview,
+    pub destination_section_id: Option<String>,
+    pub root_task_count: usize,
+}
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SectionTasksMoveInput {
+    pub destination_list_id: String,
+    pub destination_section_id: Option<String>,
+    pub policy_hash: String,
+    #[serde(default)]
+    pub acknowledge_access_change: bool,
+}
+fn section_tasks_move_plan(
+    c: &Connection,
+    actor: &str,
+    id: &str,
+    destination: &str,
+    destination_section: Option<&str>,
+) -> Result<SectionMovePlan, Error> {
+    use sha2::{Digest, Sha256};
+    let mut plan = section_move_plan(c, actor, id, destination, true)?;
+    crate::core::access_rank(c, actor, &plan.preview.source_list_id, 2)?;
+    crate::core::access_rank(c, actor, destination, 2)?;
+    if destination_section == Some(id) {
+        return Err(Error::Invalid(
+            "choose a different destination section".into(),
+        ));
+    }
+    let target = destination_section
+        .map(|id| section_raw(c, id))
+        .transpose()?;
+    if target.as_ref().is_some_and(|s| s.list_id != destination) {
+        return Err(Error::Invalid(
+            "destination section belongs to a different list".into(),
+        ));
+    }
+    // Bind the target section (including its revision) and operation kind to the
+    // existing actor, subtree, audience, tag and history snapshot.
+    let policy = serde_json::to_vec(&("section_tasks_move", &plan.preview.policy_hash, &target))
+        .map_err(|_| Error::Invalid("cannot encode section task move".into()))?;
+    plan.preview.policy_hash = format!("{:x}", Sha256::digest(policy));
+    Ok(plan)
+}
+impl Store {
+    pub fn section_tasks_move_preview(
+        &self,
+        actor: &str,
+        id: &str,
+        destination: &str,
+        destination_section: Option<&str>,
+    ) -> Result<SectionTasksMovePreview, Error> {
+        let tx = self.conn.unchecked_transaction()?;
+        let plan = section_tasks_move_plan(&tx, actor, id, destination, destination_section)?;
+        tx.commit()?;
+        Ok(SectionTasksMovePreview {
+            root_task_count: plan.roots.len(),
+            section: plan.preview,
+            destination_section_id: destination_section.map(str::to_owned),
+        })
+    }
+    pub fn move_section_tasks(
+        &mut self,
+        actor: &str,
+        id: &str,
+        input: SectionTasksMoveInput,
+    ) -> Result<SectionTasksMovePreview, Error> {
+        let mut write = crate::agent_ops::StoreWrite::new(self)?;
+        let plan = section_tasks_move_plan(
+            &write.conn,
+            actor,
+            id,
+            &input.destination_list_id,
+            input.destination_section_id.as_deref(),
+        )?;
+        if plan.preview.policy_hash != input.policy_hash {
+            return Err(Error::Conflict(
+                "section tasks changed; try the move again".into(),
+            ));
+        }
+        if plan.preview.audience_broadens && !input.acknowledge_access_change {
+            return Err(Error::Conflict(
+                "destination adds readers; acknowledge_access_change is required".into(),
+            ));
+        }
+        for (root, revision) in &plan.roots {
+            if plan.preview.source_list_id != input.destination_list_id {
+                write.move_subtree(
+                    actor,
+                    root,
+                    &input.destination_list_id,
+                    *revision,
+                    input.acknowledge_access_change,
+                )?;
+            } else if crate::core::raw_task(&write.conn, root)?
+                .parent_id
+                .is_some()
+            {
+                write.reparent_subtree(actor, root, None, *revision)?;
+            }
+        }
+        let ids: Vec<_> = plan.tasks.iter().map(|t| t.id.clone()).collect();
+        crate::taxonomy::assign_location(
+            &write.conn,
+            &ids,
+            input.destination_section_id.as_deref(),
+        )?;
+        for task in &plan.tasks {
+            let before = crate::core::raw_task(&write.conn, &task.id)?;
+            write.conn.execute(
+                "UPDATE tasks SET revision=revision+1 WHERE id=?1",
+                [&task.id],
+            )?;
+            let after = crate::core::raw_task(&write.conn, &task.id)?;
+            crate::core::event(&write.conn, &after, "section", actor, Some(&before))?;
+        }
+        bump_list(&write.conn, &plan.preview.source_list_id)?;
+        if plan.preview.source_list_id != input.destination_list_id {
+            bump_list(&write.conn, &input.destination_list_id)?;
+        }
+        let result = SectionTasksMovePreview {
+            root_task_count: plan.roots.len(),
+            section: plan.preview,
+            destination_section_id: input.destination_section_id,
+        };
         write.commit()?;
         Ok(result)
     }
@@ -2616,6 +2751,265 @@ mod section_move_tests {
         assert_eq!(
             section_raw(&db.conn, &section.id).unwrap().list_id,
             source.id
+        );
+    }
+    fn tasks_input(p: &SectionTasksMovePreview, ack: bool) -> SectionTasksMoveInput {
+        SectionTasksMoveInput {
+            destination_list_id: p.section.destination_list_id.clone(),
+            destination_section_id: p.destination_section_id.clone(),
+            policy_hash: p.section.policy_hash.clone(),
+            acknowledge_access_change: ack,
+        }
+    }
+    #[test]
+    fn section_tasks_move_preserves_source_section_and_entire_hidden_subtrees() {
+        let (mut db, source, destination, section) = fixture();
+        let target = db
+            .create_section(
+                "dev",
+                &destination.id,
+                SectionInput {
+                    title: "Destination section".into(),
+                    description: String::new(),
+                },
+            )
+            .unwrap();
+        let root = add(&mut db, &source.id, None, "Root");
+        let child = add(&mut db, &source.id, Some(root.id.clone()), "Child");
+        db.set_section("dev", &root.id, root.revision, Some(section.id.clone()))
+            .unwrap();
+        let hidden = raw_task(&db.conn, &child.id).unwrap();
+        db.trash("dev", &hidden.id, hidden.revision).unwrap();
+        let completed = add(&mut db, &source.id, None, "Already completed");
+        db.set_section(
+            "dev",
+            &completed.id,
+            completed.revision,
+            Some(section.id.clone()),
+        )
+        .unwrap();
+        db.conn
+            .execute("UPDATE tasks SET complete=1 WHERE id=?1", [&completed.id])
+            .unwrap();
+        let untouched = add(&mut db, &source.id, None, "Outside the section");
+        let comment = db
+            .create_comment(
+                "dev",
+                &root.id,
+                "keep-discussion",
+                crate::discussion::NewComment {
+                    body: "Keep discussion".into(),
+                    attachment_ids: vec![],
+                },
+            )
+            .unwrap();
+        let p = db
+            .section_tasks_move_preview("dev", &section.id, &destination.id, Some(&target.id))
+            .unwrap();
+        assert_eq!(p.root_task_count, 2);
+        assert_eq!(p.section.affected_task_count, 3);
+        db.move_section_tasks("dev", &section.id, tasks_input(&p, true))
+            .unwrap();
+        for t in [&root, &child, &completed] {
+            assert_eq!(raw_task(&db.conn, &t.id).unwrap().list_id, destination.id);
+            assert_eq!(
+                crate::taxonomy::location(&db.conn, &t.id)
+                    .unwrap()
+                    .as_deref(),
+                Some(target.id.as_str())
+            );
+        }
+        assert_eq!(
+            raw_task(&db.conn, &child.id).unwrap().parent_id.as_deref(),
+            Some(root.id.as_str())
+        );
+        assert!(
+            db.conn
+                .query_row(
+                    "SELECT deleted_at IS NOT NULL FROM tasks WHERE id=?1",
+                    [&child.id],
+                    |r| r.get::<_, bool>(0)
+                )
+                .unwrap()
+        );
+        assert!(raw_task(&db.conn, &completed.id).unwrap().complete);
+        assert_eq!(
+            raw_task(&db.conn, &untouched.id).unwrap().list_id,
+            source.id
+        );
+        let original = section_raw(&db.conn, &section.id).unwrap();
+        assert_eq!(original.list_id, source.id);
+        assert_eq!(original.title, section.title);
+        assert_eq!(original.description, section.description);
+        assert_eq!(original.revision, section.revision);
+        assert!(
+            db.comments("dev", &root.id, 0, 20)
+                .unwrap()
+                .iter()
+                .any(|c| c.id == comment.id)
+        );
+    }
+    #[test]
+    fn section_tasks_move_supports_same_list_optional_section_and_more_than_fifty_roots() {
+        let (mut db, source, _, section) = fixture();
+        let target = db
+            .create_section(
+                "dev",
+                &source.id,
+                SectionInput {
+                    title: "Next section".into(),
+                    description: String::new(),
+                },
+            )
+            .unwrap();
+        for i in 0..60 {
+            let task = add(&mut db, &source.id, None, &format!("Task {i}"));
+            db.set_section("dev", &task.id, task.revision, Some(section.id.clone()))
+                .unwrap();
+        }
+        let p = db
+            .section_tasks_move_preview("dev", &section.id, &source.id, Some(&target.id))
+            .unwrap();
+        assert_eq!(p.root_task_count, 60);
+        db.move_section_tasks("dev", &section.id, tasks_input(&p, false))
+            .unwrap();
+        assert_eq!(
+            db.conn
+                .query_row(
+                    "SELECT count(*) FROM task_locations WHERE section_id=?1",
+                    [&target.id],
+                    |r| r.get::<_, i64>(0)
+                )
+                .unwrap(),
+            60
+        );
+        let p = db
+            .section_tasks_move_preview("dev", &target.id, &source.id, None)
+            .unwrap();
+        db.move_section_tasks("dev", &target.id, tasks_input(&p, false))
+            .unwrap();
+        for task in db.tasks("dev", &source.id).unwrap() {
+            assert!(
+                crate::taxonomy::location(&db.conn, &task.id)
+                    .unwrap()
+                    .is_none()
+            );
+        }
+        assert!(
+            db.section_tasks_move_preview("dev", &section.id, &source.id, Some(&section.id))
+                .is_err()
+        );
+    }
+    #[test]
+    fn section_tasks_move_rejects_stale_snapshots_invalid_targets_and_unacknowledged_access() {
+        let (mut db, source, destination, section) = fixture();
+        let root = add(&mut db, &source.id, None, "Root");
+        db.set_section("dev", &root.id, root.revision, Some(section.id.clone()))
+            .unwrap();
+        let target = db
+            .create_section(
+                "dev",
+                &destination.id,
+                SectionInput {
+                    title: "Target".into(),
+                    description: String::new(),
+                },
+            )
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO memberships VALUES(?1,'other')",
+                [&destination.id],
+            )
+            .unwrap();
+        let p = db
+            .section_tasks_move_preview("dev", &section.id, &destination.id, Some(&target.id))
+            .unwrap();
+        assert!(p.section.audience_broadens);
+        assert!(matches!(
+            db.move_section_tasks("dev", &section.id, tasks_input(&p, false)),
+            Err(Error::Conflict(_))
+        ));
+        let child = add(
+            &mut db,
+            &source.id,
+            Some(root.id.clone()),
+            "New child after preview",
+        );
+        assert!(matches!(
+            db.move_section_tasks("dev", &section.id, tasks_input(&p, true)),
+            Err(Error::Conflict(_))
+        ));
+        let p = db
+            .section_tasks_move_preview("dev", &section.id, &destination.id, Some(&target.id))
+            .unwrap();
+        db.update_section(
+            "dev",
+            &target.id,
+            SectionChange {
+                revision: target.revision,
+                title: Some("Changed target".into()),
+                description: None,
+            },
+        )
+        .unwrap();
+        assert!(matches!(
+            db.move_section_tasks("dev", &section.id, tasks_input(&p, true)),
+            Err(Error::Conflict(_))
+        ));
+        assert_eq!(raw_task(&db.conn, &child.id).unwrap().list_id, source.id);
+        assert!(
+            db.section_tasks_move_preview("dev", &section.id, &source.id, Some(&target.id))
+                .is_err()
+        );
+        assert!(matches!(
+            db.section_tasks_move_preview("other", &section.id, &destination.id, None),
+            Err(Error::Forbidden)
+        ));
+        assert!(
+            db.section_tasks_move_preview("dev", &section.id, "private", None)
+                .is_err()
+        );
+    }
+    #[test]
+    fn section_tasks_move_rolls_back_earlier_roots_on_late_failure() {
+        let (mut db, source, destination, section) = fixture();
+        let a = add(&mut db, &source.id, None, "First root");
+        let b = add(&mut db, &source.id, None, "Second root");
+        for task in [&a, &b] {
+            db.set_section("dev", &task.id, task.revision, Some(section.id.clone()))
+                .unwrap();
+        }
+        let p = db
+            .section_tasks_move_preview("dev", &section.id, &destination.id, None)
+            .unwrap();
+        let before_a = raw_task(&db.conn, &a.id).unwrap();
+        let history: i64 = db
+            .conn
+            .query_row("SELECT count(*) FROM history", [], |r| r.get(0))
+            .unwrap();
+        db.conn.execute_batch(&format!("CREATE TEMP TRIGGER fail_late_move BEFORE UPDATE OF list_id ON tasks WHEN NEW.id='{}' BEGIN SELECT RAISE(ABORT,'synthetic late failure'); END;", b.id)).unwrap();
+        assert!(
+            db.move_section_tasks("dev", &section.id, tasks_input(&p, true))
+                .is_err()
+        );
+        assert_eq!(raw_task(&db.conn, &a.id).unwrap().list_id, source.id);
+        assert_eq!(
+            raw_task(&db.conn, &a.id).unwrap().revision,
+            before_a.revision
+        );
+        assert_eq!(raw_task(&db.conn, &b.id).unwrap().list_id, source.id);
+        assert_eq!(
+            crate::taxonomy::location(&db.conn, &a.id)
+                .unwrap()
+                .as_deref(),
+            Some(section.id.as_str())
+        );
+        assert_eq!(
+            db.conn
+                .query_row("SELECT count(*) FROM history", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            history
         );
     }
 }
