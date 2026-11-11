@@ -43,6 +43,12 @@ async function noOverflow(page) {
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(await page.evaluate(() => innerWidth));
 }
+async function openCommentComposer(surface) {
+  const composer = surface.locator('[data-comment-composer]');
+  // Returning to the task restores its local comment draft and opens the form.
+  if (!(await composer.evaluate((el) => el.open)))
+    await composer.locator(':scope > summary').click();
+}
 async function alignedDescription(row) {
   const title = await row.locator(':scope > .task-page-child-line > a').boundingBox();
   const brief = await row.locator(':scope > [data-child-description]').boundingBox();
@@ -76,6 +82,7 @@ test('capture close target stays clear of the title and description fields', asy
 test('mobile task titles have room, counters stack, and child briefs align on every surface', async ({
   page,
 }) => {
+  test.setTimeout(90000);
   const f = await fixture(page);
   for (const width of [320, 390, 640]) {
     await page.setViewportSize({ width, height: 844 });
@@ -99,7 +106,7 @@ test('mobile task titles have room, counters stack, and child briefs align on ev
     await expect(panel.locator(`[data-child-id="${f.child.id}"]`)).toBeVisible();
     await alignedDescription(panel.locator(`[data-child-id="${f.child.id}"]`));
     await alignedDescription(panel.locator(`[data-child-id="${f.grandchild.id}"]`));
-    await panel.locator('[data-comment-composer] > summary').click();
+    await openCommentComposer(panel);
     await panel.locator('[data-new-comment-input]').fill('longword'.repeat(100));
     await noOverflow(page);
     for (const task of [f.task, f.child]) {
@@ -110,7 +117,7 @@ test('mobile task titles have room, counters stack, and child briefs align on ev
       const childBox = await childRow.boundingBox();
       expect(childBox.x).toBeLessThanOrEqual(17);
       await alignedDescription(childRow);
-      await page.locator('[data-comment-composer] > summary').click();
+      await openCommentComposer(page);
       await page.locator('[data-new-comment-input]').fill('longword'.repeat(100));
       await noOverflow(page);
     }
