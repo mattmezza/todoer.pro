@@ -8,6 +8,8 @@
 scripts/**
 !scripts/prepare-htmx.mjs
 !scripts/prepare-alpine.mjs
+!scripts/bundle-app.mjs
+!scripts/prepare-fonts.mjs
 !deploy
 deploy/**
 !deploy/healthcheck.rs

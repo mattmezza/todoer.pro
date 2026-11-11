@@ -49,6 +49,9 @@ subtree mover; this check does not claim an external object-storage transfer.
   23 scripts, no third-party font requests and zero icon transfer on reload.
 - Phone/desktop screenshots were visually inspected for capture, list rows,
   subtask briefs and the comment editor.
+- The production Docker asset stage built successfully from its restricted
+  context. Both Docker allowlists include the font and bundle preparation scripts;
+  database, environment, dependency and private-output exclusions remain in place.
 - WebKit remains unverified: the Arch host lacks its older required shared
   libraries, and fetching the isolated official browser image failed. No host
   libraries or system configuration were changed.
