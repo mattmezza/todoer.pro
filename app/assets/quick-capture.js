@@ -162,7 +162,10 @@ export async function openCapture(listId) {
     footer.append(smart.help, actions);
     const error = document.createElement('p');
     error.setAttribute('role', 'alert');
-    dialog.append(close, heading, form, error);
+    const header = document.createElement('header');
+    header.className = 'capture-header';
+    header.append(heading, close);
+    dialog.append(header, form, error);
     if (draft) {
       form.elements.title.value = draft.title;
       form.elements.description.value = draft.description;

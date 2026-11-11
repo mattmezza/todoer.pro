@@ -62,9 +62,16 @@ for (const width of [390, 1280]) {
         return;
       }
       expect(badge.x + badge.width).toBeLessThanOrEqual(menu.x + 1);
-      expect(
-        Math.abs(badge.y + badge.height / 2 - menu.y - menu.height / 2),
-      ).toBeLessThan(5);
+      if (width === 390) {
+        const group = target.locator('.task-indicators').first();
+        await expect(group).toHaveCSS('flex-direction', 'column');
+        const groupBox = await group.boundingBox();
+        expect(groupBox.y).toBeLessThanOrEqual(menu.y + menu.height);
+      } else {
+        expect(
+          Math.abs(badge.y + badge.height / 2 - menu.y - menu.height / 2),
+        ).toBeLessThan(5);
+      }
     };
     await assertPosition(row(parent), '.task-menu');
     // The indicator is part of the existing row hit area.

@@ -2106,10 +2106,18 @@ input[type='checkbox'] {
   height: 18px;
 }
 .task-page-child-line {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 10px;
+  padding-inline: 54px 44px;
 }
+.task-page-child-line > .task-child-complete {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
 .task-page-child > ol {
   width: auto;
   margin-left: 26px;
@@ -7230,14 +7238,17 @@ form[data-list-edit] [role='alert']:empty {
   margin-bottom: 8px;
 }
 .task-child-menu {
+  position: absolute;
+  top: -9px;
+  right: 0;
   margin-left: auto;
   flex: 0 0 auto;
 }
 .task-child-menu > summary {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   cursor: pointer;
 }
 .task-subtask-completion-line {
@@ -10232,7 +10243,7 @@ main.auth-shell {
 }
 .capture-omnibar .capture-entry {
   margin-right: 0;
-  padding-right: 42px;
+  padding-right: 0;
   box-sizing: border-box;
 }
 .capture-omnibar .smart-capture-input > :is(input, textarea) {
@@ -13559,7 +13570,7 @@ body > .planning-detail-dismiss {
 
 .task-child-description {
   min-width: 0;
-  margin: 6px 0 0 34px;
+  margin: 6px 0 0 54px;
   color: var(--muted);
   font-size: 14px;
   line-height: 1.6;
@@ -14096,4 +14107,109 @@ dialog.capture-omnibar {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* The capture close action has its own row, clear of every input hit area. */
+.capture-omnibar > .capture-header {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 44px;
+}
+.capture-omnibar > .capture-header > .capture-close {
+  position: static;
+  width: 44px;
+  height: 44px;
+  padding: 12px;
+}
+.capture-omnibar > .capture-header + form {
+  margin-top: 0;
+}
+body form.entry-form > label.sr-only {
+  flex: none;
+  width: 1px;
+  min-width: 0;
+  max-width: 1px;
+}
+
+@media (max-width: 640px) {
+  .reference-list-page main,
+  .dedicated-task-page > main.task-page {
+    padding-inline: max(16px, env(safe-area-inset-left))
+      max(16px, env(safe-area-inset-right));
+  }
+  .reference-list-page .task {
+    padding-inline: 0;
+  }
+  .reference-list-page .task > .completion {
+    margin-left: -6px;
+  }
+  .reference-list-page .task > .task-indicators {
+    flex-direction: column;
+    gap: 2px;
+    min-width: 30px;
+  }
+  .reference-list-page .task > .task-actions {
+    flex: 0 0 44px;
+  }
+  .reference-list-page :is(.add-task-trigger, .add-section-trigger) {
+    padding-inline: 6px;
+  }
+  .dedicated-task-page > main.task-page > .task-page-heading {
+    margin-left: 44px;
+  }
+  .planning-detail-content .task-page {
+    padding-left: 0;
+  }
+  .planning-detail-content .task-page-heading {
+    margin-left: 44px;
+  }
+  .planning-detail-content .planning-detail-toolbar {
+    margin-left: 0;
+  }
+  .task-page [data-children] .task-page-child {
+    padding-inline: 0;
+  }
+  .task-page .task-page-child-line {
+    padding-inline: 44px 44px;
+  }
+  .task-page .task-page-child-line > .task-child-complete {
+    top: 0;
+    left: -4px;
+  }
+  .task-page .task-page-child-line > .task-child-menu {
+    position: absolute;
+    top: -9px;
+    right: 0;
+  }
+  .task-page .task-page-child-line:has(> .task-indicators) {
+    padding-right: 76px;
+  }
+  .task-page .task-page-child-line > .task-indicators {
+    position: absolute;
+    top: 0;
+    right: 44px;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 30px;
+  }
+  .task-page .task-child-description {
+    margin-left: 44px;
+  }
+  .task-page-child > ol {
+    margin: 12px 0 0 16px;
+    padding: 0;
+    list-style: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .planning-detail-content .task-page-child-line {
+    padding-right: 0;
+  }
+  .planning-detail-content .task-page-child-line:has(> .task-indicators) {
+    padding-right: 32px;
+  }
+  .planning-detail-content .task-page-child-line > .task-indicators {
+    right: 0;
+  }
 }

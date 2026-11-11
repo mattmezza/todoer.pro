@@ -442,6 +442,12 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
     }
     promote.hidden = !canWrite || !task.parent_id;
     get('[data-edit-title]').textContent = task.title;
+    const descriptionAction = get('[data-edit-description]');
+    const hasDescription = Boolean(task.description.trim());
+    descriptionAction.textContent = hasDescription
+      ? 'Edit description'
+      : 'Add description';
+    descriptionAction.classList.toggle('sr-only', hasDescription);
     if (!embedded) document.title = `${task.title} · Todoer`;
     const complete = get('[data-root-complete]');
     checkIcon(complete, task.complete);
