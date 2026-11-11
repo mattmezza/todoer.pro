@@ -214,9 +214,14 @@ test('both indicators appear in Inbox, Today, calendar views and search', async 
   await page.reload();
   for (const task of [parent, child])
     await indicators(page.locator(`[data-planning-task="${task.id}"]`));
-  // Use a separate calendar day so other browser fixtures cannot fill the
-  // month's first three visible slots before this test's tasks.
-  const calendarDate = '2060-02-12';
+  // Isolate the day across projects and repeated runs on the same synthetic DB;
+  // month cells only show their first three tasks before the overflow action.
+  const daySeed = Number.parseInt(randomUUID().slice(0, 7), 16);
+  const calendarDate = new Date(
+    Date.UTC(2060 + (daySeed % 40), (daySeed >>> 6) % 12, 1 + ((daySeed >>> 10) % 28)),
+  )
+    .toISOString()
+    .slice(0, 10);
   for (const task of [parent, child]) {
     const current = await (
       await page.request.get(`/api/v1/tasks/${task.id}/schedule`)
