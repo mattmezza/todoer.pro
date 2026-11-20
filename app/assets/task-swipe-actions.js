@@ -1,4 +1,8 @@
-import { taskCompletionChange } from './task-completion.js';
+import {
+  animateTaskCompletion,
+  setCompletionIcon,
+  taskCompletionChange,
+} from './task-completion.js';
 
 // Shared mutations and Undo for list tasks and task-page subtasks.
 export function createTaskSwipeActions({
@@ -26,6 +30,7 @@ export function createTaskSwipeActions({
       return;
     swipingTasks.add(id);
     row.setAttribute('aria-busy', 'true');
+    if (action === 'complete') row.dataset.completionPending = '';
     let release;
     try {
       release = beginWrite?.();
@@ -78,13 +83,30 @@ export function createTaskSwipeActions({
       element.append(text, undo);
       swipeUndo.push(item);
       showSwipeUndo();
+      if (action === 'complete' && result.complete) {
+        const control = row.querySelector('.completion,.task-child-complete');
+        row.dataset.complete = 'true';
+        if (row.matches('.task')) {
+          row.dataset.revision = result.revision;
+          row.classList.add('is-complete');
+        }
+        if (control) {
+          setCompletionIcon(control, true);
+          control.setAttribute('aria-pressed', 'true');
+          control.setAttribute('aria-label', `Reopen ${result.title}`);
+          await animateTaskCompletion(control, true);
+        }
+      }
+      delete row.dataset.completionPending;
       if (active) changed();
     } catch (error) {
+      delete row.dataset.completionPending;
       if (active) notice(`${error.message} The task was not changed.`, true);
       if (active && [409, 404, 403].includes(error.status)) changed();
     } finally {
       release?.();
       row.removeAttribute('aria-busy');
+      delete row.dataset.completionPending;
       swipingTasks.delete(id);
     }
   }

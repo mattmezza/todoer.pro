@@ -6,7 +6,7 @@ import { reconcileTasks } from './task-list-refresh.js';
 
 import { stowInfo } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
-import { taskCompletionChange } from './task-completion.js';
+import { animateTaskCompletion, taskCompletionChange } from './task-completion.js';
 import { mountCaptures } from './capture-ui.js';
 import './site.js';
 import { mountListUi } from './list-ui.js';
@@ -122,7 +122,7 @@ onPageLoad((scope) => {
       inlineEditors.size > 0 ||
       Boolean(
         $(
-          '#task-list .task-actions[open],#task-list .entity-menu[open],#task-list [data-activation-pending]',
+          '#task-list .task-actions[open],#task-list .entity-menu[open],#task-list [data-activation-pending],#task-list [data-completion-pending]',
         ),
       ) ||
       taskPanel.isOpen ||
@@ -344,24 +344,35 @@ onPageLoad((scope) => {
   scope.listen($('#task-list'), 'click', async (e) => {
     const row = e.target.closest('.task');
     if (!row) return;
-    if (e.target.closest('.completion')) {
-      const button = e.target.closest('.completion');
-      if (button.disabled) return;
-      const complete = row.dataset.complete !== 'true';
+    const forceSubtree = Boolean(e.target.closest('[data-action="complete-subtree"]'));
+    if (e.target.closest('.completion') || forceSubtree) {
+      const button = row.querySelector('.completion');
+      if (button.disabled || !canWrite) return;
+      if (forceSubtree) row.querySelector('details')?.removeAttribute('open');
+      const wasComplete = row.dataset.complete === 'true';
+      const complete = forceSubtree || !wasComplete;
       button.disabled = true;
+      row.dataset.completionPending = '';
       const previous = button.innerHTML;
+      let animation;
+      let refreshAfter = false;
       try {
-        const change = await taskCompletionChange(api, {
-          id: row.dataset.id,
-          revision: Number(row.dataset.revision),
-          complete: !complete,
-        });
+        const change = await taskCompletionChange(
+          api,
+          {
+            id: row.dataset.id,
+            revision: Number(row.dataset.revision),
+            complete: wasComplete,
+          },
+          forceSubtree,
+        );
         if (!change || scope.signal.aborted) return;
         row.classList.toggle('is-complete', complete);
         button.setAttribute('aria-pressed', String(complete));
         button.innerHTML = complete
           ? '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#check"/></svg>'
           : '';
+        if (wasComplete !== complete) animation = animateTaskCompletion(button, complete);
         const task = await api(`/tasks/${row.dataset.id}`, 'PATCH', change);
         row.dataset.revision = task.revision;
         row.dataset.complete = task.complete;
@@ -389,40 +400,21 @@ onPageLoad((scope) => {
           `${task.complete ? 'Reopen' : 'Complete'} ${task.title}`,
         );
         notice('');
-        if (change.complete_subtree) refresh(true);
+        refreshAfter = change.complete_subtree;
       } catch (err) {
-        row.classList.toggle('is-complete', !complete);
-        button.setAttribute('aria-pressed', String(!complete));
+        row.classList.toggle('is-complete', wasComplete);
+        button.setAttribute('aria-pressed', String(wasComplete));
         button.innerHTML = previous;
         notice(
           `${err.message} The previous display has been restored; refresh to confirm the saved state.`,
           true,
         );
-        if (err.status === 409) refresh();
+        refreshAfter = err.status === 409;
       } finally {
+        await animation;
+        delete row.dataset.completionPending;
         button.disabled = false;
-      }
-    } else if (e.target.closest('[data-action="complete-subtree"]')) {
-      row.querySelector('details')?.removeAttribute('open');
-      if (
-        !canWrite ||
-        !(await confirmAction('Complete this task and every unfinished sub-task?'))
-      )
-        return;
-      const button = e.target.closest('button');
-      button.disabled = true;
-      try {
-        await api(`/tasks/${row.dataset.id}`, 'PATCH', {
-          revision: Number(row.dataset.revision),
-          complete: true,
-          complete_subtree: true,
-        });
-        notice('');
-        await refresh(true);
-      } catch (error) {
-        notice(error.message, true);
-      } finally {
-        button.disabled = false;
+        if (refreshAfter || pendingRefresh) refresh();
       }
     } else if (e.target.closest('[data-action="rename"]')) {
       row.querySelector('details')?.removeAttribute('open');

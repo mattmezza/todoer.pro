@@ -12,7 +12,11 @@ import { preferredTimeFormatter } from './preferred-time.js';
 import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
 import { toast } from './toast.js';
 import { confirmAction } from './confirm.js';
-import { taskCompletionChange } from './task-completion.js';
+import {
+  animateTaskCompletion,
+  setCompletionIcon,
+  taskCompletionChange,
+} from './task-completion.js';
 import './site.js';
 import { mountBreakdown } from './task-breakdown.js';
 
@@ -64,20 +68,6 @@ export async function previewTaskMove(
     });
   }
   return api('/bulk/preview', 'POST', { operations });
-}
-
-function checkIcon(button, complete) {
-  button.replaceChildren();
-  if (!complete) return;
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('class', 'ui-icon');
-  svg.setAttribute('width', '14');
-  svg.setAttribute('height', '14');
-  svg.setAttribute('aria-hidden', 'true');
-  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-  use.setAttribute('href', '/assets/icons.svg#check');
-  svg.append(use);
-  button.append(svg);
 }
 
 export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask } = {}) {
@@ -451,7 +441,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
     descriptionAction.classList.toggle('sr-only', hasDescription);
     if (!embedded) document.title = `${task.title} · Todoer`;
     const complete = get('[data-root-complete]');
-    checkIcon(complete, task.complete);
+    setCompletionIcon(complete, task.complete);
     complete.setAttribute('aria-pressed', String(task.complete));
     complete.setAttribute('aria-label', task.complete ? 'Reopen task' : 'Complete task');
   }
@@ -636,13 +626,13 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
         complete.type = 'button';
         complete.disabled = !canWrite || busy;
         complete.className = 'task-page-complete task-child-complete';
-        checkIcon(complete, child.complete);
+        setCompletionIcon(complete, child.complete);
         complete.setAttribute(
           'aria-label',
           `${child.complete ? 'Reopen' : 'Complete'} ${child.title}`,
         );
         complete.setAttribute('aria-pressed', String(child.complete));
-        complete.onclick = () => toggleComplete(child);
+        complete.onclick = () => toggleComplete(child, false, complete);
         const link = document.createElement('a');
         link.href = `/tasks/${encodeURIComponent(child.public_reference || child.id)}`;
         link.textContent = child.title;
@@ -903,9 +893,14 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
     for (const link of document.querySelectorAll('.account-menu a[href^="/workspaces/"]'))
       link.remove();
   }
-  async function toggleComplete(target, forceSubtree = false) {
+  async function toggleComplete(
+    target,
+    forceSubtree = false,
+    control = get('[data-root-complete]'),
+  ) {
     if (!canWrite || busy) return;
     const release = beginWrite();
+    const wasComplete = target.complete;
     try {
       const change = await taskCompletionChange(api, target, forceSubtree);
       if (!change || !alive) return;
@@ -914,13 +909,25 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
         'PATCH',
         change,
       );
+      if (!alive) return;
       if (target.id === id) {
         saved(target.revision, updated.revision);
         task = { ...task, ...updated };
         updateView();
+      } else {
+        Object.assign(target, updated);
+        control.closest('[data-child-id]').dataset.complete = String(updated.complete);
+        setCompletionIcon(control, updated.complete);
+        control.setAttribute('aria-pressed', String(updated.complete));
+        control.setAttribute(
+          'aria-label',
+          `${updated.complete ? 'Reopen' : 'Complete'} ${updated.title}`,
+        );
       }
       pending = true;
       notice('');
+      if (wasComplete !== updated.complete)
+        await animateTaskCompletion(control, updated.complete);
     } catch (error) {
       conflict(error.message);
       pending = true;

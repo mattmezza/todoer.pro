@@ -5,7 +5,7 @@ import { beginLoading } from './loading.js';
 
 import { setSaveState } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
-import { taskCompletionChange } from './task-completion.js';
+import { animateTaskCompletion, taskCompletionChange } from './task-completion.js';
 import { onPageLoad } from './page-lifecycle.js';
 
 onPageLoad(async (scope) => {
@@ -560,7 +560,15 @@ onPageLoad(async (scope) => {
             t,
           );
           if (!change || scope.signal.aborted) return false;
-          return api(`tasks/${encodeURIComponent(t.id)}`, 'PATCH', change);
+          const updated = await api(`tasks/${encodeURIComponent(t.id)}`, 'PATCH', change);
+          b.textContent = updated.complete ? '✓' : '';
+          b.setAttribute('aria-pressed', String(updated.complete));
+          b.setAttribute(
+            'aria-label',
+            updated.complete ? 'Mark incomplete' : 'Complete task',
+          );
+          link.classList.toggle('is-complete', updated.complete);
+          await animateTaskCompletion(b, updated.complete);
         }),
       'workbench-check',
     );
