@@ -1400,17 +1400,19 @@ input[type='checkbox'] {
   margin-top: -8px;
 }
 .add-task-trigger,
-.add-section-trigger {
+.add-section-trigger,
+.attachment-choose {
   display: flex;
   align-items: center;
   gap: 6px;
   min-height: 44px;
   padding: 12px 36px;
-  color: #9ab5d1;
+  color: var(--muted);
   font-size: 17px;
 }
 .add-task-trigger:hover,
-.add-section-trigger:hover {
+.add-section-trigger:hover,
+.attachment-choose:hover {
   color: var(--accent);
 }
 .add-section-trigger {
@@ -8688,13 +8690,6 @@ dialog.destination-dialog label.destination-search-label {
   flex-wrap: wrap;
   gap: 12px;
 }
-.attachment-choose {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  color: var(--accent);
-}
 .attachment-form progress {
   width: 160px;
 }
@@ -8787,11 +8782,6 @@ dialog.destination-dialog label.destination-search-label {
 }
 .attachment-card-actions > :is(a, button):hover {
   color: var(--accent);
-}
-.attachment-choose {
-  font-size: 16px;
-  padding: 0;
-  font-weight: 400;
 }
 
 .trash-group {
@@ -14151,7 +14141,8 @@ body form.entry-form > label.sr-only {
   .reference-list-page .task > .task-actions {
     flex: 0 0 44px;
   }
-  .reference-list-page :is(.add-task-trigger, .add-section-trigger) {
+  .reference-list-page :is(.add-task-trigger, .add-section-trigger),
+  .attachment-choose {
     padding-inline: 6px;
   }
   .dedicated-task-page > main.task-page > .task-page-heading {
