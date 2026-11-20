@@ -40,7 +40,8 @@ export function reconcileTasks(current, incoming) {
       if (row !== cursor) target.insertBefore(row, cursor);
       cursor = row.nextElementSibling;
     }
-    for (const row of [...target.children]) if (!keep.has(row)) row.remove();
+    for (const row of [...target.children])
+      if (!keep.has(row) && !row.matches('.pending-task')) row.remove();
     if (sectionCursor !== section) current.insertBefore(section, sectionCursor);
     sectionCursor = section.nextElementSibling;
   }

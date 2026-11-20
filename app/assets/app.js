@@ -1,3 +1,4 @@
+import { animateSavedTask, pendingTaskRow } from './pending-task.js';
 import { createTaskSwipeActions } from './task-swipe-actions.js';
 import { createTaskPanel } from './task-panel.js';
 import { mountStructuredEdit } from './structured-edit.js';
@@ -70,9 +71,11 @@ onPageLoad((scope) => {
       true,
     );
   let cursor = Number(document.body.dataset.cursor) || 0;
-  let busy = false;
+  let activeCaptures = 0;
   let pendingRefresh = false;
   const inlineEditors = new Map();
+  const pendingRows = new Map();
+  const confirmedCaptures = new Map();
   let restoreTaskFocus = null;
   const draftKey = `todoer:${account}:draft:${list}`;
   const input = $('#capture-title');
@@ -128,7 +131,7 @@ onPageLoad((scope) => {
           '.inline-capture:not([hidden]) input[name=title],.inline-capture:not([hidden]) textarea',
         ),
       ].some((field) => field.value.length > 0) ||
-      busy ||
+      activeCaptures > 0 ||
       Boolean(window.getSelection()?.toString())
     );
   }
@@ -174,6 +177,15 @@ onPageLoad((scope) => {
       const incoming = document.createElement('div');
       incoming.innerHTML = e.detail.ctx.text;
       reconcileTasks(target, incoming);
+      for (const [key, id] of confirmedCaptures) {
+        pendingRows.get(key)?.remove();
+        pendingRows.delete(key);
+        const row = [...target.querySelectorAll('.task[data-id]')].find(
+          (candidate) => candidate.dataset.id === id,
+        );
+        animateSavedTask(row);
+      }
+      confirmedCaptures.clear();
       e.preventDefault();
       target.dispatchEvent(
         new CustomEvent('htmx:after:swap', {
@@ -225,11 +237,38 @@ onPageLoad((scope) => {
     }
   });
   let replaying = false;
+  let replayAgain = false;
   async function showPending() {
     const records = await listPending(account);
+    if (scope.signal.aborted) return;
+    const pendingKeys = new Set(confirmedCaptures.keys());
+    for (const record of records) {
+      if (record.payload.list_id !== list || record.status === 'needs_attention')
+        continue;
+      const section = $$('#task-list .task-section').find(
+        (section) => section.dataset.sectionId === (record.payload.section_id || ''),
+      );
+      if (!section) continue;
+      pendingKeys.add(record.key);
+      let row = pendingRows.get(record.key);
+      if (!row) {
+        const { title, description } = record.payload.tasks[0];
+        row = pendingTaskRow('article', title, description);
+        pendingRows.set(record.key, row);
+      }
+      row.querySelector('.pending-task-state').textContent =
+        !navigator.onLine || record.error ? 'Pending sync' : 'Saving…';
+      if (!row.isConnected) section.querySelector('.section-tasks').append(row);
+    }
+    for (const [key, row] of pendingRows) {
+      if (pendingKeys.has(key)) continue;
+      row.remove();
+      pendingRows.delete(key);
+    }
     const container = $('#pending-captures');
     container.replaceChildren();
     for (const record of records) {
+      if (pendingRows.has(record.key) && navigator.onLine && !record.error) continue;
       const row = document.createElement('div');
       row.className = 'pending-row';
       const text = document.createElement('span');
@@ -251,12 +290,19 @@ onPageLoad((scope) => {
     if (replaying) return;
     replaying = true;
     try {
-      const result = await replayCaptures(account, (record) =>
-        api('/capture', 'POST', record.payload, { 'Idempotency-Key': record.key }),
-      );
-      if (result.sent) {
-        refresh();
-      }
+      await showPending();
+      if (!navigator.onLine) return;
+      const result = await replayCaptures(account, async (record) => {
+        const [task] = await api('/capture', 'POST', record.payload, {
+          'Idempotency-Key': record.key,
+        });
+        if (task?.list_id === list) {
+          confirmedCaptures.set(record.key, task.id);
+          const state = pendingRows.get(record.key)?.querySelector('.pending-task-state');
+          if (state) state.textContent = 'Saved';
+        }
+      });
+      if (result.sent || confirmedCaptures.size) refresh();
       if (result.errors.length && navigator.onLine)
         notice(result.errors[0].message, true);
       await showPending();
@@ -264,6 +310,10 @@ onPageLoad((scope) => {
       notice(`Local capture storage is unavailable: ${err.message}`, true);
     } finally {
       replaying = false;
+      if (replayAgain && !scope.signal.aborted) {
+        replayAgain = false;
+        replay();
+      }
     }
   }
   mountCaptures({
@@ -272,16 +322,19 @@ onPageLoad((scope) => {
     canWrite,
     notice,
     onQueued: async () => {
-      await showPending();
-      if (navigator.onLine) await replay();
+      if (replaying) {
+        replayAgain = true;
+        await showPending();
+      } else await replay();
     },
     setBusy: (value) => {
-      busy = value;
+      activeCaptures += value ? 1 : -1;
     },
     onSettled: () => {
       if (pendingRefresh) refresh();
     },
   });
+  scope.listen(window, 'offline', replay);
   $('#retry-captures').onclick = replay;
   scope.listen(window, 'online', replay);
   scope.interval(() => {

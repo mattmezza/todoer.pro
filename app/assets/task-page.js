@@ -1,3 +1,4 @@
+import { animateSavedTask, pendingTaskRow } from './pending-task.js';
 import { taskIndicators } from './task-indicators.js';
 import { createTaskSwipeActions } from './task-swipe-actions.js';
 import { mountTaskOrdering } from './task-order.js';
@@ -1125,12 +1126,16 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
     if (busy || !canWrite) return;
     rememberChild();
     await childCapture.ready;
+    if (busy || !alive) return;
     const interpreted = childCapture.get();
     if (!interpreted.title) return;
     const writing = { ...childDraft };
     const release = beginWrite();
+    const pendingRow = pendingTaskRow('li', interpreted.title, writing.description);
+    get('[data-children]').append(pendingRow);
+    let created;
     try {
-      await api(
+      [created] = await api(
         '/capture',
         'POST',
         {
@@ -1142,6 +1147,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
         },
         { headers: { 'Idempotency-Key': writing.key } },
       );
+      if (!alive) return;
       if (
         childTitle.value === writing.title &&
         childDescription.value === writing.description
@@ -1157,8 +1163,22 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
     } catch (error) {
       notice(error.message, true);
     } finally {
+      pendingRow.remove();
       release();
-      childTitle.focus();
+      if (alive && created) {
+        const known = children.get(created.id);
+        children.set(created.id, {
+          ...created,
+          public_reference: created.reference,
+          ...known,
+        });
+        renderChildren();
+        const row = [...get('[data-children]').querySelectorAll('[data-child-id]')].find(
+          (row) => row.dataset.childId === created.id,
+        );
+        animateSavedTask(row);
+      }
+      if (alive) childTitle.focus();
     }
   });
   get('[data-load-more]').onclick = async () => {

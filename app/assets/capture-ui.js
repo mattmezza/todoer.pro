@@ -80,6 +80,7 @@ export function mountCaptures({
     event.preventDefault();
     if (!canWrite || form.dataset.busy === 'true') return;
     await mountSmartCapture(form).ready;
+    if (form.dataset.busy === 'true' || scope.signal.aborted) return;
     const interpreted = mountSmartCapture(form).get();
     const text = interpreted.title,
       brief = description(form).value;

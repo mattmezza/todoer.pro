@@ -857,6 +857,44 @@ dialog h2 {
   color: var(--accent);
   margin-left: 12px;
 }
+.pending-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  background: var(--hover);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.pending-task-check {
+  flex: 0 0 17px;
+  height: 17px;
+  margin-top: 4px;
+  border: 1.5px dashed currentColor;
+  border-radius: 50%;
+}
+.pending-task-state {
+  margin-inline-start: 10px;
+}
+.pending-task-description {
+  white-space: pre-line;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pending-task {
+    animation: pending-task-enter 160ms ease-out both;
+  }
+  @keyframes pending-task-enter {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+}
 .pending-row {
   display: flex;
   align-items: center;
