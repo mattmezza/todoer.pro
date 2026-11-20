@@ -813,7 +813,10 @@ async fn space_page(
         let mut archived_lists = Vec::new();
         let mut active_lists = Vec::new();
         for (mut card, description) in lists {
-            card.description_html = crate::taxonomy::render_description(&db.conn, &actor, &description)?;
+            let mut characters = description.chars();
+            let mut preview = characters.by_ref().take(160).collect::<String>();
+            if characters.next().is_some() { preview.push('…'); }
+            card.description_html = crate::taxonomy::render_description(&db.conn, &actor, &preview)?;
             if db.list_info(&actor, &card.id)?.archived { card.archive_note = db.list_archive_note(&actor, &card.id)?.unwrap_or_default(); archived_lists.push(card); }
             else { active_lists.push(card); }
         }

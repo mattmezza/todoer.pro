@@ -14,15 +14,22 @@ pub(crate) fn web_links<'a>(
     text: &'a str,
 ) -> impl Iterator<Item = (usize, usize)> {
     finder.links(text).filter_map(|link| {
-        let (scheme, _) = link.as_str().split_once("://")?;
-        (scheme.eq_ignore_ascii_case("https") || scheme.eq_ignore_ascii_case("http"))
-            .then(|| (link.start(), link.end()))
+        let value = link.as_str();
+        let web_url = match value.split_once("://") {
+            Some((scheme, _)) => {
+                scheme.eq_ignore_ascii_case("https") || scheme.eq_ignore_ascii_case("http")
+            }
+            None => value
+                .get(..4)
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("www.")),
+        };
+        web_url.then(|| (link.start(), link.end()))
     })
 }
 
 pub(crate) fn link_finder() -> LinkFinder {
     let mut finder = LinkFinder::new();
-    finder.kinds(&[LinkKind::Url]);
+    finder.kinds(&[LinkKind::Url]).url_must_have_scheme(false);
     finder
 }
 
@@ -50,11 +57,13 @@ pub(crate) fn render_events<'a>(events: impl IntoIterator<Item = Event<'a>>) -> 
             if start > cursor {
                 output.push(Event::Text(text[cursor..start].to_owned().into()));
             }
-            output.extend(link(
-                text[start..end].to_owned().into(),
-                text[start..end].to_owned().into(),
-                "".into(),
-            ));
+            let label = &text[start..end];
+            let url = if label.contains("://") {
+                label.to_owned()
+            } else {
+                format!("https://{label}")
+            };
+            output.extend(link(url.into(), label.to_owned().into(), "".into()));
             cursor = end;
         }
         if cursor < text.len() {
@@ -131,13 +140,14 @@ mod tests {
     fn links_pasted_web_urls_and_keeps_markdown_links_and_code_intact() {
         let html = render(
             "See (https://example.test/a_(b)?x=1&y=2), [label](https://example.test/explicit), \
-             `https://example.test/code` and [https://example.test/label](/local).",
+             `https://example.test/code` and [https://example.test/label](/local). Visit www.example.test.",
         );
-        assert_eq!(html.matches("<a ").count(), 3);
+        assert_eq!(html.matches("<a ").count(), 4);
         assert!(html.contains("href=\"https://example.test/a_(b)?x=1&amp;y=2\""));
         assert!(html.contains(">label</a>"));
         assert!(html.contains("<code>https://example.test/code</code>"));
         assert!(html.contains(">https://example.test/label</a>"));
+        assert!(html.contains("href=\"https://www.example.test\""));
     }
     #[test]
     fn permits_only_local_attachment_images() {
