@@ -17,7 +17,7 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
     if (!html.includes('data-file-form'))
       html = html.replace(
         '</section><h3',
-        '<form data-file-form class="attachment-form"><input type="file" data-file-input hidden><button type="button" data-file-choose>Attach file</button><p data-file-selection hidden></p><progress data-upload-progress hidden></progress><button data-file-upload hidden></button><button data-file-abandon hidden></button></form></section><h3',
+        '<form data-file-form class="attachment-form"><input type="file" data-file-input hidden><button type="button" class="add-action" data-file-choose><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#plus"/></svg> Attach file</button><p data-file-selection hidden></p><progress data-upload-progress hidden></progress><button data-file-upload hidden></button><button data-file-abandon hidden></button></form></section><h3',
       );
     await route.fulfill({ response, body: html });
   });
@@ -117,7 +117,9 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
   );
   const child = panel.locator('[data-child-composer] > summary');
   const comment = panel.locator('[data-comment-composer] > summary');
+  const attach = panel.getByRole('button', { name: 'Attach file', exact: true });
   await expect(comment).toBeVisible();
+  await expect(attach).toBeVisible();
   const titleBox = await panel
     .getByRole('button', { name: 'Edited panel task' })
     .boundingBox();
@@ -129,17 +131,19 @@ test('Inbox row opens an editable, compact task panel', async ({ page }) => {
   expect(
     (await child.boundingBox()).y - (descriptionBox.y + descriptionBox.height),
   ).toBeGreaterThanOrEqual(20);
-  await expect
-    .poll(async () => {
-      const [childBox, commentBox] = await Promise.all([
-        child.boundingBox(),
-        comment.boundingBox(),
-      ]);
-      return childBox && commentBox
-        ? Math.abs(childBox.height - commentBox.height)
-        : Infinity;
-    })
-    .toBeLessThan(2);
+  const childBox = await child.boundingBox();
+  for (const action of [attach, comment]) {
+    const box = await action.boundingBox();
+    expect(box.x).toBeCloseTo(childBox.x, 0);
+    expect(box.height).toBeCloseTo(childBox.height, 0);
+    await expect(action).toHaveCSS(
+      'font',
+      await child.evaluate((el) => getComputedStyle(el).font),
+    );
+  }
+  const taskFileChooser = page.waitForEvent('filechooser');
+  await attach.click();
+  await taskFileChooser;
   await child.click();
   await expect(panel.getByLabel('New sub-task')).toBeVisible();
   await expect(panel.getByLabel('New sub-task')).toHaveCSS('font-size', '15px');
@@ -240,7 +244,7 @@ test('Today uses the same task-page panel', async ({ page }) => {
   await panel.getByLabel('Task title', { exact: true }).press('Enter');
   await expect(panel.getByRole('button', { name: `${title} updated` })).toBeVisible();
   await expect(panel.locator('.task-date-summary')).toBeVisible();
-  await panel.getByRole('button', { name: 'Add a description' }).click();
+  await panel.getByRole('button', { name: 'Add description' }).click();
   await expect(panel.getByLabel('Description, Markdown supported')).toBeVisible();
   await expect(panel.locator('.task-date-summary')).toBeHidden();
   await panel.locator('[data-cancel-edit]').click();
