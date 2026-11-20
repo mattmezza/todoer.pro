@@ -11994,8 +11994,7 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   :is(
     [data-child-composer] > summary,
     [data-comment-composer] > summary,
-    .panel-breakdown-action,
-    [data-file-choose]
+    .panel-breakdown-action
   ) {
   display: inline-flex;
   align-items: center;
@@ -12018,8 +12017,7 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
   :is(
     [data-child-composer] > summary,
     [data-comment-composer] > summary,
-    .panel-breakdown-action,
-    [data-file-choose]
+    .panel-breakdown-action
   ):hover {
   background: var(--hover);
   color: var(--text);
