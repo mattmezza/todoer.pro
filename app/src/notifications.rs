@@ -17,6 +17,7 @@ pub struct Preferences {
     pub fun_animations: bool,
     pub fun_animation: String,
     pub font: String,
+    pub theme: String,
     pub show_favorites: bool,
     pub swipe_left: String,
     pub swipe_right: String,
@@ -44,6 +45,7 @@ impl Default for Preferences {
             fun_animations: true,
             fun_animation: "tasks".into(),
             font: "geist".into(),
+            theme: "system".into(),
             show_favorites: true,
             swipe_left: "archive".into(),
             swipe_right: "complete".into(),
@@ -147,6 +149,9 @@ impl Store {
         }
         if !matches!(value.font.as_str(), "geist" | "inter") {
             return Err(invalid("Unknown appearance font"));
+        }
+        if !matches!(value.theme.as_str(), "system" | "light" | "dark") {
+            return Err(invalid("Unknown appearance theme"));
         }
         if [&value.swipe_left, &value.swipe_right]
             .iter()

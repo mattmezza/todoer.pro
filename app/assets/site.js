@@ -23,6 +23,16 @@ import { onPageLoad } from './page-lifecycle.js';
 onPageLoad(async (scope) => {
   const fetch = scope.request;
   hydratePreferredTimes();
+  const theme = document.querySelector('#navigation')?.dataset.theme;
+  const lightTheme = document.querySelector('meta[name="theme-color"][media]');
+  if (lightTheme) {
+    lightTheme.media =
+      theme === 'light'
+        ? 'all'
+        : theme === 'dark'
+          ? 'not all'
+          : '(prefers-color-scheme: light)';
+  }
   if (document.querySelector('[data-move-complete]')) toast('List moved.');
 
   const navigation = document.querySelector('#navigation');

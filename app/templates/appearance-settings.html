@@ -1,5 +1,13 @@
 <form action="/settings/appearance" method="post" class="appearance-fonts">
 <input type="hidden" name="csrf" value="{{ sidebar.csrf }}">
+<fieldset><legend>Theme</legend>
+<label for="appearance-theme">Color scheme</label>
+<select id="appearance-theme" name="theme">
+  <option value="system"{% if sidebar.theme == "system" %} selected{% endif %}>Use device setting</option>
+  <option value="light"{% if sidebar.theme == "light" %} selected{% endif %}>Light</option>
+  <option value="dark"{% if sidebar.theme == "dark" %} selected{% endif %}>Dark</option>
+</select>
+</fieldset>
 <fieldset><legend>Font</legend>
 <label class="appearance-font appearance-inter"><span class="appearance-font-name"><input type="radio" name="font" value="inter" {% if sidebar.font == "inter" %}checked{% endif %}>Inter</span><p>Make room for what matters.</p><small>Your spaces, lists and everyday plans. Aa Bb Cc 0123456789</small></label>
 <label class="appearance-font appearance-geist"><span class="appearance-font-name"><input type="radio" name="font" value="geist" {% if sidebar.font == "geist" %}checked{% endif %}>Geist</span><p>Make room for what matters.</p><small>Your spaces, lists and everyday plans. Aa Bb Cc 0123456789</small></label>

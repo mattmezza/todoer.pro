@@ -767,6 +767,7 @@ async fn notification_form(
         fun_animations: current.fun_animations,
         fun_animation: current.fun_animation,
         font: current.font,
+        theme: current.theme,
         show_favorites: current.show_favorites,
         swipe_left: current.swipe_left,
         swipe_right: current.swipe_right,
@@ -1031,6 +1032,9 @@ async fn save_appearance(
     s.run(move |db| {
         let mut preferences = db.notification_preferences(&actor)?;
         preferences.font = font;
+        if let Some(theme) = form.get("theme") {
+            preferences.theme.clone_from(theme);
+        }
         preferences.show_favorites = form.contains_key("show_favorites");
         preferences.swipe_left = form
             .get("swipe_left")
