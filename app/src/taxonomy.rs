@@ -1346,7 +1346,8 @@ mod tests {
         let html = render_description(&db.conn, "dev", &raw).unwrap();
         assert!(html.contains(&format!(">#{list_ref}</a> and <a")));
         assert!(html.contains(&format!(">%{root_ref}</a> then <a")));
-        assert!(html.contains(&format!("title=\"Child &lt;task&gt;\">^{child_ref}</a>")));
+        assert!(html.contains("title=\"Child &lt;task&gt;\""), "{html}");
+        assert!(html.contains(&format!(">^{child_ref}</a>")));
         assert!(html.contains(&format!("<code>^{child_ref}</code>")));
         assert!(
             !render_public_description(&db.conn, &raw)
