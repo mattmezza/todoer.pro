@@ -282,6 +282,7 @@ test('swiping a parent task asks before completing its subtree', async ({
   const child = await capture('Swipe child', parent.id);
   await page.goto(`/lists/${list.id}`);
   await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  await expect(page.locator('#connection')).toHaveText('Up to date');
   const row = page.locator(`.task[data-id="${parent.id}"]`);
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true });
