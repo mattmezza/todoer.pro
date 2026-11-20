@@ -374,7 +374,7 @@ async fn calendar(
     if requested.len() > 4096 {
         return Err(Error::Invalid("Too many space filters".into()).into());
     }
-    let (rows, spaces, selected, task_counts) = s
+    let (rows, spaces, selected, task_counts, descriptions) = s
         .run(move |db| {
             let mut available = db.workspaces(&a)?;
             let inactive = db.conn.prepare("SELECT workspace_id FROM workspace_lifecycle WHERE archived=1 OR deleted_at IS NOT NULL")?.query_map([], |r| r.get::<_,String>(0))?.collect::<Result<std::collections::HashSet<_>,_>>()?;
@@ -418,7 +418,12 @@ async fn calendar(
                 &a,
                 &rows.iter().map(|row| row.task.id.as_str()).collect::<Vec<_>>(),
             )?;
-            Ok((rows, spaces, selected, task_counts))
+            let descriptions = rows.iter().filter(|row| !row.task.description.trim().is_empty())
+                .map(|row| Ok((row.task.id.clone(), crate::taxonomy::render_indexed_description(
+                    &db.conn, &a, "task", &row.task.id, &row.task.description,
+                )?)))
+                .collect::<Result<std::collections::HashMap<_, _>, Error>>()?;
+            Ok((rows, spaces, selected, task_counts, descriptions))
         })
         .await?;
     let mut rows = rows;
@@ -440,14 +445,11 @@ async fn calendar(
             4 => "P4 · Lowest",
             _ => "P3 · Low",
         };
-        let description = if row.task.description.trim().is_empty() {
-            String::new()
-        } else {
-            format!(
-                "<div class=\"planning-task-description markdown\">{}</div>",
-                crate::markdown::render(&row.task.description)
-            )
-        };
+        let description = descriptions
+            .get(&row.task.id)
+            .map_or_else(String::new, |html| {
+                format!("<div class=\"planning-task-description markdown\">{html}</div>")
+            });
         let counts = task_counts.get(&row.task.id).copied().unwrap_or_default();
         let indicators = counts.html();
         body.push_str(&format!(r#"<article class="task planning-task{}" data-planning-task="{}" x-bind:hidden="!matchesRow($el)"><a class="planning-completion" href="/tasks/{}" aria-label="Open task">{}</a><div class="task-content"><a class="task-title" href="/tasks/{}">{}</a>{}</div><span class="planning-row-meta"><span class="task-priority-summary" data-priority="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#flag"/></svg>{}</span><time class="planning-date" datetime="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#calendar"/></svg>{}</time>{indicators}</span></article>"#,

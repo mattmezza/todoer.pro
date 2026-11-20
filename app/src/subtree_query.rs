@@ -407,7 +407,9 @@ impl Store {
             let mut item: Value = serde_json::from_str(&item)
                 .map_err(|_| invalid("invalid stored task projection"))?;
             if let Some(raw) = item.get("description_html").and_then(Value::as_str) {
-                item["description_html"] = Value::String(crate::markdown::render(raw));
+                item["description_html"] = Value::String(
+                    crate::taxonomy::render_indexed_description(&tx, actor, "task", &id, raw)?,
+                );
             }
             let cursor = URL_SAFE_NO_PAD.encode(
                 serde_json::to_vec(&Cursor {

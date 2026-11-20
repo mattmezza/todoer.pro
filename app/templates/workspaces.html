@@ -10,7 +10,7 @@
 <section aria-label="Your workspaces" class="workspace-rows">
 {% for workspace in workspaces %}
 <article class="workspace-row" data-workspace="{{ workspace.id }}" data-title="{{ workspace.title }}" data-revision="{{ workspace.revision }}">
-<div class="workspace-row-content"><h2><a class="workspace-row-title font-mono inline-flex min-h-11 items-center" href="/workspaces/{{ workspace.id }}" aria-label="{{ workspace.title }}"><span aria-hidden="true">@</span>{{ slugs.workspaces.get(workspace.id).unwrap_or(workspace.title) }}</a></h2>{% if !workspace.description.is_empty() %}<div class="workspace-row-description markdown">{{ workspace.description|markdown|safe }}</div>{% endif %}</div>
+<div class="workspace-row-content"><h2><a class="workspace-row-title font-mono inline-flex min-h-11 items-center" href="/workspaces/{{ workspace.id }}" aria-label="{{ workspace.title }}"><span aria-hidden="true">@</span>{{ slugs.workspaces.get(workspace.id).unwrap_or(workspace.title) }}</a></h2>{% if !workspace.description.is_empty() %}<div class="workspace-row-description markdown">{{ descriptions.get(workspace.id).unwrap()|safe }}</div>{% endif %}</div>
 <div class="workspace-row-actions">{% if archived.contains(workspace.id) %}<span class="muted">Archived</span>{% endif %}{% if owners.contains(workspace.id) %}<button type="button" data-workspace-action="{% if archived.contains(workspace.id) %}restore{% else %}archive{% endif %}">{% if archived.contains(workspace.id) %}Restore{% else %}Archive{% endif %}</button>{% if archived.contains(workspace.id) %}<button type="button" class="danger" data-workspace-action="delete">Delete…</button>{% endif %}{% endif %}</div>
 </article>
 {% endfor %}

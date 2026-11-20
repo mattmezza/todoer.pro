@@ -551,10 +551,8 @@ fn token_char(ch: char) -> bool {
     ch.is_alphanumeric() || matches!(ch, '_' | '-')
 }
 fn markdown_events(raw: &str) -> Vec<(Event<'static>, std::ops::Range<usize>)> {
-    let options =
-        pulldown_cmark::Options::ENABLE_STRIKETHROUGH | pulldown_cmark::Options::ENABLE_TABLES;
     let mut events: Vec<(Event<'static>, std::ops::Range<usize>)> = Vec::new();
-    for (event, range) in Parser::new_ext(raw, options).into_offset_iter() {
+    for (event, range) in Parser::new_ext(raw, crate::markdown::OPTIONS).into_offset_iter() {
         if let Event::Text(text) = &event
             && let Some((Event::Text(previous), previous_range)) = events.last_mut()
             && previous_range.end == range.start
@@ -1039,20 +1037,130 @@ pub fn render_references(
             "reference text differs from saved source".into(),
         ));
     }
-    let valid:bool=c.query_row("SELECT EXISTS(SELECT 1 FROM reference_sources WHERE source_kind=?1 AND source_id=?2 AND raw_hash=?3)",params![source_kind,source_id,digest(raw)],|r|r.get(0))?;
-    if !valid {
+    render_indexed_description(c, actor, source_kind, source_id, raw)
+}
+
+pub(crate) fn render_indexed_description(
+    c: &Connection,
+    actor: &str,
+    source_kind: &str,
+    source_id: &str,
+    raw: &str,
+) -> Result<String, Error> {
+    let mut indexed = None;
+    render_description_with(raw, |index, token| {
+        let valid = match indexed {
+            Some(valid) => valid,
+            None => {
+                let valid = c.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM reference_sources WHERE source_kind=?1 AND source_id=?2 AND raw_hash=?3)",
+                    params![source_kind, source_id, digest(raw)],
+                    |r| r.get::<_, bool>(0),
+                )?;
+                indexed = Some(valid);
+                valid
+            }
+        };
+        if !valid {
+            return direct_target(c, actor, token);
+        }
+        let edge: Option<(String, String)> = c.query_row(
+            "SELECT target_kind,target_id FROM reference_edges WHERE source_kind=?1 AND source_id=?2 AND occurrence=?3 AND original_token=?4",
+            params![source_kind, source_id, index as i64, token.raw],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        ).optional()?;
+        match edge {
+            Some((kind, id)) => target(c, actor, &kind, &id),
+            None => Ok(None),
+        }
+    })
+}
+
+pub(crate) fn render_description(c: &Connection, actor: &str, raw: &str) -> Result<String, Error> {
+    render_description_with(raw, |_, token| direct_target(c, actor, token))
+}
+
+fn direct_target(
+    c: &Connection,
+    actor: &str,
+    token: &Token,
+) -> Result<Option<(String, String)>, Error> {
+    let found = target(c, actor, token.kind, &token.query)?;
+    if found.is_some()
+        && token.kind == "task"
+        && !token
+            .raw
+            .starts_with(task(c, &token.query)?.reference_prefix())
+    {
+        return Ok(None);
+    }
+    Ok(found)
+}
+
+pub(crate) fn render_public_description(c: &Connection, raw: &str) -> Result<String, Error> {
+    render_description_with(raw, |_, token| {
+        let mut id = crate::defaults::resolve(c, token.kind, &token.query)?;
+        let (kind, title) = match token.kind {
+            "workspace" => {
+                let title = c.query_row(
+                    "SELECT w.title FROM workspaces w JOIN public_spaces p ON p.workspace_id=w.id AND p.enabled=1
+                     LEFT JOIN workspace_lifecycle x ON x.workspace_id=w.id
+                     WHERE w.id=?1 AND coalesce(x.archived,0)=0 AND x.deleted_at IS NULL",
+                    [&id],
+                    |r| r.get(0),
+                ).optional()?;
+                ("space", title)
+            }
+            "list" if crate::public_access::list_public(c, &id)? => (
+                "list",
+                Some(c.query_row("SELECT title FROM lists WHERE id=?1", [&id], |r| r.get(0))?),
+            ),
+            "task" => match task(c, &id) {
+                Ok(t)
+                    if token.raw.starts_with(t.reference_prefix())
+                        && crate::public_access::list_public(c, &t.list_id)? =>
+                {
+                    id = t.id;
+                    ("task", Some(t.title))
+                }
+                Ok(_) | Err(Error::NotFound) => return Ok(None),
+                Err(error) => return Err(error),
+            },
+            _ => return Ok(None),
+        };
+        title
+            .map(|title| {
+                let reference = crate::defaults::public_id(c, token.kind, &id)?;
+                Ok((title, format!("/public/{kind}/{reference}")))
+            })
+            .transpose()
+    })
+}
+
+fn render_description_with(
+    raw: &str,
+    mut resolve: impl FnMut(usize, &Token) -> Result<Option<(String, String)>, Error>,
+) -> Result<String, Error> {
+    let parsed = tokens(raw);
+    if parsed.is_empty() {
         return Ok(crate::markdown::render(raw));
     }
-    let parsed = tokens(raw);
+    let finder = crate::markdown::link_finder();
+    let mut urls = crate::markdown::web_links(&finder, raw).peekable();
     let mut replacements = Vec::new();
     for (index, token) in parsed.iter().enumerate() {
-        let edge:Option<(String,String,String)>=c.query_row("SELECT target_kind,target_id,original_token FROM reference_edges WHERE source_kind=?1 AND source_id=?2 AND occurrence=?3",params![source_kind,source_id,index as i64],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional()?;
-        if let Some((kind, id, original)) = edge
-            && original == token.raw
-            && let Some((label, url)) = target(c, actor, &kind, &id)?
-        {
-            replacements.push((token.start, token.end, label, url));
+        while urls.peek().is_some_and(|(_, end)| *end <= token.start) {
+            urls.next();
         }
+        if urls.peek().is_some_and(|(start, _)| *start <= token.start) {
+            continue;
+        }
+        if let Some((title, url)) = resolve(index, token)? {
+            replacements.push((token.start, token.end, title, url));
+        }
+    }
+    if replacements.is_empty() {
+        return Ok(crate::markdown::render(raw));
     }
     // Inject typed CommonMark events, never raw HTML or string-built Markdown.
     let mut events = Vec::new();
@@ -1068,14 +1176,11 @@ pub fn render_references(
                     if *start > cursor {
                         append_text_events(&mut events, &raw[cursor..*start]);
                     }
-                    events.push(Event::Start(MarkdownTag::Link {
-                        link_type: pulldown_cmark::LinkType::Inline,
-                        dest_url: CowStr::from(url.clone()),
-                        title: CowStr::from(""),
-                        id: CowStr::from(""),
-                    }));
-                    events.push(Event::Text(CowStr::from(label.clone())));
-                    events.push(Event::End(TagEnd::Link));
+                    events.extend(crate::markdown::link(
+                        url.clone().into(),
+                        raw[*start..*end].to_owned().into(),
+                        label.clone().into(),
+                    ));
                     cursor = *end;
                 }
                 if cursor < range.end {
@@ -1089,14 +1194,23 @@ pub fn render_references(
     Ok(crate::markdown::render_events(events))
 }
 fn append_text_events(events: &mut Vec<Event<'static>>, raw: &str) {
-    for event in Parser::new(raw) {
-        if let Event::Text(text) = event {
-            events.push(Event::Text(CowStr::from(text.into_string())));
-        } else if let Event::Code(text) = event {
-            events.push(Event::Code(CowStr::from(text.into_string())));
-        }
+    // The original span is inside a text event. Keep surrounding whitespace and
+    // punctuation in that inline context while decoding CommonMark entities.
+    const BOUNDARY: char = '\u{e000}';
+    let fragment = format!("{BOUNDARY}{raw}{BOUNDARY}");
+    let decoded: String = Parser::new(&fragment)
+        .filter_map(|event| match event {
+            Event::Text(text) | Event::Code(text) => Some(text.into_string()),
+            _ => None,
+        })
+        .collect();
+    let decoded = decoded.strip_prefix(BOUNDARY).unwrap_or(&decoded);
+    let decoded = decoded.strip_suffix(BOUNDARY).unwrap_or(decoded);
+    if !decoded.is_empty() {
+        events.push(Event::Text(decoded.to_owned().into()));
     }
 }
+
 impl Store {
     pub fn reference_autocomplete(
         &self,
@@ -1214,6 +1328,42 @@ mod tests {
         .unwrap()
         .remove(0)
     }
+    #[test]
+    fn pasted_references_keep_the_token_and_show_only_accessible_titles() {
+        let mut db = db();
+        let root = new_task(&mut db, "groceries", "Root task", None, "");
+        let child = new_task(
+            &mut db,
+            "groceries",
+            "Child <task>",
+            Some(root.id.clone()),
+            "",
+        );
+        let child_ref = crate::defaults::public_id(&db.conn, "task", &child.id).unwrap();
+        let list_ref = crate::defaults::public_id(&db.conn, "list", "groceries").unwrap();
+        let root_ref = crate::defaults::public_id(&db.conn, "task", &root.id).unwrap();
+        let raw = format!("See #{list_ref} and %{root_ref} then ^{child_ref}. `^{child_ref}`");
+        let html = render_description(&db.conn, "dev", &raw).unwrap();
+        assert!(html.contains(&format!(">#{list_ref}</a> and <a")));
+        assert!(html.contains(&format!(">%{root_ref}</a> then <a")));
+        assert!(html.contains(&format!("title=\"Child &lt;task&gt;\">^{child_ref}</a>")));
+        assert!(html.contains(&format!("<code>^{child_ref}</code>")));
+        assert!(
+            !render_public_description(&db.conn, &raw)
+                .unwrap()
+                .contains("href=")
+        );
+        let source = new_task(&mut db, "groceries", "Legacy brief", None, &raw);
+        db.conn
+            .execute(
+                "DELETE FROM reference_sources WHERE source_kind='task' AND source_id=?1",
+                [&source.id],
+            )
+            .unwrap();
+        let rendered = render_references(&db.conn, "dev", "task", &source.id, &raw).unwrap();
+        assert_eq!(rendered, html);
+    }
+
     #[test]
     fn write_only_workspace_credential_can_read_references_without_exceeding_scope() {
         let mut db = db();

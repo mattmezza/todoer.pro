@@ -1,5 +1,4 @@
 //! Native forms and JSON routes use the same live workspace authorization core.
-use super::filters;
 use super::*;
 use crate::workspace::{
     CreateList, ListChange, ListRole, Section, SectionChange, SectionInput, Workspace,
@@ -575,6 +574,7 @@ struct Overview {
     slugs: crate::slugs::EntitySlugs,
     csrf: String,
     workspaces: Vec<Workspace>,
+    descriptions: std::collections::HashMap<String, String>,
     archived: std::collections::HashSet<String>,
     owners: std::collections::HashSet<String>,
     page: usize,
@@ -589,6 +589,8 @@ struct WorkspacePage {
     slugs: crate::slugs::EntitySlugs,
     csrf: String,
     workspace: Workspace,
+    description_html: String,
+    list_descriptions: std::collections::HashMap<String, String>,
     lists: Vec<WorkspaceList>,
     members: Vec<GrantView>,
     can_edit: bool,
@@ -602,6 +604,8 @@ struct SharingPage {
     csrf: String,
     info: WorkspaceList,
     sections: Vec<Section>,
+    description_html: String,
+    section_descriptions: std::collections::HashMap<String, String>,
     grants: Vec<GrantView>,
     can_edit: bool,
     owner: bool,
@@ -692,7 +696,22 @@ async fn overview(
         .collect::<Vec<_>>();
     let page = q.page.unwrap_or(1).clamp(1, 10000);
     let has_next = visible.len() > page * 20;
-    let workspaces = visible.into_iter().skip((page - 1) * 20).take(20).collect();
+    let workspaces: Vec<_> = visible.into_iter().skip((page - 1) * 20).take(20).collect();
+    let actor = s.auth(&h, false)?;
+    let (workspaces, descriptions) = s
+        .run(move |db| {
+            let descriptions = workspaces
+                .iter()
+                .map(|space| {
+                    Ok((
+                        space.id.clone(),
+                        crate::taxonomy::render_description(&db.conn, &actor, &space.description)?,
+                    ))
+                })
+                .collect::<Result<_, Error>>()?;
+            Ok((workspaces, descriptions))
+        })
+        .await?;
     let mut sidebar = sidebar;
     sidebar.lists.clear();
     sidebar.space_overview = true;
@@ -701,6 +720,7 @@ async fn overview(
         slugs,
         csrf: s.csrf_for(&h),
         workspaces,
+        descriptions,
         archived,
         owners,
         page,
@@ -736,6 +756,7 @@ struct SpaceOverview {
     can_restore: bool,
     sidebar: super::Sidebar,
     workspace: Workspace,
+    description_html: String,
     reference: String,
     lists: Vec<SpaceListCard>,
     archived_lists: Vec<SpaceListCard>,
@@ -752,7 +773,7 @@ struct SpaceListCard {
     archive_note: String,
     id: String,
     title: String,
-    description: String,
+    description_html: String,
     color: String,
     open: i64,
     completed: i64,
@@ -777,6 +798,7 @@ async fn space_page(
     let overview = s.run(move |db| {
         let id = crate::defaults::resolve(&db.conn, "workspace", &id)?;
         let workspace = db.workspace(&actor, &id)?;
+        let description_html = crate::taxonomy::render_description(&db.conn, &actor, &workspace.description)?;
         let rank = db.workspace_permission(&actor, &id)?;
         let archived = db.conn.query_row("SELECT coalesce((SELECT archived FROM workspace_lifecycle WHERE workspace_id=?1),0)", [&id], |r| r.get::<_,bool>(0))?;
         let reference = crate::defaults::public_id(&db.conn, "workspace", &id)?;
@@ -786,11 +808,12 @@ async fn space_page(
         let lists = query.query_map(rusqlite::params![actor,id], |r| {
             let description: String = r.get(2)?;
             let open: i64 = r.get(4)?; let completed: i64 = r.get(5)?;
-            Ok(SpaceListCard { emoji:r.get(8)?, archive_note:String::new(), id:r.get(0)?, title:r.get(1)?, description: if description.chars().count()>160 { format!("{}…",description.chars().take(160).collect::<String>()) } else {description},color:r.get(3)?,open,completed,total:open+completed,p0:r.get(6)?,p1:r.get(7)?,favorite:false })
+            Ok((SpaceListCard { emoji:r.get(8)?, archive_note:String::new(), id:r.get(0)?, title:r.get(1)?, description_html:String::new(),color:r.get(3)?,open,completed,total:open+completed,p0:r.get(6)?,p1:r.get(7)?,favorite:false }, description))
         })?.collect::<Result<Vec<_>,_>>()?;
         let mut archived_lists = Vec::new();
         let mut active_lists = Vec::new();
-        for mut card in lists {
+        for (mut card, description) in lists {
+            card.description_html = crate::taxonomy::render_description(&db.conn, &actor, &description)?;
             if db.list_info(&actor, &card.id)?.archived { card.archive_note = db.list_archive_note(&actor, &card.id)?.unwrap_or_default(); archived_lists.push(card); }
             else { active_lists.push(card); }
         }
@@ -810,7 +833,7 @@ async fn space_page(
         let tasks = tasks.iter().filter(|row| lists.iter().any(|list| list.id == row.task.list_id)).collect::<Vec<_>>();
         let planned_today = tasks.iter().filter(|row| row.dates.iter().any(|date| date == &today.to_string())).count();
         let planned_week = tasks.len();
-        Ok(SpaceOverview { archived, can_restore: archived && rank>=3, sidebar, workspace, reference, lists, archived_lists, open, completed, total:open+completed, planned_today, planned_week, can_edit:rank>=3 && !archived, can_create:rank>=2 && !archived })
+        Ok(SpaceOverview { archived, can_restore: archived && rank>=3, sidebar, workspace, description_html, reference, lists, archived_lists, open, completed, total:open+completed, planned_today, planned_week, can_edit:rank>=3 && !archived, can_create:rank>=2 && !archived })
     }).await?;
     if requested != overview.reference {
         return Ok(Redirect::to(&format!("/space/{}", overview.reference)).into_response());
@@ -826,7 +849,7 @@ async fn workspace_page(
         return Ok(Redirect::to("/signin").into_response());
     };
     let csrf = s.csrf_for(&h);
-    let (sidebar, slugs, workspace, lists, members, rank) = s
+    let (sidebar, slugs, workspace, lists, members, rank, description_html, list_descriptions) = s
         .run(move |db| {
             let workspace = db.workspace(&actor, &id)?;
             let rank = db.workspace_permission(&actor, &id)?;
@@ -868,7 +891,31 @@ async fn workspace_page(
                     .get(&workspace.id)
                     .unwrap_or(&workspace.title)
             );
-            Ok((sidebar, slugs, workspace, lists, members, rank))
+            let description_html =
+                crate::taxonomy::render_description(&db.conn, &actor, &workspace.description)?;
+            let list_descriptions = lists
+                .iter()
+                .map(|info| {
+                    Ok((
+                        info.list.id.clone(),
+                        crate::taxonomy::render_description(
+                            &db.conn,
+                            &actor,
+                            &info.list.description,
+                        )?,
+                    ))
+                })
+                .collect::<Result<_, Error>>()?;
+            Ok((
+                sidebar,
+                slugs,
+                workspace,
+                lists,
+                members,
+                rank,
+                description_html,
+                list_descriptions,
+            ))
         })
         .await?;
     html(WorkspacePage {
@@ -876,7 +923,9 @@ async fn workspace_page(
         slugs,
         csrf: s.csrf_for(&h),
         workspace,
+        description_html,
         lists,
+        list_descriptions,
         members,
         can_edit: rank >= 2,
         owner: rank >= 3,
@@ -890,8 +939,8 @@ async fn sharing_page(
     let Ok(actor) = s.auth(&h, false) else {
         return Ok(Redirect::to("/signin").into_response());
     };
-    let (info, sections, grants, rank, owner, color, emoji) = s
-        .run(move |db| {
+    let (info, sections, grants, rank, owner, color, emoji, description_html, section_descriptions) =
+        s.run(move |db| {
             let info = db.list_info(&actor, &id)?;
             let rank = db.list_permission(&actor, &id)?;
             let owner = match &info.workspace_id {
@@ -903,14 +952,32 @@ async fn sharing_page(
             } else {
                 vec![]
             };
+            let description_html =
+                crate::taxonomy::render_description(&db.conn, &actor, &info.list.description)?;
+            let sections = db.sections(&actor, &id)?;
+            let section_descriptions = sections
+                .iter()
+                .map(|section| {
+                    Ok((
+                        section.id.clone(),
+                        crate::taxonomy::render_description(
+                            &db.conn,
+                            &actor,
+                            &section.description,
+                        )?,
+                    ))
+                })
+                .collect::<Result<_, Error>>()?;
             Ok((
                 info,
-                db.sections(&actor, &id)?,
+                sections,
                 grants,
                 rank,
                 owner,
                 db.list_color(&actor, &id)?.unwrap_or_default(),
                 db.list_emoji(&actor, &id)?,
+                description_html,
+                section_descriptions,
             ))
         })
         .await?;
@@ -920,6 +987,8 @@ async fn sharing_page(
         csrf: s.csrf_for(&h),
         info,
         sections,
+        description_html,
+        section_descriptions,
         grants,
         can_edit: rank >= 2,
         owner,

@@ -663,6 +663,7 @@ struct ListPage {
     sidebar: Sidebar,
     slug: String,
     list: List,
+    description_html: String,
     groups: Vec<TaskGroup>,
     task_count: usize,
     color: String,
@@ -732,7 +733,7 @@ fn rendered_tasks(db: &Store, actor: &str, list: &str) -> Result<Vec<RenderedTas
             let description_html = if task.description.is_empty() {
                 String::new()
             } else {
-                crate::taxonomy::render_references(
+                crate::taxonomy::render_indexed_description(
                     &db.conn,
                     actor,
                     "task",
@@ -817,7 +818,8 @@ fn grouped_rows(
         )? {
             continue;
         }
-        let description_html = crate::markdown::render(&section.description);
+        let description_html =
+            crate::taxonomy::render_description(&db.conn, actor, &section.description)?;
         groups.push(TaskGroup {
             collapsed: collapsed.contains(&section.id),
             reference: crate::defaults::public_id(&db.conn, "section", &section.id)?,
@@ -999,7 +1001,8 @@ pub(super) async fn page(
         .find(|item| item.id == list.id)
         .map(|item| item.slug.clone())
         .unwrap_or_else(|| list.title.clone());
-    let (groups, task_count, can_write, color, emoji, change_cursor) = s
+    let description = list.description.clone();
+    let (groups, task_count, can_write, color, emoji, change_cursor, description_html) = s
         .run(move |db| {
             let (groups, count) = grouped_rows(db, &actor, &id, hide_completed)?;
             Ok((
@@ -1009,6 +1012,7 @@ pub(super) async fn page(
                 db.list_color(&actor, &id)?.unwrap_or_else(|| "blue".into()),
                 db.list_emoji(&actor, &id)?,
                 db.conn.query_row("SELECT COALESCE(MAX(h.seq),0) FROM history h JOIN actor_list_access a ON a.list_id=h.list_id WHERE a.actor_id=?1",[&actor],|r|r.get::<_,i64>(0))?,
+                crate::taxonomy::render_description(&db.conn, &actor, &description)?,
             ))
         })
         .await?;
@@ -1041,6 +1045,7 @@ pub(super) async fn page(
         color,
         emoji,
         list,
+        description_html,
         groups,
         task_count,
         csrf: s.csrf_for(&h),
@@ -1074,11 +1079,7 @@ async fn description_fragment(
     let actor = s.auth(&h, false)?;
     let html = s
         .run(move |db| {
-            let task = db
-                .subtree(&actor, &id)?
-                .into_iter()
-                .find(|t| t.id == id || t.reference == id)
-                .ok_or(Error::NotFound)?;
+            let task = crate::core::task(&db.conn, &id)?;
             crate::taxonomy::render_references(
                 &db.conn,
                 &actor,

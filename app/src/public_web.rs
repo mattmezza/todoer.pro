@@ -130,8 +130,18 @@ pub(super) async fn show(
 ) -> Result<Response, ApiError> {
     let kind = kind.to_string();
     let id = id.to_string();
-    let doc = s
-        .run(move |db| db.public_document(&kind, &id, page))
+    let (doc, description, descriptions) = s
+        .run(move |db| {
+            let doc = db.public_document(&kind, &id, page)?;
+            let description =
+                crate::taxonomy::render_public_description(&db.conn, &doc.description)?;
+            let descriptions = doc
+                .items
+                .iter()
+                .map(|item| crate::taxonomy::render_public_description(&db.conn, &item.description))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok((doc, description, descriptions))
+        })
         .await?;
     let path = format!("/public/{}/{}", doc.kind, doc.reference);
     let summary = plain(&doc.description);
@@ -148,9 +158,9 @@ pub(super) async fn show(
         &format!("/og/{}/{}.png", doc.kind, doc.reference),
     );
     let mut body = String::new();
-    for item in &doc.items {
+    for (item, description) in doc.items.iter().zip(descriptions) {
         let url = format!("/public/{}/{}", item.kind, item.reference);
-        body.push_str(&format!("<article class=\"public-item public-depth-{}\"><span class=\"public-check\" aria-label=\"{}\">{}</span><div><a href=\"{}\">{}</a>{}</div></article>",item.depth.min(8),if item.complete{"Completed"}else{"Incomplete"},if item.kind=="list"{"#"}else if item.complete{"✓"}else{"○"},url,esc(&item.title),if item.description.is_empty(){String::new()}else{format!("<div class=\"markdown public-item-description\">{}</div>",crate::markdown::render(&item.description))}));
+        body.push_str(&format!("<article class=\"public-item public-depth-{}\"><span class=\"public-check\" aria-label=\"{}\">{}</span><div><a href=\"{}\">{}</a>{}</div></article>",item.depth.min(8),if item.complete{"Completed"}else{"Incomplete"},if item.kind=="list"{"#"}else if item.complete{"✓"}else{"○"},url,esc(&item.title),if item.description.is_empty(){String::new()}else{format!("<div class=\"markdown public-item-description\">{}</div>",description)}));
     }
     if doc.has_more {
         body.push_str(&format!(
@@ -160,7 +170,7 @@ pub(super) async fn show(
             page.clamp(1, 10000) + 1
         ));
     }
-    Ok(Html(format!("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>{} · Todoer</title>{meta}<link rel=\"stylesheet\" href=\"/assets/app.css\"></head><body class=\"public-page\"><header class=\"public-header\"><a class=\"brand todoer-logo\" href=\"/\" aria-label=\"Todoer Pro\"><span class=\"todoer-logo-word\"><span class=\"logo-expanded\">todoer</span><span class=\"logo-collapsed\">t</span></span><span class=\"todoer-logo-pro\">pro</span></a><span>Shared · Read only</span><a href=\"/signin\">Sign in</a></header><main><h1>{}</h1><div class=\"markdown public-description\">{}</div><section>{body}</section></main></body></html>",esc(&doc.title),esc(&doc.title),crate::markdown::render(&doc.description))).into_response())
+    Ok(Html(format!("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"robots\" content=\"noindex\"><title>{} · Todoer</title>{meta}<link rel=\"stylesheet\" href=\"/assets/app.css\"></head><body class=\"public-page\"><header class=\"public-header\"><a class=\"brand todoer-logo\" href=\"/\" aria-label=\"Todoer Pro\"><span class=\"todoer-logo-word\"><span class=\"logo-expanded\">todoer</span><span class=\"logo-collapsed\">t</span></span><span class=\"todoer-logo-pro\">pro</span></a><span>Shared · Read only</span><a href=\"/signin\">Sign in</a></header><main><h1>{}</h1><div class=\"markdown public-description\">{}</div><section>{body}</section></main></body></html>",esc(&doc.title),esc(&doc.title),description)).into_response())
 }
 async fn image(
     State(s): State<AppState>,

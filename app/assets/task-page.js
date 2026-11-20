@@ -649,7 +649,9 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
         row.addEventListener('contextmenu', (event) => {
           if (
             !canWrite ||
-            event.target.closest('input,textarea,button,summary,[data-child-inline]')
+            event.target.closest(
+              'input,textarea,button,summary,[data-child-inline],.markdown a',
+            )
           )
             return;
           event.preventDefault();
