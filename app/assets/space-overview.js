@@ -24,7 +24,10 @@ onPageLoad((scope) => {
     if (input === title) title.select();
   }
   scope.listen(root, 'click', (event) => {
-    if (event.target.closest('[data-space-edit],[data-space-edit-open]'))
+    if (
+      event.target.closest('[data-space-edit],[data-space-edit-open]') &&
+      !event.target.closest('a')
+    )
       editSpace(event.target);
     if (event.target.closest('[data-space-edit-cancel]')) {
       form.hidden = true;

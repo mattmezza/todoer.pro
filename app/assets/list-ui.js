@@ -169,7 +169,11 @@ export function mountListUi({ api, notice, listId }) {
     }
   }
   scope.listen(document, 'click', async (event) => {
-    if (event.target.closest('[data-list-edit-open]') && canWrite) {
+    if (
+      event.target.closest('[data-list-edit-open]') &&
+      !event.target.closest('a') &&
+      canWrite
+    ) {
       closeMenus();
       edit.hidden = false;
       document.querySelector('[data-list-display]').hidden = true;
@@ -294,7 +298,11 @@ export function mountListUi({ api, notice, listId }) {
     }
   });
   scope.listen(document.querySelector('.list-description'), 'keydown', (event) => {
-    if (canWrite && (event.key === 'Enter' || event.key === ' ')) {
+    if (
+      canWrite &&
+      event.target === event.currentTarget &&
+      (event.key === 'Enter' || event.key === ' ')
+    ) {
       event.preventDefault();
       event.currentTarget.click();
     }

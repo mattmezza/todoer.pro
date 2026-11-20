@@ -731,7 +731,12 @@ dialog h2 {
 }
 .markdown a {
   color: var(--accent);
+  overflow-wrap: anywhere;
   text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
+.markdown a:hover {
+  text-decoration-thickness: 2px;
 }
 .markdown ul {
   list-style: disc;

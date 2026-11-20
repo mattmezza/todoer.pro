@@ -1,12 +1,87 @@
+use linkify::{LinkFinder, LinkKind};
+use pulldown_cmark::{CowStr, Event, LinkType, Options, Parser, Tag, TagEnd};
+
+pub(crate) const OPTIONS: Options = Options::ENABLE_STRIKETHROUGH.union(Options::ENABLE_TABLES);
+
 /// Render CommonMark, then sanitize the resulting HTML. Raw executable HTML,
 /// dangerous URL schemes and remote images are never trusted.
 pub fn render(source: &str) -> String {
-    let parser = pulldown_cmark::Parser::new_ext(
-        source,
-        pulldown_cmark::Options::ENABLE_STRIKETHROUGH | pulldown_cmark::Options::ENABLE_TABLES,
-    );
+    render_events(Parser::new_ext(source, OPTIONS))
+}
+
+pub(crate) fn web_links<'a>(
+    finder: &'a LinkFinder,
+    text: &'a str,
+) -> impl Iterator<Item = (usize, usize)> {
+    finder.links(text).filter_map(|link| {
+        let (scheme, _) = link.as_str().split_once("://")?;
+        (scheme.eq_ignore_ascii_case("https") || scheme.eq_ignore_ascii_case("http"))
+            .then(|| (link.start(), link.end()))
+    })
+}
+
+pub(crate) fn link_finder() -> LinkFinder {
+    let mut finder = LinkFinder::new();
+    finder.kinds(&[LinkKind::Url]);
+    finder
+}
+
+pub(crate) fn link<'a>(url: CowStr<'a>, text: CowStr<'a>, title: CowStr<'a>) -> [Event<'a>; 3] {
+    [
+        Event::Start(Tag::Link {
+            link_type: LinkType::Inline,
+            dest_url: url,
+            title,
+            id: CowStr::Borrowed(""),
+        }),
+        Event::Text(text),
+        Event::End(TagEnd::Link),
+    ]
+}
+
+pub(crate) fn render_events<'a>(events: impl IntoIterator<Item = Event<'a>>) -> String {
+    let finder = link_finder();
+    let mut output = Vec::new();
+    let mut text = String::new();
+    let mut excluded = 0usize;
+    let flush = |text: &mut String, output: &mut Vec<Event<'a>>| {
+        let mut cursor = 0;
+        for (start, end) in web_links(&finder, text) {
+            if start > cursor {
+                output.push(Event::Text(text[cursor..start].to_owned().into()));
+            }
+            output.extend(link(
+                text[start..end].to_owned().into(),
+                text[start..end].to_owned().into(),
+                "".into(),
+            ));
+            cursor = end;
+        }
+        if cursor < text.len() {
+            output.push(Event::Text(text[cursor..].to_owned().into()));
+        }
+        text.clear();
+    };
+    for event in events {
+        if let Event::Text(chunk) = &event
+            && excluded == 0
+        {
+            text.push_str(chunk);
+            continue;
+        }
+        flush(&mut text, &mut output);
+        match event {
+            Event::Start(Tag::CodeBlock(_) | Tag::Link { .. } | Tag::Image { .. }) => excluded += 1,
+            Event::End(TagEnd::CodeBlock | TagEnd::Link | TagEnd::Image) => {
+                excluded = excluded.saturating_sub(1);
+            }
+            _ => {}
+        }
+        output.push(event);
+    }
+    flush(&mut text, &mut output);
     let mut html = String::new();
-    pulldown_cmark::html::push_html(&mut html, parser);
+    pulldown_cmark::html::push_html(&mut html, output.into_iter());
     sanitize(&html)
 }
 /// Only authenticated local attachment images may load inside Markdown.
@@ -52,6 +127,18 @@ pub(crate) fn sanitize(html: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn links_pasted_web_urls_and_keeps_markdown_links_and_code_intact() {
+        let html = render(
+            "See (https://example.test/a_(b)?x=1&y=2), [label](https://example.test/explicit), \
+             `https://example.test/code` and [https://example.test/label](/local).",
+        );
+        assert_eq!(html.matches("<a ").count(), 3);
+        assert!(html.contains("href=\"https://example.test/a_(b)?x=1&amp;y=2\""));
+        assert!(html.contains(">label</a>"));
+        assert!(html.contains("<code>https://example.test/code</code>"));
+        assert!(html.contains(">https://example.test/label</a>"));
+    }
     #[test]
     fn permits_only_local_attachment_images() {
         let html = render(

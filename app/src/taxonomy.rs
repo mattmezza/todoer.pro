@@ -1086,9 +1086,7 @@ pub fn render_references(
         }
         events.push(event.into_static());
     }
-    let mut html = String::new();
-    pulldown_cmark::html::push_html(&mut html, events.into_iter());
-    Ok(crate::markdown::sanitize(&html))
+    Ok(crate::markdown::render_events(events))
 }
 fn append_text_events(events: &mut Vec<Event<'static>>, raw: &str) {
     for event in Parser::new(raw) {
