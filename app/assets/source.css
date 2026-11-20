@@ -4958,7 +4958,7 @@ dialog:is(
 }
 .about-handle {
   font-weight: 400;
-  color: #a1a1aa;
+  color: var(--muted);
   font-size: 14px;
 }
 .about-dialog footer {
@@ -4967,13 +4967,13 @@ dialog:is(
 }
 .about-dialog address {
   font-style: normal;
-  color: #a1a1aa;
+  color: var(--muted);
   margin-top: 8px;
   line-height: 1.6;
 }
 .about-dialog .about-release {
   margin: 20px 0 0;
-  color: #818b9d;
+  color: var(--muted);
   font-size: 13px !important;
 }
 
@@ -4998,7 +4998,7 @@ textarea {
   -webkit-font-smoothing: antialiased;
 }
 .todoer-logo .todoer-logo-word {
-  color: #e4e4e7;
+  color: light-dark(#1e293b, #e4e4e7);
   font: inherit;
   letter-spacing: -2px;
   margin-left: 0;
@@ -5010,7 +5010,7 @@ textarea {
   line-height: 20px;
   letter-spacing: -0.05em;
   color: transparent;
-  background: linear-gradient(to bottom left, #c7d2fe, #4f46e5);
+  background: linear-gradient(to bottom left, light-dark(#5143c5, #c7d2fe), #4f46e5);
   background-clip: text;
   -webkit-background-clip: text;
 }
