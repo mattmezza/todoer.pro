@@ -1,3 +1,4 @@
+import { trashTask } from './task-trash.js';
 import { pendingTaskRow } from './pending-task.js';
 import { taskIndicators } from './task-indicators.js';
 import { createTaskSwipeActions } from './task-swipe-actions.js';
@@ -72,7 +73,7 @@ export async function previewTaskMove(
 
 export function mountTaskPage(
   root,
-  { embedded = false, onSchedule, onOpenTask, onCompletion } = {},
+  { embedded = false, onSchedule, onOpenTask, onCompletion, onChildTrashed } = {},
 ) {
   const lifecycle = new AbortController();
   const get = (selector) => root.querySelector(selector);
@@ -432,7 +433,7 @@ export function mountTaskPage(
       promote.dataset.taskPromote = id;
       promote.innerHTML =
         '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#arrow-up"/></svg><span>Move to parent…</span>';
-      get('.task-context-menu > div').append(promote);
+      get('.task-context-menu [data-trash]').before(promote);
     }
     promote.hidden = !canWrite || !task.parent_id;
     get('[data-edit-title]').textContent = task.title;
@@ -681,7 +682,16 @@ export function mountTaskPage(
           promote.dataset.taskPromote = child.id;
           promote.innerHTML =
             '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#move"/></svg><span>Move to parent…</span>';
-          actions.append(promote);
+          const trash = document.createElement('button');
+          trash.type = 'button';
+          trash.dataset.trash = '';
+          trash.innerHTML =
+            '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#trash"/></svg><span>Move to trash…</span>';
+          trash.onclick = () => {
+            menu.open = false;
+            moveTaskToTrash(child, row);
+          };
+          actions.append(promote, trash);
           menu.append(summary, actions);
           line.append(menu);
         }
@@ -1062,32 +1072,37 @@ export function mountTaskPage(
       notice(`Task permalink: ${new URL(`/tasks/${id}`, location.origin).href}`);
     }
   };
-  get('[data-trash]').onclick = async () => {
-    if (
-      !canWrite ||
-      busy ||
-      !(await confirmAction(
-        'Move this task and all its sub-tasks to trash? Unsaved drafts remain on this device.',
-      ))
-    )
-      return;
+  async function moveTaskToTrash(target, element) {
+    if (!canWrite || busy) return;
     const release = beginWrite();
     try {
-      await api(`/tasks/${encodeURIComponent(id)}/trash`, 'POST', {
-        revision: task.revision,
-      });
-      if (embedded)
+      if (!(await trashTask(api, target, element, lifecycle.signal))) return;
+      if (target.id !== id) {
+        element.remove();
+        pending = true;
+        onChildTrashed?.();
+      } else if (embedded) {
         root.dispatchEvent(
           new CustomEvent('todoer:task-trashed', { bubbles: true, detail: { id } }),
         );
-      else navigate(`/lists/${encodeURIComponent(task.list_id)}`);
+      } else {
+        pending = true;
+        await navigate(`/lists/${encodeURIComponent(task.list_id)}`);
+      }
     } catch (error) {
       conflict(error.message);
       pending = true;
     } finally {
+      // A failed navigation can leave the trashed task on screen for the next refresh.
+      if (!embedded && target.id === id && element.isConnected)
+        element
+          .getAnimations()
+          .find((animation) => animation.id === 'task-trash')
+          ?.cancel();
       release();
     }
-  };
+  }
+  get('.task-context-menu [data-trash]').onclick = () => moveTaskToTrash(task, root);
   const childForm = get('[data-child-form]'),
     childTitle = get('[data-child-form] [name=title]'),
     childDescription = get('[data-child-form] [name=description]');

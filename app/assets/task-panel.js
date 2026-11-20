@@ -217,6 +217,7 @@ export function createTaskPanel({
         embedded: true,
         onOpenTask: open,
         onCompletion: onChanged,
+        onChildTrashed: onChanged,
         onSchedule: (value) => {
           if (version === generation && priorityVersion === 0)
             selectPriority(value.schedule.priority ?? 3);

@@ -1,5 +1,6 @@
 import { pendingTaskRow } from './pending-task.js';
 import { createTaskSwipeActions } from './task-swipe-actions.js';
+import { trashTask } from './task-trash.js';
 import { createTaskPanel } from './task-panel.js';
 import { mountStructuredEdit } from './structured-edit.js';
 import { reconcileCapturedTasks, reconcileTasks } from './task-list-refresh.js';
@@ -127,7 +128,7 @@ onPageLoad((scope) => {
       inlineEditors.size > 0 ||
       Boolean(
         $(
-          '#task-list .task-actions[open],#task-list .entity-menu[open],#task-list [data-activation-pending],#task-list [data-completion-pending]',
+          '#task-list .task-actions[open],#task-list .entity-menu[open],#task-list [data-activation-pending],#task-list [data-completion-pending],#task-list [data-trash-pending]',
         ),
       ) ||
       [
@@ -364,6 +365,33 @@ onPageLoad((scope) => {
   scope.listen($('#task-list'), 'click', async (e) => {
     const row = e.target.closest('.task');
     if (!row) return;
+    if (row.hasAttribute('data-trash-pending')) return;
+    if (e.target.closest('[data-trash]')) {
+      if (!canWrite || row.hasAttribute('data-completion-pending')) return;
+      row.dataset.trashPending = '';
+      row.querySelector('details').open = false;
+      try {
+        if (
+          await trashTask(
+            api,
+            { id: row.dataset.id, revision: Number(row.dataset.revision) },
+            row,
+            scope.signal,
+          )
+        ) {
+          row.remove();
+          $('#task-count').textContent = $$('#task-list .task').length;
+          pendingRefresh = true;
+        }
+      } catch (error) {
+        notice(error.message, true);
+        pendingRefresh ||= error.status === 409;
+      } finally {
+        delete row.dataset.trashPending;
+        if (pendingRefresh && !draftActive()) refresh();
+      }
+      return;
+    }
     const forceSubtree = Boolean(e.target.closest('[data-action="complete-subtree"]'));
     if (e.target.closest('.completion') || forceSubtree) {
       const button = row.querySelector('.completion');

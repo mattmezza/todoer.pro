@@ -7723,7 +7723,6 @@ form[data-list-edit] [role='alert']:empty {
     .task-settings-dock-toggle,
     .task-due-summary,
     .task-priority-summary,
-    .task-child-menu,
     .task-files-empty
   ) {
   display: none !important;
@@ -14140,4 +14139,8 @@ body form.entry-form > label.sr-only {
   .planning-detail-content .task-page-child-line > .task-indicators {
     right: 0;
   }
+}
+
+:is(.task-actions, .task-child-menu, .task-context-menu) > div > button[data-trash] {
+  color: light-dark(#a61d2d, #fda4af);
 }
