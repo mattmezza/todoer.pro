@@ -216,6 +216,7 @@ export function createTaskPanel({
       stop = mountTaskPage(task, {
         embedded: true,
         onOpenTask: open,
+        onCompletion: onChanged,
         onSchedule: (value) => {
           if (version === generation && priorityVersion === 0)
             selectPriority(value.schedule.priority ?? 3);

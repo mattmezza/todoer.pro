@@ -12,6 +12,7 @@ export function createTaskSwipeActions({
   changed,
   getTask,
   beginWrite,
+  onCompletion,
 }) {
   let active = true;
   const swipeUndo = [];
@@ -72,7 +73,10 @@ export function createTaskSwipeActions({
           swipeUndo.splice(swipeUndo.indexOf(item), 1);
           element.remove();
           showSwipeUndo();
-          if (active) changed();
+          if (active) {
+            if (action === 'complete') onCompletion?.();
+            changed();
+          }
         } catch (error) {
           if (active) notice(`${error.message} The task could not be restored.`, true);
           undo.disabled = false;
@@ -90,6 +94,7 @@ export function createTaskSwipeActions({
           row.dataset.revision = result.revision;
           row.classList.add('is-complete');
         }
+        onCompletion?.();
         if (control) {
           setCompletionIcon(control, true);
           control.setAttribute('aria-pressed', 'true');

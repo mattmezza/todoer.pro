@@ -70,7 +70,10 @@ export async function previewTaskMove(
   return api('/bulk/preview', 'POST', { operations });
 }
 
-export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask } = {}) {
+export function mountTaskPage(
+  root,
+  { embedded = false, onSchedule, onOpenTask, onCompletion } = {},
+) {
   const lifecycle = new AbortController();
   const get = (selector) => root.querySelector(selector);
   const id = root.dataset.taskId,
@@ -925,6 +928,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
         );
       }
       pending = true;
+      onCompletion?.();
       notice('');
       if (wasComplete !== updated.complete)
         await animateTaskCompletion(control, updated.complete);
@@ -1456,6 +1460,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
     api,
     notice,
     beginWrite,
+    onCompletion,
     getTask: (row) => children.get(row.dataset.childId),
     changed: () => {
       pending = true;
@@ -1546,6 +1551,7 @@ export function mountTaskPage(root, { embedded = false, onSchedule, onOpenTask }
     { signal: lifecycle.signal },
   );
   cleanup.ready = Promise.all([ready, discussion.ready, scheduling.ready]);
+  cleanup.refresh = refresh;
   return cleanup;
 }
 onPageLoad(async (scope) => {
@@ -1554,8 +1560,12 @@ onPageLoad(async (scope) => {
   // Load the shared panel after this module so its shared task controller is ready.
   const { createTaskPanel } = await import('./task-panel.js');
   if (scope.signal.aborted) return;
-  const panel = createTaskPanel({ csrf: taskPage.dataset.csrf });
+  const panel = createTaskPanel({
+    csrf: taskPage.dataset.csrf,
+    onChanged: () => mounted.refresh(),
+  });
   scope.cleanup(() => panel.destroy());
   mountBreakdown(taskPage);
-  return mountTaskPage(taskPage, { onOpenTask: (url) => panel.open(url) });
+  const mounted = mountTaskPage(taskPage, { onOpenTask: (url) => panel.open(url) });
+  return mounted;
 });

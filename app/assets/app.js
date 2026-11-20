@@ -35,12 +35,18 @@ onPageLoad((scope) => {
   }
   restoreMainCapture();
   scope.listen(document.body, 'htmx:after:swap', restoreMainCapture);
+  let selectedTask;
+  function highlightSelection(container = $('#task-list')) {
+    if (!container) return;
+    for (const row of container.querySelectorAll('.task'))
+      row.classList.toggle('is-selected', row.dataset.id === selectedTask);
+  }
   const taskPanel = createTaskPanel({
     csrf,
-    onChanged: () => refresh(true),
+    onChanged: () => refresh(),
     onSelected: (id) => {
-      for (const row of $$('#task-list .task'))
-        row.classList.toggle('is-selected', row.dataset.id === id);
+      selectedTask = id;
+      highlightSelection();
     },
     onClose: () => {
       if (pendingRefresh) refresh();
@@ -125,7 +131,6 @@ onPageLoad((scope) => {
           '#task-list .task-actions[open],#task-list .entity-menu[open],#task-list [data-activation-pending],#task-list [data-completion-pending]',
         ),
       ) ||
-      taskPanel.isOpen ||
       [
         ...document.querySelectorAll(
           '.inline-capture:not([hidden]) input[name=title],.inline-capture:not([hidden]) textarea',
@@ -140,7 +145,7 @@ onPageLoad((scope) => {
   });
   function refresh(force = false) {
     if (scope.signal.aborted) return;
-    if (inlineEditors.size || taskPanel.isOpen || (!force && draftActive())) {
+    if (inlineEditors.size || (!force && draftActive())) {
       pendingRefresh = true;
       $('#refresh-notice').hidden = false;
       return;
@@ -162,8 +167,7 @@ onPageLoad((scope) => {
     window.htmx.trigger('#task-list', 'tasks-refresh');
   }
   $('#refresh-now').onclick = () => {
-    if (taskPanel.isOpen || inlineEditors.size)
-      notice('Finish or close the task editor first.');
+    if (inlineEditors.size) notice('Finish or close the task editor first.');
     else refresh(true);
   };
   scope.listen(document.body, 'htmx:before:swap', (e) => {
@@ -176,6 +180,7 @@ onPageLoad((scope) => {
     } else if (target?.id === 'task-list') {
       const incoming = document.createElement('div');
       incoming.innerHTML = e.detail.ctx.text;
+      highlightSelection(incoming);
       reconcileTasks(target, incoming);
       for (const [key, id] of confirmedCaptures) {
         pendingRows.get(key)?.remove();
@@ -539,7 +544,7 @@ onPageLoad((scope) => {
     request: api,
     changed: () => refresh(),
     error: (message) => notice(message, true),
-    blocked: () => draftActive(true),
+    blocked: () => taskPanel.isOpen || draftActive(true),
   });
 
   scope.cleanup(

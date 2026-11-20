@@ -87,6 +87,107 @@ test('task detail confirms nested completion and skips confirmation when childre
   await expect(modal).not.toBeVisible();
 });
 
+test('panel completion updates the list row and section progress without closing the panel', async ({
+  page,
+}) => {
+  const { api, capture, list } = await setup(page);
+  const section = await api(`/lists/${list.id}/sections`, 'POST', {
+    title: 'Panel completion',
+  });
+  const [parent] = await api('/capture', 'POST', {
+    list_id: list.id,
+    section_id: section.id,
+    tasks: [{ title: 'Panel parent' }],
+  });
+  const child = await capture('Panel child', parent.id);
+  await page.route('**/api/v1/events?*', (route) => route.abort());
+  await page.goto(`/lists/${list.id}`);
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  const panel = page.getByRole('complementary', { name: 'Task details' });
+  const row = page.locator(`.task[data-id="${parent.id}"]`);
+  const button = row.locator('.completion');
+  const progress = page.locator(`[data-section-id="${section.id}"] .section-progress`);
+  const openPanel = async () => {
+    await row.locator('.task-menu').click();
+    await row.getByRole('button', { name: 'Open details' }).click();
+  };
+  await expect(progress).toHaveText('0%');
+  await openPanel();
+  await expect(row).toHaveClass(/is-selected/);
+
+  await panel.getByRole('button', { name: 'Complete Panel child' }).click();
+  await expect(progress).toHaveText('100%');
+  await expect(button).toHaveAttribute('aria-pressed', 'false');
+
+  const rootComplete = panel.locator('[data-root-complete]');
+  await rootComplete.click();
+  await expect(button).toHaveAccessibleName('Reopen Panel parent');
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+  await expect(row).toHaveClass(/is-complete/);
+  await expect(row).toHaveClass(/is-selected/);
+
+  await panel.getByRole('button', { name: 'Reopen Panel child' }).click();
+  await expect(progress).toHaveText('0%');
+  await expect(button).toHaveAccessibleName('Complete Panel parent');
+  await expect(button).toHaveAttribute('aria-pressed', 'false');
+  await expect(row).not.toHaveClass(/is-complete/);
+  await expect(panel.locator(`[data-child-id="${child.id}"]`)).toBeVisible();
+
+  const modal = page.getByRole('dialog', { name: 'Confirm change' });
+  await expect(rootComplete).toHaveAccessibleName('Complete task');
+  await rootComplete.click();
+  await modal.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(button).toHaveAttribute('aria-pressed', 'false');
+  await rootComplete.click();
+  await modal.getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect(progress).toHaveText('100%');
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+
+  await rootComplete.click();
+  await expect(button).toHaveAttribute('aria-pressed', 'false');
+  await expect(progress).toHaveText('100%');
+  await page.getByRole('button', { name: 'Close task details' }).click();
+  await expect(panel).toHaveCount(0);
+
+  await page.locator('summary[aria-label="List actions"]').click();
+  await page.getByRole('button', { name: 'Hide completed' }).click();
+  await openPanel();
+  await rootComplete.click();
+  await expect(row).toHaveCount(0);
+  await expect(rootComplete).toHaveAccessibleName('Reopen task');
+  await rootComplete.click();
+  await expect(row).toHaveClass(/is-selected/);
+  await expect(button).toHaveAccessibleName('Complete Panel parent');
+});
+
+test('completing and reopening a subtask preview updates its row on the parent page', async ({
+  page,
+}) => {
+  const { api, capture } = await setup(page);
+  const parent = await capture('Parent');
+  const [child] = await api('/capture', 'POST', {
+    list_id: parent.list_id,
+    tasks: [{ title: 'Subtask', description: 'Subtask brief', parent_id: parent.id }],
+  });
+  await page.route('**/api/v1/events?*', (route) => route.abort());
+  await page.goto(`/tasks/${parent.id}`);
+  const row = page.locator(`main [data-child-id="${child.id}"]`);
+  await row.locator('[data-child-description]').click();
+  const panel = page.getByRole('complementary', { name: 'Task details' });
+  const control = panel.locator('[data-root-complete]');
+  await control.click();
+  await expect(row).toHaveAttribute('data-complete', 'true');
+  await expect(row.locator('.task-child-complete')).toHaveAccessibleName(
+    'Reopen Subtask',
+  );
+  await control.click();
+  await expect(row).toHaveAttribute('data-complete', 'false');
+  await expect(row.locator('.task-child-complete')).toHaveAccessibleName(
+    'Complete Subtask',
+  );
+  await expect(panel).toBeVisible();
+});
+
 test('completion checks additional subtree pages before changing a task', async ({
   page,
 }) => {
@@ -142,6 +243,32 @@ test('planning card completion asks before completing unfinished subtasks', asyn
   await expect(modal).toBeVisible();
   await modal.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect.poll(async () => (await current(child.id)).complete).toBe(true);
+});
+
+test('Today shows completion and reopening from the task panel', async ({ page }) => {
+  const { api, capture } = await setup(page);
+  const task = await capture('Planned task');
+  await page.route('**/api/v1/events*', (route) => route.abort());
+  await page.goto('/today');
+  const date = await page
+    .locator('[data-planning-today]')
+    .getAttribute('data-planning-today');
+  const { schedule, task_revision } = await api(`/tasks/${task.id}/schedule`);
+  await api(`/tasks/${task.id}/schedule`, 'PUT', {
+    revision: task_revision,
+    schedule: { ...schedule, planned: { kind: 'date', date } },
+  });
+  await page.reload();
+  const row = page.locator(`[data-planning-task="${task.id}"]`);
+  await row.getByRole('link', { name: 'Planned task' }).click();
+  const panel = page.getByRole('complementary', { name: 'Task details' });
+  const control = panel.locator('[data-root-complete]');
+  await control.click();
+  await expect(row).toHaveClass(/is-complete/);
+  await control.click();
+  await expect(row).not.toHaveClass(/is-complete/);
+  await expect(row).toHaveClass(/is-selected/);
+  await expect(panel).toBeVisible();
 });
 
 test('swiping a parent task asks before completing its subtree', async ({
