@@ -103,7 +103,6 @@ export function mountCaptures({
       description(form).value = '';
       sessionStorage.removeItem(key(section(form)));
       if (!section(form)) sessionStorage.removeItem(`todoer:${account}:draft:${listId}`);
-      notice('Capture saved on this device.');
       await onQueued();
       if (form.isConnected) title(form).focus();
     } catch (error) {

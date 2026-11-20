@@ -1,8 +1,8 @@
-import { animateSavedTask, pendingTaskRow } from './pending-task.js';
+import { pendingTaskRow } from './pending-task.js';
 import { createTaskSwipeActions } from './task-swipe-actions.js';
 import { createTaskPanel } from './task-panel.js';
 import { mountStructuredEdit } from './structured-edit.js';
-import { reconcileTasks } from './task-list-refresh.js';
+import { reconcileCapturedTasks, reconcileTasks } from './task-list-refresh.js';
 
 import { stowInfo } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
@@ -48,9 +48,7 @@ onPageLoad((scope) => {
       selectedTask = id;
       highlightSelection();
     },
-    onClose: () => {
-      if (pendingRefresh) refresh();
-    },
+    onClose: resumeRefresh,
   });
   scope.cleanup(() => taskPanel.destroy());
   let taskPointerDown = false;
@@ -71,7 +69,7 @@ onPageLoad((scope) => {
       () => {
         scope.timeout(() => {
           taskPointerDown = false;
-          if (pendingRefresh && !draftActive()) refresh();
+          resumeRefresh();
         }, 0);
       },
       true,
@@ -82,6 +80,7 @@ onPageLoad((scope) => {
   const inlineEditors = new Map();
   const pendingRows = new Map();
   const confirmedCaptures = new Map();
+  const captureRevisions = new Map();
   let restoreTaskFocus = null;
   const draftKey = `todoer:${account}:draft:${list}`;
   const input = $('#capture-title');
@@ -140,18 +139,20 @@ onPageLoad((scope) => {
       Boolean(window.getSelection()?.toString())
     );
   }
-  scope.listen(document, 'todoer:task-interaction-end', () => {
+  function resumeRefresh() {
     if (pendingRefresh && !draftActive()) refresh();
-  });
-  function refresh(force = false) {
+  }
+  scope.listen(document, 'todoer:task-interaction-end', resumeRefresh);
+  function refresh({ force = false, quiet = false } = {}) {
     if (scope.signal.aborted) return;
     if (inlineEditors.size || (!force && draftActive())) {
       pendingRefresh = true;
-      $('#refresh-notice').hidden = false;
-      return;
+      if (!quiet) $('#refresh-notice').hidden = false;
+      if (!confirmedCaptures.size) return;
+    } else {
+      pendingRefresh = false;
+      $('#refresh-notice').hidden = true;
     }
-    pendingRefresh = false;
-    $('#refresh-notice').hidden = true;
     const active = document.activeElement;
     const focused = active.closest?.('.task');
     restoreTaskFocus = focused
@@ -168,37 +169,48 @@ onPageLoad((scope) => {
   }
   $('#refresh-now').onclick = () => {
     if (inlineEditors.size) notice('Finish or close the task editor first.');
-    else refresh(true);
+    else refresh({ force: true });
   };
+  scope.listen(document.body, 'htmx:before:request', ({ detail: { ctx } }) => {
+    if (ctx.target?.id === 'task-list')
+      ctx.todoerCapturedTasks = new Map(confirmedCaptures);
+  });
   scope.listen(document.body, 'htmx:before:swap', (e) => {
     if (e.detail.ctx?.swap === 'none') return;
     const target = e.detail.ctx?.target;
-    if (target?.id === 'task-list' && draftActive()) {
+    if (target?.id === 'task-list') {
       e.preventDefault();
-      pendingRefresh = true;
-      $('#refresh-notice').hidden = false;
-    } else if (target?.id === 'task-list') {
+      const blocked = draftActive();
+      const captures = e.detail.ctx.todoerCapturedTasks;
+      if (blocked) {
+        pendingRefresh = true;
+        if (!captures?.size) return;
+      }
       const incoming = document.createElement('div');
       incoming.innerHTML = e.detail.ctx.text;
       highlightSelection(incoming);
-      reconcileTasks(target, incoming);
-      for (const [key, id] of confirmedCaptures) {
+      if (blocked) reconcileCapturedTasks(target, incoming, new Set(captures.values()));
+      else reconcileTasks(target, incoming);
+      for (const [key, id] of captures || []) {
+        const selector = `.task[data-id="${CSS.escape(id)}"]`;
+        if (
+          blocked &&
+          !target.querySelector(selector) &&
+          incoming.querySelector(selector)
+        )
+          continue;
         pendingRows.get(key)?.remove();
         pendingRows.delete(key);
-        const row = [...target.querySelectorAll('.task[data-id]')].find(
-          (candidate) => candidate.dataset.id === id,
-        );
-        animateSavedTask(row);
+        confirmedCaptures.delete(key);
       }
-      confirmedCaptures.clear();
-      e.preventDefault();
-      target.dispatchEvent(
-        new CustomEvent('htmx:after:swap', {
-          bubbles: true,
-          detail: { ctx: { target } },
-        }),
-      );
-      $('#task-count').textContent = document.querySelectorAll('#task-list .task').length;
+      if (blocked) $('#task-count').textContent = $$('#task-list .task').length;
+      else
+        target.dispatchEvent(
+          new CustomEvent('htmx:after:swap', {
+            bubbles: true,
+            detail: { ctx: { target } },
+          }),
+        );
     }
   });
   scope.listen(document.body, 'htmx:after:swap', (e) => {
@@ -218,9 +230,11 @@ onPageLoad((scope) => {
     }
   });
   const $$ = (s) => [...main.querySelectorAll(s)];
-  scope.listen(document.body, 'htmx:response:error', () =>
-    notice('Could not refresh tasks. Try again.', true),
-  );
+  scope.listen(document.body, 'htmx:response:error', ({ detail: { ctx } }) => {
+    // The capture queue retries the list read if the save already succeeded.
+    if (!ctx?.todoerCapturedTasks?.size)
+      notice('Could not refresh tasks. Try again.', true);
+  });
   scope.listen(main, 'todoer:completed-filter', () => refresh());
 
   $('#quick-add').onclick = () => {
@@ -248,6 +262,7 @@ onPageLoad((scope) => {
     if (scope.signal.aborted) return;
     const pendingKeys = new Set(confirmedCaptures.keys());
     for (const record of records) {
+      if (confirmedCaptures.has(record.key)) continue;
       if (record.payload.list_id !== list || record.status === 'needs_attention')
         continue;
       const section = $$('#task-list .task-section').find(
@@ -273,6 +288,7 @@ onPageLoad((scope) => {
     const container = $('#pending-captures');
     container.replaceChildren();
     for (const record of records) {
+      if (confirmedCaptures.has(record.key)) continue;
       if (pendingRows.has(record.key) && navigator.onLine && !record.error) continue;
       const row = document.createElement('div');
       row.className = 'pending-row';
@@ -303,11 +319,12 @@ onPageLoad((scope) => {
         });
         if (task?.list_id === list) {
           confirmedCaptures.set(record.key, task.id);
-          const state = pendingRows.get(record.key)?.querySelector('.pending-task-state');
-          if (state) state.textContent = 'Saved';
+          captureRevisions.set(task.id, task.revision);
+          if (captureRevisions.size > 1000)
+            captureRevisions.delete(captureRevisions.keys().next().value);
         }
       });
-      if (result.sent || confirmedCaptures.size) refresh();
+      if (result.sent || confirmedCaptures.size) refresh({ quiet: true });
       if (result.errors.length && navigator.onLine)
         notice(result.errors[0].message, true);
       await showPending();
@@ -335,9 +352,7 @@ onPageLoad((scope) => {
     setBusy: (value) => {
       activeCaptures += value ? 1 : -1;
     },
-    onSettled: () => {
-      if (pendingRefresh) refresh();
-    },
+    onSettled: resumeRefresh,
   });
   scope.listen(window, 'offline', replay);
   $('#retry-captures').onclick = replay;
@@ -419,7 +434,8 @@ onPageLoad((scope) => {
         await animation;
         delete row.dataset.completionPending;
         button.disabled = false;
-        if (refreshAfter || pendingRefresh) refresh();
+        if (refreshAfter) refresh();
+        else resumeRefresh();
       }
     } else if (e.target.closest('[data-action="rename"]')) {
       row.querySelector('details')?.removeAttribute('open');
@@ -452,6 +468,28 @@ onPageLoad((scope) => {
     event.preventDefault();
     renameInline(row);
   });
+  const isListChange = (change) =>
+    change.task?.list_id === list || change.source_list_id === list;
+  async function refreshLive(after, through, knownChanges) {
+    if (activeCaptures || replaying) return refresh({ quiet: true });
+    if (!through || !draftActive() || !captureRevisions.size) return refresh();
+    let quiet = false;
+    try {
+      // The stream carries counts. Identify any late notification for our own
+      // capture before showing a stale-list warning over an unrelated draft.
+      const changes = knownChanges || (await api(`/changes?after=${after}`));
+      const updates = changes.filter(
+        (change) => change.seq <= through && isListChange(change),
+      );
+      quiet =
+        updates.length > 0 &&
+        updates.every(({ task }) => task?.revision <= captureRevisions.get(task?.id));
+      for (const { task } of updates) captureRevisions.delete(task?.id);
+    } catch {
+      // An unrelated update may still need the usual draft protection.
+    }
+    refresh({ quiet });
+  }
   if ('EventSource' in window) {
     const events = scope.track(
       new EventSource(
@@ -462,8 +500,9 @@ onPageLoad((scope) => {
       const data = JSON.parse(e.data);
       if (data.resync || (data.cursor > cursor && data.count > 0)) {
         taskPanel.refreshTags();
+        const after = cursor;
         cursor = data.cursor || cursor;
-        refresh();
+        refreshLive(after, data.resync ? null : cursor);
       }
       cursor = Math.max(cursor, data.cursor || cursor);
       $('#connection').textContent = 'Up to date';
@@ -499,9 +538,9 @@ onPageLoad((scope) => {
       try {
         const changes = await api(`/changes?after=${cursor}`);
         if (changes.length) {
+          const after = cursor;
           cursor = Math.max(cursor, ...changes.map((c) => c.seq));
-          if (changes.some((c) => c.task?.list_id === list || c.source_list_id === list))
-            refresh();
+          if (changes.some(isListChange)) refreshLive(after, cursor, changes);
         }
         $('#connection').textContent = 'Up to date';
       } catch {
@@ -626,7 +665,7 @@ onPageLoad((scope) => {
         if (previousDescription) previousDescription.hidden = false;
         inlineEditors.delete(id);
         display.focus();
-        if (pendingRefresh) refresh();
+        resumeRefresh();
       };
       cancel.onclick = close;
       form.onkeydown = (e) => {
@@ -656,7 +695,7 @@ onPageLoad((scope) => {
             .querySelector('.subtask-edit')
             ?.setAttribute('aria-label', `Edit title for ${result.title}`);
           close();
-          refresh(true);
+          refresh({ force: true });
           notice('');
         } catch (err) {
           stash();

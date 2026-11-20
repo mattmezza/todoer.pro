@@ -1,4 +1,4 @@
-import { animateSavedTask, pendingTaskRow } from './pending-task.js';
+import { pendingTaskRow } from './pending-task.js';
 import { taskIndicators } from './task-indicators.js';
 import { createTaskSwipeActions } from './task-swipe-actions.js';
 import { mountTaskOrdering } from './task-order.js';
@@ -1184,10 +1184,6 @@ export function mountTaskPage(
           ...known,
         });
         renderChildren();
-        const row = [...get('[data-children]').querySelectorAll('[data-child-id]')].find(
-          (row) => row.dataset.childId === created.id,
-        );
-        animateSavedTask(row);
       }
       if (alive) childTitle.focus();
     }

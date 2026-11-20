@@ -47,3 +47,31 @@ export function reconcileTasks(current, incoming) {
   }
   for (const section of sections.values()) if (!retained.has(section)) section.remove();
 }
+
+// A capture can settle while another task or section still has an unsaved edit.
+// Add confirmed rows in server order without replacing any of the mounted rows.
+export function reconcileCapturedTasks(current, incoming, capturedIds) {
+  const sections = new Map(
+    [...current.querySelectorAll(':scope > .task-section')].map((node) => [
+      node.dataset.sectionId,
+      node.querySelector('.section-tasks'),
+    ]),
+  );
+  const rows = new Map(
+    [...current.querySelectorAll('.task[data-id]')].map((row) => [row.dataset.id, row]),
+  );
+  for (const section of incoming.querySelectorAll(':scope > .task-section')) {
+    const target = sections.get(section.dataset.sectionId);
+    if (!target) continue;
+    let next = target.querySelector('.pending-task');
+    for (const row of [...section.querySelectorAll('.section-tasks > .task')].reverse()) {
+      const id = row.dataset.id;
+      const mounted = rows.get(id);
+      if (mounted?.parentElement === target) next = mounted;
+      else if (!mounted && capturedIds.has(id)) {
+        target.insertBefore(row, next);
+        next = row;
+      }
+    }
+  }
+}

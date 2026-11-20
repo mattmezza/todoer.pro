@@ -22,11 +22,3 @@ export function pendingTaskRow(tag, title, description) {
   row.append(check, copy);
   return row;
 }
-
-export function animateSavedTask(row) {
-  if (row && !matchMedia('(prefers-reduced-motion: reduce)').matches)
-    row.animate(
-      [{ backgroundColor: 'var(--hover)' }, { backgroundColor: 'transparent' }],
-      { duration: 220, easing: 'ease-out' },
-    );
-}
