@@ -42,16 +42,15 @@ body.review {
 .review-form input {
   max-width: 100%;
   padding: 9px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-line);
   border-radius: 8px;
   background: var(--sidebar);
   color: var(--text);
-  color-scheme: dark light;
 }
 .review-form button {
   padding: 10px 18px;
   background: var(--accent);
-  color: #07121f;
+  color: light-dark(#fff, #07121f);
   border-radius: 6px;
   min-height: 44px;
 }

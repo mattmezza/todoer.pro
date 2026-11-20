@@ -11,7 +11,7 @@
   padding: 0.5rem;
   border: 1px solid var(--line, #334155);
   border-radius: 0.75rem;
-  background: var(--panel, #11151b);
+  background: light-dark(var(--field), #11151b);
 }
 .ai-account-picker [data-account-results][hidden] {
   display: none;

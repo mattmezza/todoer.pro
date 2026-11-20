@@ -1,6 +1,23 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
+function contrast(foreground, background) {
+  const luminance = (color) =>
+    color
+      .match(/\d+(?:\.\d+)?/g)
+      .slice(0, 3)
+      .map((channel) => Number(channel) / 255)
+      .map((channel) =>
+        channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
+      )
+      .reduce(
+        (sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index],
+        0,
+      );
+  const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+  return (values[0] + 0.05) / (values[1] + 0.05);
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/signin');
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
@@ -56,7 +73,33 @@ test('appearance follows the device and saves an explicit theme across navigatio
   await expect(body).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await page.reload();
   await expect(theme).toHaveValue('light');
+  const sidebar = page.locator('#navigation');
+  const field = await theme.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return [style.color, style.backgroundColor, style.borderTopColor];
+  });
+  expect(contrast(field[0], field[1])).toBeGreaterThanOrEqual(4.5);
+  expect(contrast(field[2], field[1])).toBeGreaterThanOrEqual(3);
+  await page.keyboard.press('Tab');
+  const focused = page.locator(':focus-visible');
+  await expect(focused).toHaveCSS('outline-style', 'solid');
+  await expect(focused).toHaveCSS('outline-width', '2px');
 
+  await page.goto('/lists/inbox');
+  await expect(sidebar).toHaveAttribute('data-theme', 'light');
+  const colors = await page.evaluate(() => ({
+    canvas: getComputedStyle(document.body).backgroundColor,
+    title: getComputedStyle(document.querySelector('h1')).color,
+    description: getComputedStyle(document.querySelector('.list-description')).color,
+    navigation: getComputedStyle(document.querySelector('#navigation')).backgroundColor,
+    navigationLabel: getComputedStyle(document.querySelector('#navigation .nav-link'))
+      .color,
+  }));
+  expect(contrast(colors.title, colors.canvas)).toBeGreaterThanOrEqual(7);
+  expect(contrast(colors.description, colors.canvas)).toBeGreaterThanOrEqual(4.5);
+  expect(contrast(colors.navigationLabel, colors.navigation)).toBeGreaterThanOrEqual(4.5);
+
+  await page.goto('/settings/appearance');
   await page.emulateMedia({ colorScheme: 'light' });
   await theme.selectOption('dark');
   await save.click();
