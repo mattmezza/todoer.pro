@@ -50,9 +50,12 @@ async function openCommentComposer(surface) {
     await composer.locator(':scope > summary').click();
 }
 async function alignedDescription(row) {
-  const title = await row.locator(':scope > .task-page-child-line > a').boundingBox();
-  const brief = await row.locator(':scope > [data-child-description]').boundingBox();
-  expect(Math.abs(title.x - brief.x)).toBeLessThanOrEqual(1);
+  const offset = await row.evaluate((node) => {
+    const title = node.querySelector(':scope > .task-page-child-line > a');
+    const brief = node.querySelector(':scope > [data-child-description]');
+    return Math.abs(title.getBoundingClientRect().x - brief.getBoundingClientRect().x);
+  });
+  expect(offset).toBeLessThanOrEqual(1);
 }
 
 test('capture close target stays clear of the title and description fields', async ({
@@ -158,5 +161,44 @@ test('empty descriptions invite editing on lists, spaces, tasks and subtasks', a
     await expect(page.locator(placeholder)).toHaveText('Add description');
     await page.locator(placeholder).click();
     await expect(page.locator(input)).toBeFocused();
+  }
+});
+
+test('description references and pasted URLs stay clickable across edit surfaces', async ({
+  page,
+}) => {
+  const f = await fixture(page);
+  const { public_reference: childRef } = await f.api(`/tasks/${f.child.id}`);
+  const brief = `See ^${childRef}, https://example.test/read and [jump to content](#main).`;
+  for (const [resource, id] of [
+    ['lists', f.list.id],
+    ['workspaces', f.space.id],
+    ['tasks', f.task.id],
+    ['tasks', f.child.id],
+  ]) {
+    const { revision } = await f.api(`/${resource}/${id}`);
+    await f.api(`/${resource}/${id}`, 'PATCH', { revision, description: brief });
+  }
+
+  for (const [url, selector, editor] of [
+    [`/lists/${f.list.id}`, '.list-description', '[data-list-edit]'],
+    [`/space/${f.space.id}`, '.space-overview-description', '[data-space-edit-form]'],
+    [`/tasks/${f.task.id}`, '[data-saved-description]', '[data-brief-form]'],
+    [
+      `/tasks/${f.task.id}`,
+      `[data-child-id="${f.child.id}"] [data-child-description]`,
+      '[data-child-inline]',
+    ],
+  ]) {
+    await page.goto(url);
+    const content = page.locator(selector);
+    const reference = content.getByRole('link', { name: `^${childRef}` });
+    await expect(reference).toHaveAttribute('title', f.child.title);
+    await expect(reference).toHaveCSS('text-decoration-line', 'underline');
+    await expect(
+      content.getByRole('link', { name: 'https://example.test/read' }),
+    ).toHaveAttribute('href', 'https://example.test/read');
+    await content.getByRole('link', { name: 'jump to content' }).press('Enter');
+    await expect(page.locator(editor)).toBeHidden();
   }
 });

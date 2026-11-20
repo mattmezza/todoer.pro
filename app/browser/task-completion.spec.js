@@ -184,3 +184,37 @@ test('swiping a parent task asks before completing its subtree', async ({
   await modal.getByRole('button', { name: 'Confirm', exact: true }).click();
   await expect.poll(async () => (await current(child.id)).complete).toBe(true);
 });
+
+test('completion and reopening animate once each and respect reduced motion', async ({
+  page,
+}) => {
+  const { capture, list } = await setup(page);
+  const task = await capture('Motion feedback');
+  await page.addInitScript(() => {
+    const animate = Element.prototype.animate;
+    window.completionAnimations = [];
+    Element.prototype.animate = function (...args) {
+      if (this.matches('.completion'))
+        window.completionAnimations.push(this.getAttribute('aria-pressed'));
+      return animate.apply(this, args);
+    };
+  });
+  await page.goto(`/lists/${list.id}`);
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  const button = page.locator(`[data-id="${task.id}"] .completion`);
+  await button.click();
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+  await button.click();
+  await expect(button).toHaveAttribute('aria-pressed', 'false');
+  expect(await page.evaluate(() => window.completionAnimations)).toEqual([
+    'true',
+    'false',
+  ]);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await button.click();
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => window.completionAnimations)).toEqual([
+    'true',
+    'false',
+  ]);
+});
