@@ -266,7 +266,7 @@ fn series_row(c: &Connection, id: &str) -> Result<Series, Error> {
         emitted,
     })
 }
-fn series_task(c: &Connection, id: &str) -> Result<Task, Error> {
+pub(crate) fn series_task(c: &Connection, id: &str) -> Result<Task, Error> {
     let task_id:String=c.query_row("SELECT task_id FROM recurrence_occurrences WHERE series_id=?1 ORDER BY ordinal DESC LIMIT 1",[id],|r|r.get(0)).optional()?.ok_or(Error::NotFound)?;
     raw_task(c, &task_id)
 }

@@ -1,0 +1,28 @@
+{% if rows.is_empty() %}
+<div class="planning-empty">
+  <svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#repeat"/></svg>
+  <h2>No recurring tasks yet</h2>
+  <p>Open a task and choose ‘Repeat this task’ in its Planning panel.</p>
+</div>
+{% else %}
+<ul class="recurring-series-list">
+  {% for row in rows %}
+  <li>
+    <div class="recurring-series-task">
+      <h2><a class="task-title" href="{{ row.task_url }}">{{ row.title }}</a></h2>
+      <p class="muted">{{ row.rule }} · {% if row.series.state == SeriesState::Active %}Active{% else if row.series.state == SeriesState::Paused %}Paused{% else %}Stopped{% endif %}</p>
+      <p class="muted"><time datetime="{{ row.series.spec.start_local }}">{{ row.series.spec.start_local.replace("T", " ") }}</time> start · {{ row.series.spec.timezone }} · {{ row.series.emitted }} {% if row.series.emitted == 1 %}occurrence{% else %}occurrences{% endif %}</p>
+    </div>
+    {% if row.can_manage && row.series.state != SeriesState::Stopped %}
+    <form method="post" action="/recurring/{{ row.series.id }}/state" aria-label="Manage recurrence for {{ row.title }}">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <input type="hidden" name="revision" value="{{ row.series.revision }}">
+      {% if row.series.state == SeriesState::Active %}<button name="state" value="paused">Pause</button>{% else %}<button name="state" value="active">Resume</button>{% endif %}
+      <button name="state" value="stopped">Stop permanently</button>
+    </form>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+<p class="muted">Each series creates at most one outstanding occurrence. Stopping preserves its tasks and history.</p>
+{% endif %}

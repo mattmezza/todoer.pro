@@ -5914,20 +5914,39 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
   padding: 0;
 }
 .recurring-series-list > li {
-  padding: 20px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 18px 0;
   border-bottom: 1px solid var(--line);
-  line-height: 1.7;
+}
+.recurring-series-task {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.recurring-series-task h2 {
+  font-size: 1.125rem;
+  font-weight: 650;
+}
+.recurring-series-task p {
+  margin-top: 4px;
 }
 .recurring-series-list form {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 12px;
 }
 .recurring-series-list button {
+  min-height: 44px;
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 6px 12px;
   font-size: 14px;
+}
+.recurring-series-list button:hover {
+  background: var(--hover);
 }
 .shared-feature-content > .muted {
   margin-top: 24px;

@@ -587,43 +587,75 @@ async fn today(
 async fn upcoming(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
     calendar(s, h, "upcoming".into(), None, None).await
 }
-async fn recurring(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
-    let a = s.auth(&h, false)?;
-    let rows = s.run(move |db| db.recurring_series(&a)).await?;
-    if rows.is_empty() {
-        return render_feature(&s, &h, "Recurring", String::from("<div class=\"planning-empty\"><svg class=\"ui-icon\" aria-hidden=\"true\"><use href=\"/assets/icons.svg#repeat\"/></svg><h2>Make room for your routines.</h2><p>No repeating tasks yet. Open a task and choose ‘Repeat this task’ in its Planning panel to start a routine.</p></div>"), false).await;
-    }
-    let mut body = String::from("<ul class=\"recurring-series-list\">");
-    for series in rows {
-        let rule = match &series.spec.rule {
-            crate::scheduling::Rule::Daily { interval_days } => {
-                format!("Every {interval_days} calendar day(s)")
-            }
-            crate::scheduling::Rule::Weekdays { days } => format!(
-                "Weekdays {} (Monday=1)",
-                days.iter()
-                    .map(u32::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
-            crate::scheduling::Rule::CompletionRelative { days } => {
-                format!("{days} calendar day(s) after completion")
-            }
-        };
-        body.push_str(&format!(
-            "<li>{} — {:?}; {} occurrences; {}. Starts {}",
-            esc(&rule),
-            series.state,
-            series.emitted,
-            esc(&series.spec.timezone),
-            esc(&series.spec.start_local)
-        ));
-        if series.state != SeriesState::Stopped {
-            body.push_str(&format!("<form method=\"post\" action=\"/recurring/{}/state\"><input type=\"hidden\" name=\"csrf\" value=\"{}\"><input type=\"hidden\" name=\"revision\" value=\"{}\"><button name=\"state\" value=\"{}\">{}</button><button name=\"state\" value=\"stopped\">Stop permanently</button></form>",esc(&series.id),esc(&s.csrf_for(&h)),series.revision,if series.state==SeriesState::Active{"paused"}else{"active"},if series.state==SeriesState::Active{"Pause"}else{"Resume"}));
+struct RecurringRow {
+    series: crate::scheduling::Series,
+    task_url: String,
+    title: String,
+    rule: String,
+    can_manage: bool,
+}
+
+#[derive(Template)]
+#[template(path = "recurring-series.html")]
+struct RecurringSeries {
+    rows: Vec<RecurringRow>,
+    csrf: String,
+}
+
+fn recurring_rule(rule: &crate::scheduling::Rule) -> String {
+    use crate::scheduling::Rule;
+    match rule {
+        Rule::Daily { interval_days: 1 } => "Every day".into(),
+        Rule::Daily { interval_days } => format!("Every {interval_days} days"),
+        Rule::Weekdays { days } => {
+            let weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+            days.iter()
+                .filter_map(|day| weekdays.get(day.saturating_sub(1) as usize).copied())
+                .collect::<Vec<_>>()
+                .join(", ")
         }
-        body.push_str("</li>");
+        Rule::CompletionRelative { days: 1 } => "One day after completion".into(),
+        Rule::CompletionRelative { days } => format!("{days} days after completion"),
     }
-    body.push_str("</ul><p class=\"muted\">Each series creates at most one outstanding occurrence. Stopping preserves its tasks and history.</p>");
+}
+
+async fn recurring(State(s): State<AppState>, h: HeaderMap) -> Result<Response, ApiError> {
+    let actor = s.auth(&h, false)?;
+    let rows = s
+        .run(move |db| {
+            db.recurring_series(&actor)?
+                .into_iter()
+                .map(|series| {
+                    let latest = crate::scheduling::series_task(&db.conn, &series.id)?;
+                    let can_manage =
+                        crate::core::access_rank(&db.conn, &actor, &latest.list_id, 2).is_ok();
+                    let visible = db.conn.query_row(
+                        "SELECT t.id,t.title FROM recurrence_occurrences o
+                         JOIN tasks t ON t.id=o.task_id
+                         JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?2
+                         WHERE o.series_id=?1 AND t.deleted_at IS NULL AND a.rank>=1
+                         ORDER BY o.ordinal DESC LIMIT 1",
+                        rusqlite::params![series.id, actor],
+                        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                    )?;
+                    let reference = crate::defaults::public_id(&db.conn, "task", &visible.0)?;
+                    Ok(RecurringRow {
+                        rule: recurring_rule(&series.spec.rule),
+                        task_url: format!("/tasks/{reference}"),
+                        title: visible.1,
+                        series,
+                        can_manage,
+                    })
+                })
+                .collect::<Result<Vec<_>, Error>>()
+        })
+        .await?;
+    let body = RecurringSeries {
+        rows,
+        csrf: s.csrf_for(&h),
+    }
+    .render()
+    .map_err(|_| Error::Invalid("Could not render recurring tasks".into()))?;
     render_feature(&s, &h, "Recurring", body, false).await
 }
 #[derive(Deserialize)]
