@@ -153,7 +153,7 @@ test('refresh appends rows without remounting existing tasks or capture forms', 
   ).toBe(true);
 });
 
-test('capture tags stack beneath priority without separating title and description', async ({
+test('inline capture tags stack beneath priority without separating title and description', async ({
   page,
 }) => {
   await page.route('https://fonts.bunny.net/**', (route) => route.abort());
@@ -169,11 +169,10 @@ test('capture tags stack beneath priority without separating title and descripti
     const main = document.querySelector('main');
     main.className = 'task-page';
     main.style.cssText = 'margin:24px;padding:0;max-width:none;min-width:0';
-    for (const kind of ['main', 'section', 'child', 'quick']) {
+    for (const kind of ['main', 'section', 'child']) {
       const form = document.createElement('form');
       form.dataset.kind = kind;
       if (kind === 'child') form.dataset.childForm = '';
-      else if (kind === 'quick') form.className = 'quick-capture-form';
       else form.className = 'inline-capture';
       form.classList.add('entry-form');
       if (kind === 'main') form.id = 'capture-form';
@@ -181,8 +180,6 @@ test('capture tags stack beneath priority without separating title and descripti
         '<input name="title" value="Buy milk p1 +family +weekly-shopping"><textarea name="description" placeholder="Description"></textarea><div class="inline-actions"></div>';
       main.append(form);
       await mountSmartCapture(form).ready;
-      if (kind === 'quick')
-        form.querySelector('.capture-entry').classList.add('quick-capture-fields');
     }
     const settings = document.createElement('div');
     settings.className = 'settings-content';
@@ -221,40 +218,6 @@ test('capture tags stack beneath priority without separating title and descripti
       expect(item.descriptionGap).toBeLessThanOrEqual(12);
       expect(item.matchingStyle).toBe(true);
       expect(item.overflow).toBe(false);
-    }
-  }
-});
-
-test('quick capture close button stays clear of parsed metadata', async ({ page }) => {
-  await page.addStyleTag({
-    content: readFileSync('app/assets/app.css', 'utf8').replace(/@import[^;]+;/g, ''),
-  });
-  await page.evaluate(async () => {
-    const { mountSmartCapture } = await import(
-      (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
-        'smart-capture.js'
-    );
-    const dialog = document.createElement('dialog');
-    dialog.className = 'capture-omnibar';
-    dialog.innerHTML =
-      '<button class="capture-close" aria-label="Close capture">×</button><form class="quick-capture-form"><input name="title" value="buy milk p0 +family"><textarea name="description" placeholder="Add description"></textarea></form>';
-    document.body.append(dialog);
-    dialog.showModal();
-    await mountSmartCapture(dialog.querySelector('form')).ready;
-    dialog.querySelector('.capture-entry').classList.add('quick-capture-fields');
-  });
-  for (const width of [375, 1100]) {
-    await page.setViewportSize({ width, height: 600 });
-    const close = await page.getByRole('button', { name: 'Close capture' }).boundingBox();
-    for (const selector of [
-      '.capture-priority',
-      '.capture-tag',
-      '.smart-capture-input',
-    ]) {
-      const content = await page.locator(selector).boundingBox();
-      expect(
-        content.x + content.width <= close.x || content.y >= close.y + close.height,
-      ).toBe(true);
     }
   }
 });

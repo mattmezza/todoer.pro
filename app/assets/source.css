@@ -3002,51 +3002,84 @@ input[type='color'] {
 .task-page[data-edit-mode='title']:has([data-brief-form]:not([hidden])) .task-page-brief {
   display: block;
 }
-.search-omnibar {
+:is(.search-omnibar, .capture-omnibar) {
+  --omnibar-inline: clamp(16px, 4vw, 28px);
+  --omnibar-top: 24px;
+  --omnibar-bottom: 20px;
   position: fixed;
   inset: 12vh auto auto 50%;
   transform: translateX(-50%);
-  width: min(680px, calc(100vw - 32px));
-  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  width: min(800px, calc(100vw - 32px));
+  max-width: calc(100dvw - 32px - env(safe-area-inset-left) - env(safe-area-inset-right));
   height: fit-content;
-  max-height: 76dvh;
+  max-height: 80dvh;
   margin: 0;
   padding: 0;
   overflow-y: auto;
-  background: light-dark(#f8fafc, #0b101b);
+  background: linear-gradient(
+    145deg,
+    light-dark(#f7f9fd, #1b2739),
+    light-dark(#e8eef7, #121b2b) 70%
+  );
   color: var(--text);
-  border: 1px solid #1e293b;
-  border-radius: 10px;
-  box-shadow: 0 24px 100px #0009;
+  border: 0;
+  border-radius: 8px;
+  outline: none;
+  box-shadow: 0 28px 100px rgb(0 0 0 / 0.45);
   font: 16px/1.5 var(--font-sans);
 }
-.search-omnibar::backdrop {
+:is(.search-omnibar, .capture-omnibar)::backdrop {
   background: #0008;
   backdrop-filter: blur(3px);
 }
-.omnibar-heading {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--line);
+.search-omnibar > .omnibar-heading {
+  padding: var(--omnibar-top) var(--omnibar-inline) 0;
 }
-.omnibar-heading input {
+.omnibar-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+}
+:is(.search-omnibar, .capture-omnibar)
+  .omnibar-heading
+  > :is(input, textarea.capture-title) {
+  box-sizing: border-box;
+  width: 100%;
   min-width: 0;
-  flex: 1;
+  min-height: 44px;
+  padding: 6px 0;
   border: 0;
+  border-radius: 0;
   background: transparent;
-  padding: 8px 0;
-  font: 18px/1.5 var(--font-sans);
-  outline: none;
+  color: var(--text);
+  font: 650 clamp(18px, 5.6vw, 24px) / 1.4 var(--font-sans);
+  text-align: start;
+  outline: 0;
   box-shadow: none;
 }
-.omnibar-heading button {
-  min-width: 44px;
-  min-height: 44px;
-  border-radius: 4px;
+.omnibar-heading > :is(input, textarea.capture-title)::placeholder {
   color: var(--muted);
-  font: 12px var(--font-sans);
+  opacity: 1;
+}
+.omnibar-heading > :is(input, textarea.capture-title):focus-visible {
+  outline: 0 !important;
+  box-shadow: 0 2px var(--accent);
+}
+:is(.omnibar-heading > button, .capture-omnibar > .capture-close) {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--muted);
+  border: 0;
+  border-radius: 50%;
+}
+:is(.omnibar-heading > button, .capture-omnibar > .capture-close):hover {
+  background: var(--hover);
+  color: var(--text);
 }
 .omnibar-status {
   padding: 8px 20px;
@@ -3084,21 +3117,14 @@ input[type='color'] {
   text-overflow: ellipsis;
 }
 .search-omnibar footer {
-  padding: 12px 20px;
-  border-top: 1px solid var(--line);
-  font-size: 14px;
-  color: var(--accent);
+  padding: 8px var(--omnibar-inline) var(--omnibar-bottom);
 }
 .search-omnibar footer a {
   display: flex;
   align-items: center;
   min-height: 44px;
-}
-@media (max-width: 640px) {
-  .search-omnibar {
-    inset: calc(16px + env(safe-area-inset-top)) auto auto 50%;
-    max-height: calc(100dvh - 40px);
-  }
+  font-size: 13px;
+  color: var(--muted);
 }
 .confirmation-dialog .destructive,
 .confirmation-dialog .destructive:hover {
@@ -3809,53 +3835,6 @@ form[data-list-edit] input.list-edit-color {
 .planning-empty .primary:hover {
   background: light-dark(#e8eef7, #253047);
 }
-.capture-omnibar {
-  position: fixed;
-  top: 12vh;
-  bottom: auto;
-  margin: 0 auto;
-  width: min(580px, calc(100vw - 32px));
-  height: auto;
-  max-height: 80dvh;
-  overflow: auto;
-  background: light-dark(#f8fafc, #10131b);
-  padding: 28px;
-  border: 0;
-  border-radius: 18px;
-  box-shadow: 0 24px 90px #0008;
-}
-.capture-omnibar h2 {
-  font: 600 22px var(--font-sans);
-  margin-bottom: 24px;
-}
-.capture-close {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  width: 36px;
-  height: 36px;
-  font-size: 24px;
-  color: var(--muted);
-}
-.quick-capture-form {
-  display: grid;
-  gap: 12px;
-}
-.quick-capture-form :is(input:not([type='hidden']), textarea, select) {
-  width: 100%;
-  font-size: 16px;
-}
-.quick-capture-form > label {
-  font-size: 14px;
-  color: var(--muted);
-}
-.quick-capture-form > button {
-  justify-self: end;
-  width: auto;
-  padding: 8px 16px;
-  background: #4f46e5;
-  border-radius: 9px;
-}
 .task-play {
   position: fixed;
   right: 32px;
@@ -4527,7 +4506,7 @@ form[data-list-edit] input.list-edit-color {
 }
 
 /* Shared dialog reading size; actions retain the compact app button scale. */
-dialog:not(.list-settings-panel):not(.search-omnibar)
+dialog:not(.list-settings-panel):not(.search-omnibar):not(.capture-omnibar)
   :is(
     p,
     label,
@@ -8160,32 +8139,6 @@ form[data-list-edit] [role='alert']:empty {
   width: 100%;
   text-align: left;
 }
-.search-omnibar {
-  width: min(800px, calc(100vw - 32px));
-  background: var(--sidebar);
-  border: 0;
-  border-radius: 14px;
-  box-shadow: 0 28px 100px rgb(0 0 0 / 0.45);
-}
-.search-omnibar .omnibar-heading {
-  padding: 18px 26px 10px;
-  border: 0;
-  gap: 16px;
-}
-.search-omnibar .omnibar-heading input {
-  border: 0;
-  outline: 0;
-  box-shadow: none;
-  font-size: 21px;
-  padding: 10px 0;
-  font-weight: 500;
-}
-.search-omnibar .omnibar-heading input:focus-visible {
-  outline: 0;
-}
-.search-omnibar .omnibar-status {
-  padding: 8px 26px 14px;
-}
 .search-omnibar #omnibar-results {
   padding: 0 14px 12px;
 }
@@ -8213,14 +8166,6 @@ form[data-list-edit] [role='alert']:empty {
 }
 .search-omnibar .omnibar-copy-reference {
   margin-right: 10px;
-}
-.search-omnibar footer {
-  border: 0;
-  padding: 8px 26px 16px;
-}
-.search-omnibar footer a {
-  font-size: 13px;
-  color: var(--muted);
 }
 .search-page > main > form {
   margin: 20px 0;
@@ -8458,63 +8403,8 @@ main > .page-heading h1,
   overflow: hidden;
 }
 
-/* Capture and search share one quiet dialog surface. */
-:is(.capture-omnibar, .search-omnibar) {
-  width: min(800px, calc(100vw - 32px));
-  max-height: 80dvh;
-  background: var(--sidebar);
-  color: var(--text);
-  border: 0;
-  outline: none;
-  border-radius: 8px;
-  box-shadow: 0 28px 100px rgb(0 0 0 / 0.45);
-}
-:is(.capture-omnibar, .search-omnibar)::backdrop {
-  background: #0008;
-  backdrop-filter: blur(3px);
-}
-.capture-omnibar {
-  padding: 28px;
-}
-.capture-omnibar h2 {
-  margin: 8px 42px 24px 0;
-  font-size: 22px;
-  font-weight: 650;
-}
-:is(.capture-close, .search-omnibar .omnibar-heading button) {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  min-height: 32px;
-  padding: 6px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  color: var(--muted);
-}
-:is(.capture-close, .search-omnibar .omnibar-heading button):hover {
-  background: var(--hover);
-  color: var(--text);
-}
-.search-omnibar .omnibar-heading {
-  padding: 28px 70px 10px 28px;
-}
-.search-omnibar .omnibar-heading input {
-  font-size: 24px;
-  font-weight: 650;
-  line-height: 1.4;
-  color: var(--text);
-}
-.search-omnibar .omnibar-heading input::placeholder {
-  color: var(--text);
-  opacity: 1;
-}
 .search-omnibar .omnibar-status {
-  padding: 0 28px 16px;
+  padding: 10px var(--omnibar-inline) 16px;
   font-size: 13px;
   line-height: 1.5;
   color: var(--muted);
@@ -8522,33 +8412,15 @@ main > .page-heading h1,
 .search-omnibar #omnibar-results:empty {
   display: none;
 }
-.search-omnibar footer {
-  padding: 8px 28px 20px;
-}
-.quick-capture-form > label {
-  margin: 0;
-}
-.quick-capture-form :is(input:not([type='hidden']), textarea, select) {
-  background: var(--bg);
-  border-radius: 6px;
-}
-
 .search-omnibar input[type='search']::-webkit-search-cancel-button,
 .search-omnibar input[type='search']::-webkit-search-decoration {
   appearance: none;
   -webkit-appearance: none;
   display: none;
 }
-.search-omnibar .omnibar-heading input {
-  text-align: left;
-}
 .search-omnibar:has(#omnibar-results:empty) .omnibar-status {
   text-align: center;
-  padding: 20px 28px 24px;
-}
-.search-omnibar .omnibar-heading input::placeholder {
-  color: var(--muted);
-  opacity: 1;
+  padding: 20px var(--omnibar-inline) 24px;
 }
 
 .workbench-export {
@@ -10072,10 +9944,6 @@ main.auth-shell {
 .capture-priority[data-priority='3'] {
   color: var(--text);
 }
-.quick-capture-form textarea {
-  overflow: hidden;
-  resize: none;
-}
 .capture-result .capture-literal {
   padding: 2px 7px;
   border: 1px solid var(--line);
@@ -10089,72 +9957,86 @@ main.auth-shell {
   color: var(--text);
   background: var(--hover);
 }
-.quick-capture-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-.quick-capture-footer .capture-help {
-  color: var(--muted);
-  font-size: 0.875rem;
-}
-.quick-capture-fields {
+.quick-capture-form {
   display: grid;
-  gap: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  padding: var(--omnibar-top) var(--omnibar-inline) var(--omnibar-bottom);
 }
 .quick-capture-form textarea.quick-capture-description {
+  display: block;
+  box-sizing: border-box;
   width: 100%;
-  min-height: 44px;
-  padding: 4px 0 10px;
+  min-width: 0;
+  padding: 8px 0;
   background: transparent;
+  color: var(--text);
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  line-height: 1.5;
+  font: 16px/1.5 var(--font-sans);
+  resize: none;
+  overflow: hidden;
+}
+.quick-capture-form .capture-result {
+  font-size: 13px;
 }
 .quick-capture-description::placeholder {
   color: var(--muted);
   opacity: 1;
 }
+.quick-capture-form > [role='alert'] {
+  margin: 0;
+  color: light-dark(#a61d2d, #fda4af);
+  overflow-wrap: anywhere;
+}
+.quick-capture-form > [role='alert']:empty {
+  position: absolute;
+}
+.quick-capture-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  overflow-wrap: anywhere;
+}
 .quick-capture-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
   align-items: center;
-  margin-left: auto;
+  gap: 12px;
+  margin-inline-start: auto;
+}
+.quick-capture-actions > .primary {
+  background: #4f46e5;
+}
+.quick-capture-actions > .primary:hover {
+  background: #4338ca;
 }
 .quick-capture-repeat {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
+  margin: 0;
   color: var(--muted);
   font-size: 0.875rem;
   cursor: pointer;
   white-space: nowrap;
 }
-.quick-capture-repeat input {
-  accent-color: var(--accent);
-}
-.quick-capture-footer .capture-help {
-  margin: 0;
-  line-height: 1.5;
-}
-.quick-capture-actions .quick-capture-repeat {
-  margin: 0;
-  line-height: 1;
-}
-.quick-capture-actions .quick-capture-repeat input[type='checkbox'] {
+.quick-capture-repeat input[type='checkbox'] {
   width: 1rem;
   height: 1rem;
   min-height: 0;
   padding: 0;
   margin: 0;
+  accent-color: var(--accent);
 }
 .quick-capture-footer .capture-help {
-  font-size: 0.75rem;
-  opacity: 0.75;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
 }
 .quick-capture-footer .capture-help button {
   color: inherit;
@@ -10168,49 +10050,13 @@ main.auth-shell {
 .capture-help [hidden] {
   display: none !important;
 }
-
-/* Give both omnibars the same raised surface and prominent input. */
-:is(.capture-omnibar, .search-omnibar) {
-  background: linear-gradient(
-    145deg,
-    light-dark(#f7f9fd, #1b2739),
-    light-dark(#e8eef7, #121b2b) 70%
-  );
+.capture-omnibar:has(> .capture-close) {
+  min-height: 96px;
 }
-.capture-omnibar h2,
-.quick-capture-form > label[for='capture-new-title'] {
+.capture-omnibar > .capture-close {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-.capture-omnibar .capture-entry {
-  margin-right: 0;
-  padding-right: 0;
-  box-sizing: border-box;
-}
-.capture-omnibar .smart-capture-input > :is(input, textarea) {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  outline: 0;
-  padding: 10px 0;
-  font-size: 24px;
-  font-weight: 650;
-  line-height: 1.4;
-}
-.capture-omnibar .smart-capture-input > :is(input, textarea)::placeholder {
-  color: var(--muted);
-  opacity: 1;
-}
-.capture-omnibar .smart-capture-input > :is(input, textarea):focus-visible {
-  box-shadow: 0 2px var(--accent);
+  inset: var(--omnibar-top) var(--omnibar-inline) auto auto;
+  z-index: 1;
 }
 
 /* Settings choices keep their controls and explanations together. */
@@ -11205,7 +11051,7 @@ form[data-load-failed],
 }
 
 .search-omnibar #omnibar-results > :is(.loading-skeleton, .loading-error) {
-  inset-inline: 28px;
+  inset-inline: var(--omnibar-inline);
 }
 
 .smart-capture-input > textarea.capture-title {
@@ -11225,6 +11071,28 @@ form[data-load-failed],
 }
 .capture-date[data-date-kind='due'] {
   color: light-dark(#b91c1c, #ff3b3b);
+}
+.quick-capture-fields.capture-entry {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: none;
+  gap: 8px;
+}
+.quick-capture-fields > .capture-badges {
+  grid-column: 1;
+  grid-row: 3;
+  flex-flow: row wrap;
+  align-items: baseline;
+  padding: 0;
+}
+.quick-capture-fields .capture-tags {
+  flex: 1 1 12rem;
+  min-width: 0;
+  justify-content: flex-start;
+  align-items: center;
+}
+.quick-capture-fields .capture-date {
+  flex: 0 1 auto;
+  text-align: start;
 }
 .capture-shortcut-menu {
   position: fixed;
@@ -12530,16 +12398,12 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
 
 /* Keep both mobile omnibars above the keyboard, including capture's loader. */
 @media (max-width: 640px) {
-  :is(dialog.capture-omnibar, dialog.search-omnibar):modal {
-    position: fixed;
-    inset: calc(16px + env(safe-area-inset-top)) auto auto 50%;
-    transform: translateX(-50%);
-    height: fit-content;
-    margin: 0;
+  :is(.capture-omnibar, .search-omnibar) {
+    --omnibar-top: 16px;
+    top: calc(16px + env(safe-area-inset-top));
     max-height: calc(
       100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)
     );
-    overflow-y: auto;
   }
 }
 
@@ -13953,38 +13817,6 @@ body form.entry-form .inline-actions > .entity-name-reference {
   justify-content: center;
 }
 
-/* Keep intrinsic text and flex bases within the capture dialog at every width. */
-dialog.capture-omnibar {
-  box-sizing: border-box;
-  max-width: calc(100dvw - 32px - env(safe-area-inset-left) - env(safe-area-inset-right));
-  min-width: 0;
-}
-.capture-omnibar
-  :is(
-    form,
-    .capture-entry,
-    .smart-capture-input,
-    .quick-capture-footer,
-    .quick-capture-actions
-  ) {
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-.capture-omnibar :is(input, textarea) {
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-.capture-omnibar .quick-capture-footer {
-  overflow-wrap: anywhere;
-}
-@media (max-width: 480px) {
-  dialog.capture-omnibar {
-    padding: 20px 16px;
-  }
-}
-
 /* Emoji glyphs use the badge's actual box, independent of surrounding line height. */
 :is(.list-dot, .entity-color, .list-color-preview) > .list-emoji {
   position: absolute;
@@ -14038,21 +13870,6 @@ dialog.capture-omnibar {
   text-overflow: ellipsis;
 }
 
-/* The capture close action has its own row, clear of every input hit area. */
-.capture-omnibar > .capture-header {
-  display: flex;
-  justify-content: flex-end;
-  min-height: 44px;
-}
-.capture-omnibar > .capture-header > .capture-close {
-  position: static;
-  width: 44px;
-  height: 44px;
-  padding: 12px;
-}
-.capture-omnibar > .capture-header + form {
-  margin-top: 0;
-}
 body form.entry-form > label.sr-only {
   flex: none;
   width: 1px;

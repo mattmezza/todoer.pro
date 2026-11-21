@@ -51,13 +51,9 @@ export async function openCapture(listId) {
     if (!form) throw Error('Create a space before adding a task.');
     dialog = document.createElement('dialog');
     dialog.className = 'capture-omnibar';
-    dialog.setAttribute('aria-labelledby', 'quick-capture-heading');
-    const heading = document.createElement('h2');
-    heading.id = 'quick-capture-heading';
-    heading.textContent = 'What’s on your mind?';
+    dialog.setAttribute('aria-label', 'What’s on your mind?');
     const close = document.createElement('button');
     close.type = 'button';
-    close.className = 'capture-close';
     close.innerHTML =
       '<svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#close"/></svg>';
     close.setAttribute('aria-label', 'Close capture');
@@ -80,7 +76,8 @@ export async function openCapture(listId) {
       if (outsidePress && outside(event)) dialog.close();
       outsidePress = false;
     });
-    form.className = 'quick-capture-form entry-form';
+    form.className = 'quick-capture-form';
+    form.querySelector('label[for="capture-new-title"]').classList.add('sr-only');
     const destination = form.querySelector('[name=list_id]');
     const destinationLabel = form.querySelector('label[for="capture-destination"]');
     destination.hidden = true;
@@ -100,6 +97,9 @@ export async function openCapture(listId) {
     form.querySelector('p')?.remove();
     const smart = mountSmartCapture(form);
     form.querySelector('.capture-entry').classList.add('quick-capture-fields');
+    const heading = form.querySelector('.smart-capture-input');
+    heading.classList.add('omnibar-heading');
+    heading.append(close);
     const footer = document.createElement('div');
     footer.className = 'quick-capture-footer';
     const submit = form.querySelector('[type=submit]');
@@ -162,10 +162,8 @@ export async function openCapture(listId) {
     footer.append(smart.help, actions);
     const error = document.createElement('p');
     error.setAttribute('role', 'alert');
-    const header = document.createElement('header');
-    header.className = 'capture-header';
-    header.append(heading, close);
-    dialog.append(header, form, error);
+    footer.before(error);
+    dialog.append(form);
     if (draft) {
       form.elements.title.value = draft.title;
       form.elements.description.value = draft.description;

@@ -58,7 +58,7 @@ async function alignedDescription(row) {
   expect(offset).toBeLessThanOrEqual(1);
 }
 
-test('capture close target stays clear of the title and description fields', async ({
+test('capture metadata stays below the fields without narrowing the title', async ({
   page,
 }) => {
   await fixture(page);
@@ -67,18 +67,40 @@ test('capture close target stays clear of the title and description fields', asy
     await (await import(base + 'quick-capture.js')).openCapture();
   });
   const dialog = page.locator('dialog.capture-omnibar:has([name=title])');
+  const title = dialog.getByLabel('Task', { exact: true });
+  const description = dialog.getByLabel('Description, Markdown supported');
+  const planned = dialog.locator('.capture-date[data-date-kind=planned]');
+  const closeButton = dialog.getByRole('button', { name: 'Close capture' });
+  await expect(title).toBeFocused();
+  const taskTitle = 'Prepare the weekly report and confirm all the figures';
   for (const width of [320, 390, 800, 1280]) {
     await page.setViewportSize({ width, height: 844 });
-    const close = await dialog
-      .getByRole('button', { name: 'Close capture' })
-      .boundingBox();
-    for (const name of ['title', 'description']) {
-      const field = await dialog.locator(`[name=${name}]`).boundingBox();
-      expect(close.y + close.height).toBeLessThanOrEqual(field.y);
+    await title.fill(taskTitle);
+    await expect(planned).toBeHidden();
+    const plain = await title.boundingBox();
+    await title.fill(`${taskTitle} .today -in3d p1 +weekly-report `);
+    await expect(planned).toHaveText(/^Planned \d{4}-\d{2}-\d{2}$/);
+    const [titleBox, close, descriptionBox, plannedBox] = await Promise.all([
+      title.boundingBox(),
+      closeButton.boundingBox(),
+      description.boundingBox(),
+      planned.boundingBox(),
+    ]);
+    expect(titleBox.x).toBe(plain.x);
+    expect(titleBox.width).toBe(plain.width);
+    expect(titleBox.x + titleBox.width).toBeLessThanOrEqual(close.x);
+    expect(close.y + close.height).toBeLessThanOrEqual(descriptionBox.y);
+    expect(descriptionBox.y + descriptionBox.height).toBeLessThanOrEqual(plannedBox.y);
+    for (const selector of ['.capture-priority', '.capture-tag']) {
+      const badge = await dialog.locator(selector).boundingBox();
+      expect(badge.y).toBeGreaterThanOrEqual(descriptionBox.y + descriptionBox.height);
     }
+    expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
     await noOverflow(page);
   }
-  await dialog.getByRole('button', { name: 'Close capture' }).click();
+  await title.press('Tab');
+  await expect(closeButton).toBeFocused();
+  await closeButton.press('Enter');
   await expect(dialog).not.toBeVisible();
 });
 

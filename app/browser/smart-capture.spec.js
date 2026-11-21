@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
 test('smart capture saves the reviewed priority, date and tag', async ({ page }) => {
   await page.goto('/signin');
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
@@ -55,39 +56,52 @@ test('Inbox capture opens the shared omnibar and refreshes after saving', async 
   await expect(page.getByRole('link', { name: title, exact: true })).toBeVisible();
 });
 
-test('capture and search omnibars share input typography and corner radius', async ({
+test('capture and search omnibars share their surface and primary field layout', async ({
   page,
 }) => {
   await page.goto('/signin');
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
   await page.goto('/today');
-  await page.keyboard.press('n');
   const capture = page.locator('.capture-omnibar');
-  const captureStyles = await capture.locator('[name=title]').evaluate((el) => {
-    const style = getComputedStyle(el);
-    return { fontSize: style.fontSize, fontWeight: style.fontWeight };
-  });
-  const captureRadius = await capture.evaluate((el) => getComputedStyle(el).borderRadius);
-  await capture.getByRole('button', { name: 'Close capture' }).click();
-  await page.evaluate(async () =>
-    (
-      await import(
-        (document.querySelector('meta[name="asset-base"]')?.content || '/assets/') +
-          'search-omnibar.js'
-      )
-    ).openSearch(),
-  );
   const search = page.locator('.search-omnibar');
-  const searchStyles = await search.locator('#omnibar-query').evaluate((el) => {
-    const style = getComputedStyle(el);
-    return { fontSize: style.fontSize, fontWeight: style.fontWeight };
-  });
-  expect(captureStyles).toEqual(searchStyles);
-  expect(captureStyles.fontSize).toBe('24px');
-  expect(captureRadius).toBe(
-    await search.evaluate((el) => getComputedStyle(el).borderRadius),
-  );
-  expect(captureRadius).toBe('8px');
+  const appearance = (dialog) =>
+    dialog.evaluate((el) => {
+      const field = el.querySelector('.omnibar-heading > :is(input, textarea)');
+      const close = el.querySelector('.omnibar-heading > button');
+      const surface = getComputedStyle(el);
+      const input = getComputedStyle(field);
+      const position = (node) => {
+        const { x, y, width } = node.getBoundingClientRect();
+        return { x, y, width };
+      };
+      return {
+        surface: position(el),
+        input: position(field),
+        close: position(close),
+        background: surface.backgroundImage,
+        radius: surface.borderRadius,
+        font: input.font,
+        fieldBackground: input.backgroundColor,
+      };
+    });
+  for (const [width, colorScheme] of [
+    [320, 'light'],
+    [390, 'dark'],
+    [1280, 'light'],
+    [1280, 'dark'],
+  ]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({ colorScheme });
+    await page.keyboard.press('n');
+    await expect(capture.locator('[name=title]')).toBeFocused();
+    const captureStyles = await appearance(capture);
+    await capture.getByRole('button', { name: 'Close capture' }).click();
+    await page.keyboard.press('Control+k');
+    await expect(search.locator('#omnibar-query')).toBeFocused();
+    expect(captureStyles).toEqual(await appearance(search));
+    expect(captureStyles.radius).toBe('8px');
+    await search.getByRole('button', { name: 'Close quick search' }).click();
+  }
 });
 
 test('breakdown remains available with a disabled provider and manual capture is preserved', async ({
@@ -337,16 +351,29 @@ test('Enter accepts a suggestion before submitting and Shift temporarily reverse
   await page.goto('/signin');
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
   await page.goto('/inbox');
+  const suffix = randomUUID().slice(0, 8);
+  const csrf = await page.locator('meta[name=csrf-token]').getAttribute('content');
+  const space = await page.request.post('/api/v1/workspaces', {
+    headers: { 'X-CSRF-Token': csrf, 'Idempotency-Key': `space-${suffix}` },
+    data: { title: `capture-${suffix}` },
+  });
+  expect(space.ok()).toBe(true);
+  const listName = `destination-${suffix}`;
+  const list = await page.request.post('/api/v1/lists', {
+    headers: { 'X-CSRF-Token': csrf, 'Idempotency-Key': `list-${suffix}` },
+    data: { workspace_id: (await space.json()).id, title: listName },
+  });
+  expect(list.ok()).toBe(true);
   await page.getByRole('link', { name: 'Capture a task…' }).click();
   const dialog = page.getByRole('dialog', { name: 'What’s on your mind?' });
   const title = dialog.getByLabel('Task', { exact: true });
   const repeat = dialog.getByLabel('Keep adding');
   await expect(repeat).not.toBeChecked();
   const first = `Enter suggestion ${Date.now()}`;
-  await title.fill(`${first} #in`);
-  await expect(dialog.getByRole('option', { name: '#Inbox' })).toBeVisible();
+  await title.fill(`${first} #${listName.slice(0, -1)}`);
+  await expect(dialog.getByRole('option', { name: `#${listName}` })).toBeVisible();
   await title.press('Enter');
-  await expect(title).toHaveValue(`${first} #Inbox`);
+  await expect(title).toHaveValue(`${first} #${listName}`);
   await expect(dialog).toBeVisible();
   await page.keyboard.down('Shift');
   await expect(repeat).toBeChecked();
@@ -405,12 +432,10 @@ test('quick capture reveals an auto-growing description and can keep adding', as
   await page.keyboard.press('n');
   const dialog = page.getByRole('dialog', { name: 'What’s on your mind?' });
   await expect(dialog.getByRole('button', { name: 'Shortcuts' })).toBeVisible();
-  const addDescription = dialog.getByText('Add a description', { exact: true });
-  await expect(addDescription).toBeVisible();
-  await addDescription.click();
-  await expect(addDescription).toBeHidden();
   const description = dialog.getByLabel('Description, Markdown supported');
+  const empty = await description.boundingBox();
   await description.fill('Line one\nLine two\nLine three');
+  expect((await description.boundingBox()).height).toBeGreaterThan(empty.height);
   expect(await description.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(
     true,
   );
@@ -429,7 +454,7 @@ test('quick capture reveals an auto-growing description and can keep adding', as
   await expect(dialog).toBeVisible();
   await expect(title).toHaveValue('');
   await expect(title).toBeFocused();
-  await expect(addDescription).toBeVisible();
+  await expect(description).toHaveValue('');
 });
 
 test('shortcut help expires after 30 seconds but stays visible while hovered', async ({
