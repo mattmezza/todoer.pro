@@ -1,4 +1,7 @@
 import { test, expect } from '@playwright/test';
+
+test.use({ serviceWorkers: 'block' });
+
 test('capture preview waits for options without blocking typing or flashing literal interpretation', async ({
   page,
 }) => {
