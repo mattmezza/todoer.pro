@@ -37,6 +37,8 @@ pub struct SessionGrant {
     pub csrf: String,
     pub expires_at: i64,
 }
+pub(crate) const BROWSER_SESSION_SECONDS: i64 = 30 * 24 * 60 * 60;
+pub(crate) const BROWSER_SESSION_UNTIL_SIGN_OUT: i64 = i64::MAX;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentMetadata {
     pub workspace_ids: Option<Vec<String>>,
@@ -220,6 +222,57 @@ impl AuthStore {
             return Err(AuthError::Forbidden);
         }
         Ok(row.0)
+    }
+    pub(crate) fn browser_session_expiry(
+        &self,
+        token: &str,
+        csrf: &str,
+    ) -> Result<Option<i64>, AuthError> {
+        self.conn.query_row(
+            "SELECT expires_at FROM auth_sessions WHERE token_hash=?1 AND csrf_hash=?2 AND revoked=0 AND expires_at>?3",
+            params![hash(token), hash(csrf), now()],
+            |row| row.get(0),
+        ).optional().map_err(AuthError::from)
+    }
+    pub(crate) fn active_browser_session_actor(&self, id: &str) -> Result<String, AuthError> {
+        self.conn
+            .query_row(
+                "SELECT user_id FROM auth_sessions WHERE id=?1 AND revoked=0 AND expires_at>?2",
+                params![id, now()],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or(AuthError::Unauthorized)
+    }
+    pub(crate) fn set_browser_session_duration(
+        &self,
+        token: &str,
+        csrf: &str,
+        until_sign_out: bool,
+    ) -> Result<i64, AuthError> {
+        let now = now();
+        self.conn
+            .query_row(
+                "UPDATE auth_sessions
+             SET expires_at=CASE
+                 WHEN ?1 THEN ?2
+                 WHEN expires_at=?2 THEN ?3
+                 ELSE expires_at
+             END
+             WHERE token_hash=?4 AND csrf_hash=?5 AND revoked=0 AND expires_at>?6
+             RETURNING expires_at",
+                params![
+                    until_sign_out,
+                    BROWSER_SESSION_UNTIL_SIGN_OUT,
+                    now + BROWSER_SESSION_SECONDS,
+                    hash(token),
+                    hash(csrf),
+                    now,
+                ],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or(AuthError::Unauthorized)
     }
     pub fn revoke_session(&self, token: &str) -> Result<(), AuthError> {
         self.conn.execute(

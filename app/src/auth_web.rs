@@ -1,6 +1,9 @@
 //! Browser identity binding and live credential authentication.
 use super::*;
-use crate::auth::{AuthError, AuthStore, Permission};
+use crate::auth::{
+    AuthError, AuthStore, BROWSER_SESSION_SECONDS, BROWSER_SESSION_UNTIL_SIGN_OUT, Permission,
+    Principal,
+};
 use crate::oidc::{GoogleOidc, PendingLogin};
 use std::collections::HashMap;
 
@@ -41,6 +44,136 @@ fn cookie<'a>(h: &'a HeaderMap, name: &str) -> Option<&'a str> {
             (key == name).then_some(value)
         })
 }
+const SESSION_COOKIE_MARKER: &str = "todoer_session_cookies_current";
+// Browsers cap persistent cookies. Refresh both cookies before that limit
+// without extending a session that has a finite server expiry.
+const BROWSER_COOKIE_MAX_AGE: i64 = 400 * 24 * 60 * 60;
+
+pub(super) fn set_session_cookies(
+    response: &mut Response,
+    origin: &str,
+    token: &str,
+    csrf: &str,
+    expires_at: i64,
+) {
+    let age = (expires_at - crate::auth::now()).clamp(0, BROWSER_COOKIE_MAX_AGE);
+    let secure = if origin.starts_with("https://") {
+        "; Secure"
+    } else {
+        ""
+    };
+    for (name, value, age) in [
+        ("todoer_session", token, age),
+        ("todoer_csrf", csrf, age),
+        (SESSION_COOKIE_MARKER, "1", age.min(BROWSER_SESSION_SECONDS)),
+    ] {
+        let value = if age == 0 { "" } else { value };
+        response.headers_mut().append(
+            header::SET_COOKIE,
+            format!("{name}={value}; Max-Age={age}; HttpOnly; SameSite=Lax; Path=/{secure}")
+                .parse()
+                .unwrap(),
+        );
+    }
+}
+
+pub(super) fn session_cookie_pair(h: &HeaderMap) -> Option<(&str, &str)> {
+    if h.contains_key(header::AUTHORIZATION) {
+        return None;
+    }
+    Some((cookie(h, "todoer_session")?, cookie(h, "todoer_csrf")?))
+}
+
+pub(super) fn session_cookies_to_renew(h: &HeaderMap) -> Option<(String, String)> {
+    if cookie(h, SESSION_COOKIE_MARKER).is_some() {
+        return None;
+    }
+    session_cookie_pair(h).map(|(token, csrf)| (token.to_owned(), csrf.to_owned()))
+}
+
+fn session_expiry(s: &AppState, token: &str, csrf: &str) -> Result<Option<i64>, AuthError> {
+    let Some(auth) = &s.production else {
+        return Ok(None);
+    };
+    auth.store
+        .lock()
+        .map_err(|_| AuthError::Unauthorized)?
+        .browser_session_expiry(token, csrf)
+}
+
+pub(super) fn renew_session_cookies(
+    s: &AppState,
+    response: &mut Response,
+    token: &str,
+    csrf: &str,
+) {
+    if let Ok(Some(expires_at)) = session_expiry(s, token, csrf) {
+        set_session_cookies(response, &s.origin, token, csrf, expires_at);
+    }
+}
+
+pub(super) fn session_until_sign_out(
+    s: &AppState,
+    h: &HeaderMap,
+) -> Result<Option<bool>, ApiError> {
+    let Some((token, csrf)) = session_cookie_pair(h) else {
+        return Ok(None);
+    };
+    Ok(session_expiry(s, token, csrf)?
+        .map(|expires_at| expires_at == BROWSER_SESSION_UNTIL_SIGN_OUT))
+}
+
+fn bearer_token(h: &HeaderMap) -> Option<&str> {
+    h.get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+}
+
+fn authenticate_browser(
+    store: &AuthStore,
+    h: &HeaderMap,
+    write: bool,
+) -> Result<Principal, AuthError> {
+    let token = cookie(h, "todoer_session").ok_or(AuthError::Unauthorized)?;
+    let csrf = h.get("x-csrf-token").and_then(|value| value.to_str().ok());
+    store.authenticate_session(token, csrf, write)
+}
+
+pub(super) enum EventAuthentication {
+    BrowserSession(String),
+    Headers(HeaderMap),
+}
+
+impl EventAuthentication {
+    pub(super) fn connect(s: &AppState, h: HeaderMap) -> Result<(String, Self), ApiError> {
+        if let Some(auth) = &s.production
+            && bearer_token(&h).is_none()
+        {
+            let store = auth.store.lock().map_err(|_| AuthError::Unauthorized)?;
+            let principal = authenticate_browser(&store, &h, false)?;
+            let id = principal.credential_id.ok_or(AuthError::Unauthorized)?;
+            return Ok((principal.actor, Self::BrowserSession(id)));
+        }
+        Ok((s.auth(&h, false)?, Self::Headers(h)))
+    }
+
+    pub(super) fn actor(&self, s: &AppState) -> Result<String, ApiError> {
+        match self {
+            // Browser credentials can rotate during reauthentication. The
+            // already-authorized stream still tracks this session's validity.
+            Self::BrowserSession(id) => Ok(s
+                .production
+                .as_ref()
+                .ok_or(AuthError::Unauthorized)?
+                .store
+                .lock()
+                .map_err(|_| AuthError::Unauthorized)?
+                .active_browser_session_actor(id)?),
+            Self::Headers(h) => s.auth(h, false),
+        }
+    }
+}
+
 impl From<AuthError> for ApiError {
     fn from(e: AuthError) -> Self {
         match e {
@@ -103,11 +236,7 @@ impl AppState {
                 "Authentication unavailable".into(),
             )
         })?;
-        if let Some(token) = h
-            .get(header::AUTHORIZATION)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.strip_prefix("Bearer "))
-        {
+        if let Some(token) = bearer_token(h) {
             let audience = if mcp {
                 format!("{}/mcp", self.origin)
             } else {
@@ -132,10 +261,7 @@ impl AppState {
         if mcp {
             return Err(AuthError::Unauthorized.into());
         }
-        let token = cookie(h, "todoer_session").ok_or(AuthError::Unauthorized)?;
-        let csrf = h.get("x-csrf-token").and_then(|v| v.to_str().ok());
-        let principal = store.authenticate_session(token, csrf, write)?;
-        Ok(principal.actor)
+        Ok(authenticate_browser(&store, h, write)?.actor)
     }
     pub(crate) fn mcp_actor(&self, h: &HeaderMap) -> Result<String, ApiError> {
         if self.production.is_some() {
@@ -339,26 +465,25 @@ pub(super) async fn google_callback(
         .store
         .lock()
         .map_err(|_| AuthError::Unauthorized)?
-        .issue_verified_session(&user.id, epoch)?;
+        .issue_verified_session(&user.id, epoch, session_cookie_pair(&h))?;
     let destination = if welcome {
         format!("/welcome?next={}", super::encode_query(&pending.next))
     } else {
         pending.next
     };
     let mut response = Redirect::to(&destination).into_response();
+    set_session_cookies(
+        &mut response,
+        &s.origin,
+        &grant.token,
+        &grant.csrf,
+        grant.expires_at,
+    );
     let secure = if s.origin.starts_with("https://") {
         "; Secure"
     } else {
         ""
     };
-    for (name, value) in [("todoer_session", grant.token), ("todoer_csrf", grant.csrf)] {
-        response.headers_mut().append(
-            header::SET_COOKIE,
-            format!("{name}={value}; Max-Age=43200; HttpOnly; SameSite=Lax; Path=/{secure}")
-                .parse()
-                .unwrap(),
-        );
-    }
     response.headers_mut().append(
         header::SET_COOKIE,
         format!("todoer_login=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/auth{secure}")
@@ -458,6 +583,255 @@ mod tests {
             }
         }
     }
+
+    fn response_cookie<'a>(response: &'a Response, name: &str) -> (&'a str, i64) {
+        response
+            .headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .find_map(|header| {
+                let mut fields = header.to_str().unwrap().split("; ");
+                let (key, value) = fields.next()?.split_once('=')?;
+                if key != name {
+                    return None;
+                }
+                let age = fields.next()?.strip_prefix("Max-Age=")?.parse().unwrap();
+                let flags: Vec<_> = fields.collect();
+                assert_eq!(flags, ["HttpOnly", "SameSite=Lax", "Path=/", "Secure"]);
+                Some((value, age))
+            })
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn browser_sign_in_duration_survives_same_account_reauthentication() {
+        let f = Fixture::new();
+        let password = "synthetic test password";
+        let hashed_password = crate::account_security::hash_password(password).unwrap();
+        let auth = f.state.production.as_ref().unwrap();
+        {
+            let mut db = auth.store.lock().unwrap();
+            db.conn.execute("INSERT INTO auth_identities(issuer,subject,user_id,email) VALUES('local','dev','dev','dev@example.test')",[]).unwrap();
+            db.set_password("dev", &hashed_password).unwrap();
+        }
+        let app = router(f.state.clone());
+        let login = |cookie: &str| {
+            Request::post("/auth/local/login")
+                .header(header::ORIGIN, &f.state.origin)
+                .header(header::COOKIE, cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({"email":"dev@example.test","password":password,"next":"/today?reauth=complete"}).to_string(),
+                ))
+                .unwrap()
+        };
+        let default = app.clone().oneshot(login("")).await.unwrap();
+        assert_eq!(default.status(), StatusCode::OK);
+        let (session, age) = response_cookie(&default, "todoer_session");
+        assert!((BROWSER_SESSION_SECONDS - 30..=BROWSER_SESSION_SECONDS).contains(&age));
+        let (csrf, csrf_age) = response_cookie(&default, "todoer_csrf");
+        assert_eq!(age, csrf_age);
+        let current = format!("todoer_session={session}; todoer_csrf={csrf}");
+        let session_id = {
+            let db = auth.store.lock().unwrap();
+            db.authenticate_session(session, None, false)
+                .unwrap()
+                .credential_id
+                .unwrap()
+        };
+        let preference = |origin: &str, current: &str, csrf: &str, duration: &str| {
+            Request::post("/settings/account/sign-in")
+                .header(header::ORIGIN, origin)
+                .header(header::COOKIE, current)
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .body(Body::from(format!("duration={duration}&csrf={csrf}")))
+                .unwrap()
+        };
+        for (origin, proof) in [(&*f.state.origin, "bad-csrf"), ("https://other.test", csrf)] {
+            let rejected = app
+                .clone()
+                .oneshot(preference(origin, &current, proof, "until_sign_out"))
+                .await
+                .unwrap();
+            assert_eq!(rejected.status(), StatusCode::FORBIDDEN);
+        }
+        let saved = app
+            .clone()
+            .oneshot(preference(
+                &f.state.origin,
+                &current,
+                csrf,
+                "until_sign_out",
+            ))
+            .await
+            .unwrap();
+        assert_eq!(saved.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response_cookie(&saved, "todoer_session"),
+            (session, BROWSER_COOKIE_MAX_AGE)
+        );
+        assert_eq!(
+            response_cookie(&saved, "todoer_csrf"),
+            (csrf, BROWSER_COOKIE_MAX_AGE)
+        );
+
+        let second_browser = app.clone().oneshot(login("")).await.unwrap();
+        assert_eq!(second_browser.status(), StatusCode::OK);
+        assert!(response_cookie(&second_browser, "todoer_session").1 <= BROWSER_SESSION_SECONDS);
+        {
+            let db = auth.store.lock().unwrap();
+            db.conn
+                .execute(
+                    "UPDATE auth_recent_sessions SET authenticated_at=0 WHERE token_hash=?1",
+                    [crate::auth::hash(session)],
+                )
+                .unwrap();
+            assert!(matches!(
+                db.recent(session),
+                Err(AuthError::ReauthenticationRequired)
+            ));
+        }
+        let account_page = |cookie: &str| {
+            Request::get("/settings/account")
+                .header(header::ACCEPT, "text/html")
+                .header(header::COOKIE, cookie)
+                .body(Body::empty())
+                .unwrap()
+        };
+        let renewed = app.clone().oneshot(account_page(&current)).await.unwrap();
+        assert_eq!(renewed.status(), StatusCode::OK);
+        assert_eq!(
+            response_cookie(&renewed, "todoer_session"),
+            (session, BROWSER_COOKIE_MAX_AGE)
+        );
+        assert_eq!(
+            response_cookie(&renewed, "todoer_csrf"),
+            (csrf, BROWSER_COOKIE_MAX_AGE)
+        );
+        assert!(matches!(
+            auth.store.lock().unwrap().recent(session),
+            Err(AuthError::ReauthenticationRequired)
+        ));
+        let html = renewed.into_body().collect().await.unwrap().to_bytes();
+        assert!(String::from_utf8_lossy(&html).contains("value=\"until_sign_out\" selected"));
+
+        let events = app
+            .clone()
+            .oneshot(
+                Request::get("/api/v1/events?list_id=inbox")
+                    .header(header::COOKIE, &current)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(events.status(), StatusCode::OK);
+        let mut events = events.into_body();
+
+        let refreshed = app.clone().oneshot(login(&current)).await.unwrap();
+        assert_eq!(refreshed.status(), StatusCode::OK);
+        let (new_session, age) = response_cookie(&refreshed, "todoer_session");
+        let (new_csrf, csrf_age) = response_cookie(&refreshed, "todoer_csrf");
+        assert_eq!(age, BROWSER_COOKIE_MAX_AGE);
+        assert_eq!(age, csrf_age);
+        assert_ne!(new_session, session);
+        assert_ne!(new_csrf, csrf);
+        {
+            let db = auth.store.lock().unwrap();
+            assert!(db.authenticate_session(session, None, false).is_err());
+            let principal = db
+                .authenticate_session(new_session, Some(new_csrf), true)
+                .unwrap();
+            assert_eq!(
+                principal.credential_id.as_deref(),
+                Some(session_id.as_str())
+            );
+            assert_eq!(db.recent(new_session).unwrap(), "dev");
+        }
+        let frame = tokio::time::timeout(std::time::Duration::from_secs(5), events.frame())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert!(String::from_utf8_lossy(frame.data_ref().unwrap()).contains("event: changes"));
+
+        let current = format!("todoer_session={new_session}; todoer_csrf={new_csrf}");
+        let saved = app
+            .clone()
+            .oneshot(preference(
+                &f.state.origin,
+                &current,
+                new_csrf,
+                "thirty_days",
+            ))
+            .await
+            .unwrap();
+        assert_eq!(saved.status(), StatusCode::SEE_OTHER);
+        assert!(response_cookie(&saved, "todoer_session").1 <= BROWSER_SESSION_SECONDS);
+        let logout = app
+            .clone()
+            .oneshot(
+                Request::post("/logout")
+                    .header(header::COOKIE, &current)
+                    .header("x-csrf-token", new_csrf)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(logout.status(), StatusCode::SEE_OTHER);
+        for name in ["todoer_session", "todoer_csrf", SESSION_COOKIE_MARKER] {
+            assert_eq!(response_cookie(&logout, name), ("", 0));
+        }
+        let frame = tokio::time::timeout(std::time::Duration::from_secs(5), events.frame())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert!(
+            String::from_utf8_lossy(frame.data_ref().unwrap()).contains("event: session-expired")
+        );
+
+        let revoked = app.oneshot(account_page(&current)).await.unwrap();
+        assert_eq!(revoked.status(), StatusCode::SEE_OTHER);
+        assert!(!revoked.headers().contains_key(header::SET_COOKIE));
+    }
+
+    #[test]
+    fn browser_session_migration_upgrades_live_sessions_without_restoring_old_sessions() {
+        let f = Fixture::new();
+        let auth = f.state.production.as_ref().unwrap();
+        let db = auth.store.lock().unwrap();
+        let active = db.issue_session("dev", 43200).unwrap();
+        let revoked = db.issue_session("dev", 43200).unwrap();
+        db.revoke_session(&revoked.token).unwrap();
+        let expired = db.issue_session("dev", 1).unwrap();
+        db.conn
+            .execute(
+                "UPDATE auth_sessions SET expires_at=1 WHERE token_hash=?1",
+                [crate::auth::hash(&expired.token)],
+            )
+            .unwrap();
+        db.conn
+            .execute_batch(include_str!("../migrations/057_browser_sessions.sql"))
+            .unwrap();
+        assert_eq!(
+            db.browser_session_expiry(&active.token, &active.csrf)
+                .unwrap(),
+            Some(active.expires_at - 43200 + BROWSER_SESSION_SECONDS)
+        );
+        assert_eq!(
+            db.browser_session_expiry(&revoked.token, &revoked.csrf)
+                .unwrap(),
+            None
+        );
+        assert_eq!(
+            db.browser_session_expiry(&expired.token, &expired.csrf)
+                .unwrap(),
+            None
+        );
+    }
+
     #[tokio::test]
     async fn production_credentials_apply_live_scope_to_discovery_writes_search_and_history() {
         let f = Fixture::new();

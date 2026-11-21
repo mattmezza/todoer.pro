@@ -202,6 +202,7 @@ pub(super) async fn session_user(
 }
 pub(super) async fn finish_login(
     s: &AppState,
+    h: &HeaderMap,
     user: String,
     epoch: i64,
     next: String,
@@ -216,13 +217,67 @@ pub(super) async fn finish_login(
     } else {
         browser_auth::safe_next(Some(&next))
     };
-    let grant = auth_run(s, move |db| db.issue_verified_session(&user, epoch)).await?;
+    let prior_session = browser_auth::session_cookie_pair(h)
+        .map(|(token, csrf)| (token.to_owned(), csrf.to_owned()));
+    let grant = auth_run(s, move |db| {
+        db.issue_verified_session(
+            &user,
+            epoch,
+            prior_session
+                .as_ref()
+                .map(|(token, csrf)| (token.as_str(), csrf.as_str())),
+        )
+    })
+    .await?;
     let mut response =
         Json(json!({"redirect":browser_auth::safe_next(Some(&next))})).into_response();
-    add_cookie(&mut response, "todoer_session", &grant.token, 43200);
-    // Existing csrf_for expects the token in the cookie; JS reads the matching meta tag.
-    add_cookie(&mut response, "todoer_csrf", &grant.csrf, 43200);
+    browser_auth::set_session_cookies(
+        &mut response,
+        &s.origin,
+        &grant.token,
+        &grant.csrf,
+        grant.expires_at,
+    );
     add_cookie(&mut response, "todoer_account_flow", "", 0);
+    Ok(response)
+}
+
+#[derive(Deserialize)]
+struct SessionDurationForm {
+    csrf: String,
+    duration: SessionDuration,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum SessionDuration {
+    ThirtyDays,
+    UntilSignOut,
+}
+
+async fn save_session_duration(
+    State(s): State<AppState>,
+    mut h: HeaderMap,
+    Form(input): Form<SessionDurationForm>,
+) -> Result<Response, ApiError> {
+    if h.contains_key(header::AUTHORIZATION) {
+        return Err(AuthError::Forbidden.into());
+    }
+    h.insert(
+        "x-csrf-token",
+        input.csrf.parse().map_err(|_| AuthError::Forbidden)?,
+    );
+    session_user(&s, &h, false).await?;
+    let token = cookie(&h, "todoer_session").ok_or(AuthError::Unauthorized)?;
+    let until_sign_out = matches!(input.duration, SessionDuration::UntilSignOut);
+    let stored_token = token.to_owned();
+    let stored_csrf = input.csrf.clone();
+    let expires_at = auth_run(&s, move |db| {
+        db.set_browser_session_duration(&stored_token, &stored_csrf, until_sign_out)
+    })
+    .await?;
+    let mut response = Redirect::to("/settings/account").into_response();
+    browser_auth::set_session_cookies(&mut response, &s.origin, token, &input.csrf, expires_at);
     Ok(response)
 }
 pub(super) fn mfa_redirect(
@@ -302,7 +357,7 @@ async fn verify(
         Ok((u.id, epoch))
     })
     .await?;
-    finish_login(&s, user, epoch, "/inbox".into()).await
+    finish_login(&s, &h, user, epoch, "/inbox".into()).await
 }
 #[derive(Deserialize)]
 struct LoginInput {
@@ -372,7 +427,7 @@ async fn login(
         add_cookie(&mut r, "todoer_account_flow", &token, 300);
         Ok(r)
     } else {
-        finish_login(&s, user, epoch, next).await
+        finish_login(&s, &h, user, epoch, next).await
     }
 }
 #[derive(Deserialize)]
@@ -410,7 +465,7 @@ async fn mfa_code(
     .await?;
     // Failed codes retain the bounded, throttled flow; success consumes it once.
     s.accounts.flow(&h, true)?;
-    finish_login(&s, flow.user, flow.epoch, flow.next).await
+    finish_login(&s, &h, flow.user, flow.epoch, flow.next).await
 }
 #[derive(Deserialize)]
 struct EmailInput {
@@ -813,7 +868,7 @@ async fn key_auth_finish(
         return Ok(Json(json!({"verified":true})).into_response());
     }
     s.accounts.flow(&h, true)?;
-    finish_login(&s, flow.user, flow.epoch, flow.next).await
+    finish_login(&s, &h, flow.user, flow.epoch, flow.next).await
 }
 #[derive(Deserialize)]
 struct RemoveKey {
@@ -898,5 +953,6 @@ pub(super) fn routes() -> Router<AppState> {
         .route("/auth/passkey/start", post(key_authenticate))
         .route("/auth/passkey/finish", post(key_auth_finish))
         .route("/api/v1/admin/auth-policy", get(get_policy).put(put_policy))
+        .route("/settings/account/sign-in", post(save_session_duration))
         .route("/settings/security", get(security_page))
 }

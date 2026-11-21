@@ -389,7 +389,10 @@ pub fn router(state: AppState) -> Router {
             state.clone(),
             public_http::metadata_layer,
         ))
-        .layer(axum::middleware::from_fn(response_security))
+        .layer(axum::middleware::from_fn_with_state(
+            state,
+            response_security,
+        ))
         // Compression wraps HTML versioning and excludes SSE by default.
         .layer(tower_http::compression::CompressionLayer::new())
 }
@@ -621,21 +624,7 @@ async fn logout(
             .map_err(|_| crate::auth::AuthError::Unauthorized)?
             .revoke_session(token)?;
         let mut response = Redirect::to("/signin").into_response();
-        for name in ["todoer_session", "todoer_csrf"] {
-            response.headers_mut().append(
-                header::SET_COOKIE,
-                format!(
-                    "{name}=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/{}",
-                    if s.origin.starts_with("https://") {
-                        "; Secure"
-                    } else {
-                        ""
-                    }
-                )
-                .parse()
-                .unwrap(),
-            );
-        }
+        browser_auth::set_session_cookies(&mut response, &s.origin, "", "", 0);
         return Ok(response);
     }
     if let Some(value) = session_cookie(&h) {
@@ -1896,7 +1885,11 @@ fn session_cookie(h: &HeaderMap) -> Option<&str> {
         .split(';')
         .find_map(|cookie| cookie.trim().strip_prefix("todoer_dev="))
 }
-async fn response_security(req: axum::extract::Request, next: axum::middleware::Next) -> Response {
+async fn response_security(
+    State(s): State<AppState>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Response {
     let started = std::time::Instant::now();
     let request_id = uuid::Uuid::new_v4().to_string();
     let method = req.method().to_string();
@@ -1919,6 +1912,11 @@ async fn response_security(req: axum::extract::Request, next: axum::middleware::
             .is_some_and(|v| v.contains("text/html"))
         && !req.uri().path().starts_with("/api/")
         && !req.uri().path().starts_with("/auth/");
+    let renewal = if browser_page && s.production.is_some() && !public_asset && !versioned_asset {
+        browser_auth::session_cookies_to_renew(req.headers())
+    } else {
+        None
+    };
     let mut res = crate::audit::REQUEST_ID
         .scope(request_id.clone(), next.run(req))
         .await;
@@ -1928,6 +1926,17 @@ async fn response_security(req: axum::extract::Request, next: axum::middleware::
             encode_query(&browser_auth::safe_next(Some(&destination)))
         ))
         .into_response();
+    }
+    if let Some((token, csrf)) = renewal
+        && res.status().is_success()
+        && !res.headers().contains_key(header::SET_COOKIE)
+        && res
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.starts_with("text/html"))
+    {
+        browser_auth::renew_session_cookies(&s, &mut res, &token, &csrf);
     }
     res.headers_mut()
         .insert("x-request-id", request_id.parse().unwrap());
@@ -1984,26 +1993,26 @@ async fn events(
     h: HeaderMap,
     Query(q): Query<Feed>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let actor = s.auth(&h, false)?;
-    if let Some(list) = q.list_id.clone()
-        && s.run(move |db| db.list_permission(&actor, &list)).await? < 1
-    {
-        return Err(Error::Forbidden.into());
-    }
     let last = h
         .get("last-event-id")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<i64>().ok())
         .unwrap_or(q.after)
         .max(0);
+    let (actor, auth) = browser_auth::EventAuthentication::connect(&s, h)?;
+    if let Some(list) = q.list_id.clone()
+        && s.run(move |db| db.list_permission(&actor, &list)).await? < 1
+    {
+        return Err(Error::Forbidden.into());
+    }
     let stream = futures_util::stream::unfold(
-        (s, h, last, false, q.list_id),
-        |(s, h, mut cursor, ended, list)| async move {
+        (s, auth, last, false, q.list_id),
+        |(s, auth, mut cursor, ended, list)| async move {
             if ended || s.stopping.load(std::sync::atomic::Ordering::SeqCst) {
                 return None;
             }
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            let actor = match s.auth(&h, false) {
+            let actor = match auth.actor(&s) {
                 Ok(actor) => actor,
                 Err(_) => {
                     return Some((
@@ -2012,7 +2021,7 @@ async fn events(
                                 .event("session-expired")
                                 .data("{}"),
                         ),
-                        (s, h, cursor, true, list),
+                        (s, auth, cursor, true, list),
                     ));
                 }
             };
@@ -2027,7 +2036,7 @@ async fn events(
                         Ok(axum::response::sse::Event::default()
                             .event("access-revoked")
                             .data("{}")),
-                        (s, h, cursor, true, list),
+                        (s, auth, cursor, true, list),
                     ));
                 }
             }
@@ -2055,7 +2064,7 @@ async fn events(
                     .event("changes")
                     .id(cursor.to_string())
                     .data(data.to_string())),
-                (s, h, cursor, false, list),
+                (s, auth, cursor, false, list),
             ))
         },
     );

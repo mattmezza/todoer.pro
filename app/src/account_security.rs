@@ -1,5 +1,8 @@
 //! Account authentication persistence. Passwords and bearer secrets never enter logs.
-use crate::auth::{AuthError, AuthStore, Identity, email, hash, now, secret};
+use crate::auth::{
+    AuthError, AuthStore, BROWSER_SESSION_SECONDS, BROWSER_SESSION_UNTIL_SIGN_OUT, Identity, email,
+    hash, now, secret,
+};
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier, password_hash::SaltString};
 use chacha20poly1305::{
     ChaCha20Poly1305, KeyInit, Nonce,
@@ -198,6 +201,7 @@ impl AuthStore {
         &mut self,
         user: &str,
         epoch: i64,
+        prior_session: Option<(&str, &str)>,
     ) -> Result<crate::auth::SessionGrant, AuthError> {
         let tx = self
             .conn
@@ -210,15 +214,38 @@ impl AuthStore {
         if actual != epoch {
             return Err(AuthError::Unauthorized);
         }
-        let grant = crate::auth::SessionGrant {
+        let authenticated_at = now();
+        let mut grant = crate::auth::SessionGrant {
             token: secret(),
             csrf: secret(),
-            expires_at: now() + 43200,
+            expires_at: authenticated_at + BROWSER_SESSION_SECONDS,
         };
-        tx.execute("INSERT INTO auth_sessions(id,user_id,token_hash,csrf_hash,expires_at) VALUES(?1,?2,?3,?4,?5)",params![Uuid::new_v4().to_string(),user,hash(&grant.token),hash(&grant.csrf),grant.expires_at])?;
+        let token_hash = hash(&grant.token);
+        let csrf_hash = hash(&grant.csrf);
+        // Keep the browser's preference, subscriptions and open event streams
+        // while rotating both credentials after fresh proof.
+        if let Some((token, csrf)) = prior_session
+            && tx.execute(
+                "UPDATE auth_sessions SET token_hash=?1,csrf_hash=?2
+                 WHERE token_hash=?3 AND csrf_hash=?4 AND user_id=?5 AND revoked=0 AND expires_at=?6",
+                params![
+                    token_hash,
+                    csrf_hash,
+                    hash(token),
+                    hash(csrf),
+                    user,
+                    BROWSER_SESSION_UNTIL_SIGN_OUT
+                ],
+            )? == 1
+        {
+            grant.expires_at = BROWSER_SESSION_UNTIL_SIGN_OUT;
+            tx.execute("DELETE FROM auth_recent_sessions WHERE token_hash=?1", [hash(token)])?;
+        } else {
+            tx.execute("INSERT INTO auth_sessions(id,user_id,token_hash,csrf_hash,expires_at) VALUES(?1,?2,?3,?4,?5)",params![Uuid::new_v4().to_string(),user,token_hash,csrf_hash,grant.expires_at])?;
+        }
         tx.execute(
             "INSERT INTO auth_recent_sessions VALUES(?1,?2)",
-            params![hash(&grant.token), now()],
+            params![token_hash, authenticated_at],
         )?;
         tx.commit()?;
         Ok(grant)

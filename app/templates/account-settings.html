@@ -5,6 +5,18 @@
 <section class="settings-preference-card" aria-labelledby="account-access-heading">
 <h2 id="account-access-heading">Sign-in &amp; access</h2>
 <p class="muted">Manage how you sign in and which devices can reach you.</p>
+{% if let Some(until_sign_out) = session_until_sign_out %}
+<form action="/settings/account/sign-in" method="post" class="grid gap-4">
+<input type="hidden" name="csrf" value="{{ sidebar.csrf }}">
+<label for="sign-in-duration">Stay signed in on this browser</label>
+<select id="sign-in-duration" name="duration" aria-describedby="sign-in-duration-help">
+  <option value="thirty_days"{% if !until_sign_out %} selected{% endif %}>30 days</option>
+  <option value="until_sign_out"{% if until_sign_out %} selected{% endif %}>Until I sign out</option>
+</select>
+<p class="muted" id="sign-in-duration-help">With “Until I sign out” selected, visit Todoer periodically to keep this browser signed in.</p>
+<div class="settings-save-row"><button class="primary" type="submit">Save sign-in preference</button></div>
+</form>
+{% endif %}
 <a class="settings-destination" href="/settings/security"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#shield"/></svg><span>Security<small>Passwords, passkeys, and two-factor authentication</small></span><span aria-hidden="true">→</span></a>
 <a class="settings-destination" href="/settings/devices"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#computer-desktop"/></svg><span>Devices<small>Manage notification access on your devices</small></span><span aria-hidden="true">→</span></a>
 </section>

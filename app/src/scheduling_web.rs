@@ -1114,6 +1114,7 @@ struct SettingsPage {
     sidebar: super::Sidebar,
     title: String,
     body: String,
+    session_until_sign_out: Option<bool>,
 }
 pub(super) async fn render_settings(
     s: &AppState,
@@ -1128,6 +1129,11 @@ pub(super) async fn render_settings(
         .run(move |db| super::build_sidebar(db, &actor, "", csrf))
         .await?;
     sidebar.settings_section = selected.into();
+    let session_until_sign_out = if selected == "account" {
+        browser_auth::session_until_sign_out(s, h)?
+    } else {
+        None
+    };
     let mut body = if let Some(main) = html.find("<main") {
         let begin = html[main..].find('>').unwrap() + main + 1;
         html[begin..]
@@ -1148,6 +1154,7 @@ pub(super) async fn render_settings(
             sidebar,
             title: title.into(),
             body,
+            session_until_sign_out,
         }
         .render()
         .map_err(|_| Error::Invalid("Could not render settings".into()))?,
