@@ -317,10 +317,20 @@ test('task priority colors follow rows, details and search, with inset mobile To
 
   await page.setViewportSize({ width: 1440, height: 840 });
   await page.goto('/inbox');
-  await assertColor(
-    page.locator('.inbox-task').getByRole('link', { name: title, exact: true }),
-    ...red,
-  );
+  const inboxRow = page.locator('.inbox-task').filter({
+    has: page.getByRole('link', { name: title, exact: true }),
+  });
+  await assertColor(inboxRow.locator('.workbench-task-copy a'), ...red);
+  await inboxRow.getByRole('button', { name: 'Move…' }).click();
+  const move = page.getByRole('dialog', { name: 'Move to a list' });
+  await assertColor(move.getByRole('heading', { name: title }), ...red);
+  await move.getByRole('button', { name: 'Close dialog' }).click();
+  await inboxRow.locator('.inbox-plan-menu summary').click();
+  await inboxRow.getByRole('button', { name: 'Choose date…' }).click();
+  const plan = page.getByRole('dialog', { name: 'Plan this task' });
+  await assertColor(plan.locator('.plan-task-title strong'), ...red);
+  await plan.getByRole('button', { name: 'Close dialog' }).click();
+
   await page.goto('/plan');
   await assertColor(
     page
@@ -335,7 +345,11 @@ test('task priority colors follow rows, details and search, with inset mobile To
     .locator('#task-list')
     .getByRole('link', { name: title, exact: true });
   await assertColor(listTitle, ...red);
-  await listTitle.click();
+  const listRow = page.locator('#task-list .task').filter({
+    has: page.getByRole('link', { name: title, exact: true }),
+  });
+  await listRow.getByLabel(`Actions for ${title}`).click();
+  await listRow.getByRole('button', { name: 'Open details' }).click();
   const panel = page.getByLabel('Task details', { exact: true });
   await assertColor(panel.locator('[data-edit-title]'), ...red);
   await assertColor(panel.getByRole('link', { name: childTitle, exact: true }), ...blue);
@@ -366,7 +380,11 @@ test('task priority colors follow rows, details and search, with inset mobile To
   expect(reprioritized.ok()).toBeTruthy();
   await assertColor(childLink, ...red);
   await page.goto(`/tasks/${childId}`);
-  await assertColor(page.locator('[data-edit-title]'), ...red);
+  const fullChildTitle = page.locator('[data-edit-title]');
+  await assertColor(fullChildTitle, ...red);
+  await page.getByRole('button', { name: 'Complete task', exact: true }).click();
+  await expect(fullChildTitle).toHaveCSS('text-decoration-line', 'line-through');
+  await assertColor(fullChildTitle, ...red);
 
   await page.goto(`/search?query=${encodeURIComponent(title)}`);
   await assertColor(

@@ -255,7 +255,9 @@ onPageLoad(async (scope) => {
       '<span class="modal-heading-icon" aria-hidden="true"><svg class="ui-icon" width="20" height="20"><use href="/assets/icons.svg#clock"></use></svg></span>',
     );
     const prompt = node('h3', null, 'plan-task-title');
-    prompt.append('When will you get “', node('strong', entry.task.title), '” done?');
+    const title = node('strong', entry.task.title, 'priority-title');
+    title.dataset.priority = entry.schedule.priority ?? 3;
+    prompt.append('When will you get “', title, '” done?');
     d.append(prompt);
     const form = node('form');
     const date = dateInput(initial || entry.schedule.planned?.date || today, 'date');
@@ -441,7 +443,9 @@ onPageLoad(async (scope) => {
   async function organize(entry) {
     const d = modal('Move to a list');
     d.classList.add('destination-dialog');
-    d.append(node('h3', entry.task.title, 'destination-task-title'));
+    const title = node('h3', entry.task.title, 'destination-task-title priority-title');
+    title.dataset.priority = entry.schedule.priority ?? 3;
+    d.append(title);
     const input = node('input');
     input.name = 'destination_query';
     input.type = 'search';
