@@ -15,6 +15,7 @@ struct Child {
     subtask_count: u64,
     public_reference: String,
     title: String,
+    priority: u64,
     description_html: String,
     complete: bool,
     parent_id: String,
@@ -229,7 +230,7 @@ async fn page(
                 &task.id,
                 SubtreeRead {
                     limit: 100,
-                    fields: vec![TaskField::Title, TaskField::Description, TaskField::DescriptionHtml, TaskField::CommentCount, TaskField::SubtaskCount, TaskField::Complete, TaskField::Revision, TaskField::Position, TaskField::PublicReference],
+                    fields: vec![TaskField::Title, TaskField::Description, TaskField::DescriptionHtml, TaskField::Priority, TaskField::CommentCount, TaskField::SubtaskCount, TaskField::Complete, TaskField::Revision, TaskField::Position, TaskField::PublicReference],
                     cursor: None,
                 },
             )?;
@@ -277,6 +278,7 @@ async fn page(
                     comment_count: x["comment_count"].as_u64().unwrap_or(0),
                     subtask_count: x["subtask_count"].as_u64().unwrap_or(0),
                     title: x["title"].as_str().unwrap_or_default().into(),
+                    priority: x["priority"].as_u64().unwrap_or(3),
                     description_html: x["description_html"].as_str().unwrap_or_default().into(),
                     complete: x["complete"].as_bool().unwrap_or(false),
                     parent_id: x["parent_id"].as_str().unwrap_or_default().into(),

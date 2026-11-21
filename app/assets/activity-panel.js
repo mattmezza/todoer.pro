@@ -87,6 +87,8 @@ export function mountActivity(container, kind, id) {
           const link = document.createElement('a');
           link.href = `/tasks/${encodeURIComponent(item.task_id)}`;
           link.textContent = item.title;
+          link.className = 'priority-title';
+          link.dataset.priority = item.priority ?? 3;
           row.append(link);
         }
         const meta = document.createElement('p');

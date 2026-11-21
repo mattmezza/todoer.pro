@@ -175,6 +175,7 @@ export function searchOmnibar() {
         this.hits = data.hits.map((hit, index) => ({
           ...hit,
           title: hit.title || hit.kind,
+          titlePriority: hit.kind === 'task' ? (hit.priority ?? 3) : null,
           commentLabel: `${hit.comment_count} ${hit.comment_count === 1 ? 'comment' : 'comments'}`,
           subtaskLabel: `${hit.subtask_count} ${hit.subtask_count === 1 ? 'subtask' : 'subtasks'}`,
           rowId: `omnibar-result-${index}`,

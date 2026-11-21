@@ -1,5 +1,5 @@
 // Pending rows have no task ID so normal task controls cannot edit or move them.
-export function pendingTaskRow(tag, title, description) {
+export function pendingTaskRow(tag, title, description, priority) {
   const row = document.createElement(tag);
   row.className = 'pending-task';
   const check = document.createElement('span');
@@ -7,7 +7,8 @@ export function pendingTaskRow(tag, title, description) {
   check.setAttribute('aria-hidden', 'true');
   const copy = document.createElement('div');
   const name = document.createElement('span');
-  name.className = 'task-title';
+  name.className = 'task-title priority-title';
+  name.dataset.priority = priority ?? 3;
   name.textContent = title;
   const state = document.createElement('small');
   state.className = 'pending-task-state';

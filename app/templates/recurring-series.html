@@ -9,7 +9,7 @@
   {% for row in rows %}
   <li>
     <div class="recurring-series-task">
-      <h2><a class="task-title" href="{{ row.task_url }}">{{ row.title }}</a></h2>
+      <h2><a class="task-title priority-title" data-priority="{{ row.priority }}" href="{{ row.task_url }}">{{ row.title }}</a></h2>
       <p class="muted">{{ row.rule }} · {% if row.series.state == SeriesState::Active %}Active{% else if row.series.state == SeriesState::Paused %}Paused{% else %}Stopped{% endif %}</p>
       <p class="muted"><time datetime="{{ row.series.spec.start_local }}">{{ row.series.spec.start_local.replace("T", " ") }}</time> start · {{ row.series.spec.timezone }} · {{ row.series.emitted }} {% if row.series.emitted == 1 %}occurrence{% else %}occurrences{% endif %}</p>
     </div>

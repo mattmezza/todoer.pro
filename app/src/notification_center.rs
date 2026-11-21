@@ -78,6 +78,7 @@ pub struct Notice {
     pub id: i64,
     pub kind: String,
     pub title: String,
+    pub priority: u8,
     pub task_reference: String,
     pub list_title: String,
     pub actor_name: String,
@@ -109,7 +110,7 @@ impl Store {
             [&user],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )?;
-        let mut q = self.conn.prepare(&format!("SELECT n.id,n.kind,t.title,COALESCE((SELECT short_id FROM task_public_ids WHERE task_id=t.id),t.id),l.title,n.created_at,n.read_at IS NULL,COALESCE((SELECT name FROM users WHERE id=n.source AND n.kind='update'),'') {VISIBLE} AND (?2 IS NULL OR n.id<?2) AND (?3=0 OR n.read_at IS NULL) ORDER BY n.id DESC LIMIT ?4"))?;
+        let mut q = self.conn.prepare(&format!("SELECT n.id,n.kind,t.title,COALESCE((SELECT short_id FROM task_public_ids WHERE task_id=t.id),t.id),l.title,n.created_at,n.read_at IS NULL,COALESCE((SELECT name FROM users WHERE id=n.source AND n.kind='update'),''),COALESCE(json_extract(s.document,'$.priority'),3) {VISIBLE} AND (?2 IS NULL OR n.id<?2) AND (?3=0 OR n.read_at IS NULL) ORDER BY n.id DESC LIMIT ?4"))?;
         let mut items = q
             .query_map(params![user, before, unread_only, limit as i64 + 1], |r| {
                 Ok(Notice {
@@ -121,6 +122,7 @@ impl Store {
                     created_at: r.get(5)?,
                     unread: r.get(6)?,
                     actor_name: r.get(7)?,
+                    priority: r.get(8)?,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;

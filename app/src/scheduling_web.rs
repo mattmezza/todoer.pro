@@ -452,7 +452,7 @@ async fn calendar(
             });
         let counts = task_counts.get(&row.task.id).copied().unwrap_or_default();
         let indicators = counts.html();
-        body.push_str(&format!(r#"<article class="task planning-task{}" data-planning-task="{}" x-bind:hidden="!matchesRow($el)"><a class="planning-completion" href="/tasks/{}" aria-label="Open task">{}</a><div class="task-content"><a class="task-title" href="/tasks/{}">{}</a>{}</div><span class="planning-row-meta"><span class="task-priority-summary" data-priority="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#flag"/></svg>{}</span><time class="planning-date" datetime="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#calendar"/></svg>{}</time>{indicators}</span></article>"#,
+        body.push_str(&format!(r#"<article class="task planning-task{}" data-planning-task="{}" x-bind:hidden="!matchesRow($el)"><a class="planning-completion" href="/tasks/{}" aria-label="Open task">{}</a><div class="task-content"><a class="task-title priority-title" data-priority="{priority}" href="/tasks/{}">{}</a>{}</div><span class="planning-row-meta"><span class="task-priority-summary" data-priority="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#flag"/></svg>{}</span><time class="planning-date" datetime="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#calendar"/></svg>{}</time>{indicators}</span></article>"#,
           if row.task.complete { " is-complete" } else { "" }, esc(&row.task.id), esc(&row.task.id), if row.task.complete { "✓" } else { "" }, esc(&row.task.id), esc(&row.task.title), description, priority, priority_label, esc(&row.dates[0]), esc(&row.dates[0])));
     }
     if body.is_empty() {
@@ -593,6 +593,7 @@ struct RecurringRow {
     series: crate::scheduling::Series,
     task_url: String,
     title: String,
+    priority: u8,
     rule: String,
     can_manage: bool,
 }
@@ -631,20 +632,22 @@ async fn recurring(State(s): State<AppState>, h: HeaderMap) -> Result<Response, 
                     let latest = crate::scheduling::series_task(&db.conn, &series.id)?;
                     let can_manage =
                         crate::core::access_rank(&db.conn, &actor, &latest.list_id, 2).is_ok();
-                    let visible = db.conn.query_row(
-                        "SELECT t.id,t.title FROM recurrence_occurrences o
+                    let (id, title, priority) = db.conn.query_row(
+                        "SELECT t.id,t.title,coalesce(json_extract(s.document,'$.priority'),3) FROM recurrence_occurrences o
                          JOIN tasks t ON t.id=o.task_id
                          JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?2
+                         LEFT JOIN task_schedule s ON s.task_id=t.id
                          WHERE o.series_id=?1 AND t.deleted_at IS NULL AND a.rank>=1
                          ORDER BY o.ordinal DESC LIMIT 1",
                         rusqlite::params![series.id, actor],
-                        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                        |row| Ok((row.get::<_, String>(0)?, row.get(1)?, row.get(2)?)),
                     )?;
-                    let reference = crate::defaults::public_id(&db.conn, "task", &visible.0)?;
+                    let reference = crate::defaults::public_id(&db.conn, "task", &id)?;
                     Ok(RecurringRow {
                         rule: recurring_rule(&series.spec.rule),
                         task_url: format!("/tasks/{reference}"),
-                        title: visible.1,
+                        title,
+                        priority,
                         series,
                         can_manage,
                     })

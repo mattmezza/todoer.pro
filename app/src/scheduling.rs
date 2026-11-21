@@ -190,6 +190,26 @@ fn state(c: &Connection, t: &Task) -> Result<ScheduleState, Error> {
         schedule,
     })
 }
+// These IDs come from task rows already checked by the caller.
+pub(crate) fn task_priorities<'a>(
+    c: &Connection,
+    ids: impl Iterator<Item = &'a str>,
+) -> Result<std::collections::HashMap<String, u8>, Error> {
+    let ids = ids.collect::<Vec<_>>();
+    if ids.is_empty() {
+        return Ok(std::collections::HashMap::new());
+    }
+    let mut query = c.prepare(
+        "SELECT s.task_id,json_extract(s.document,'$.priority')
+         FROM json_each(?1) ids JOIN task_schedule s ON s.task_id=ids.value
+         WHERE json_extract(s.document,'$.priority') IS NOT NULL",
+    )?;
+    Ok(query
+        .query_map([serde_json::to_string(&ids).unwrap()], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })?
+        .collect::<Result<_, _>>()?)
+}
 fn cancel(c: &Connection, id: &str) -> Result<(), Error> {
     c.execute("UPDATE reminder_outbox SET status='cancelled',lease_owner=NULL,lease_token=NULL,lease_until=NULL WHERE task_id=?1 AND status IN ('pending','leased')",[id])?;
     Ok(())

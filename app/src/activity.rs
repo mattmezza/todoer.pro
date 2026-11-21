@@ -8,6 +8,7 @@ pub struct ActivityItem {
     pub kind: String,
     pub task_id: String,
     pub title: String,
+    pub priority: u8,
     pub actor: String,
     pub attribution: String,
     pub occurred_at: Option<i64>,
@@ -98,7 +99,7 @@ impl Store {
         } else {
             "EXISTS(SELECT 1 FROM lists scope WHERE scope.id=h.list_id AND scope.workspace_id=?2)"
         };
-        let mut statement=self.conn.prepare(&format!("SELECT h.seq,json_extract(h.event,'$.kind'),t.id,json_extract(h.event,'$.task.title'),coalesce(u.name,'Member'),coalesce(json_extract(h.event,'$.attribution'),'human'),h.occurred_at,CASE WHEN json_extract(h.event,'$.kind')='update' AND h.before_event IS NOT NULL AND t.revision=json_extract(h.event,'$.task.revision') AND live.rank>=2 THEN t.revision END,coalesce(json_extract(h.event,'$.task.complete'),0)=1 AND coalesce(json_extract(h.before_event,'$.complete'),0)=0,h.event,h.before_event FROM history h JOIN actor_list_access old ON old.list_id=h.list_id AND old.actor_id=?1 JOIN tasks t ON t.id=json_extract(h.event,'$.task.id') JOIN actor_list_access live ON live.list_id=t.list_id AND live.actor_id=?1 LEFT JOIN users u ON u.id=h.actor WHERE {scope} AND (?3 IS NULL OR h.seq<?3) ORDER BY h.seq DESC LIMIT 31"))?;
+        let mut statement=self.conn.prepare(&format!("SELECT h.seq,json_extract(h.event,'$.kind'),t.id,json_extract(h.event,'$.task.title'),coalesce(u.name,'Member'),coalesce(json_extract(h.event,'$.attribution'),'human'),h.occurred_at,CASE WHEN json_extract(h.event,'$.kind')='update' AND h.before_event IS NOT NULL AND t.revision=json_extract(h.event,'$.task.revision') AND live.rank>=2 THEN t.revision END,coalesce(json_extract(h.event,'$.task.complete'),0)=1 AND coalesce(json_extract(h.before_event,'$.complete'),0)=0,h.event,h.before_event,coalesce(json_extract(s.document,'$.priority'),3) FROM history h JOIN actor_list_access old ON old.list_id=h.list_id AND old.actor_id=?1 JOIN tasks t ON t.id=json_extract(h.event,'$.task.id') JOIN actor_list_access live ON live.list_id=t.list_id AND live.actor_id=?1 LEFT JOIN users u ON u.id=h.actor LEFT JOIN task_schedule s ON s.task_id=t.id WHERE {scope} AND (?3 IS NULL OR h.seq<?3) ORDER BY h.seq DESC LIMIT 31"))?;
         let mut items = statement
             .query_map(params![actor, id, before], |row| {
                 Ok(ActivityItem {
@@ -106,6 +107,7 @@ impl Store {
                     kind: row.get(1)?,
                     task_id: row.get(2)?,
                     title: row.get(3)?,
+                    priority: row.get(11)?,
                     actor: row.get(4)?,
                     attribution: row.get(5)?,
                     occurred_at: row.get(6)?,

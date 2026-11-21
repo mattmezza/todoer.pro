@@ -19,7 +19,7 @@ async function request(id, body, endpoint = 'subtree/query') {
 }
 const projection = (cursor) => ({
   limit: 100,
-  fields: ['title', 'complete', 'revision'],
+  fields: ['title', 'priority', 'complete', 'revision'],
   cursor: cursor || null,
 });
 function tree(items, currentId) {
@@ -37,7 +37,8 @@ function tree(items, currentId) {
       const link = document.createElement('a');
       link.href = `/tasks/${encodeURIComponent(item.id)}`;
       const label = document.createElement('span');
-      label.className = 'structure-task-title';
+      label.className = 'structure-task-title priority-title';
+      label.dataset.priority = item.priority ?? 3;
       label.textContent = item.title || 'Untitled task';
       link.append(label);
       if (currentId) {

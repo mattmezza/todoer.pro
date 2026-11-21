@@ -262,3 +262,119 @@ test('lowest priority capture and task editing preserve the default low priority
       .priority,
   ).toBe(3);
 });
+
+test('task priority colors follow rows, details and search, with inset mobile Today cards', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 820 });
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  await page.goto('/today');
+  const main = page.locator('main[data-planning-today]');
+  const date = await main.getAttribute('data-planning-today');
+  const csrf = await page.locator('meta[name="csrf-token"]').getAttribute('content');
+  const inbox = await (await page.request.get('/api/v1/inbox')).json();
+  const title = `Priority-views-${randomUUID().slice(0, 8)}`;
+  const capture = async (title, priority, parent_id) => {
+    const response = await page.request.post('/api/v1/capture', {
+      headers: { 'x-csrf-token': csrf, 'Idempotency-Key': randomUUID() },
+      data: {
+        list_id: inbox.list_id,
+        tasks: [{ title, parent_id }],
+        metadata: { priority, planned_date: date },
+      },
+    });
+    expect(response.ok()).toBeTruthy();
+    const [task] = await response.json();
+    return task.id;
+  };
+  const taskId = await capture(title, 0);
+  const childTitle = `${title} child`;
+  const childId = await capture(childTitle, 2, taskId);
+  const assertColor = async (locator, light, dark) => {
+    for (const [scheme, color] of [
+      ['light', light],
+      ['dark', dark],
+    ]) {
+      // Isolate this visual assertion from the shared synthetic account's setting.
+      await page.evaluate((scheme) => {
+        document.documentElement.style.colorScheme = scheme;
+      }, scheme);
+      await expect(locator).toHaveCSS('color', color);
+    }
+  };
+  const red = ['rgb(166, 29, 45)', 'rgb(255, 107, 107)'];
+  const blue = ['rgb(29, 78, 216)', 'rgb(120, 170, 255)'];
+  const amber = ['rgb(146, 64, 14)', 'rgb(231, 169, 63)'];
+
+  await page.reload();
+  const todayRow = page.locator('.planning-task').filter({
+    has: page.getByRole('link', { name: title, exact: true }),
+  });
+  await expect(todayRow).toHaveCSS('padding-left', '14px');
+  await expect(todayRow).toHaveCSS('padding-right', '14px');
+  await assertColor(todayRow.locator('.task-title'), ...red);
+
+  await page.setViewportSize({ width: 1440, height: 840 });
+  await page.goto('/inbox');
+  await assertColor(
+    page.locator('.inbox-task').getByRole('link', { name: title, exact: true }),
+    ...red,
+  );
+  await page.goto('/plan');
+  await assertColor(
+    page
+      .locator('.calendar-event .workbench-task-copy a')
+      .filter({ hasText: title })
+      .first(),
+    ...red,
+  );
+
+  await page.goto(`/lists/${inbox.list_id}`);
+  const listTitle = page
+    .locator('#task-list')
+    .getByRole('link', { name: title, exact: true });
+  await assertColor(listTitle, ...red);
+  await listTitle.click();
+  const panel = page.getByLabel('Task details', { exact: true });
+  await assertColor(panel.locator('[data-edit-title]'), ...red);
+  await assertColor(panel.getByRole('link', { name: childTitle, exact: true }), ...blue);
+  const picker = panel.getByLabel('Change priority');
+  await picker.click();
+  await panel.getByRole('button', { name: 'P1 · High priority', exact: true }).click();
+  await assertColor(panel.locator('[data-edit-title]'), ...amber);
+  await assertColor(listTitle, ...amber);
+  await expect(panel).toBeVisible();
+
+  await page.goto(`/tasks/${taskId}`);
+  await assertColor(page.locator('[data-edit-title]'), ...amber);
+  const childLink = page
+    .locator('[data-children]')
+    .getByRole('link', { name: childTitle });
+  await assertColor(childLink, ...blue);
+  await expect(page.locator('[data-connection]')).toHaveText('Up to date');
+  const childSchedule = await (
+    await page.request.get(`/api/v1/tasks/${childId}/schedule`)
+  ).json();
+  const reprioritized = await page.request.put(`/api/v1/tasks/${childId}/schedule`, {
+    headers: { 'x-csrf-token': csrf },
+    data: {
+      revision: childSchedule.task_revision,
+      schedule: { ...childSchedule.schedule, priority: 0 },
+    },
+  });
+  expect(reprioritized.ok()).toBeTruthy();
+  await assertColor(childLink, ...red);
+  await page.goto(`/tasks/${childId}`);
+  await assertColor(page.locator('[data-edit-title]'), ...red);
+
+  await page.goto(`/search?query=${encodeURIComponent(title)}`);
+  await assertColor(
+    page.locator('[data-planning-rows]').getByRole('link', { name: title, exact: true }),
+    ...amber,
+  );
+  await page.keyboard.press('Control+k');
+  const search = page.getByRole('dialog', { name: 'Quick search' });
+  await search.getByRole('combobox').fill(title);
+  await assertColor(search.getByText(title, { exact: true }), ...amber);
+});

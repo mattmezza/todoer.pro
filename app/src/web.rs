@@ -674,6 +674,7 @@ struct ListPage {
 }
 struct RenderedTask {
     task: Task,
+    priority: u8,
     comment_count: u64,
     subtask_count: u64,
     public_reference: String,
@@ -727,6 +728,8 @@ fn rendered_tasks(db: &Store, actor: &str, list: &str) -> Result<Vec<RenderedTas
             .map(|task| task.id.as_str())
             .collect::<Vec<_>>(),
     )?;
+    let priorities =
+        crate::scheduling::task_priorities(&db.conn, tasks.iter().map(|task| task.id.as_str()))?;
     tasks
         .into_iter()
         .map(|task| {
@@ -742,6 +745,7 @@ fn rendered_tasks(db: &Store, actor: &str, list: &str) -> Result<Vec<RenderedTas
                 )?
             };
             Ok(RenderedTask {
+                priority: priorities.get(&task.id).copied().unwrap_or(3),
                 comment_count: task_counts
                     .get(&task.id)
                     .copied()
@@ -1649,6 +1653,7 @@ struct SearchResultView {
     subtask_count: u64,
     task_id: String,
     title: String,
+    priority: u8,
     kind: String,
     snippet: String,
     path: String,
@@ -1765,6 +1770,7 @@ async fn search_page(
                 subtask_count: hit.subtask_count.unwrap_or(0),
                 task_id: url.strip_prefix("/tasks/").unwrap_or("").to_string(),
                 title: hit.title.unwrap_or_else(|| hit.kind.clone()),
+                priority: hit.priority.unwrap_or(3),
                 kind: hit.kind,
                 snippet: hit.snippet.unwrap_or_default(),
                 path,
@@ -1858,6 +1864,7 @@ async fn trash_page(
             parents.reverse();
             context.extend(parents);
             let tree = db.trash_tree(&actor, &root)?;
+            let priorities = crate::scheduling::task_priorities(&db.conn, tree.iter().map(|(task, _)| task.id.as_str()))?;
             let count = tree.len();
             body.push_str(&format!("<article class=\"trash-group\"><div class=\"trash-group-head\"><p class=\"trash-context\">{}</p>",esc(&context.join(" / "))));
             if db.list_permission(&actor,&root.list_id)? >= 2 {
@@ -1865,7 +1872,7 @@ async fn trash_page(
             }
             body.push_str("</div><ul class=\"trash-tree\">");
             for (task,depth) in tree {
-                body.push_str(&format!("<li style=\"--depth:{}\"><span aria-hidden=\"true\">{}</span>{}</li>",depth.min(30),if depth>0 {"↳"} else {""},esc(&task.title)));
+                body.push_str(&format!(r#"<li style="--depth:{}"><span aria-hidden="true">{}</span><span class="priority-title" data-priority="{}">{}</span></li>"#,depth.min(30),if depth>0 {"↳"} else {""},priorities.get(&task.id).copied().unwrap_or(3),esc(&task.title)));
             }
             body.push_str(&format!("</ul><p class=\"trash-summary\">{} task{} · Restores to the original location</p></article>",count,if count==1 {""} else {"s"}));
         }

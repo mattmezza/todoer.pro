@@ -16753,6 +16753,7 @@
           "title",
           "description",
           "description_html",
+          "priority",
           "complete",
           "revision",
           "position"
@@ -16926,6 +16927,12 @@
           },
           "public_reference": {
             "type": "string"
+          },
+          "priority": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "maximum": 4,
+            "description": "Stored task priority when projected. Null indicates no explicit priority."
           }
         },
         "required": [

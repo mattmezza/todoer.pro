@@ -274,7 +274,12 @@ onPageLoad((scope) => {
       let row = pendingRows.get(record.key);
       if (!row) {
         const { title, description } = record.payload.tasks[0];
-        row = pendingTaskRow('article', title, description);
+        row = pendingTaskRow(
+          'article',
+          title,
+          description,
+          record.payload.metadata?.priority,
+        );
         pendingRows.set(record.key, row);
       }
       row.querySelector('.pending-task-state').textContent =

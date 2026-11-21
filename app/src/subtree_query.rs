@@ -20,6 +20,7 @@ pub enum TaskField {
     Title,
     Description,
     DescriptionHtml,
+    Priority,
     CommentCount,
     SubtaskCount,
     Complete,
@@ -34,6 +35,7 @@ impl TaskField {
             Self::ListId => "list_id",
             Self::Title => "title",
             Self::Description | Self::DescriptionHtml => "description",
+            Self::Priority => "priority",
             Self::CommentCount => "comment_count",
             Self::SubtaskCount => "subtask_count",
             Self::Complete => "complete",
@@ -313,6 +315,13 @@ impl Store {
         let mut sizes = String::from("octet_length(p.id)+coalesce(octet_length(p.parent_id),0)");
         for field in &read.fields {
             let col = field.column();
+            if *field == TaskField::Priority {
+                projection.push_str(
+                    ",'priority',(SELECT json_extract(s.document,'$.priority') FROM task_schedule s WHERE s.task_id=p.id)",
+                );
+                sizes.push_str("+4");
+                continue;
+            }
             if *field == TaskField::SubtaskCount {
                 projection.push_str(
                     ",'subtask_count',(SELECT count(*) FROM tasks child WHERE child.parent_id=p.id AND child.deleted_at IS NULL)",

@@ -186,6 +186,8 @@ onPageLoad((scope) => {
             ? `Updated by ${n.actor_name}`
             : labels[n.kind] || 'Task update';
         const title = document.createElement('strong');
+        title.className = 'priority-title';
+        title.dataset.priority = n.priority ?? 3;
         title.textContent = n.title;
         const meta = document.createElement('span');
         meta.className = 'notification-meta';

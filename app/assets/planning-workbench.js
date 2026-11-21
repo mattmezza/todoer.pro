@@ -575,11 +575,12 @@ onPageLoad(async (scope) => {
     check.setAttribute('aria-label', t.complete ? 'Mark incomplete' : 'Complete task');
     check.setAttribute('aria-pressed', String(t.complete));
     const text = node('div', null, 'workbench-task-copy');
-    const link = node('a', t.title);
+    const link = node('a', t.title, 'priority-title');
     link.href = '/tasks/' + encodeURIComponent(t.id);
-    if (t.complete) link.className = 'is-complete';
+    link.classList.toggle('is-complete', t.complete);
+    const priority = entry.schedule.priority ?? 3;
+    link.dataset.priority = priority;
     if (!intake) {
-      const priority = entry.schedule.priority ?? 3;
       if (priority !== 3) {
         const indicator = node(
           'span',
@@ -1440,15 +1441,15 @@ onPageLoad(async (scope) => {
       const list = dayEntries(date);
       for (const entry of list.slice(0, 3)) {
         const link = node('a', null, 'calendar-month-task');
-        link.append(
-          node(
-            'span',
-            (entry.local_time ? entry.local_time + ' ' : '') + entry.task.title,
-            'calendar-month-task-title',
-          ),
+        const title = node(
+          'span',
+          (entry.local_time ? entry.local_time + ' ' : '') + entry.task.title,
+          'calendar-month-task-title priority-title',
         );
         link.href = '/tasks/' + encodeURIComponent(entry.task.id);
         const priority = entry.schedule.priority ?? 3;
+        title.dataset.priority = priority;
+        link.append(title);
         if (priority !== 3) {
           const indicator = node(
             'span',
@@ -1457,7 +1458,7 @@ onPageLoad(async (scope) => {
           );
           indicator.dataset.priority = priority;
           indicator.setAttribute('aria-label', `P${priority} priority`);
-          link.querySelector('.calendar-month-task-title').prepend(indicator);
+          title.prepend(indicator);
         }
         const indicators = taskIndicators(entry.comment_count, entry.subtask_count);
         if (indicators) link.append(indicators);

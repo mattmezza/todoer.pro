@@ -473,6 +473,7 @@ export function mountTaskPage(
         'title',
         'description',
         'description_html',
+        'priority',
         'comment_count',
         'subtask_count',
         'complete',
@@ -640,6 +641,8 @@ export function mountTaskPage(
         const link = document.createElement('a');
         link.href = `/tasks/${encodeURIComponent(child.public_reference || child.id)}`;
         link.textContent = child.title;
+        link.className = 'priority-title';
+        link.dataset.priority = child.priority ?? 3;
         line.append(complete, link);
         row.addEventListener('contextmenu', (event) => {
           if (
@@ -1157,7 +1160,12 @@ export function mountTaskPage(
     if (!interpreted.title) return;
     const writing = { ...childDraft };
     const release = beginWrite();
-    const pendingRow = pendingTaskRow('li', interpreted.title, writing.description);
+    const pendingRow = pendingTaskRow(
+      'li',
+      interpreted.title,
+      writing.description,
+      interpreted.metadata?.priority,
+    );
     get('[data-children]').append(pendingRow);
     let created;
     try {
