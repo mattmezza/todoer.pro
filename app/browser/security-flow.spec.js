@@ -52,11 +52,15 @@ async function securityPage(page) {
   await page.goto('/settings/security');
 }
 
-test('expired security proof prompts for sign-in and preserves return section', async ({
+test('expired security proof opens sign-in and resumes the original action', async ({
   page,
 }) => {
-  await page.route('**/api/v1/account/totp/start', (route) =>
-    route.fulfill({
+  let attempts = 0;
+  await page.route('**/api/v1/account/totp/start', (route) => {
+    attempts++;
+    if (attempts === 2)
+      return route.fulfill({ json: { setup_id: 'test-setup', secret: 'TEST', qr: '' } });
+    return route.fulfill({
       status: 403,
       json: {
         error: {
@@ -64,16 +68,23 @@ test('expired security proof prompts for sign-in and preserves return section', 
           message: 'Sign in again to change account security',
         },
       },
-    }),
-  );
+    });
+  });
   await securityPage(page);
   await page.locator('[data-totp-start]').click();
-  const modal = page.getByRole('dialog');
-  await expect(modal).toContainText('For your security');
-  await modal.getByRole('button', { name: 'Sign in now' }).click();
-  await expect(page).toHaveURL(/\/signin\?next=/);
-  const next = new URL(page.url()).searchParams.get('next');
-  expect(next).toMatch(/^\/settings\/security#security-section-/);
+  const modal = page.getByRole('dialog', { name: 'Confirm it’s you' });
+  const opened = page.waitForEvent('popup');
+  await modal.getByRole('button', { name: 'Sign in', exact: true }).click();
+  const popup = await opened;
+  await expect(popup).toHaveURL(/\/signin\?next=/);
+  const next = new URL(popup.url()).searchParams.get('next');
+  expect(next).toBe('/today?reauth=complete');
+  await expect(page).toHaveURL(/\/settings\/security$/);
+  await popup.goto(next, { waitUntil: 'commit' });
+  await expect(modal).toBeHidden();
+  await expect(page.locator('[data-totp-form]')).toBeVisible();
+  expect(attempts).toBe(2);
+  expect(popup.isClosed()).toBe(true);
 });
 
 test('displayed recovery codes download as a text file', async ({ page }) => {
