@@ -22,6 +22,8 @@ pub struct CompletionDay {
 #[derive(Clone, Debug, Serialize)]
 pub struct Commitment {
     pub task: Task,
+    #[serde(skip)]
+    pub(crate) priority: u8,
     pub on: String,
     pub planned: Option<String>,
     pub due: Option<String>,
@@ -247,7 +249,7 @@ impl Store {
             .ok_or_else(|| invalid("upcoming date overflow"))?;
         let mut planned_ids = BTreeSet::new();
         let mut overdue_now = 0;
-        let mut commitments = Vec::<(String, String, Option<String>, Option<String>)>::new();
+        let mut commitments = Vec::new();
         {
             let mut q=tx.prepare("SELECT t.id,t.list_id,t.complete,s.document FROM tasks t JOIN lists l ON l.id=t.list_id JOIN actor_list_access a ON a.list_id=t.list_id AND a.actor_id=?1 JOIN task_schedule s ON s.task_id=t.id WHERE a.rank>=1 AND t.deleted_at IS NULL AND l.archived=0 AND NOT EXISTS(SELECT 1 FROM tasks child INDEXED BY tasks_parent WHERE child.parent_id=t.id AND child.deleted_at IS NULL)")?;
             let rows = q.query_map([actor], |r| {
@@ -298,6 +300,7 @@ impl Store {
                         id,
                         planned.map(|d| d.to_string()),
                         due.map(|d| d.to_string()),
+                        schedule.priority.unwrap_or(3),
                     ));
                 }
             }
@@ -307,8 +310,9 @@ impl Store {
         let upcoming = commitments
             .into_iter()
             .take(20)
-            .map(|(on, id, planned, due)| {
+            .map(|(on, id, planned, due, priority)| {
                 Ok(Commitment {
+                    priority,
                     task: raw_task(&tx, &id)?,
                     on,
                     planned,

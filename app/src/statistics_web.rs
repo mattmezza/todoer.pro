@@ -253,7 +253,8 @@ async fn review_page(
         let mut rows = String::new();
         for item in &value.upcoming {
             rows.push_str(&format!(
-                "<li><a href=\"/lists/{}?task={}\">{}</a><span>{}</span></li>",
+                r#"<li><a class="priority-title" data-priority="{}" href="/lists/{}?task={}">{}</a><span>{}</span></li>"#,
+                item.priority,
                 urlencode(&item.task.list_id),
                 urlencode(&item.task.id),
                 esc(&item.task.title),
@@ -370,6 +371,7 @@ mod tests {
                     planned: Some(crate::scheduling::Moment::Date {
                         date: today.clone(),
                     }),
+                    priority: Some(1),
                     ..Default::default()
                 },
             )
@@ -434,6 +436,7 @@ mod tests {
         assert_eq!(page.headers()[header::CACHE_CONTROL], "no-store, private");
         let bytes = to_bytes(page.into_body(), 100000).await.unwrap();
         let html = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(html.contains("class=\"priority-title\" data-priority=\"1\""));
         assert!(html.contains("&lt;script&gt;synthetic()&lt;/script&gt;"));
         assert!(!html.contains("Private commitment"));
         assert!(html.contains("/assets/review.css"));
