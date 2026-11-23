@@ -2,9 +2,16 @@ import { navigate } from './page-navigation.js';
 import { mountSmartCapture } from './smart-capture.js';
 import { enqueueCapture, replayCaptures } from './offline.js';
 import { request } from './request.js';
+import { takeBrowserCapture } from './browser-capture.js';
 const form = document.querySelector('form[action="/capture"]');
+const draft = takeBrowserCapture();
 if (form) {
-  const smart = mountSmartCapture(form),
+  if (draft) {
+    form.elements.title.value = draft.title;
+    form.elements.description.value = draft.description;
+    if (draft.description) form.elements.description.closest('details').open = true;
+  }
+  const smart = mountSmartCapture(form, { literalTitle: !!draft }),
     account = document.querySelector('meta[name=account-id]')?.content;
   const status = document.createElement('p');
   status.setAttribute('role', 'status');

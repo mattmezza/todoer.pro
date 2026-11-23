@@ -21,7 +21,7 @@ async function options() {
       });
   return cached;
 }
-export function mountSmartCapture(form) {
+export function mountSmartCapture(form, { literalTitle = false } = {}) {
   if (form.smartCapture) return form.smartCapture;
   const title = form.querySelector('[name=title]');
   title.classList.add('capture-title');
@@ -121,7 +121,7 @@ export function mountSmartCapture(form) {
   let optionsLoaded = false;
   const previewLoading = scoped ? null : beginLoading(info, { variant: 'text' });
   let data = null,
-    literal = false,
+    literal = literalTitle,
     parsed = null,
     choices = [],
     active = 0,

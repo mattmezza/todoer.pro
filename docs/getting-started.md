@@ -41,20 +41,20 @@ The web app works on its own. The CLI, REST API and MCP interface give compatibl
 
 The extension source can be loaded locally in desktop Chrome and Firefox.
 
-- In Chrome, open `chrome://extensions`, enable **Developer mode**, select **Load unpacked**, and choose the `extension` directory.
+- In Chrome 121 or later, open `chrome://extensions`, enable **Developer mode**, select **Load unpacked**, and choose the `extension` directory.
 - In Firefox 140 or later, open `about:debugging#/runtime/this-firefox`, select **Load Temporary Add-on**, and choose `extension/manifest.json`. Load it again after restarting Firefox.
 
-When the source changes, click **Reload** on the extension’s card on the same browser page and reopen the popup or Settings.
+When the source changes, click **Reload** on the extension’s card on the same browser page.
 
 [Get the extension source](https://github.com/mattmezza/todoer.pro/tree/main/extension).
 
-Open **Todoer Pro** from the browser toolbar and select **Settings**. Use the cloud server address or enter the HTTPS origin of your own Todoer instance. Select **Sign in with Todoer**, then approve the spaces or lists you want to share. Choose **Read and write** to add and complete tasks, or **Read** to browse. Your browser may ask to allow access to a self-hosted server.
+Click **Todoer Pro** in the browser toolbar to open your Inbox in a narrow app window. Todoer uses your normal browser session. To use a self-hosted instance, open the browser’s extension options and save its HTTPS origin.
 
-If your server has not been updated to support extension sign-in, expand **Use a REST credential** in the extension. In Todoer’s **Connected tools**, create a **Script (REST API)** credential for the lists you want, then paste it into the extension.
+To pin a list, copy its URL from Todoer. On the website you want to associate with it, right-click and choose **Choose Todoer list for this site**. Paste the list URL and save the pin. The toolbar button opens that list from the same hostname. Use extension options to edit or remove pins. Each subdomain can have its own pin.
 
-Switch to the list you want, then select **Pin to** followed by the current website hostname. The extension opens that list whenever you open the popup on that hostname. Subdomains can have their own pins. On unpinned sites, the popup opens an available Inbox or the first accessible list. Manage existing pins in the extension’s settings.
+On a server that supports browser capture, right-click a page or selected text and choose **Capture this page in Todoer**. The app opens a draft with the page title, link, and any selected text. Review the draft and choose **Add task** to save it. Todoer starts with your pinned list when you can edit it and uses Inbox otherwise.
 
-Pins stay in this browser. Task changes go to your selected Todoer server. **Disconnect** removes the saved credential and revokes access issued through **Sign in with Todoer** when the server is reachable. To revoke pasted credentials or revoke access from another device, use Todoer’s **Connected tools**.
+Pins stay in this browser. If you created a credential for an earlier version of the extension, you can revoke it in Todoer’s **Connected tools**.
 
 ## Keep your work portable
 

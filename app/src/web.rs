@@ -448,6 +448,11 @@ async fn signin(State(s): State<AppState>, Query(q): Query<SigninQuery>) -> Html
 fn auth_screen(s: AppState, q: SigninQuery, signup: bool) -> Html<String> {
     let next = browser_auth::safe_next(q.next.as_deref());
     let encoded = encode_query(&next);
+    let capture_draft = if next.split('?').next() == Some("/capture") {
+        r#"<script type="module" src="/assets/browser-capture.js"></script>"#
+    } else {
+        ""
+    };
     let step = q.step.as_deref().unwrap_or("");
     let title = if step == "mfa" {
         "One more step."
@@ -535,7 +540,7 @@ fn auth_screen(s: AppState, q: SigninQuery, signup: bool) -> Html<String> {
         )
     };
     Html(format!(
-        r##"<!doctype html><html lang="en"><head>{favicon}<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="dark light"><link rel="manifest" href="/assets/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon-v2.png"><meta name="theme-color" content="#030712"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Todoer"><title>{} · Todoer</title><link rel="stylesheet" href="/assets/app.css"></head><body class="auth-page"><main class="auth-shell"><section class="auth-card" aria-labelledby="auth-heading"><a class="brand auth-brand todoer-logo" href="/" aria-label="Todoer Pro"><span class="todoer-logo-word"><span class="logo-expanded">todoer</span><span class="logo-collapsed">t</span></span><span class="todoer-logo-pro">pro</span></a><h1 id="auth-heading">{title}</h1><p class="auth-intro">{intro}</p>{content}</section><p class="auth-footer">One thing at a time.</p></main></body></html>"##,
+        r##"<!doctype html><html lang="en"><head>{favicon}<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="dark light"><link rel="manifest" href="/assets/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon-v2.png"><meta name="theme-color" content="#030712"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Todoer"><title>{} · Todoer</title><link rel="stylesheet" href="/assets/app.css">{capture_draft}</head><body class="auth-page"><main class="auth-shell"><section class="auth-card" aria-labelledby="auth-heading"><a class="brand auth-brand todoer-logo" href="/" aria-label="Todoer Pro"><span class="todoer-logo-word"><span class="logo-expanded">todoer</span><span class="logo-collapsed">t</span></span><span class="todoer-logo-pro">pro</span></a><h1 id="auth-heading">{title}</h1><p class="auth-intro">{intro}</p>{content}</section><p class="auth-footer">One thing at a time.</p></main></body></html>"##,
         if signup { "Create account" } else { "Sign in" },
         favicon = include_str!("../templates/favicon-head.html"),
     ))
@@ -904,6 +909,7 @@ fn hide_completed(h: &HeaderMap, actor: &str) -> bool {
 pub(super) struct ListQuery {
     task: Option<String>,
     section: Option<String>,
+    browser: Option<String>,
 }
 async fn legacy_list_page(
     State(s): State<AppState>,
@@ -915,6 +921,12 @@ async fn legacy_list_page(
         return public_http::show(&s, "list", &id, 1).await;
     }
     let Ok(actor) = s.auth(&h, false) else {
+        if q.browser.as_deref() == Some("1") {
+            let next = format!("/lists/{}?browser=1", encode_query(&id));
+            return Ok(
+                Redirect::to(&format!("/signin?next={}", encode_query(&next))).into_response(),
+            );
+        }
         return Ok(Redirect::to("/signin").into_response());
     };
     let requested = id.clone();
@@ -932,7 +944,15 @@ async fn legacy_list_page(
             crate::core::access_rank(&db.conn, &actor, &id, 1)?;
             crate::defaults::public_id(&db.conn, "list", &id)
         })
-        .await?;
+        .await;
+    let target = match target {
+        Err(ApiError(StatusCode::NOT_FOUND | StatusCode::FORBIDDEN, _, _))
+            if q.browser.as_deref() == Some("1") =>
+        {
+            return Ok(Redirect::to("/inbox").into_response());
+        }
+        result => result?,
+    };
     if requested == target {
         return page(State(s), h, Path(requested), Query(q)).await;
     }
@@ -2131,10 +2151,14 @@ async fn capture_page(
     Query(q): Query<CaptureContext>,
 ) -> Result<Response, ApiError> {
     let Ok(actor) = s.auth(&h, false) else {
-        return Ok(Redirect::to("/signin?next=%2Fcapture").into_response());
+        let mut next = "/capture".to_owned();
+        if let Some(list) = q.list {
+            next.push_str(&format!("?list={}", encode_query(&list)));
+        }
+        return Ok(Redirect::to(&format!("/signin?next={}", encode_query(&next))).into_response());
     };
     let account_id = actor.clone();
-    let (lists, default) = s
+    let (lists, selected) = s
         .run(move |db| {
             let mut lists = db.lists(&actor)?;
             lists.retain(|l| {
@@ -2153,14 +2177,15 @@ async fn capture_page(
                     },
                 );
             }
-            Ok((lists, Some(inbox)))
+            let selected = q
+                .list
+                .map(|id| crate::defaults::resolve(&db.conn, "list", &id))
+                .transpose()?
+                .filter(|id| lists.iter().any(|list| list.id == *id))
+                .unwrap_or(inbox);
+            Ok((lists, selected))
         })
         .await?;
-    let selected = q
-        .list
-        .or(default)
-        .filter(|id| lists.iter().any(|l| l.id == *id))
-        .unwrap_or_default();
     Ok(Html(
         CapturePage {
             account_id,
