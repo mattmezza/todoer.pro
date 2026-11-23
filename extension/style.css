@@ -1,236 +1,102 @@
 :root {
   color-scheme: light dark;
-  --background: light-dark(#f8f9fc, #101521);
-  --surface: light-dark(#ffffff, #1a2232);
+  --surface: light-dark(#fff, #1a2232);
   --text: light-dark(#182238, #eef2fd);
-  --muted: light-dark(#4e5a72, #b1bdd7);
   --line: light-dark(#c9d1e0, #485874);
   --accent: light-dark(#2454cc, #a7b8ff);
   --accent-text: light-dark(#fff, #182751);
   --error: light-dark(#a12923, #ffb4ab);
-  font:
-    14px/1.45 system-ui,
-    sans-serif;
-  background: var(--background);
+  background: light-dark(#f8f9fc, #101521);
   color: var(--text);
-}
-
-[hidden],
-.status:empty,
-.hint:empty {
-  display: none !important;
-}
-
-body {
-  margin: 0;
+  font:
+    15px/1.45 system-ui,
+    sans-serif;
 }
 
 main {
-  padding: 16px;
-}
-
-.popup {
-  width: 380px;
-}
-
-.settings main {
   max-width: 34rem;
-  margin: 1.5rem auto;
+  margin: 2rem auto;
+  padding: 0 16px;
 }
 
-h1 {
-  font-size: 1.45rem;
-}
-
-h2 {
-  font-size: 0.98rem;
-  margin: 0 0 8px;
-}
-
-p {
-  margin: 8px 0;
-}
-
-a {
-  color: var(--accent);
-}
-
-button,
-input,
-select {
-  box-sizing: border-box;
-  min-height: 36px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  padding: 6px 9px;
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-}
-
-input,
-select {
-  width: 100%;
-  min-width: 0;
-}
-
-button {
-  cursor: pointer;
-}
-
-button:disabled,
-select:disabled {
-  opacity: 0.65;
-  cursor: default;
-}
-
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-label {
-  display: block;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.brand,
+.actions,
+li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .brand {
-  display: flex;
-  align-items: center;
-  gap: 4px;
   font-size: 1.2rem;
   font-weight: 700;
-  letter-spacing: -0.03em;
 }
 
 .brand img {
   width: 25px;
   height: 25px;
-  margin-right: 4px;
 }
 
-.brand span,
-.hint,
-.status {
-  color: var(--muted);
+h1 {
+  font-size: 1.5rem;
 }
-
-.top,
-.list-actions,
-.actions,
-.capture-row,
-li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+h2 {
+  font-size: 1.15rem;
 }
-
-.top {
-  justify-content: space-between;
-  margin-bottom: 14px;
+section {
+  margin-top: 1.75rem;
 }
-
-.list-actions {
-  margin-top: 6px;
-  flex-wrap: wrap;
-}
-
-.list-actions a {
-  margin-inline-start: auto;
-}
-
-#pin {
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  text-align: start;
-}
-
-#pin[data-pinned='true'] {
+a {
   color: var(--accent);
-  border-color: var(--accent);
 }
 
-.primary {
-  color: var(--accent-text);
-  background: var(--accent);
-  border-color: var(--accent);
-  font-weight: 650;
+label {
+  display: block;
+  font-weight: 600;
+  margin: 12px 0 4px;
 }
 
-.status {
-  overflow-wrap: anywhere;
+input,
+button {
+  box-sizing: border-box;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
 }
 
-.error {
-  color: var(--error);
+input {
+  width: 100%;
 }
-
-#capture,
-.tasks,
-#pins {
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
+button {
+  cursor: pointer;
+}
+.actions,
+form > button {
   margin-top: 12px;
 }
 
-#discard {
-  margin-top: 8px;
+.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
 }
 
-#tasks {
-  overflow-y: auto;
-  max-height: 280px;
-}
-
-li {
-  min-height: 42px;
-  padding: 4px;
-  border-bottom: 1px solid var(--line);
-  overflow-wrap: anywhere;
-}
-
-#tasks a {
-  color: var(--text);
-  text-decoration: none;
-}
-
-#tasks a:hover {
-  text-decoration: underline;
-}
-
-.complete {
-  flex: 0 0 28px;
-  min-height: 28px;
-  border-radius: 50%;
+#pins {
   padding: 0;
 }
-
-.complete:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+li {
+  border-bottom: 1px solid var(--line);
+  padding: 8px 0;
 }
-
-.complete:hover::before {
-  content: '✓';
+li span {
+  flex: 1;
+  overflow-wrap: anywhere;
 }
-
-.settings form label,
-.settings details,
-.actions {
-  margin-top: 14px;
-}
-
-.settings summary {
-  cursor: pointer;
-}
-
-#pin-list li {
-  justify-content: space-between;
+.error {
+  color: var(--error);
 }

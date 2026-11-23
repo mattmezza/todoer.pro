@@ -7,53 +7,33 @@
     <link rel="stylesheet" href="style.css" />
     <script type="module" src="options.js"></script>
   </head>
-  <body class="settings">
+  <body>
     <main>
       <header class="brand">
         <img src="icons/icon32.png" alt="" /> Todoer <span>pro</span>
       </header>
       <h1>Extension settings</h1>
-      <p>Connect the Todoer account whose lists you want in your browser toolbar.</p>
-      <form id="connection-form">
+      <form id="server-form">
         <label for="origin">Todoer server</label>
-        <input id="origin" type="url" value="https://app.todoer.pro" required />
+        <input id="origin" type="url" required />
         <div class="actions">
-          <button id="connect" class="primary">Sign in with Todoer</button>
-          <button id="disconnect" type="button" hidden>Disconnect</button>
+          <button class="primary">Save server</button>
+          <a id="open-todoer" target="_blank" rel="noopener">Open Todoer</a>
         </div>
-        <details>
-          <summary>Use a REST credential</summary>
-          <label for="token">REST credential</label>
-          <p class="hint" id="token-help">
-            <a
-              id="credentials"
-              href="https://app.todoer.pro/settings/ai/tools"
-              target="_blank"
-              rel="noopener noreferrer"
-              >Open Connected tools</a
-            >. Choose <strong>Script (REST API)</strong> and select the lists to share.
-            Enable <strong>Write</strong> to add and complete tasks.
-          </p>
-          <input
-            id="token"
-            type="password"
-            autocomplete="off"
-            spellcheck="false"
-            aria-describedby="token-help"
-          />
-          <div class="actions">
-            <button id="manual-connect">Connect with credential</button>
-          </div>
-        </details>
       </form>
-      <p id="status" class="status" role="status"></p>
-      <section id="pins" hidden>
+      <section>
         <h2>Pinned websites</h2>
-        <p class="hint">
-          Open Todoer from a website and pin the list you want to see there.
-        </p>
-        <ul id="pin-list"></ul>
+        <p>Copy a list’s URL from Todoer and assign it to a website.</p>
+        <form id="pin-form">
+          <label for="site">Website hostname</label>
+          <input id="site" placeholder="example.com" required />
+          <label for="list-url">Todoer list URL</label>
+          <input id="list-url" type="url" required />
+          <button class="primary">Save pin</button>
+        </form>
+        <ul id="pins"></ul>
       </section>
+      <p id="status" role="status"></p>
     </main>
   </body>
 </html>
