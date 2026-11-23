@@ -1,0 +1,232 @@
+:root {
+  color-scheme: light dark;
+  --background: light-dark(#f8faf9, #101916);
+  --surface: light-dark(#ffffff, #19251f);
+  --text: light-dark(#18251e, #eef6f1);
+  --muted: light-dark(#475d52, #adc1b5);
+  --line: light-dark(#c6d4cc, #43594c);
+  --accent: light-dark(#086454, #6bdbc3);
+  --accent-text: light-dark(#fff, #092c24);
+  --error: light-dark(#a12923, #ffb4ab);
+  font:
+    14px/1.45 system-ui,
+    sans-serif;
+  background: var(--background);
+  color: var(--text);
+}
+
+[hidden],
+.status:empty,
+.hint:empty {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  padding: 16px;
+}
+
+.popup {
+  width: 380px;
+  max-width: 100vw;
+}
+
+.settings main {
+  max-width: 34rem;
+  margin: 1.5rem auto;
+}
+
+h1 {
+  font-size: 1.45rem;
+}
+
+h2 {
+  font-size: 0.98rem;
+  margin: 0 0 8px;
+}
+
+p {
+  margin: 8px 0;
+}
+
+a {
+  color: var(--accent);
+}
+
+button,
+input,
+select {
+  box-sizing: border-box;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 9px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+input,
+select {
+  width: 100%;
+  min-width: 0;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.brand img {
+  width: 25px;
+  height: 25px;
+  margin-right: 4px;
+}
+
+.brand span,
+.hint,
+.status {
+  color: var(--muted);
+}
+
+.top,
+.list-actions,
+.actions,
+.capture-row,
+li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.top {
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.list-actions {
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.list-actions a {
+  margin-inline-start: auto;
+}
+
+#pin {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+#pin[aria-pressed='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.primary {
+  color: var(--accent-text);
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 650;
+}
+
+.status {
+  overflow-wrap: anywhere;
+}
+
+.error {
+  color: var(--error);
+}
+
+#capture,
+.tasks,
+#pins {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+#discard {
+  margin-top: 8px;
+}
+
+#tasks {
+  overflow-y: auto;
+  max-height: 280px;
+}
+
+li {
+  min-height: 42px;
+  padding: 4px;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+#tasks a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+#tasks a:hover {
+  text-decoration: underline;
+}
+
+.complete {
+  flex: 0 0 28px;
+  min-height: 28px;
+  border-radius: 50%;
+  padding: 0;
+}
+
+.complete:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.complete:hover::before {
+  content: '✓';
+}
+
+.settings form label,
+.actions {
+  margin-top: 14px;
+}
+
+#pin-list li {
+  justify-content: space-between;
+}
