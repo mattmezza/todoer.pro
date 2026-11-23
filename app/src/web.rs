@@ -592,7 +592,7 @@ async fn login(
     r.headers_mut().insert(
         header::SET_COOKIE,
         format!(
-            "todoer_dev={}; Max-Age=43200; HttpOnly; SameSite=Strict; Path=/",
+            "todoer_dev={}; Max-Age=43200; HttpOnly; SameSite=Lax; Path=/",
             session
         )
         .parse()
@@ -643,7 +643,7 @@ async fn logout(
     let mut r = Redirect::to("/signin").into_response();
     r.headers_mut().insert(
         header::SET_COOKIE,
-        "todoer_dev=; Max-Age=0; HttpOnly; SameSite=Strict; Path=/"
+        "todoer_dev=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/"
             .parse()
             .unwrap(),
     );

@@ -206,10 +206,17 @@ async fn approve(
         })
         .await?;
     let (redirect, extension) = redirect;
-    if extension {
-        return Ok(private(Redirect::to(&redirect).into_response()));
-    }
-    Ok(private(Html(format!("<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"refresh\" content=\"0;url={}\"><title>Return to Todoer CLI</title></head><body><p>Returning to your terminal… <a href=\"{}\">Continue</a></p></body></html>", esc(&redirect), esc(&redirect))).into_response()))
+    let (title, message) = if extension {
+        (
+            "Return to the Todoer browser extension",
+            "Returning to your extension…",
+        )
+    } else {
+        ("Return to Todoer CLI", "Returning to your terminal…")
+    };
+    // Navigate from a new document so the approval form's same-origin CSP still applies.
+    let redirect = esc(&redirect);
+    Ok(private(Html(format!("<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"refresh\" content=\"0;url={redirect}\"><title>{title}</title></head><body><p>{message} <a href=\"{redirect}\">Continue</a></p></body></html>")).into_response()))
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
