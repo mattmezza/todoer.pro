@@ -1,8 +1,15 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
-test('mobile Inbox and Today open the full task page', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 700 });
+test.use({
+  hasTouch: true,
+  viewport: { width: 390, height: 700 },
+  serviceWorkers: 'block',
+});
+
+test('mobile Today toggles completion in place and task titles open the full page', async ({
+  page,
+}) => {
   await page.goto('/signin');
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
   await page.goto('/inbox');
@@ -30,12 +37,21 @@ test('mobile Inbox and Today open the full task page', async ({ page }) => {
   });
   expect(saved.ok()).toBeTruthy();
   await page.reload();
-  await page.getByRole('link', { name: title }).click();
+  const row = page.locator(`[data-planning-task="${task.id}"]`);
+  await row.getByRole('button', { name: 'Complete task' }).tap();
+  await expect(row).toHaveClass(/is-complete/);
+  await expect(page).toHaveURL(/\/today$/);
+  const reopen = row.getByRole('button', { name: 'Reopen task' });
+  await expect(reopen).toHaveAttribute('aria-pressed', 'true');
+  await reopen.tap();
+  await expect(row).not.toHaveClass(/is-complete/);
+  await expect(page).toHaveURL(/\/today$/);
+  await row.getByRole('link', { name: title }).tap();
   await expect(page).toHaveURL(/\/tasks\//);
   await expect(page.locator('main[data-task-page]')).toBeVisible();
   await page.goto('/inbox');
-  const row = page.locator('.inbox-task').filter({ hasText: title });
-  await row.getByRole('link', { name: title }).click();
+  const inboxRow = page.locator('.inbox-task').filter({ hasText: title });
+  await inboxRow.getByRole('link', { name: title }).tap();
   await expect(page).toHaveURL(/\/tasks\//);
   await expect(page.locator('main[data-task-page]')).toBeVisible();
 });

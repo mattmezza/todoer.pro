@@ -374,7 +374,7 @@ async fn calendar(
     if requested.len() > 4096 {
         return Err(Error::Invalid("Too many space filters".into()).into());
     }
-    let (rows, spaces, selected, task_counts, descriptions) = s
+    let (rows, spaces, selected, task_counts, descriptions, writable_lists) = s
         .run(move |db| {
             let mut available = db.workspaces(&a)?;
             let inactive = db.conn.prepare("SELECT workspace_id FROM workspace_lifecycle WHERE archived=1 OR deleted_at IS NOT NULL")?.query_map([], |r| r.get::<_,String>(0))?.collect::<Result<std::collections::HashSet<_>,_>>()?;
@@ -423,7 +423,10 @@ async fn calendar(
                     &db.conn, &a, "task", &row.task.id, &row.task.description,
                 )?)))
                 .collect::<Result<std::collections::HashMap<_, _>, Error>>()?;
-            Ok((rows, spaces, selected, task_counts, descriptions))
+            let mut writable_lists = rows.iter().map(|row| row.task.list_id.clone())
+                .collect::<std::collections::HashSet<_>>();
+            writable_lists.retain(|id| crate::core::access_rank(&db.conn, &a, id, 2).is_ok());
+            Ok((rows, spaces, selected, task_counts, descriptions, writable_lists))
         })
         .await?;
     let mut rows = rows;
@@ -452,8 +455,22 @@ async fn calendar(
             });
         let counts = task_counts.get(&row.task.id).copied().unwrap_or_default();
         let indicators = counts.html();
-        body.push_str(&format!(r#"<article class="task planning-task{}" data-planning-task="{}" x-bind:hidden="!matchesRow($el)"><a class="planning-completion" href="/tasks/{}" aria-label="Open task">{}</a><div class="task-content"><a class="task-title priority-title" data-priority="{priority}" href="/tasks/{}">{}</a>{}</div><span class="planning-row-meta"><span class="task-priority-summary" data-priority="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#flag"/></svg>{}</span><time class="planning-date" datetime="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#calendar"/></svg>{}</time>{indicators}</span></article>"#,
-          if row.task.complete { " is-complete" } else { "" }, esc(&row.task.id), esc(&row.task.id), if row.task.complete { "✓" } else { "" }, esc(&row.task.id), esc(&row.task.title), description, priority, priority_label, esc(&row.dates[0]), esc(&row.dates[0])));
+        let icon = if row.task.complete { "✓" } else { "" };
+        let completion = if writable_lists.contains(&row.task.list_id) {
+            let label = if row.task.complete {
+                "Reopen task"
+            } else {
+                "Complete task"
+            };
+            format!(
+                r#"<button type="button" class="planning-completion" data-task-revision="{}" aria-label="{label}" aria-pressed="{}">{icon}</button>"#,
+                row.task.revision, row.task.complete,
+            )
+        } else {
+            format!(r#"<span class="planning-completion" aria-hidden="true">{icon}</span>"#)
+        };
+        body.push_str(&format!(r#"<article class="task planning-task{}" data-planning-task="{}" x-bind:hidden="!matchesRow($el)">{completion}<div class="task-content"><a class="task-title priority-title" data-priority="{priority}" href="/tasks/{}">{}</a>{}</div><span class="planning-row-meta"><span class="task-priority-summary" data-priority="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#flag"/></svg>{}</span><time class="planning-date" datetime="{}"><svg class="ui-icon" aria-hidden="true"><use href="/assets/icons.svg#calendar"/></svg>{}</time>{indicators}</span></article>"#,
+          if row.task.complete { " is-complete" } else { "" }, esc(&row.task.id), esc(&row.task.id), esc(&row.task.title), description, priority, priority_label, esc(&row.dates[0]), esc(&row.dates[0])));
     }
     if body.is_empty() {
         body.push_str("<div class=\"planning-empty\"><svg class=\"ui-icon\" aria-hidden=\"true\"><use href=\"/assets/icons.svg#calendar\"/></svg><h2>A little breathing room.</h2><p>Nothing planned here yet. Enjoy the space, or capture something you want to make time for.</p><a href=\"/capture\" class=\"primary\">Add a task</a></div>");

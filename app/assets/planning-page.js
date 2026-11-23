@@ -4,6 +4,7 @@ import { beginLoading } from './loading.js';
 import { setSaveState } from './quiet-info.js';
 import { createTaskPanel } from './task-panel.js';
 import { onPageLoad } from './page-lifecycle.js';
+import { animateTaskCompletion, taskCompletionChange } from './task-completion.js';
 
 onPageLoad((scope) => {
   if (!document.querySelector('[data-planning-today]')) return;
@@ -16,6 +17,7 @@ onPageLoad((scope) => {
       pendingRowsRefresh = false;
     const csrf = document.querySelector('meta[name=csrf-token]').content;
     const rows = main.querySelector('[data-planning-rows]');
+    const pendingCompletions = new Set();
     const taskPanel = createTaskPanel({
       csrf,
       onChanged: refreshRows,
@@ -46,7 +48,15 @@ onPageLoad((scope) => {
         const next = doc.querySelector('[data-planning-rows]');
         if (!next)
           throw Error('Could not refresh tasks. Sign in again if your session ended.');
+        const focused = document.activeElement.closest('button.planning-completion');
         rows.replaceChildren(...next.childNodes);
+        const focusedId = focused?.closest('[data-planning-task]').dataset.planningTask;
+        if (focusedId)
+          rows
+            .querySelector(
+              `[data-planning-task="${CSS.escape(focusedId)}"] button.planning-completion`,
+            )
+            ?.focus({ preventScroll: true });
         main.dispatchEvent(new Event('todoer:planning-rows'));
         highlight();
       } catch (error) {
@@ -177,6 +187,59 @@ onPageLoad((scope) => {
       for (const row of rows.querySelectorAll('[data-planning-task]'))
         row.classList.toggle('is-selected', row.dataset.planningTask === selected);
     }
+    async function completionRequest(path, method, body) {
+      const response = await fetch('/api/v1' + path, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json();
+      if (!response.ok) throw Error(data.error?.message || 'Could not update task.');
+      return data;
+    }
+    scope.listen(rows, 'click', async (event) => {
+      const button = event.target.closest('button.planning-completion');
+      if (!button) return;
+      const row = button.closest('[data-planning-task]');
+      const id = row.dataset.planningTask;
+      if (pendingCompletions.has(id)) return;
+      pendingCompletions.add(id);
+      button.setAttribute('aria-disabled', 'true');
+      const source = 'planning-completion';
+      try {
+        const change = await taskCompletionChange(completionRequest, {
+          id,
+          revision: Number(button.dataset.taskRevision),
+          complete: button.getAttribute('aria-pressed') === 'true',
+        });
+        if (!change || scope.signal.aborted) return;
+        setSaveState(source, 'saving');
+        const updated = await completionRequest(
+          `/tasks/${encodeURIComponent(id)}`,
+          'PATCH',
+          change,
+        );
+        if (scope.signal.aborted) return;
+        row.classList.toggle('is-complete', updated.complete);
+        button.dataset.taskRevision = updated.revision;
+        button.setAttribute('aria-pressed', String(updated.complete));
+        button.setAttribute(
+          'aria-label',
+          updated.complete ? 'Reopen task' : 'Complete task',
+        );
+        button.textContent = updated.complete ? '✓' : '';
+        setSaveState(source, 'saved');
+        if (button.isConnected) await animateTaskCompletion(button, updated.complete);
+        await refreshRows();
+      } catch (error) {
+        if (scope.signal.aborted) return;
+        setSaveState(source, 'error', error.message);
+        await refreshRows();
+      } finally {
+        pendingCompletions.delete(id);
+        button.removeAttribute('aria-disabled');
+      }
+    });
     scope.listen(document, 'click', (event) => {
       if (event.defaultPrevented || taskPanel.contains(event.target)) return;
       let link = event.target.closest('[data-planning-rows] a[href^="/tasks/"]');
