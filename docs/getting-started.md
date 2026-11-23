@@ -37,6 +37,21 @@ The web app works on its own. The CLI, REST API and MCP interface give compatibl
 
 [Sign in with the CLI](rebuild/cli-login.md), then explore the [CLI and agent workflow](rebuild/agent-workflow.md). Optional [built-in assistance](rebuild/assist.md) produces drafts you review before applying.
 
+### Open Todoer from your browser toolbar
+
+The extension source can be loaded locally in desktop Chrome and Firefox.
+
+- In Chrome, open `chrome://extensions`, enable **Developer mode**, select **Load unpacked**, and choose the `extension` directory.
+- In Firefox 140 or later, open `about:debugging#/runtime/this-firefox`, select **Load Temporary Add-on**, and choose `extension/manifest.json`. Load it again after restarting Firefox.
+
+[Get the extension source](https://github.com/mattmezza/todoer.pro/tree/main/extension).
+
+Open **Todoer Pro** from the browser toolbar and select **Settings**. Use the cloud server address or enter the HTTPS origin of your own Todoer instance. Open **Connected tools** on that server, create a **Script (REST API)** credential for the lists you want, and paste it into the extension. Choose **Write** for adding and completing tasks, or **Read** to browse. Your browser may ask to allow access to a self-hosted server.
+
+Switch to the list you want, then select **Pin to** followed by the current website hostname. The extension opens that list whenever you open the popup on that hostname. Subdomains can have their own pins. On unpinned sites, the popup opens an available Inbox or the first accessible list. Manage existing pins in the extension’s settings.
+
+Pins stay in this browser. Task changes go to your selected Todoer server. To remove the saved credential from the browser, select **Disconnect**. Revoke it in Todoer’s **Connected tools** to prevent further use.
+
 ## Keep your work portable
 
 Export your work or import a supported backup from the app. Self-hosted deployments also need independent database and attachment backups. [Migration and export](rebuild/migration-export.md) explains what each format preserves and how to validate a restore.
