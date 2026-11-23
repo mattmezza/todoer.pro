@@ -19,6 +19,7 @@ let lists;
 let hostname;
 let pinKey;
 let pinnedList;
+let preferredList;
 let pendingKey;
 let pending;
 let listRequest = 0;
@@ -35,7 +36,7 @@ function showPin() {
   pin.hidden = !hostname;
   const isPinned = pinnedList === select.value;
   pin.textContent = isPinned ? `Unpin from ${hostname}` : `Pin to ${hostname}`;
-  pin.setAttribute('aria-pressed', String(isPinned));
+  pin.dataset.pinned = String(isPinned);
 }
 
 function showCapture() {
@@ -105,18 +106,11 @@ async function loadTasks() {
   }
 }
 
-select.addEventListener('change', async () => {
+select.addEventListener('change', () => {
+  preferredList = select.value;
   status('');
   showPin();
-  const loading = loadTasks();
-  try {
-    if (!lists.some(({ id }) => id === pinnedList)) {
-      await storage.set({ [preferenceKey(connection, 'last-list')]: select.value });
-    }
-  } catch (error) {
-    status(error.message, true);
-  }
-  await loading;
+  loadTasks();
 });
 
 pin.addEventListener('click', async () => {
@@ -196,6 +190,7 @@ $('capture').addEventListener('submit', async (event) => {
       await storage.remove(pendingKey);
       pending = undefined;
       title.value = '';
+      select.value = preferredList;
     });
     status('Task added.');
     await loadTasks();
@@ -212,6 +207,9 @@ $('capture').addEventListener('submit', async (event) => {
 });
 
 $('discard').addEventListener('click', async () => {
+  if (submitting || !pending) return;
+  submitting = true;
+  showCapture();
   try {
     await navigator.locks.request(pendingKey, async () => {
       const saved = (await storage.get(pendingKey))[pendingKey];
@@ -219,11 +217,14 @@ $('discard').addEventListener('click', async () => {
     });
     pending = undefined;
     title.value = '';
-    showCapture();
+    select.value = preferredList;
     status('Pending task cleared. Check the list for any task already saved.');
     await loadTasks();
   } catch (error) {
     status(error.message, true);
+  } finally {
+    submitting = false;
+    showCapture();
   }
 });
 
@@ -239,10 +240,9 @@ async function start() {
     }
     pinKey = preferenceKey(connection, `pin:${hostname}`);
     pendingKey = preferenceKey(connection, 'pending');
-    const lastKey = preferenceKey(connection, 'last-list');
     const [available, preferences] = await Promise.all([
       getLists(connection),
-      storage.get([pinKey, lastKey, pendingKey]),
+      storage.get([pinKey, pendingKey]),
     ]);
     lists = available;
     pending = preferences[pendingKey];
@@ -252,11 +252,10 @@ async function start() {
     }
 
     pinnedList = hostname ? preferences[pinKey] : undefined;
-    const inboxes = lists.filter((list) => list.title.toLowerCase() === 'inbox');
-    const fallback = inboxes.length === 1 ? inboxes[0] : lists[0];
-    const selected = [pinnedList, preferences[lastKey]].find((id) =>
-      lists.some((list) => list.id === id),
-    );
+    const selected =
+      lists.find((list) => list.id === pinnedList) ??
+      lists.find((list) => list.title.toLowerCase() === 'inbox') ??
+      lists[0];
     for (const list of lists) {
       const label = lists.some(
         (other) => other.id !== list.id && other.title === list.title,
@@ -265,7 +264,8 @@ async function start() {
         : list.title;
       select.add(new Option(label, list.id));
     }
-    select.value = selected ?? fallback.id;
+    preferredList = selected.id;
+    select.value = preferredList;
     showCapture();
     $('workspace').hidden = false;
     if (pending) {

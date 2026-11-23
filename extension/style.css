@@ -1,12 +1,12 @@
 :root {
   color-scheme: light dark;
-  --background: light-dark(#f8faf9, #101916);
-  --surface: light-dark(#ffffff, #19251f);
-  --text: light-dark(#18251e, #eef6f1);
-  --muted: light-dark(#475d52, #adc1b5);
-  --line: light-dark(#c6d4cc, #43594c);
-  --accent: light-dark(#086454, #6bdbc3);
-  --accent-text: light-dark(#fff, #092c24);
+  --background: light-dark(#f8f9fc, #101521);
+  --surface: light-dark(#ffffff, #1a2232);
+  --text: light-dark(#182238, #eef2fd);
+  --muted: light-dark(#4e5a72, #b1bdd7);
+  --line: light-dark(#c9d1e0, #485874);
+  --accent: light-dark(#2454cc, #a7b8ff);
+  --accent-text: light-dark(#fff, #182751);
   --error: light-dark(#a12923, #ffb4ab);
   font:
     14px/1.45 system-ui,
@@ -31,7 +31,6 @@ main {
 
 .popup {
   width: 380px;
-  max-width: 100vw;
 }
 
 .settings main {
@@ -153,7 +152,7 @@ li {
   text-align: start;
 }
 
-#pin[aria-pressed='true'] {
+#pin[data-pinned='true'] {
   color: var(--accent);
   border-color: var(--accent);
 }

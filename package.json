@@ -3,8 +3,8 @@
   "scripts": {
     "assets": "node scripts/prepare-fonts.mjs && tailwindcss -i app/assets/source.css -o app/assets/app.css --minify",
     "test:browser": "playwright test",
-    "format": "prettier --write \"app/assets/*.js\" app/assets/source.css \"app/browser/*.js\" playwright.config.js package.json",
-    "format:check": "prettier --check \"app/assets/*.js\" app/assets/source.css \"app/browser/*.js\" playwright.config.js package.json"
+    "format": "prettier --write \"app/assets/*.js\" app/assets/source.css \"app/browser/*.js\" \"extension/*.{js,html,css,json}\" playwright.config.js package.json",
+    "format:check": "prettier --check \"app/assets/*.js\" app/assets/source.css \"app/browser/*.js\" \"extension/*.{js,html,css,json}\" playwright.config.js package.json"
   },
   "devDependencies": {
     "@fontsource-variable/geist": "5.3.0",
