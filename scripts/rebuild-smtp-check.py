@@ -18,7 +18,7 @@ capture = Capture()
 with socket.socket() as probe:
     probe.bind(("127.0.0.1", 0))
     port = probe.getsockname()[1]
-controller = Controller(capture, hostname="127.0.0.1", port=port)
+controller = Controller(capture, hostname="127.0.0.1", port=port, server_hostname="localhost")
 controller.start()
 try:
     env = os.environ.copy()
@@ -35,15 +35,17 @@ try:
     assert envelope.rcpt_tos == ["dev@todoer.invalid"]
     message = email.message_from_bytes(envelope.content, policy=email.policy.default)
     assert message["Message-ID"].endswith("@todoer.invalid>")
-    assert message["Subject"] == "Todoer task reminder"
-    assert "SMTP <test> & café" in message.get_content(), repr(message.get_content())
+    assert message["Subject"] == "A reminder from Todoer"
+    reminder_text = message.get_body(preferencelist=("plain",)).get_content()
+    assert "SMTP <test> & café" in reminder_text, repr(reminder_text)
     subprocess.run(["cargo", "test", "-p", "todoer", "--lib",
                     "invitations::tests::smtp_invitation_delivery_retries_without_duplicate", "--",
                     "--ignored", "--exact"], env=env, check=True)
     assert len(capture.messages) == 2, "invitation worker must not replay sent mail"
     invite = email.message_from_bytes(capture.messages[1].content, policy=email.policy.default)
-    assert "https://todoer.example.invalid/invitations/" in invite.get_content()
-    assert "Private" not in invite.get_content(), "no private resource title in invite mail"
+    invite_text = invite.get_body(preferencelist=("plain",)).get_content()
+    assert "https://todoer.example.invalid/invitations/" in invite_text
+    assert "Private" not in invite_text, "no private resource title in invite mail"
     print("SMTP capture passed: reminder + invitation recipients, stable Message-ID, Unicode body, private invitation link and no replay.")
 finally:
     controller.stop()
