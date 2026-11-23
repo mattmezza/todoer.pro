@@ -67,6 +67,22 @@ function showServer() {
   listInput.placeholder = origin + '/lists/…';
 }
 
+async function showPreviousDraft() {
+  const { previousDraft } = await storage.get('previousDraft');
+  if (!previousDraft) return;
+  const url = new URL('/capture', previousDraft.origin);
+  if (previousDraft.list) url.searchParams.set('list', previousDraft.list);
+  url.hash =
+    'todoer-capture&' + new URLSearchParams({ title: previousDraft.title }).toString();
+  $('review-draft').href = url.href;
+  $('previous-draft').hidden = false;
+}
+
+$('dismiss-draft').addEventListener('click', async () => {
+  await storage.remove('previousDraft');
+  $('previous-draft').hidden = true;
+});
+
 $('server-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
@@ -107,6 +123,7 @@ try {
     listInput.focus();
   }
   await renderPins();
+  await showPreviousDraft();
 } catch (error) {
   status(error.message, true);
 }

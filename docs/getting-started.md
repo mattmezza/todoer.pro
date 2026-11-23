@@ -54,7 +54,7 @@ To pin a list, copy its URL from Todoer. On the website you want to associate wi
 
 On a server that supports browser capture, right-click a page or selected text and choose **Capture this page in Todoer**. The app opens a draft with the page title, link, and any selected text. Review the draft and choose **Add task** to save it. Todoer starts with your pinned list when you can edit it and uses Inbox otherwise.
 
-Pins stay in this browser. If you created a credential for an earlier version of the extension, you can revoke it in Todoer’s **Connected tools**.
+Pins stay in this browser. You can review an unfinished capture from an earlier version in extension options. To revoke an old extension credential, open Todoer’s **Connected tools**.
 
 ## Keep your work portable
 

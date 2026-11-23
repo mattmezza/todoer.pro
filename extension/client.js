@@ -46,12 +46,20 @@ export function listPath(value, origin) {
 }
 
 export async function settings() {
+  return navigator.locks.request('todoer-settings', migrateSettings);
+}
+
+async function migrateSettings() {
   const { server, connection } = await storage.get(['server', 'connection']);
   if (!connection) return server ?? cloudOrigin;
   const origin = serverOrigin(connection.origin);
   const saved = await storage.get(null);
   const previous = `todoer:${connection.id}:`;
   const update = { server: server ?? origin };
+  const pending = saved[previous + 'pending'];
+  if (typeof pending?.title === 'string' && pending.title && !saved.previousDraft) {
+    update.previousDraft = { origin, title: pending.title, list: pending.listId ?? '' };
+  }
   for (const [key, id] of Object.entries(saved)) {
     if (!key.startsWith(`${previous}pin:`) || typeof id !== 'string') continue;
     const pin = pinPrefix(origin) + key.slice(previous.length + 4);
