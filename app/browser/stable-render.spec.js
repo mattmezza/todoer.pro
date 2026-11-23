@@ -112,11 +112,15 @@ test('space card color and emoji are ready before scripts arrive', async ({ page
   await expect(dot).toHaveCSS('background-color', 'rgb(23, 172, 110)');
   const emoji = dot.locator('.list-emoji');
   const rect = await dot.boundingBox();
-  const glyph = await emoji.boundingBox();
-  expect(glyph.width).toBe(rect.width);
-  expect(glyph.height).toBe(rect.height);
-  expect(glyph.x).toBe(rect.x);
-  expect(glyph.y).toBe(rect.y);
+  expect(await emoji.boundingBox()).toEqual(rect);
+  const glyphCenter = await emoji.evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const { x, y, width, height } = range.getBoundingClientRect();
+    return { x: x + width / 2, y: y + height / 2 };
+  });
+  expect(Math.abs(glyphCenter.x - rect.x - rect.width / 2)).toBeLessThan(0.5);
+  expect(Math.abs(glyphCenter.y - rect.y - rect.height / 2)).toBeLessThan(0.5);
   await expect(dot.locator('..').locator('..')).toHaveCSS('--list-color', '#17ac6e');
   const before = await dot.boundingBox();
   await release();

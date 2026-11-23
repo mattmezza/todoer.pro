@@ -6072,9 +6072,9 @@ textarea:is([data-new-comment-input], [data-comment-input]) {
   color: var(--accent);
 }
 .space-list-card .list-dot {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 14px;
+  width: 24px !important;
+  height: 24px;
+  flex: 0 0 24px;
 }
 .space-list-description {
   color: var(--muted);
@@ -13435,27 +13435,26 @@ body:has(#main.navigation-pending)
   color: var(--text);
 }
 
-/* An optional emoji sits over the list's existing color badge. */
+/* Center the emoji using its font's natural line box. */
 :is(.list-dot, .entity-color, .list-color-preview):has(> .list-emoji) {
   position: relative;
 }
 .list-emoji {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
-  font-size: 14px;
-  line-height: 1;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: normal;
   letter-spacing: 0;
   text-indent: 0;
   pointer-events: none;
 }
 .list-emoji:empty {
   display: none;
-}
-.list-dot > .list-emoji {
-  font-size: 12px;
 }
 .list-emoji-field {
   border-top: 1px solid var(--line);
@@ -13804,29 +13803,6 @@ body form.entry-form .inline-actions > .entity-name-reference {
   flex: 0 0 44px;
   align-items: center;
   justify-content: center;
-}
-
-/* Emoji glyphs use the badge's actual box, independent of surrounding line height. */
-:is(.list-dot, .entity-color, .list-color-preview) > .list-emoji {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  margin: 0;
-  font-size: 16px;
-  line-height: 1;
-}
-.space-list-card .list-dot {
-  width: 24px !important;
-  height: 24px;
-  flex-basis: 24px;
-}
-:is(.list-dot, .entity-color, .list-color-preview) > .list-emoji:empty {
-  display: none;
 }
 
 /* Named list colors also resolve before controllers hydrate their cards. */
