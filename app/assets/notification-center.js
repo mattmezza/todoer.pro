@@ -164,13 +164,15 @@ onPageLoad((scope) => {
           ? 'notification-empty planning-empty'
           : 'notification-empty';
         const p = document.createElement(fullPage ? 'h2' : 'p');
-        p.textContent =
-          unreadOnly && root.matches('[data-notification-items]')
-            ? 'You’re all caught up.'
-            : 'No notifications yet.';
-        const small = document.createElement(fullPage ? 'p' : 'small');
-        small.textContent = 'Your reminders and shared updates will appear here.';
-        empty.append(icon('bell'), p, small);
+        const emptyUnread = fullPage && unreadOnly;
+        p.textContent = emptyUnread ? 'You’re all caught up.' : 'No notifications yet.';
+        empty.append(icon('bell'), p);
+        if (!emptyUnread) {
+          const detail = document.createElement(fullPage ? 'p' : 'small');
+          detail.textContent =
+            'Overdue tasks, scheduled reminders, and changes by others in shared lists appear here.';
+          empty.append(detail);
+        }
         root.append(empty);
       }
       for (const n of items) {
