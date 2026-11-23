@@ -17,29 +17,34 @@
       <form id="connection-form">
         <label for="origin">Todoer server</label>
         <input id="origin" type="url" value="https://app.todoer.pro" required />
-        <label for="token">REST credential</label>
-        <p class="hint" id="token-help">
-          <a
-            id="credentials"
-            href="https://app.todoer.pro/settings/ai/tools"
-            target="_blank"
-            rel="noopener noreferrer"
-            >Open Connected tools</a
-          >. Choose <strong>Script (REST API)</strong> and select the lists to share.
-          Enable <strong>Write</strong> to add and complete tasks.
-        </p>
-        <input
-          id="token"
-          type="password"
-          required
-          autocomplete="off"
-          spellcheck="false"
-          aria-describedby="token-help"
-        />
         <div class="actions">
-          <button id="connect" class="primary">Connect</button>
+          <button id="connect" class="primary">Sign in with Todoer</button>
           <button id="disconnect" type="button" hidden>Disconnect</button>
         </div>
+        <details>
+          <summary>Use a REST credential</summary>
+          <label for="token">REST credential</label>
+          <p class="hint" id="token-help">
+            <a
+              id="credentials"
+              href="https://app.todoer.pro/settings/ai/tools"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Open Connected tools</a
+            >. Choose <strong>Script (REST API)</strong> and select the lists to share.
+            Enable <strong>Write</strong> to add and complete tasks.
+          </p>
+          <input
+            id="token"
+            type="password"
+            autocomplete="off"
+            spellcheck="false"
+            aria-describedby="token-help"
+          />
+          <div class="actions">
+            <button id="manual-connect">Connect with credential</button>
+          </div>
+        </details>
       </form>
       <p id="status" class="status" role="status"></p>
       <section id="pins" hidden>

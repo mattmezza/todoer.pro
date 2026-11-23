@@ -222,8 +222,13 @@ li {
 }
 
 .settings form label,
+.settings details,
 .actions {
   margin-top: 14px;
+}
+
+.settings summary {
+  cursor: pointer;
 }
 
 #pin-list li {

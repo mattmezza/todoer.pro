@@ -44,13 +44,17 @@ The extension source can be loaded locally in desktop Chrome and Firefox.
 - In Chrome, open `chrome://extensions`, enable **Developer mode**, select **Load unpacked**, and choose the `extension` directory.
 - In Firefox 140 or later, open `about:debugging#/runtime/this-firefox`, select **Load Temporary Add-on**, and choose `extension/manifest.json`. Load it again after restarting Firefox.
 
+When the source changes, click **Reload** on the extension’s card on the same browser page and reopen the popup or Settings.
+
 [Get the extension source](https://github.com/mattmezza/todoer.pro/tree/main/extension).
 
-Open **Todoer Pro** from the browser toolbar and select **Settings**. Use the cloud server address or enter the HTTPS origin of your own Todoer instance. Open **Connected tools** on that server, create a **Script (REST API)** credential for the lists you want, and paste it into the extension. Choose **Write** for adding and completing tasks, or **Read** to browse. Your browser may ask to allow access to a self-hosted server.
+Open **Todoer Pro** from the browser toolbar and select **Settings**. Use the cloud server address or enter the HTTPS origin of your own Todoer instance. Select **Sign in with Todoer**, then approve the spaces or lists you want to share. Choose **Read and write** to add and complete tasks, or **Read** to browse. Your browser may ask to allow access to a self-hosted server.
+
+If your server has not been updated to support extension sign-in, expand **Use a REST credential** in the extension. In Todoer’s **Connected tools**, create a **Script (REST API)** credential for the lists you want, then paste it into the extension.
 
 Switch to the list you want, then select **Pin to** followed by the current website hostname. The extension opens that list whenever you open the popup on that hostname. Subdomains can have their own pins. On unpinned sites, the popup opens an available Inbox or the first accessible list. Manage existing pins in the extension’s settings.
 
-Pins stay in this browser. Task changes go to your selected Todoer server. To remove the saved credential from the browser, select **Disconnect**. Revoke it in Todoer’s **Connected tools** to prevent further use.
+Pins stay in this browser. Task changes go to your selected Todoer server. **Disconnect** removes the saved credential and revokes access issued through **Sign in with Todoer** when the server is reachable. To revoke pasted credentials or revoke access from another device, use Todoer’s **Connected tools**.
 
 ## Keep your work portable
 

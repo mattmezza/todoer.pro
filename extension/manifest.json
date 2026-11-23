@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Todoer Pro",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Open, capture and complete Todoer tasks, with a pinned list for each website.",
   "icons": {
     "32": "icons/icon32.png",
@@ -16,7 +16,7 @@
     "page": "options.html",
     "open_in_tab": true
   },
-  "permissions": ["activeTab", "storage"],
+  "permissions": ["activeTab", "identity", "storage"],
   "host_permissions": ["https://app.todoer.pro/*"],
   "optional_host_permissions": [
     "https://*/*",

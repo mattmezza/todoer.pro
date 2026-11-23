@@ -6,6 +6,7 @@ import {
   serverOrigin,
   storage,
 } from './client.js';
+import { revokeSignIn, signIn } from './sign-in.js';
 
 const $ = (id) => document.getElementById(id);
 const form = $('connection-form');
@@ -70,7 +71,7 @@ function showConnection() {
   originInput.value = connection?.origin ?? cloudOrigin;
   tokenInput.value = '';
   disconnect.hidden = !connection;
-  $('connect').textContent = connection ? 'Replace credential' : 'Connect';
+  $('connect').textContent = connection ? 'Sign in again' : 'Sign in with Todoer';
   updateCredentialLink();
 }
 
@@ -83,8 +84,25 @@ async function clearPreferences(previous) {
 }
 
 function busy(value) {
-  for (const control of [originInput, tokenInput, $('connect'), disconnect])
+  for (const control of [
+    originInput,
+    tokenInput,
+    $('connect'),
+    $('manual-connect'),
+    disconnect,
+  ]) {
     control.disabled = value;
+  }
+}
+
+async function allowServer(origin) {
+  if (origin === cloudOrigin) return;
+  // Request optional host access directly from the browser gesture.
+  const url = new URL(origin);
+  const origins = [`${url.protocol}//${url.hostname}/*`];
+  if (!(await browserApi.permissions.request({ origins }))) {
+    throw new Error('Allow browser access to this Todoer server to connect.');
+  }
 }
 
 originInput.addEventListener('input', updateCredentialLink);
@@ -92,34 +110,55 @@ form.addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
     const origin = serverOrigin(originInput.value);
-    const token = tokenInput.value.trim();
-    if (!token) throw new Error('Enter a REST credential.');
+    const manual =
+      event.submitter === $('manual-connect') || document.activeElement === tokenInput;
+    const pasted = tokenInput.value.trim();
+    if (manual && !pasted) throw new Error('Enter a REST credential.');
     busy(true);
-    status('Checking connection…');
-    if (origin !== cloudOrigin) {
-      // The permission prompt must be requested directly from the submit gesture.
-      const origins = [`${new URL(origin).protocol}//${new URL(origin).hostname}/*`];
-      if (!(await browserApi.permissions.request({ origins }))) {
-        throw new Error('Allow browser access to this Todoer server to connect.');
-      }
-    }
+    await allowServer(origin);
+    status(
+      manual
+        ? 'Checking connection…'
+        : 'Approve the extension in the Todoer sign-in window…',
+    );
+    const token = manual ? pasted : await signIn(origin);
     const previous = connection;
     const sameServer = previous?.origin === origin;
-    const next = { origin, token, id: sameServer ? previous.id : crypto.randomUUID() };
-    lists = await getLists(next);
-    // Pending captures belong to the credential that started them.
-    if (sameServer && previous.token !== token) {
-      await storage.remove(preferenceKey(previous, 'pending'));
+    const sameCredential = sameServer && previous.token === token;
+    const next = {
+      origin,
+      token,
+      id: sameServer ? previous.id : crypto.randomUUID(),
+      managed: !manual || (sameCredential && previous.managed === true),
+    };
+    try {
+      const available = await getLists(next);
+      // Pending captures belong to the credential that started them.
+      if (sameServer && !sameCredential) {
+        await storage.remove(preferenceKey(previous, 'pending'));
+      }
+      await storage.set({ connection: next });
+      connection = next;
+      lists = available;
+    } catch (error) {
+      if (!sameCredential) await revokeSignIn(next).catch(() => {});
+      throw error;
     }
-    await storage.set({ connection: next });
-    connection = next;
+    let oldAccess = '';
+    if (previous && !sameCredential) {
+      try {
+        await revokeSignIn(previous);
+      } catch {
+        oldAccess = ' Revoke the previous credential in Todoer’s Connected tools.';
+      }
+    }
     if (previous && !sameServer) await clearPreferences(previous);
     showConnection();
     await renderPins();
     status(
-      lists.length
+      (lists.length
         ? 'Connected. Open Todoer from the browser toolbar.'
-        : 'Connected. This credential cannot see any lists.',
+        : 'Connected. This credential cannot see any lists.') + oldAccess,
     );
   } catch (error) {
     status(error.message, true);
@@ -131,15 +170,23 @@ form.addEventListener('submit', async (event) => {
 disconnect.addEventListener('click', async () => {
   busy(true);
   try {
-    await clearPreferences(connection);
+    const previous = connection;
+    await clearPreferences(previous);
     await storage.remove('connection');
     connection = undefined;
     lists = [];
     showConnection();
     await renderPins();
-    status(
-      'Disconnected. You can revoke the old credential in Todoer’s Connected tools.',
-    );
+    status('Disconnected.');
+    if (!previous.managed) {
+      status('Disconnected. You can revoke the credential in Todoer’s Connected tools.');
+    } else {
+      try {
+        await revokeSignIn(previous);
+      } catch {
+        status('Disconnected. Revoke the credential in Todoer’s Connected tools.');
+      }
+    }
   } catch (error) {
     status(error.message, true);
   } finally {
