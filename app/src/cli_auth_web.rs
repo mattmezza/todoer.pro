@@ -1,12 +1,15 @@
 use super::*;
-use crate::cli_auth::{LoginStart, rank};
+use crate::cli_auth::{LoginClient, LoginStart, rank};
 use std::collections::HashMap;
 pub(super) fn routes() -> Router<AppState> {
     Router::new()
-        .route("/api/cli/login/start", post(start))
+        .route("/api/cli/login/start", post(start_cli))
+        .route("/api/extension/login/start", post(start_extension))
         .route("/cli/authorize", get(consent).post(approve))
         .route("/api/cli/login/token", post(exchange))
+        .route("/api/extension/login/token", post(exchange))
         .route("/api/cli/login/revoke", post(revoke))
+        .route("/api/extension/login/revoke", post(revoke))
         .layer(DefaultBodyLimit::max(32 * 1024))
 }
 fn private(mut response: Response) -> Response {
@@ -28,12 +31,21 @@ fn esc(v: &str) -> String {
         .replace('"', "&quot;")
         .replace('\'', "&#39;")
 }
-async fn start(
+async fn start_cli(
     State(s): State<AppState>,
     Input(input): Input<LoginStart>,
 ) -> Result<Response, ApiError> {
+    start(s, input, LoginClient::Cli).await
+}
+async fn start_extension(
+    State(s): State<AppState>,
+    Input(input): Input<LoginStart>,
+) -> Result<Response, ApiError> {
+    start(s, input, LoginClient::Extension).await
+}
+async fn start(s: AppState, input: LoginStart, client: LoginClient) -> Result<Response, ApiError> {
     let origin = s.origin.clone();
-    let request = s.run(move |db| db.begin_cli_login(input)).await?;
+    let request = s.run(move |db| db.begin_login(input, client)).await?;
     Ok(private(Json(json!({"request_id":request.id,"authorization_url":format!("{}/cli/authorize?id={}",origin.trim_end_matches('/'),request.id)})).into_response()))
 }
 #[derive(Deserialize)]
@@ -54,6 +66,11 @@ async fn consent(
         Ok(actor) => actor,
         Err(_) => {
             let next = format!("/cli/authorize?id={}", request.id);
+            if request.is_extension() {
+                return Ok(private(
+                    Redirect::to(&format!("/signin?next={}", urlencoding(&next))).into_response(),
+                ));
+            }
             return Ok(private(Html(format!("<!doctype html><html><head><meta charset=\"utf-8\"><link rel=\"stylesheet\" href=\"/assets/app.css\"><title>Sign in for CLI access</title></head><body><main><h1>Connect Todoer CLI</h1><p>Sign in, then return here to approve CLI access.</p><a href=\"/signin?next={}\" target=\"_blank\" rel=\"noopener\">Sign in</a><p><a href=\"{}\">Continue to access review</a></p></main></body></html>",esc(&urlencoding(&next)),esc(&next))).into_response()));
         }
     };
@@ -82,13 +99,30 @@ async fn consent(
             permissions.push_str(&format!("<label class=\"cli-permission\"><input type=\"radio\" name=\"permission\" value=\"{value}\" {}><span><strong>{label}</strong><small>{description}</small></span></label>", if value == "read" { "checked" } else { "" }));
         }
     }
-    let permission_hint = if request.requested_rank == 1 {
+    let permission_hint = if !request.is_extension() && request.requested_rank == 1 {
         r#"<p class="cli-note">This CLI requested read-only access. To enable changes, run <code>todoer login --permission write</code>.</p>"#
     } else {
         ""
     };
+    let (title, client, icon, expiry_hint, authorize) = if request.is_extension() {
+        (
+            "Connect the Todoer browser extension",
+            "browser extension",
+            "↗",
+            "",
+            "Authorize extension",
+        )
+    } else {
+        (
+            "Connect Todoer CLI",
+            "CLI on your device",
+            "&gt;_",
+            " Never-expiring access requires an up-to-date CLI.",
+            "Authorize CLI",
+        )
+    };
     let body = format!(
-        r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>Connect Todoer CLI</title><link rel="stylesheet" href="/assets/app.css"><script type="module" src="/assets/cli-consent.js"></script></head><body class="cli-approval-page"><main class="cli-approval"><div class="cli-brand">todoer<span> pro</span></div><div class="cli-app-icon" aria-hidden="true">&gt;_</div><h1>Connect Todoer CLI</h1><p class="cli-intro">Allow the CLI on your device to access your Todoer account.</p><form method="post" action="/cli/authorize" class="cli-consent"><input type="hidden" name="id" value="{}"><input type="hidden" name="csrf" value="{}"><fieldset><legend>Permissions</legend><div class="cli-permissions">{}</div>{}</fieldset><fieldset><legend>Access to</legend><label class="cli-choice cli-all"><input type="checkbox" name="all_resources" value="yes" data-cli-all><span>All current and future spaces and lists</span></label><details class="cli-resources" open><summary>Or select spaces and lists</summary><div class="cli-resource-groups"><div><h2>Spaces</h2><p>Includes current and future lists.</p>{}</div><div><h2>Individual lists</h2>{}</div></div></details></fieldset><label class="cli-expiry">Access expires<select name="expiration"><option value="30">After 30 days</option><option value="never">Never expires</option></select></label><p class="cli-note">Access is limited to your own permissions. Never-expiring access requires an up-to-date CLI. You can revoke access anytime in Settings → Connected tools.</p><div class="cli-actions"><button name="action" value="deny" formnovalidate>Cancel</button><button class="primary" name="action" value="allow">Authorize CLI</button></div></form></main></body></html>"#,
+        r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>{title}</title><link rel="stylesheet" href="/assets/app.css"><script type="module" src="/assets/cli-consent.js"></script></head><body class="cli-approval-page"><main class="cli-approval"><div class="cli-brand">todoer<span> pro</span></div><div class="cli-app-icon" aria-hidden="true">{icon}</div><h1>{title}</h1><p class="cli-intro">Allow the {client} to access your Todoer account.</p><form method="post" action="/cli/authorize" class="cli-consent"><input type="hidden" name="id" value="{}"><input type="hidden" name="csrf" value="{}"><fieldset><legend>Permissions</legend><div class="cli-permissions">{}</div>{}</fieldset><fieldset><legend>Access to</legend><label class="cli-choice cli-all"><input type="checkbox" name="all_resources" value="yes" data-cli-all><span>All current and future spaces and lists</span></label><details class="cli-resources" open><summary>Or select spaces and lists</summary><div class="cli-resource-groups"><div><h2>Spaces</h2><p>Includes current and future lists.</p>{}</div><div><h2>Individual lists</h2>{}</div></div></details></fieldset><label class="cli-expiry">Access expires<select name="expiration"><option value="30">After 30 days</option><option value="never">Never expires</option></select></label><p class="cli-note">Access is limited to your own permissions.{expiry_hint} You can revoke access anytime in Settings → Connected tools.</p><div class="cli-actions"><button name="action" value="deny" formnovalidate>Cancel</button><button class="primary" name="action" value="allow">{authorize}</button></div></form></main></body></html>"#,
         esc(&request.id),
         esc(&s.csrf_for(&h)),
         permissions,
@@ -168,9 +202,13 @@ async fn approve(
             } else {
                 return Err(Error::Invalid("Choose approve or deny".into()));
             }
-            Ok(redirect.to_string())
+            Ok((redirect.to_string(), request.is_extension()))
         })
         .await?;
+    let (redirect, extension) = redirect;
+    if extension {
+        return Ok(private(Redirect::to(&redirect).into_response()));
+    }
     Ok(private(Html(format!("<!doctype html><html><head><meta charset=\"utf-8\"><meta http-equiv=\"refresh\" content=\"0;url={}\"><title>Return to Todoer CLI</title></head><body><p>Returning to your terminal… <a href=\"{}\">Continue</a></p></body></html>", esc(&redirect), esc(&redirect))).into_response()))
 }
 #[derive(Deserialize)]

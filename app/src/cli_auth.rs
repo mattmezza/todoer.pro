@@ -1,4 +1,4 @@
-//! Browser-approved, PKCE-bound CLI credentials. Never transfer browser cookies.
+//! Browser-approved, PKCE-bound REST credentials for the CLI and extension.
 use crate::core::{Error, Store};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use rusqlite::{OptionalExtension, params};
@@ -40,6 +40,48 @@ pub struct LoginRequest {
     pub state: String,
     pub requested_rank: i64,
 }
+impl LoginRequest {
+    pub fn is_extension(&self) -> bool {
+        self.redirect_uri.starts_with("https://")
+    }
+}
+#[derive(Clone, Copy)]
+pub enum LoginClient {
+    Cli,
+    Extension,
+}
+impl LoginClient {
+    fn accepts_callback(self, redirect: &reqwest::Url) -> bool {
+        if redirect.query().is_some()
+            || redirect.fragment().is_some()
+            || !redirect.username().is_empty()
+            || redirect.password().is_some()
+        {
+            return false;
+        }
+        match self {
+            Self::Cli => {
+                redirect.scheme() == "http"
+                    && matches!(redirect.host_str(), Some("127.0.0.1" | "[::1]"))
+                    && redirect.port().is_some()
+                    && redirect.path() == "/callback"
+            }
+            Self::Extension => {
+                redirect.scheme() == "https"
+                    && redirect.port().is_none()
+                    && redirect.path() == "/todoer"
+                    && redirect.host_str().is_some_and(|host| {
+                        // Firefox hashes the add-on ID from extension/manifest.json.
+                        // Chromium derives its ID from the installed extension.
+                        host == "5fce7b474093d4d6d1562fc2dac9cd7766285cdb.extensions.allizom.org"
+                            || host.strip_suffix(".chromiumapp.org").is_some_and(|id| {
+                                id.len() == 32 && id.bytes().all(|b| (b'a'..=b'p').contains(&b))
+                            })
+                    })
+            }
+        }
+    }
+}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LoginGrant {
     pub token: String,
@@ -51,21 +93,22 @@ pub struct LoginGrant {
     pub all_resources: bool,
 }
 impl Store {
-    pub fn begin_cli_login(&mut self, input: LoginStart) -> Result<LoginRequest, Error> {
+    pub fn begin_login(
+        &mut self,
+        input: LoginStart,
+        client: LoginClient,
+    ) -> Result<LoginRequest, Error> {
         let redirect =
             reqwest::Url::parse(&input.redirect_uri).map_err(|_| invalid("Invalid callback"))?;
-        if redirect.scheme() != "http"
-            || !matches!(redirect.host_str(), Some("127.0.0.1" | "[::1]" | "::1"))
-            || redirect.port().is_none()
-            || redirect.path() != "/callback"
-            || redirect.query().is_some()
-            || redirect.fragment().is_some()
-            || !redirect.username().is_empty()
-            || redirect.password().is_some()
-        {
-            return Err(invalid(
-                "Callback must be an explicit IP-loopback HTTP port at /callback",
-            ));
+        if !client.accepts_callback(&redirect) {
+            return Err(invalid(match client {
+                LoginClient::Cli => {
+                    "Callback must be an explicit IP-loopback HTTP port at /callback"
+                }
+                LoginClient::Extension => {
+                    "Callback must be a Todoer browser extension redirect URL"
+                }
+            }));
         }
         if input.challenge.len() != 43
             || !input
@@ -81,6 +124,9 @@ impl Store {
             return Err(invalid("S256 PKCE and a random bounded state are required"));
         }
         let requested_rank = rank(&input.permission)?;
+        if matches!(client, LoginClient::Extension) && requested_rank > 2 {
+            return Err(invalid("The extension supports read and write access"));
+        }
         let tx = self
             .conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
@@ -95,7 +141,7 @@ impl Store {
         }
         let request = LoginRequest {
             id: secret(),
-            redirect_uri: input.redirect_uri,
+            redirect_uri: redirect.into(),
             state: input.state,
             requested_rank,
         };
@@ -248,13 +294,59 @@ mod tests {
     use crate::workspace::{CreateList, ListChange, WorkspaceInput};
     const VERIFIER: &str = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cMabcdefghijklmnopqrstuvwxyz";
     fn request(db: &mut Store, permission: &str) -> LoginRequest {
-        db.begin_cli_login(LoginStart {
-            redirect_uri: "http://127.0.0.1:54321/callback".into(),
+        db.begin_login(
+            LoginStart {
+                redirect_uri: "http://127.0.0.1:54321/callback".into(),
+                challenge: URL_SAFE_NO_PAD.encode(Sha256::digest(VERIFIER.as_bytes())),
+                state: "random-state-at-least-thirty-two-characters".into(),
+                permission: permission.into(),
+            },
+            LoginClient::Cli,
+        )
+        .unwrap()
+    }
+    #[test]
+    fn extension_login_only_accepts_browser_callbacks_and_read_or_write_access() {
+        let mut db = Store::memory().unwrap();
+        let start = |uri: &str, permission: &str| LoginStart {
+            redirect_uri: uri.into(),
             challenge: URL_SAFE_NO_PAD.encode(Sha256::digest(VERIFIER.as_bytes())),
             state: "random-state-at-least-thirty-two-characters".into(),
             permission: permission.into(),
-        })
-        .unwrap()
+        };
+        for uri in [
+            "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/todoer",
+            "https://5fce7b474093d4d6d1562fc2dac9cd7766285cdb.extensions.allizom.org/todoer",
+        ] {
+            assert!(
+                db.begin_login(start(uri, "write"), LoginClient::Extension)
+                    .unwrap()
+                    .is_extension()
+            );
+            assert!(
+                db.begin_login(start(uri, "admin"), LoginClient::Extension)
+                    .is_err()
+            );
+            assert!(
+                db.begin_login(start(uri, "read"), LoginClient::Cli)
+                    .is_err()
+            );
+        }
+        for uri in [
+            "http://127.0.0.1:54321/callback",
+            "https://anything.chromiumapp.org/todoer",
+            "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org.example/todoer",
+            "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/todoer?code=other",
+            "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/elsewhere",
+            "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org:8080/todoer",
+            "https://0555555555555555555555555555555555555555.extensions.allizom.org/todoer",
+        ] {
+            assert!(
+                db.begin_login(start(uri, "read"), LoginClient::Extension)
+                    .is_err(),
+                "{uri}"
+            );
+        }
     }
     fn space(db: &mut Store, title: &str) -> String {
         db.create_workspace(
@@ -522,12 +614,15 @@ mod tests {
             "http://127.0.0.1:1234/other",
         ] {
             assert!(
-                db.begin_cli_login(LoginStart {
-                    redirect_uri: uri.into(),
-                    challenge: "x".repeat(43),
-                    state: "s".repeat(40),
-                    permission: "read".into()
-                })
+                db.begin_login(
+                    LoginStart {
+                        redirect_uri: uri.into(),
+                        challenge: "x".repeat(43),
+                        state: "s".repeat(40),
+                        permission: "read".into()
+                    },
+                    LoginClient::Cli
+                )
                 .is_err()
             );
         }

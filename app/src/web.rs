@@ -524,8 +524,13 @@ fn auth_screen(s: AppState, q: SigninQuery, signup: bool) -> Html<String> {
             r#"{google}{fields}<p data-auth-notice role="status" aria-live="polite"></p>{switch}<script type="module" src="/assets/account-auth.js"></script>"#
         )
     } else {
+        let action = if q.next.is_some() {
+            format!("/signin?next={encoded}")
+        } else {
+            "/signin".into()
+        };
         format!(
-            r#"<form method="post" action="/signin"><input type="hidden" name="csrf" value="{}"><button class="primary auth-dev">Enter development workspace</button></form><p class="auth-access-note">Local development workspace · synthetic account</p>"#,
+            r#"<form method="post" action="{action}"><input type="hidden" name="csrf" value="{}"><button class="primary auth-dev">Enter development workspace</button></form><p class="auth-access-note">Local development workspace · synthetic account</p>"#,
             s.csrf
         )
     };
@@ -544,6 +549,7 @@ struct Login {
 async fn login(
     State(s): State<AppState>,
     h: HeaderMap,
+    Query(q): Query<SigninQuery>,
     Form(f): Form<Login>,
 ) -> Result<Response, ApiError> {
     if s.production.is_some() {
@@ -581,7 +587,8 @@ async fn login(
         }
         sessions.insert(hash, std::time::Instant::now());
     }
-    let mut r = Redirect::to("/lists/groceries").into_response();
+    let next = browser_auth::safe_next(q.next.as_deref().or(Some("/lists/groceries")));
+    let mut r = Redirect::to(&next).into_response();
     r.headers_mut().insert(
         header::SET_COOKIE,
         format!(
