@@ -13448,20 +13448,20 @@ body:has(#main.navigation-pending)
   color: var(--text);
 }
 
-/* Center the emoji using its font's natural line box. */
+/* Keep a margin between the emoji glyph and the edge of the badge. */
 :is(.list-dot, .entity-color, .list-color-preview):has(> .list-emoji) {
   position: relative;
 }
 .list-emoji {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
-  font-size: 16px;
-  font-weight: 400;
-  line-height: normal;
+  display: grid;
+  place-items: center;
+  font:
+    400 14px/1 'Apple Color Emoji',
+    'Segoe UI Emoji',
+    'Noto Color Emoji',
+    sans-serif;
   letter-spacing: 0;
   text-indent: 0;
   pointer-events: none;

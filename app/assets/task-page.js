@@ -1067,12 +1067,13 @@ export function mountTaskPage(
   };
   get('[data-root-complete]').onclick = () => toggleComplete(task);
   get('[data-complete-all]').onclick = () => toggleComplete(task, true);
-  get('[data-permalink]').onclick = async () => {
+  get('[data-permalink]').onclick = async ({ currentTarget }) => {
+    const permalink = new URL(currentTarget.dataset.permalink, location.origin).href;
     try {
-      await navigator.clipboard.writeText(new URL(`/tasks/${id}`, location.origin).href);
+      await navigator.clipboard.writeText(permalink);
       toast('Task permalink copied.');
     } catch {
-      notice(`Task permalink: ${new URL(`/tasks/${id}`, location.origin).href}`);
+      notice(`Task permalink: ${permalink}`);
     }
   };
   async function moveTaskToTrash(target, element) {

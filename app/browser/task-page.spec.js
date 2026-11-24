@@ -42,6 +42,36 @@ async function ready(page, id) {
   await expect(page).toHaveURL(/\/tasks\/[a-z0-9]+$/);
 }
 
+test('list, task and subtask actions copy public permalinks', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: async (value) => (window.copiedPermalink = value) },
+    });
+  });
+  const { api, capture } = await setup(page);
+  const space = await api('/workspaces', 'POST', { title: `Permalinks ${randomUUID()}` });
+  const list = await api('/lists', 'POST', { workspace_id: space.id, title: 'Links' });
+  const task = await capture('Task permalink', '', null, list.id);
+  const subtask = await capture('Subtask permalink', '', task.id, list.id);
+
+  for (const [path, action] of [
+    [`/lists/${list.id}`, 'List actions'],
+    [`/tasks/${task.id}`, 'Task actions'],
+    [`/tasks/${subtask.id}`, 'Task actions'],
+  ]) {
+    await page.goto(path);
+    const permalink = new URL(page.url());
+    expect(permalink.pathname).toMatch(/^\/(lists|tasks)\/[a-z0-9]+$/);
+    expect(permalink.pathname).not.toBe(path);
+    await page.evaluate(() => history.replaceState(null, '', '?example=1#main'));
+    await page.getByLabel(action, { exact: true }).click();
+    await page.getByRole('button', { name: 'Copy permalink', exact: true }).click();
+    await expect
+      .poll(() => page.evaluate(() => window.copiedPermalink))
+      .toBe(permalink.href);
+  }
+});
+
 test('dedicated task preserves drafts across reload, remote CAS conflict and explicit rebase', async ({
   page,
 }) => {

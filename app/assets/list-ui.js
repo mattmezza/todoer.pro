@@ -207,9 +207,12 @@ export function mountListUi({ api, notice, listId }) {
         event.target.closest('[data-list-sharing-open]') ? 'sharing' : 'details',
       );
     }
-    if (event.target.closest('[data-copy-link]')) {
+    const copyLink = event.target.closest('[data-copy-link]');
+    if (copyLink) {
       try {
-        await navigator.clipboard.writeText(location.origin + `/lists/${listId}`);
+        await navigator.clipboard.writeText(
+          new URL(copyLink.dataset.copyLink, location.origin).href,
+        );
         toast('Permalink copied.');
       } catch {
         notice('Copy this page address from your browser.', true);
