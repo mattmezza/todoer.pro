@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup assets dev format check test build e2e release cli-release app-deploy www-build www-dev www-publish www-deploy docs-build deploy backup restore migrate image
+.PHONY: help setup assets dev format check test build e2e release app-release cli-release app-deploy www-build www-dev www-publish www-deploy docs-build deploy backup restore migrate image
 help: ## List commands
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 setup: ## Install locked frontend dependencies and fetch Rust crates
@@ -35,7 +35,9 @@ build: assets ## Build release binaries
 	cargo build --locked --release --workspace
 e2e: ## Run browser checks against a synthetic server already running
 	npx playwright test
-release: ## Publish app GitHub release; CI builds image (name=vX.Y.Z)
+release: ## Publish browser extension GitHub release with Chromium ZIP (name=vX.Y.Z)
+	python3 scripts/release.py extension "$(name)"
+app-release: ## Publish app GitHub release; CI builds image (name=vX.Y.Z)
 	python3 scripts/release.py app "$(name)"
 cli-release: ## Publish CLI GitHub release; CI attaches binaries (name=vX.Y.Z)
 	python3 scripts/release.py cli "$(name)"

@@ -8,7 +8,7 @@ The Python implementation is retained under `legacy/` and is not deployed.
 
 An explicit published GitHub release `vX.Y.Z` builds
 `ghcr.io/mattmezza/todoer.pro:vX.Y.Z` for Linux amd64. Use a pinned version or digest.
-Run `make release name=vX.Y.Z` from a clean, current main checkout. A tag push
+Run `make app-release name=vX.Y.Z` from a clean, current main checkout. A tag push
 alone does not publish anything. Publishing an image never deploys the VPS.
 
 The nonroot container has a read-only filesystem and a persistent `/data` mount.

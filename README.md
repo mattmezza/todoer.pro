@@ -139,13 +139,18 @@ REST and MCP setup are documented at [docs.todoer.pro](https://docs.todoer.pro).
 ## Releases
 
 Releases require a clean local `main` equal to current `origin/main`, `gh` login,
-and a new stable semantic version. These commands create a GitHub release;
-GitHub Actions performs the builds. They do not deploy to the VPS.
+and a new stable semantic version. GitHub Actions builds the app and CLI. The
+extension command packages and uploads the Chromium ZIP directly.
 
 ```sh
-make release name=v1.0.0       # publishes v1.0.0; builds ghcr.io/mattmezza/todoer.pro:v1.0.0
+make release name=v3.1.1       # publishes extension-v3.1.1 with the Chromium ZIP
+make app-release name=v1.0.0   # publishes v1.0.0; builds ghcr.io/mattmezza/todoer.pro:v1.0.0
 make cli-release name=v1.0.0   # publishes cli-v1.0.0; attaches platform executables
 ```
+
+The extension release version must match `extension/manifest.json`. Download the
+Chromium ZIP from GitHub Releases, extract it, and use **Load unpacked** on
+`chrome://extensions` in Helium or Chrome.
 
 Tag pushes, normal commits and draft releases publish nothing. There is no
 mutable `latest` image: deploy an explicit version or digest. App image currently

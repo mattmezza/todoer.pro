@@ -9,6 +9,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   validate:
+    if: ${{ !startsWith(github.event.release.tag_name, 'extension-') }}
     runs-on: ubuntu-24.04
     outputs:
       kind: ${{ steps.release.outputs.kind }}
