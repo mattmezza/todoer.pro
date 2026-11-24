@@ -702,7 +702,7 @@ async fn tools_settings(State(s): State<AppState>, h: HeaderMap) -> OAuthResult 
         .map_err(storage)?;
     let a = actor.clone();
     let lists = s
-        .run(move |store| store.lists(&a))
+        .run(move |store| store.lists_filtered(&a, false))
         .await
         .map_err(|_| bad("Could not load lists"))?;
     let mut options = String::new();
@@ -821,6 +821,48 @@ mod tests {
             grant.csrf,
             path,
         )
+    }
+    #[tokio::test]
+    async fn connected_tools_only_offer_accessible_unarchived_lists() {
+        use http_body_util::BodyExt;
+        let (state, token, _, path) = production_state();
+        state
+            .run(|store| {
+                let revision = store.list_info("dev", "groceries")?.list.revision;
+                store.update_list(
+                    "dev",
+                    "groceries",
+                    crate::workspace::ListChange {
+                        color: None,
+                        emoji: None,
+                        revision,
+                        title: None,
+                        description: None,
+                        archived: Some(true),
+                    },
+                )?;
+                Ok(())
+            })
+            .await
+            .unwrap();
+        let response = routes()
+            .with_state(state)
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/settings/ai/tools")
+                    .header("cookie", format!("todoer_session={token}"))
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let html = std::str::from_utf8(&body).unwrap();
+        assert!(html.contains("name=\"list_inbox\""));
+        assert!(!html.contains("name=\"list_groceries\""));
+        assert!(!html.contains("name=\"list_private\""));
+        std::fs::remove_file(path).unwrap();
     }
     #[tokio::test]
     async fn credentials_require_cookie_csrf_and_current_permission_then_revoke() {

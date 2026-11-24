@@ -395,8 +395,15 @@ impl Store {
         Ok(())
     }
     pub fn lists(&self, actor: &str) -> Result<Vec<List>, Error> {
-        let mut q=self.conn.prepare("SELECT l.id,l.title,l.description,l.revision FROM lists l JOIN actor_list_access m ON m.list_id=l.id WHERE m.actor_id=?1 ORDER BY l.position,l.id")?;
-        Ok(q.query_map([actor], |r| {
+        self.lists_filtered(actor, true)
+    }
+    pub(crate) fn lists_filtered(
+        &self,
+        actor: &str,
+        include_archived: bool,
+    ) -> Result<Vec<List>, Error> {
+        let mut q=self.conn.prepare("SELECT l.id,l.title,l.description,l.revision FROM lists l JOIN actor_list_access m ON m.list_id=l.id WHERE m.actor_id=?1 AND (?2 OR l.archived=0) ORDER BY l.position,l.id")?;
+        Ok(q.query_map(params![actor, include_archived], |r| {
             Ok(List {
                 id: r.get(0)?,
                 title: r.get(1)?,
