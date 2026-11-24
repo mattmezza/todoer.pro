@@ -11,6 +11,7 @@ import { animateTaskCompletion, taskCompletionChange } from './task-completion.j
 import { mountCaptures } from './capture-ui.js';
 import './site.js';
 import { mountListUi } from './list-ui.js';
+import { mountListColumns } from './list-columns.js';
 import { mountTaskOrdering } from './task-order.js';
 import { mountSectionOrdering } from './section-order.js';
 import { replayCaptures, listPending, clearAccount, discardCapture } from './offline.js';
@@ -27,6 +28,7 @@ onPageLoad((scope) => {
   const list = document.body.dataset.list;
   const account = $('meta[name="account-id"]').content;
   const canWrite = document.body.dataset.canWrite === 'true';
+  const isColumns = () => $('#task-list').dataset.listView === 'columns';
   function restoreMainCapture() {
     const slot = document.querySelector('[data-main-capture-slot]');
     if (slot && !document.querySelector('#capture-form'))
@@ -128,7 +130,7 @@ onPageLoad((scope) => {
       inlineEditors.size > 0 ||
       Boolean(
         $(
-          '#task-list .task-actions[open],#task-list .entity-menu[open],#task-list [data-activation-pending],#task-list [data-completion-pending],#task-list [data-trash-pending]',
+          '#task-list .task-actions[open],#task-list .entity-menu[open],#task-list [data-activation-pending],#task-list [data-completion-pending],#task-list [data-trash-pending],#task-list [data-column-dragging]',
         ),
       ) ||
       [
@@ -485,7 +487,7 @@ onPageLoad((scope) => {
       !window.getSelection()?.toString()
     ) {
       const link = e.target.closest('a');
-      if (link) return;
+      if (link && (!isColumns() || !link.matches('.task-title'))) return;
       e.preventDefault();
       await openTask(row.dataset.id);
     }
@@ -607,6 +609,18 @@ onPageLoad((scope) => {
     }),
   });
   scope.cleanup(swipeTask.destroy);
+  mountListColumns({
+    scope,
+    container: $('#task-list'),
+    listId: list,
+    csrf,
+    canWrite,
+    api,
+    notice,
+    blocked: () => taskPanel.isOpen || draftActive(true),
+    refresh,
+    resumeRefresh,
+  });
 
   mountSectionOrdering({
     container: $('#task-list'),
@@ -627,6 +641,7 @@ onPageLoad((scope) => {
       onChanged: () => refresh(),
       onError: (message) => notice(message, true),
       onSwipe: swipeTask,
+      gesturesEnabled: () => !isColumns(),
       hasActiveDraft: () =>
         taskPanel.isOpen ||
         inlineEditors.size > 0 ||
