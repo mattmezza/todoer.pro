@@ -20,6 +20,31 @@ async function setup(page) {
   await page.waitForFunction(() => document.body.dataset.ready === 'true');
   return { workspace, list: await page.locator('body').getAttribute('data-list') };
 }
+
+test('space actions copy the canonical permalink', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: async (value) => (window.copiedSpacePermalink = value) },
+    });
+  });
+  await page.goto('/signin');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  const space = await api(page, '/workspaces', 'POST', {
+    title: `Space ${randomUUID()}`,
+  });
+  await page.goto(`/space/${space.id}`);
+  const permalink = new URL(page.url());
+  expect(permalink.pathname).toMatch(/^\/space\/[^/]+$/);
+  await page.evaluate(() => history.replaceState(null, '', '?example=1#main'));
+  const menu = page.locator('.space-overview-heading .entity-menu');
+  await menu.getByLabel('Space actions').click();
+  await menu.getByRole('button', { name: 'Copy permalink' }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.copiedSpacePermalink))
+    .toBe(permalink.href);
+  await expect(menu).not.toHaveAttribute('open', '');
+});
+
 test('space opens its default capture list and exposes tabbed settings', async ({
   page,
 }) => {

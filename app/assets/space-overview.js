@@ -41,6 +41,17 @@ onPageLoad((scope) => {
       editSpace(event.target);
     }
   });
+  scope.listen(root.querySelector('[data-space-permalink]'), 'click', async (event) => {
+    const button = event.currentTarget;
+    const permalink = new URL(button.dataset.spacePermalink, location.origin).href;
+    button.closest('details').open = false;
+    try {
+      await navigator.clipboard.writeText(permalink);
+      toast('Permalink copied.');
+    } catch {
+      toast(`Copy permalink: ${permalink}`);
+    }
+  });
   scope.listen(form, 'submit', async (event) => {
     event.preventDefault();
     const save = form.querySelector('[type="submit"]');
