@@ -295,7 +295,10 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/google/callback", get(browser_auth::google_callback))
         .route("/logout", post(logout))
         .route("/capture", get(capture_page).post(capture_form))
-        .route("/api/extension/panel", post(browser_panel::connect))
+        .route(
+            "/api/extension/panel",
+            post(browser_panel::connect).get(browser_panel::verify_frame),
+        )
         .route("/lists/{id}", get(legacy_list_page))
         .route("/health", get(|| async { Json(json!({"status":"ok"})) }))
         .route("/ready", get(ready))

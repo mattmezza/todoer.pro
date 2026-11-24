@@ -535,9 +535,45 @@ async fn logout_revokes_cookie_and_responses_have_security_headers() {
     }
     let granted = grant(extension, &cookie).await.unwrap();
     assert_eq!(granted.status(), StatusCode::NO_CONTENT);
+    assert_eq!(granted.headers()["x-todoer-browser-panel"], "verify-frame");
     let panel_cookie = granted.headers()["set-cookie"].to_str().unwrap();
     assert!(panel_cookie.contains("; Secure; HttpOnly; SameSite=Lax; Path=/"));
     let cookies = format!("{}; {cookie}", panel_cookie.split(';').next().unwrap());
+    for (dest, session, expected) in [
+        ("document", cookies.as_str(), StatusCode::FORBIDDEN),
+        ("iframe", cookie.as_str(), StatusCode::FORBIDDEN),
+        (
+            "iframe",
+            panel_cookie.split(';').next().unwrap(),
+            StatusCode::UNAUTHORIZED,
+        ),
+        ("iframe", cookies.as_str(), StatusCode::OK),
+    ] {
+        let checked = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/extension/panel")
+                    .header("cookie", session)
+                    .header("sec-fetch-dest", dest)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(checked.status(), expected);
+        let ancestor = if expected == StatusCode::OK {
+            extension
+        } else {
+            "'none'"
+        };
+        assert!(
+            checked.headers()["content-security-policy"]
+                .to_str()
+                .unwrap()
+                .contains(&format!("frame-ancestors {ancestor};"))
+        );
+    }
     for (path, dest, ancestor) in [
         ("/inbox", "document", "'none'"),
         ("/inbox", "iframe", extension),

@@ -31,12 +31,35 @@ pub(super) async fn connect(State(s): State<AppState>, h: HeaderMap) -> Result<R
     s.auth(&h, false)?;
     Ok((
         StatusCode::NO_CONTENT,
-        [(
-            header::SET_COOKIE,
-            format!("{COOKIE}={origin}; Secure; HttpOnly; SameSite=Lax; Path=/"),
-        )],
+        [
+            (
+                header::SET_COOKIE,
+                format!("{COOKIE}={origin}; Secure; HttpOnly; SameSite=Lax; Path=/"),
+            ),
+            (
+                header::HeaderName::from_static("x-todoer-browser-panel"),
+                "verify-frame".to_owned(),
+            ),
+        ],
     )
         .into_response())
+}
+
+pub(super) async fn verify_frame(
+    State(s): State<AppState>,
+    h: HeaderMap,
+) -> Result<Html<&'static str>, ApiError> {
+    if frame_ancestor("/api/extension/panel", &h).is_none() {
+        return Err(ApiError(
+            StatusCode::FORBIDDEN,
+            "browser_panel",
+            "The panel connection was not available in this frame.".into(),
+        ));
+    }
+    s.auth(&h, false)?;
+    Ok(Html(
+        r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Todoer panel</title><script type="module" src="/assets/browser-panel.js"></script></head><body></body></html>"#,
+    ))
 }
 
 pub(super) fn frame_ancestor<'a>(path: &str, h: &'a HeaderMap) -> Option<&'a str> {
