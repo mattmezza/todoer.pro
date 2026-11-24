@@ -17,8 +17,10 @@ async function connect(destination) {
     signal: AbortSignal.timeout(10000),
   });
   if (response.status === 204) {
-    $('app').src = destination.href;
-    $('app').hidden = false;
+    const app = $('app');
+    app.allow = `clipboard-write ${destination.origin}`;
+    app.src = destination.href;
+    app.hidden = false;
     $('setup').hidden = true;
   } else if (response.status === 401) {
     const login = new URL('/signin', destination);
