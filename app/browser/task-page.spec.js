@@ -42,6 +42,34 @@ async function ready(page, id) {
   await expect(page).toHaveURL(/\/tasks\/[a-z0-9]+$/);
 }
 
+test('a dedicated subtask shows its own tags and updates them live', async ({ page }) => {
+  const { api, capture } = await setup(page);
+  const parent = await capture('Parent with a tag');
+  const child = await capture('Subtask with a tag', '', parent.id);
+  await api(`/tasks/${parent.id}/tags`, 'PUT', {
+    revision: parent.revision,
+    tags: ['parent-tag'],
+  });
+  const tagged = await api(`/tasks/${child.id}/tags`, 'PUT', {
+    revision: child.revision,
+    tags: ['child-tag'],
+  });
+  await ready(page, child.id);
+  const summary = page.getByRole('list', { name: 'Task tags' });
+  await expect(summary).toHaveText('+child-tag');
+
+  const cleared = await api(`/tasks/${child.id}/tags`, 'PUT', {
+    revision: tagged.revision,
+    tags: [],
+  });
+  await expect(summary).toBeHidden();
+  await api(`/tasks/${child.id}/tags`, 'PUT', {
+    revision: cleared.revision,
+    tags: ['replacement-tag'],
+  });
+  await expect(summary).toHaveText('+replacement-tag');
+});
+
 test('list, task and subtask actions copy public permalinks', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'clipboard', {

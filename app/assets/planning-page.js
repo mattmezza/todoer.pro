@@ -269,10 +269,7 @@ onPageLoad((scope) => {
         const change = JSON.parse(event.data);
         if (change.resync || change.count > 0) {
           clearTimeout(timer);
-          timer = scope.timeout(() => {
-            refreshRows();
-            taskPanel.refreshTags();
-          }, 250);
+          timer = scope.timeout(() => refreshRows(), 250);
         }
       } catch {}
     });

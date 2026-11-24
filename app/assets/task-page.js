@@ -847,18 +847,35 @@ export function mountTaskPage(
           conflict(
             'The saved task changed. Your draft and its original revision are preserved. Review the saved version before rebasing.',
           );
-        const rendered = await request(
-          `/fragments/tasks/${encodeURIComponent(id)}/description`,
-          'GET',
-          undefined,
-          { html: true },
-        );
+        const [rendered, tags] = await Promise.all([
+          request(
+            `/fragments/tasks/${encodeURIComponent(id)}/description`,
+            'GET',
+            undefined,
+            {
+              html: true,
+            },
+          ),
+          api(`/tasks/${encodeURIComponent(id)}/tags`).catch(() => null),
+        ]);
         if (!alive) return;
         if (busy || interacting()) {
           pending = true;
           return;
         }
         get('[data-saved-description]').innerHTML = rendered; // authenticated sanitized saved-source fragment
+        if (tags) {
+          const summary = get('[data-task-tags]');
+          summary.replaceChildren(
+            ...tags.map((tag) => {
+              const item = document.createElement('li');
+              item.className = 'inbox-tag';
+              item.textContent = `+${tag.name}`;
+              return item;
+            }),
+          );
+          summary.hidden = tags.length === 0;
+        }
       } else updateView();
       await loadChildren();
       if (!initial) {

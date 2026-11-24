@@ -32,7 +32,7 @@ struct TaskPage {
     children_html: String,
     initial_subtree: String,
     initial_schedule: String,
-    initial_tags: String,
+    tags: Vec<crate::taxonomy::Tag>,
     discussion_html: String,
     progress_label: String,
     progress_percent: String,
@@ -307,18 +307,17 @@ async fn page(
                 "SELECT COALESCE(MAX(h.seq),0) FROM history h JOIN actor_list_access a ON a.list_id=h.list_id WHERE a.actor_id=?1",
                 [&a], |row| row.get(0),
             )?;
-            let initial_tags = serde_json::to_string(&db.task_tags(&a, &task.id)?).map_err(|_| Error::Invalid("Cannot render task tags".into()))?;
             Ok(TaskPage {
                 list_color: db.list_color(&a, &task.list_id)?.unwrap_or_else(|| "blue".into()),
                 change_cursor,
                 public_reference,
                 sidebar,
+                tags: db.task_tags(&a, &task.id)?,
                 task,
                 description_html,
                 crumbs,
                 children_html: rendered.html,
                 initial_subtree,
-                initial_tags,
                 initial_schedule,
                 discussion_html: String::new(),
                 progress_label,

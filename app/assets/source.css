@@ -11807,18 +11807,20 @@ main[data-workbench='inbox'].inbox-has-more-below::after {
 .planning-detail-content .task-page .task-page-brief {
   margin: 16px 0 30px;
 }
-.planning-detail-content .panel-task-tags:not([hidden]) {
+.task-tags:not([hidden]) {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin: -14px 0 28px;
+  margin: 8px 0 0;
 }
-.planning-detail-content .panel-task-tags .inbox-tag {
+.task-tags .inbox-tag {
   padding: 3px 8px;
   border-radius: 999px;
   background: var(--hover);
   font-size: 12px;
   line-height: 1.5;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .planning-detail-content .task-page [data-discussion-fragment] {
   margin-top: 4px;

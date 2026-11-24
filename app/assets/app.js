@@ -532,7 +532,6 @@ onPageLoad((scope) => {
     scope.listen(events, 'changes', (e) => {
       const data = JSON.parse(e.data);
       if (data.resync || (data.cursor > cursor && data.count > 0)) {
-        taskPanel.refreshTags();
         const after = cursor;
         cursor = data.cursor || cursor;
         refreshLive(after, data.resync ? null : cursor);

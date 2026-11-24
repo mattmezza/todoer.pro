@@ -22,8 +22,7 @@ export function createTaskPanel({
     generation = 0,
     loading = false,
     reading,
-    stop = () => {},
-    refreshPanelTags = () => {};
+    stop = () => {};
   const dismiss = document.createElement('button');
   dismiss.type = 'button';
   dismiss.className = 'planning-detail-dismiss';
@@ -46,7 +45,6 @@ export function createTaskPanel({
     reading?.abort();
     stop();
     stop = () => {};
-    refreshPanelTags = () => {};
     const closingPanel = panel;
     if (
       closingPanel &&
@@ -223,44 +221,7 @@ export function createTaskPanel({
             selectPriority(value.schedule.priority ?? 3);
         },
       });
-      const tags = document.createElement('div');
-      tags.className = 'panel-task-tags';
-      tags.setAttribute('aria-label', 'Task tags');
-      tags.hidden = true;
-      task.querySelector('.task-page-brief').after(tags);
-      let tagsVersion = 0;
-      let initialTags = task.dataset.initialTags
-        ? JSON.parse(task.dataset.initialTags)
-        : null;
-      delete task.dataset.initialTags;
-      refreshPanelTags = async () => {
-        const requestVersion = ++tagsVersion;
-        try {
-          let savedTags = initialTags;
-          initialTags = null;
-          if (!savedTags) {
-            const response = await read(
-              `/api/v1/tasks/${encodeURIComponent(task.dataset.taskId)}/tags`,
-              { cache: 'no-store' },
-            );
-            if (!response.ok) return;
-            savedTags = await response.json();
-          }
-          if (version !== generation || requestVersion !== tagsVersion) return;
-          tags.replaceChildren(
-            ...savedTags.map((tag) => {
-              const item = document.createElement('span');
-              item.className = 'inbox-tag';
-              item.textContent = `+${tag.name}`;
-              return item;
-            }),
-          );
-          tags.hidden = !savedTags.length;
-        } catch {
-          // Keep the last successfully loaded tags during a transient failure.
-        }
-      };
-      await Promise.all([stop.ready, refreshPanelTags()]);
+      await stop.ready;
     } catch (error) {
       if (version === generation) pending.fail(error.message, () => open(url));
     } finally {
@@ -310,7 +271,6 @@ export function createTaskPanel({
       return Boolean(panel);
     },
     contains: (node) => Boolean(panel?.contains(node)),
-    refreshTags: () => refreshPanelTags(),
     destroy() {
       destroyed = true;
       close(false, false);

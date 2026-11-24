@@ -17,7 +17,10 @@ test('a tag captured with a task appears in the Inbox and its task panel', async
   await expect(row.locator('.inbox-tag')).toHaveText('+work');
   await row.locator('.inbox-location').click();
   const panel = page.getByLabel('Task details', { exact: true });
-  await expect(panel.locator('.panel-task-tags')).toContainText('+work');
+  await expect(panel.getByRole('list', { name: 'Task tags' })).toHaveText('+work');
+  await panel.getByRole('link', { name: 'Open task page' }).click();
+  await expect(page.getByRole('list', { name: 'Task tags' })).toHaveText('+work');
+  await page.goto('/inbox');
   await page.reload();
   await expect(
     page.locator('.inbox-task').filter({ hasText: title }).locator('.inbox-tag'),
