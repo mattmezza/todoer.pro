@@ -378,6 +378,14 @@ impl Store {
                 "Duration must be between 0 and 5256000 minutes".into(),
             ));
         }
+        // The schedule write projects relative reminders using the new slot.
+        if let (Some(time), Some(_)) = (placement.time, placement.date) {
+            write.conn.execute("INSERT INTO plan_slots VALUES(?1,?2,?3) ON CONFLICT(task_id) DO UPDATE SET local_time=excluded.local_time,timezone=excluded.timezone",params![t.id,time,placement.timezone])?;
+        } else {
+            write
+                .conn
+                .execute("DELETE FROM plan_slots WHERE task_id=?1", [&t.id])?;
+        }
         let result = write.set_schedule(actor, &t.id, placement.revision, schedule)?;
         if let Some(duration) = placement.duration_minutes {
             if let Some(minutes) = duration {
@@ -387,13 +395,6 @@ impl Store {
                     .conn
                     .execute("DELETE FROM task_durations WHERE task_id=?1", [&t.id])?;
             }
-        }
-        if let (Some(time), Some(_)) = (placement.time, placement.date) {
-            write.conn.execute("INSERT INTO plan_slots VALUES(?1,?2,?3) ON CONFLICT(task_id) DO UPDATE SET local_time=excluded.local_time,timezone=excluded.timezone",params![t.id,time,placement.timezone])?;
-        } else {
-            write
-                .conn
-                .execute("DELETE FROM plan_slots WHERE task_id=?1", [t.id])?;
         }
         write.commit()?;
         Ok(result)

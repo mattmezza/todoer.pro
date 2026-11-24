@@ -4,9 +4,18 @@
 metadata, bumps the common task revision, appends history and replaces reminder
 intents in one transaction. Planning is a date without a time or zone. Due values
 are either a date, or an explicit local datetime and IANA timezone. Priorities are
-1–3. Reminders require an explicit timed value and email or push channel. User
-input in a DST gap or overlap is rejected, so it cannot silently shift the time.
+1–3. Reminders use an email or push channel. They can use an explicit timed
+value or follow the task's due date, falling back to its planned date and
+calendar time when there is no deadline. An explicit time in a DST gap or
+overlap is rejected.
 Dates use `YYYY-MM-DD`, local datetimes `YYYY-MM-DDTHH:MM:SS`.
+
+A relative reminder uses `"at": {"kind":"relative","days":1,"hours":0,"timezone":"Europe/Zurich"}`.
+Both offsets default to zero, which fires at event time. Days count back by
+local calendar dates and hours count back by elapsed time. A date without a time
+uses 9:00 AM in the reminder's timezone. A generated time in a DST overlap uses
+the earlier instant, and one in a gap uses the first instant after the gap.
+Clearing both dates suspends relative reminders until the task has a date again.
 
 ## Recurrence
 
@@ -42,9 +51,10 @@ Each successor gets fresh task UUIDs and collision-checked short references,
 new parent links, and preserved sibling order, titles, descriptions, tags and
 section placement. All copied tasks start unfinished. Priority and schedules
 are retained. Date-only planned/due values advance by the occurrence's local
-calendar-day offset. Timed child due dates and reminders retain their elapsed
+calendar-day offset. Timed child due dates and fixed reminders retain their elapsed
 offset from the previous root due instant, converted back into each value's
-own IANA timezone; the root due follows the series wall clock. This keeps
+own IANA timezone. The root due follows the series wall clock and relative
+reminders are recalculated for each successor. This keeps
 reminders predictable across DST without inventing nonexistent local times.
 Generated overlaps use the earlier instant. A child clock time can therefore
 change when preserving its elapsed offset across a DST boundary.

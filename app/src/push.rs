@@ -799,7 +799,7 @@ mod tests {
     use super::*;
     use crate::{
         core::{Capture, NewTask},
-        scheduling::{Moment, Reminder, Schedule},
+        scheduling::{Moment, Reminder, ReminderTime, Schedule},
     };
     fn config() -> PushTransport {
         let private_key = URL_SAFE_NO_PAD.encode([7u8; 32]);
@@ -858,7 +858,7 @@ mod tests {
             Schedule {
                 reminders: vec![Reminder {
                     channel: Channel::Push,
-                    at: Moment::Timed {
+                    at: ReminderTime::Timed {
                         local,
                         timezone: "UTC".into(),
                     },

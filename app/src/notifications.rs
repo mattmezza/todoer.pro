@@ -1532,7 +1532,7 @@ mod delivery_tests {
             Schedule {
                 reminders: vec![crate::scheduling::Reminder {
                     channel: Channel::Email,
-                    at: Moment::Timed {
+                    at: crate::scheduling::ReminderTime::Timed {
                         local,
                         timezone: "UTC".into(),
                     },
