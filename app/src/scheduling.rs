@@ -2,8 +2,8 @@
 //! User-entered ambiguous/nonexistent local times are rejected. Generated dates
 //! skip DST gaps and use the earlier instant for overlaps; wall time is retained.
 use crate::core::{Error, Store, Task, access_rank, event, raw_task, task};
-use chrono::{Datelike, Duration, LocalResult, NaiveDate, NaiveDateTime, TimeZone, Utc};
-use chrono_tz::Tz;
+use chrono::{Datelike, Days, Duration, LocalResult, NaiveDate, NaiveDateTime, TimeZone, Utc};
+use chrono_tz::{GapInfo, Tz};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -23,7 +23,22 @@ pub enum Channel {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Reminder {
     pub channel: Channel,
-    pub at: Moment,
+    pub at: ReminderTime,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ReminderTime {
+    Timed {
+        local: String,
+        timezone: String,
+    },
+    Relative {
+        #[serde(default)]
+        days: u32,
+        #[serde(default)]
+        hours: u32,
+        timezone: String,
+    },
 }
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Schedule {
@@ -111,31 +126,49 @@ fn zone(value: &str) -> Result<Tz, Error> {
 fn stamp(value: NaiveDateTime) -> String {
     value.format("%Y-%m-%dT%H:%M:%S").to_string()
 }
-fn timed(moment: &Moment) -> Result<i64, Error> {
-    match moment {
-        Moment::Date { .. } => Err(invalid(
-            "reminders require an explicit local time and timezone",
+fn timed(value: &str, timezone: &str) -> Result<i64, Error> {
+    match zone(timezone)?.from_local_datetime(&local(value)?) {
+        LocalResult::Single(value) => Ok(value.timestamp()),
+        _ => Err(invalid(
+            "local time is nonexistent or ambiguous; choose an unambiguous time",
         )),
-        Moment::Timed {
-            local: value,
-            timezone,
-        } => match zone(timezone)?.from_local_datetime(&local(value)?) {
-            LocalResult::Single(value) => Ok(value.timestamp()),
-            _ => Err(invalid(
-                "local time is nonexistent or ambiguous; choose an unambiguous time",
-            )),
-        },
     }
 }
-fn resolved(moment: &Moment) -> Result<i64, Error> {
-    match moment {
-        Moment::Timed {
+fn resolved(value: &str, timezone: &str) -> Result<i64, Error> {
+    generated_instant(zone(timezone)?, local(value)?)
+        .ok_or_else(|| invalid("nonexistent scheduled time"))
+}
+fn relative_reminder(
+    schedule: &Schedule,
+    slot: Option<&(String, String)>,
+    days: u32,
+    hours: u32,
+    timezone: &str,
+) -> Result<Option<i64>, Error> {
+    let date_zone = zone(timezone)?;
+    let (wall, tz) = match schedule.due.as_ref().or(schedule.planned.as_ref()) {
+        None => return Ok(None),
+        Some(Moment::Timed {
             local: value,
             timezone,
-        } => generated_instant(zone(timezone)?, local(value)?)
-            .ok_or_else(|| invalid("nonexistent reminder time")),
-        _ => Err(invalid("reminder requires timed moment")),
-    }
+        }) => (local(value)?, zone(timezone)?),
+        Some(Moment::Date { date: value }) => match slot {
+            Some((time, timezone)) => (local(&format!("{value}T{time}:00"))?, zone(timezone)?),
+            None => (date(value)?.and_hms_opt(9, 0, 0).unwrap(), date_zone),
+        },
+    };
+    // Days preserve the local clock time. Hours count elapsed time across DST.
+    let wall = wall
+        .checked_sub_days(Days::new(days.into()))
+        .ok_or_else(|| invalid("reminder offset is out of range"))?;
+    let at = generated_instant(tz, wall)
+        .or_else(|| GapInfo::new(&wall, &tz)?.end.map(|time| time.timestamp()))
+        .ok_or_else(|| invalid("could not resolve relative reminder time"))?;
+    let at = at - i64::from(hours) * 3600;
+    Utc.timestamp_opt(at, 0)
+        .single()
+        .map(|time| Some(time.timestamp()))
+        .ok_or_else(|| invalid("reminder offset is out of range"))
 }
 fn validate(schedule: &Schedule) -> Result<(), Error> {
     if let Some(planned) = &schedule.planned {
@@ -151,8 +184,8 @@ fn validate(schedule: &Schedule) -> Result<(), Error> {
             Moment::Date { date: value } => {
                 date(value)?;
             }
-            _ => {
-                timed(due)?;
+            Moment::Timed { local, timezone } => {
+                timed(local, timezone)?;
             }
         }
     }
@@ -163,7 +196,9 @@ fn validate(schedule: &Schedule) -> Result<(), Error> {
         return Err(invalid("at most ten reminder intents are supported"));
     }
     for reminder in &schedule.reminders {
-        timed(&reminder.at)?;
+        if let ReminderTime::Timed { local, timezone } = &reminder.at {
+            timed(local, timezone)?;
+        }
     }
     Ok(())
 }
@@ -221,12 +256,38 @@ fn write_schedule(
     schedule: &Schedule,
 ) -> Result<ScheduleState, Error> {
     let revision = state(c, t)?.schedule_revision + 1;
+    let slot = if schedule.due.is_none()
+        && schedule.planned.is_some()
+        && schedule
+            .reminders
+            .iter()
+            .any(|r| matches!(r.at, ReminderTime::Relative { .. }))
+    {
+        c.query_row(
+            "SELECT local_time,timezone FROM plan_slots WHERE task_id=?1",
+            [&t.id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?
+    } else {
+        None
+    };
     cancel(c, &t.id)?;
     c.execute("INSERT INTO task_schedule(task_id,revision,document) VALUES(?1,?2,?3) ON CONFLICT(task_id) DO UPDATE SET revision=excluded.revision,document=excluded.document",params![t.id,revision,encode(schedule)])?;
-    if !t.complete {
+    if !schedule.reminders.is_empty() {
         let user = recipient(c, actor)?;
         for reminder in &schedule.reminders {
-            let at = resolved(&reminder.at)?;
+            let at = match &reminder.at {
+                ReminderTime::Timed { local, timezone } => Some(resolved(local, timezone)?),
+                ReminderTime::Relative {
+                    days,
+                    hours,
+                    timezone,
+                } => relative_reminder(schedule, slot.as_ref(), *days, *hours, timezone)?,
+            };
+            let Some(at) = at.filter(|_| !t.complete) else {
+                continue;
+            };
             let channel = match reminder.channel {
                 Channel::Email => "email",
                 Channel::Push => "push",
@@ -292,10 +353,7 @@ pub(crate) fn series_task(c: &Connection, id: &str) -> Result<Task, Error> {
 }
 fn recurrence_valid(spec: &RecurrenceSpec) -> Result<(), Error> {
     let start = local(&spec.start_local)?;
-    timed(&Moment::Timed {
-        local: spec.start_local.clone(),
-        timezone: spec.timezone.clone(),
-    })?;
+    timed(&spec.start_local, &spec.timezone)?;
     match &spec.rule {
         Rule::Daily { interval_days }
         | Rule::CompletionRelative {
@@ -455,6 +513,17 @@ fn fresh_task_identity(c: &Connection) -> Result<(String, String), Error> {
         }
     }
 }
+fn shifted_time(value: &str, timezone: &str, seconds: i64) -> Result<String, Error> {
+    let at = resolved(value, timezone)?
+        .checked_add(seconds)
+        .ok_or_else(|| invalid("recurring timestamp overflow"))?;
+    let local = Utc
+        .timestamp_opt(at, 0)
+        .single()
+        .ok_or_else(|| invalid("recurring timestamp overflow"))?
+        .with_timezone(&zone(timezone)?);
+    Ok(stamp(local.naive_local()))
+}
 fn shifted(moment: &Moment, days: i64, seconds: i64) -> Result<Moment, Error> {
     Ok(match moment {
         Moment::Date { date: value } => Moment::Date {
@@ -464,20 +533,10 @@ fn shifted(moment: &Moment, days: i64, seconds: i64) -> Result<Moment, Error> {
                 .format("%Y-%m-%d")
                 .to_string(),
         },
-        Moment::Timed { timezone, .. } => {
-            let at = resolved(moment)?
-                .checked_add(seconds)
-                .ok_or_else(|| invalid("recurring timestamp overflow"))?;
-            let local = Utc
-                .timestamp_opt(at, 0)
-                .single()
-                .ok_or_else(|| invalid("recurring timestamp overflow"))?
-                .with_timezone(&zone(timezone)?);
-            Moment::Timed {
-                local: stamp(local.naive_local()),
-                timezone: timezone.clone(),
-            }
-        }
+        Moment::Timed { local, timezone } => Moment::Timed {
+            local: shifted_time(local, timezone, seconds)?,
+            timezone: timezone.clone(),
+        },
     })
 }
 fn clone_checklist(
@@ -493,7 +552,10 @@ fn clone_checklist(
         .schedule
         .due
         .as_ref()
-        .and_then(|moment| resolved(moment).ok())
+        .and_then(|moment| match moment {
+            Moment::Timed { local, timezone } => resolved(local, timezone).ok(),
+            Moment::Date { .. } => None,
+        })
         .unwrap_or(
             generated_instant(zone(&series.spec.timezone)?, local(last_due)?)
                 .ok_or_else(|| invalid("invalid old recurrence anchor"))?,
@@ -562,7 +624,9 @@ fn clone_checklist(
                     .transpose()?
             };
             for reminder in &mut schedule.reminders {
-                reminder.at = shifted(&reminder.at, days, seconds)?;
+                if let ReminderTime::Timed { local, timezone } = &mut reminder.at {
+                    *local = shifted_time(local, timezone, seconds)?;
+                }
             }
             write_schedule(c, &recipient, &new, &schedule)?;
         }
@@ -1002,12 +1066,18 @@ mod tests {
             timezone: "Europe/Zurich".into(),
         }
     }
+    fn reminder_time(value: &str) -> ReminderTime {
+        ReminderTime::Timed {
+            local: value.into(),
+            timezone: "Europe/Zurich".into(),
+        }
+    }
     fn schedule() -> Schedule {
         Schedule {
             due: Some(moment("2026-03-28T09:00:00")),
             reminders: vec![Reminder {
                 channel: Channel::Email,
-                at: moment("2026-03-28T08:00:00"),
+                at: reminder_time("2026-03-28T08:00:00"),
             }],
             ..Default::default()
         }
@@ -1022,7 +1092,124 @@ mod tests {
         }
     }
     fn unix(value: &str) -> i64 {
-        timed(&moment(value)).unwrap()
+        timed(value, "Europe/Zurich").unwrap()
+    }
+    fn relative(days: u32, hours: u32) -> Reminder {
+        Reminder {
+            channel: Channel::Email,
+            at: ReminderTime::Relative {
+                days,
+                hours,
+                timezone: "Europe/Zurich".into(),
+            },
+        }
+    }
+    fn pending_times(s: &Store, id: &str) -> Vec<i64> {
+        s.conn
+            .prepare(
+                "SELECT at FROM reminder_outbox WHERE task_id=?1 AND status='pending' ORDER BY at",
+            )
+            .unwrap()
+            .query_map([id], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
+    #[test]
+    fn relative_reminders_follow_due_changes_and_preserve_fixed_reminders() {
+        let mut s = db();
+        let task = new_task(&mut s);
+        let mut schedule = schedule();
+        schedule.due = Some(moment("2026-03-29T09:00:00"));
+        schedule.reminders[0].at = reminder_time("2026-03-27T12:00:00");
+        schedule.reminders.extend([
+            relative(0, 0),
+            relative(1, 0),
+            relative(2, 0),
+            relative(0, 24),
+        ]);
+        let saved = s
+            .set_schedule("dev", &task.id, task.revision, schedule.clone())
+            .unwrap();
+        assert_eq!(
+            pending_times(&s, &task.id),
+            [
+                unix("2026-03-27T09:00:00"),
+                unix("2026-03-27T12:00:00"),
+                unix("2026-03-28T08:00:00"),
+                unix("2026-03-28T09:00:00"),
+                unix("2026-03-29T09:00:00"),
+            ]
+        );
+        schedule.due = None;
+        let cleared = s
+            .set_schedule("dev", &task.id, saved.task_revision, schedule.clone())
+            .unwrap();
+        assert_eq!(cleared.schedule.reminders, schedule.reminders);
+        assert_eq!(pending_times(&s, &task.id), [unix("2026-03-27T12:00:00")]);
+        schedule.due = Some(moment("2026-03-30T02:30:00"));
+        s.set_schedule("dev", &task.id, cleared.task_revision, schedule)
+            .unwrap();
+        assert_eq!(
+            pending_times(&s, &task.id),
+            [
+                unix("2026-03-27T12:00:00"),
+                unix("2026-03-28T02:30:00"),
+                unix("2026-03-29T01:30:00"),
+                unix("2026-03-29T03:00:00"),
+                unix("2026-03-30T02:30:00"),
+            ]
+        );
+    }
+    #[test]
+    fn relative_reminders_follow_calendar_placement_and_recurring_deadlines() {
+        let mut s = db();
+        let task = new_task(&mut s);
+        let schedule = Schedule {
+            planned: Some(Moment::Date {
+                date: "2026-03-27".into(),
+            }),
+            reminders: vec![relative(1, 2)],
+            ..Default::default()
+        };
+        let saved = s
+            .set_schedule("dev", &task.id, task.revision, schedule)
+            .unwrap();
+        assert_eq!(pending_times(&s, &task.id), [unix("2026-03-26T07:00:00")]);
+        let placed = s
+            .place_task(
+                "dev",
+                &task.id,
+                crate::planning::Placement {
+                    revision: saved.task_revision,
+                    date: Some("2026-03-28".into()),
+                    time: Some("15:00".into()),
+                    timezone: "UTC".into(),
+                    priority: None,
+                    duration_minutes: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(pending_times(&s, &task.id), [unix("2026-03-27T14:00:00")]);
+        let series = s
+            .start_series("dev", &task.id, placed.task_revision, spec())
+            .unwrap();
+        assert_eq!(pending_times(&s, &task.id), [unix("2026-03-27T07:00:00")]);
+        let current = s.get_schedule("dev", &task.id).unwrap();
+        s.skip_occurrence(
+            "dev",
+            &task.id,
+            current.task_revision,
+            unix("2026-03-28T09:00:00"),
+        )
+        .unwrap();
+        let next = &s.occurrences("dev", &series.id).unwrap()[1].task_id;
+        assert!(pending_times(&s, &task.id).is_empty());
+        assert_eq!(pending_times(&s, next), [unix("2026-03-28T07:00:00")]);
+        assert_eq!(
+            s.get_schedule("dev", next).unwrap().schedule.reminders,
+            vec![relative(1, 2)]
+        );
     }
     fn child(s: &mut Store, parent: &str, title: &str) -> Task {
         s.capture(
@@ -1077,7 +1264,7 @@ mod tests {
                 priority: Some(1),
                 reminders: vec![Reminder {
                     channel: Channel::Email,
-                    at: moment("2026-03-28T07:30:00"),
+                    at: reminder_time("2026-03-28T07:30:00"),
                 }],
             },
         )
@@ -1213,7 +1400,10 @@ mod tests {
             })
         );
         assert_eq!(shifted.due, Some(moment("2026-03-29T08:00:00")));
-        assert_eq!(shifted.reminders[0].at, moment("2026-03-29T07:30:00"));
+        assert_eq!(
+            shifted.reminders[0].at,
+            reminder_time("2026-03-29T07:30:00")
+        );
         assert_eq!(s.comments("dev", &first.id, 0, 10).unwrap().len(), 1);
         assert!(s.comments("dev", &first_copy.id, 0, 10).unwrap().is_empty());
         assert_eq!(s.conn.query_row("SELECT COUNT(*) FROM history WHERE json_extract(event,'$.kind')='recurrence-create'",[],|r|r.get::<_,i64>(0)).unwrap(),4);
@@ -1434,7 +1624,7 @@ mod tests {
         let mut value = schedule();
         value.reminders.push(Reminder {
             channel: Channel::Push,
-            at: moment("2026-03-28T08:00:00"),
+            at: reminder_time("2026-03-28T08:00:00"),
         });
         s.set_schedule("dev", &task.id, task.revision, value)
             .unwrap();

@@ -7097,6 +7097,10 @@ form[data-list-edit] [role='alert']:empty {
   color: var(--text);
   background: var(--line);
 }
+.planning-date-shortcuts.reminder-shortcuts {
+  flex-wrap: wrap;
+  margin: 0;
+}
 .planning-date-intent > label:has(> .sr-only) {
   gap: 0;
 }

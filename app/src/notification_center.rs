@@ -231,7 +231,7 @@ impl Store {
 mod tests {
     use super::*;
     use crate::core::{Capture, Change, NewTask};
-    use crate::scheduling::{Channel, Reminder};
+    use crate::scheduling::{Channel, Reminder, ReminderTime};
     fn db() -> Store {
         let mut s = Store::memory().unwrap();
         s.seed_dev().unwrap();
@@ -326,7 +326,7 @@ mod tests {
     fn channels_share_one_reminder_and_stale_schedules_disappear() {
         let mut s = db();
         let t = task(&mut s);
-        let at = Moment::Timed {
+        let at = ReminderTime::Timed {
             local: "2026-10-28T12:00:00".into(),
             timezone: "UTC".into(),
         };

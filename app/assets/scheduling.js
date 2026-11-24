@@ -3,6 +3,10 @@ import { request as fetch } from './request.js';
 import { preferredTimeFormatter, zonedLocalTimestamp } from './preferred-time.js';
 import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
+import { pagePreferences } from './account-preferences.js';
+
+const reminderDays = { event: 0, one_day: 1, two_days: 2 };
+
 // Task scheduling is saved separately from the task brief. Every draft retains
 // its original task revision until an explicit save or discard.
 export function mountScheduling({
@@ -41,7 +45,7 @@ export function mountScheduling({
     : null;
 
   let seriesCreated = false;
-  let defaultZone = 'UTC';
+  let defaultZone = pagePreferences()?.timezone || 'UTC';
   let formatPreferred;
   preferredTimeFormatter().then((format) => {
     if (!active) return;
@@ -149,6 +153,11 @@ export function mountScheduling({
       'p',
       { class: 'muted' },
       'Reminders go to the account saving this schedule. Email or push delivery requires that channel to be enabled in your preferences.',
+    ),
+    el(
+      'p',
+      { class: 'muted' },
+      'Relative reminders follow the deadline, or the planned date and time when there is no deadline. Dates without a time use 9:00 AM in your time zone.',
     ),
     reminders,
     addReminder,
@@ -325,6 +334,16 @@ export function mountScheduling({
       .querySelector('.planning-label-caption')
       .classList.add('sr-only');
   plannedHelp.remove();
+  function currentLocalDate() {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: defaultZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+    const part = (name) => parts.find((p) => p.type === name).value;
+    return new Date(`${part('year')}-${part('month')}-${part('day')}T12:00:00Z`);
+  }
   function quickDates(kind) {
     const shortcuts = el('div', {
       class: 'planning-date-shortcuts',
@@ -349,16 +368,7 @@ export function mountScheduling({
       );
       button.onclick = () => {
         if (!canWrite || busy) return;
-        const parts = new Intl.DateTimeFormat('en-US', {
-          timeZone: defaultZone,
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-        }).formatToParts(new Date());
-        const part = (name) => parts.find((p) => p.type === name).value;
-        const date = new Date(
-          `${part('year')}-${part('month')}-${part('day')}T12:00:00Z`,
-        );
+        const date = currentLocalDate();
         date.setUTCDate(date.getUTCDate() + offset);
         const value = date.toISOString().slice(0, 10);
         if (kind === 'planned') planned.value = value;
@@ -609,11 +619,20 @@ export function mountScheduling({
       dueZone: dueZone.value,
       duration: duration.value,
       priority: priority.value,
-      reminders: [...reminders.children].map((row) => ({
-        channel: row.querySelector('[name=channel]').value,
-        local: row.querySelector('[name=reminder_local]').value,
-        timezone: row.querySelector('[name=reminder_timezone]').value,
-      })),
+      reminders: [...reminders.children].map((row) => {
+        const fields = row.elements;
+        const timing = fields.reminder_timing.value;
+        return {
+          channel: fields.channel.value,
+          timing,
+          local: fields.reminder_local.value,
+          timezone: fields.reminder_timezone.value,
+          relativeTimezone:
+            row.dataset.relativeTimezone || (timing !== 'timed' ? defaultZone : ''),
+          days: fields.reminder_days.value,
+          hours: fields.reminder_hours.value,
+        };
+      }),
     };
   }
   function recurrenceValues() {
@@ -658,18 +677,57 @@ export function mountScheduling({
   function addReminderRow(values) {
     const row = el('fieldset', { class: 'reminder-card' });
     row.append(el('legend', { class: 'sr-only' }, 'Reminder'));
+    row.dataset.relativeTimezone = values.relativeTimezone || '';
     const channel = select('channel', [
       ['email', 'Email'],
       ['push', 'Push notification'],
     ]);
     channel.value = values.channel || 'email';
+    const timing = select('reminder_timing', [['timed', 'Specific date and time']]);
+    const relative = el('optgroup', { label: 'Relative to task date' });
+    for (const [value, text] of [
+      ['event', 'At event time'],
+      ['one_day', '1 day before'],
+      ['two_days', '2 days before'],
+      ['custom', 'Custom offset'],
+    ]) {
+      relative.append(el('option', { value }, text));
+    }
+    timing.append(relative);
+    timing.value = values.timing || 'timed';
     const at = input('datetime-local', 'reminder_local', values.local || '');
     at.required = true;
     const timezone = input('text', 'reminder_timezone', values.timezone || defaultZone);
     timezone.required = true;
+    const shortcuts = el('div', {
+      class: 'planning-date-shortcuts reminder-shortcuts',
+      role: 'group',
+      'aria-label': 'Quick reminder times',
+    });
+    for (const [kind, caption] of [
+      ['tomorrow', 'Tomorrow at 9 AM'],
+      ['next_week', 'Next week at 9 AM'],
+    ]) {
+      const button = el('button', { type: 'button' }, caption);
+      button.addEventListener('click', () => {
+        if (!canWrite || busy) return;
+        const date = currentLocalDate();
+        const weekStart = pagePreferences()?.week_start ?? 1;
+        const days =
+          kind === 'tomorrow' ? 1 : (weekStart - date.getUTCDay() + 7) % 7 || 7;
+        date.setUTCDate(date.getUTCDate() + days);
+        at.value = `${date.toISOString().slice(0, 10)}T09:00`;
+        timezone.value = defaultZone;
+        scheduleChanged();
+      });
+      shortcuts.append(button);
+    }
+    const offsetAttributes = { min: '0', max: '4294967295', step: '1' };
+    const days = input('number', 'reminder_days', values.days ?? '', offsetAttributes);
+    const hours = input('number', 'reminder_hours', values.hours ?? '', offsetAttributes);
     const remove = el(
       'button',
-      { type: 'button', class: 'secondary min-h-11' },
+      { type: 'button', class: 'secondary min-h-11 reminder-remove' },
       'Remove reminder',
     );
     remove.hidden = !canWrite;
@@ -678,16 +736,49 @@ export function mountScheduling({
       row.remove();
       scheduleChanged();
     });
-    row.append(label('Channel', channel));
-    const when = el('div', { class: 'reminder-when' });
+    const when = el('fieldset', { class: 'reminder-when' });
+    when.append(el('legend', { class: 'sr-only' }, 'Specific date and time'));
     when.append(label('Date and time', at), label('Timezone', timezone));
-    row.append(when, remove);
-    remove.classList.add('reminder-remove');
+    const offset = el('fieldset', { class: 'reminder-when' });
+    offset.append(el('legend', { class: 'sr-only' }, 'Custom offset'));
+    offset.append(label('Days before', days), label('Hours before', hours));
+    const needsDate = el(
+      'p',
+      { class: 'muted' },
+      'Set a date to activate this reminder.',
+    );
+    row.append(
+      label('Channel', channel),
+      label('When', timing),
+      shortcuts,
+      when,
+      offset,
+      needsDate,
+      remove,
+    );
     reminders.append(row);
+
+    row.updateTiming = (hasDate) => {
+      const fixedTime = timing.value === 'timed';
+      shortcuts.hidden = !canWrite || !fixedTime;
+      when.hidden = when.disabled = !fixedTime;
+      offset.hidden = offset.disabled = timing.value !== 'custom';
+      relative.disabled = !hasDate && fixedTime;
+      needsDate.hidden = hasDate || fixedTime;
+      hours.setCustomValidity(
+        days.value || hours.value ? '' : 'Enter days or hours before.',
+      );
+    };
   }
   function updateVisibility() {
     dateCaptions();
     durationDisplay();
+    const hasDate = Boolean(
+      planned.value ||
+      (dueKind.value === 'date' && dueDate.value) ||
+      (dueKind.value === 'timed' && dueLocal.value),
+    );
+    for (const row of reminders.children) row.updateTiming(hasDate);
     timedRow.hidden = dueKind.value !== 'timed';
     dueDate.closest('label').hidden = dueKind.value !== 'date';
     dueLocal.closest('label').hidden = dueKind.value !== 'timed';
@@ -778,11 +869,18 @@ export function mountScheduling({
       dueLocal: schedule.due?.local || '',
       dueZone: schedule.due?.timezone || defaultZone,
       priority: String(schedule.priority ?? 3),
-      reminders: (schedule.reminders || []).map((r) => ({
-        channel: r.channel,
-        local: r.at.local,
-        timezone: r.at.timezone,
-      })),
+      reminders: (schedule.reminders || []).map(({ channel, at }) => {
+        if (at.kind === 'timed')
+          return { channel, local: at.local, timezone: at.timezone };
+        const preset = at.hours === 0 && Object.keys(reminderDays)[at.days];
+        return {
+          channel,
+          timing: preset || 'custom',
+          relativeTimezone: at.timezone,
+          days: preset ? '' : String(at.days),
+          hours: preset ? '' : String(at.hours),
+        };
+      }),
     };
   }
   function showPriorityPreview(schedule) {
@@ -958,7 +1056,15 @@ export function mountScheduling({
       priority: v.priority ? Number(v.priority) : null,
       reminders: v.reminders.map((r) => ({
         channel: r.channel,
-        at: { kind: 'timed', local: local(r.local), timezone: r.timezone.trim() },
+        at:
+          r.timing === 'timed'
+            ? { kind: 'timed', local: local(r.local), timezone: r.timezone.trim() }
+            : {
+                kind: 'relative',
+                days: r.timing === 'custom' ? Number(r.days) : reminderDays[r.timing],
+                hours: r.timing === 'custom' ? Number(r.hours) : 0,
+                timezone: r.relativeTimezone,
+              },
       })),
     };
     busy = true;
@@ -985,7 +1091,6 @@ export function mountScheduling({
       remove('schedule');
       storedSchedule = result;
       showDue(result.schedule);
-      applyValues(fromSchedule(result.schedule));
       if (!recurrenceDraft) recurrenceRevision = result.task_revision;
       say('');
       updateDraftActions();
