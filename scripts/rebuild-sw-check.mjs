@@ -64,6 +64,8 @@ const stores = new Map();
 let pageScope = 'synthetic-page-user';
 let offline = false;
 let redirectedURL;
+let automaticActivations = 0;
+let claims = 0;
 const keyOf = (request) => typeof request === 'string' ? request : request.url;
 const cacheStore = (name) => {
   if (!stores.has(name)) stores.set(name, new Map());
@@ -80,7 +82,17 @@ const cacheStore = (name) => {
 };
 const pageContext = vm.createContext({
   URL, Promise, Map, Response,
-  caches: { open: async (name) => cacheStore(name), delete: async (name) => stores.delete(name) },
+  caches: {
+    open: async (name) => cacheStore(name),
+    delete: async (name) => stores.delete(name),
+    keys: async () => [...stores.keys()],
+    match: async (request) => {
+      for (const entries of stores.values()) {
+        const response = entries.get(keyOf(request));
+        if (response) return response.clone();
+      }
+    },
+  },
   fetch: async () => {
     if (offline) throw Error('Offline fixture');
     const response = new Response('<main id="main">Synthetic offline page</main>', {
@@ -94,14 +106,30 @@ const pageContext = vm.createContext({
   self: {
     location: { origin: 'https://tasks.example.invalid' },
     addEventListener: (name, fn) => pageHandlers.set(name, fn),
+    registration: { active: {} },
+    skipWaiting: async () => { automaticActivations++; },
+    clients: { claim: async () => { claims++; } },
   },
 });
 vm.runInContext(workerSource, pageContext);
-async function pageFetch(path, headers = {}, mode = 'same-origin') {
+async function lifecycle(name) {
+  let work;
+  pageHandlers.get(name)({ waitUntil: (value) => { work = value; } });
+  await work;
+}
+await lifecycle('install');
+assert.equal(automaticActivations, 1, 'an older worker is replaced without closing tabs');
+await lifecycle('activate');
+assert.equal(claims, 1);
+await lifecycle('install');
+assert.equal(automaticActivations, 1, 'later updates still wait for the UI');
+console.log('Service-worker migration: replaces the legacy worker once and preserves manual activation for future updates');
+
+async function pageFetch(path, headers = {}, mode = 'same-origin', destination = '') {
   let response;
   const work = [];
   pageHandlers.get('fetch')({
-    request: { url: `https://tasks.example.invalid${path}`, method: 'GET', mode, headers: new Headers(headers) },
+    request: { url: `https://tasks.example.invalid${path}`, method: 'GET', mode, destination, headers: new Headers(headers) },
     clientId: 'synthetic-client',
     respondWith: (value) => { response = value; },
     waitUntil: (value) => work.push(value),
@@ -111,6 +139,8 @@ async function pageFetch(path, headers = {}, mode = 'same-origin') {
   return result;
 }
 const fullPageHeaders = { 'HX-Request': 'true', 'HX-Request-Type': 'full' };
+assert.equal(await pageFetch('/api/extension/panel', {}, 'navigate'), undefined);
+assert.equal(await pageFetch('/lists/example', {}, 'navigate', 'iframe'), undefined);
 assert.equal((await pageFetch('/lists/example', fullPageHeaders)).status, 200);
 offline = true;
 assert.match(await (await pageFetch('/lists/example', fullPageHeaders)).text(), /Synthetic offline page/);

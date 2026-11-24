@@ -28,7 +28,7 @@ export async function setupPwa(scope, onLogout) {
       if (button) {
         button.hidden = false;
         button.onclick = () => {
-          registration.waiting.postMessage({ type: 'APPLY_UPDATE' });
+          registration.waiting?.postMessage({ type: 'APPLY_UPDATE' });
           button.textContent = 'Update active · reload when ready';
           button.onclick = () => location.reload();
         };

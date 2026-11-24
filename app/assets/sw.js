@@ -4,6 +4,7 @@ const ASSET_BASE = `/static/${BUILD}/`;
 const STATIC_CACHE = `todoer-static-${BUILD}`;
 const META_CACHE = 'todoer-offline-meta-v1';
 const SCOPE_KEY = '/__todoer_offline_scope__';
+const PANEL_NETWORK_KEY = '/__todoer_panel_network__';
 let scopeWrites = Promise.resolve();
 async function persistedScope() {
   const cache = await caches.open(META_CACHE);
@@ -48,8 +49,7 @@ async function savePage(scope, request, response) {
   for (const old of keys.slice(0, Math.max(0, keys.length - 10))) await cache.delete(old);
 }
 self.addEventListener('install', (event) => {
-  // An update waits until the UI explicitly asks to activate it. Limit warming
-  // to three concurrent requests so a slow mobile connection can serve the UI.
+  // Limit warming so a slow mobile connection can serve the UI.
   event.waitUntil(
     (async () => {
       const cache = await caches.open(STATIC_CACHE);
@@ -66,6 +66,11 @@ self.addEventListener('install', (event) => {
             }
           }),
         );
+      }
+      // Retire legacy workers that intercepted extension frame navigations.
+      // Once this migration is recorded, updates wait for the UI as usual.
+      if (self.registration.active && !(await caches.match(PANEL_NETWORK_KEY))) {
+        await self.skipWaiting();
       }
     })(),
   );
@@ -88,6 +93,8 @@ self.addEventListener('activate', (event) =>
         if (name.startsWith('todoer-page-') && !name.startsWith(`todoer-page-${BUILD}-`))
           await caches.delete(name);
       }
+      const cache = await caches.open(STATIC_CACHE);
+      await cache.put(PANEL_NETWORK_KEY, new Response('1'));
       await self.clients.claim();
     })(),
   ),
@@ -160,7 +167,7 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
-  if (request.destination === 'iframe') return;
+  if (request.destination === 'iframe' || url.pathname === '/api/extension/panel') return;
   const assetBuild =
     url.pathname.match(/^\/(?:static|palette)\/([a-f0-9]{64}|__TODOER_BUILD__)\//)?.[1] ||
     (/^\/assets\/images\/(?:icons|icon192-v2)-[a-f0-9]{16}\.(?:svg|png)$/.test(
