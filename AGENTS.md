@@ -4,6 +4,7 @@
 - `www/`: static public website for todoer.pro (Cloudflare Pages).
 - `docs/`: public documentation for docs.todoer.pro (GitHub Pages).
 - `deploy/`: production Docker image, Compose, nginx examples and runbooks.
+- `extension/`: browser extension and its release Makefile.
 - `legacy/`: unhosted Python/FastAPI reference; its AGENTS.md applies there.
 - Root Cargo workspace and npm tooling support the active application.
 Private plans, commercial strategy and prompt examples belong under ignored
@@ -23,5 +24,10 @@ review a dry-run, map real accounts explicitly, and verify counts and attachment
 CI runs on pull requests only. Docs additionally publish on docs-only changes to
 main; www publishing is manual. Docker and CLI publishing require published
 GitHub releases (vX.Y.Z and cli-vX.Y.Z); tag pushes alone never publish.
+Keep the root `make release name=vX.Y.Z` as the app release command and
+`make cli-release name=vX.Y.Z` as the CLI release command. Publish the browser
+extension with `make -C extension release name=vX.Y.Z` from the root, or
+`make release name=vX.Y.Z` from `extension/`. It creates `extension-vX.Y.Z`
+with the Chromium ZIP. Match the version in `extension/manifest.json`.
 Do not add push-to-main checks or automatic production deployment.
 All original project code and documentation are MIT; preserve third-party notices.

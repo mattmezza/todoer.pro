@@ -22,7 +22,7 @@ manifest.browser_specific_settings = {
 await rm(output, { recursive: true, force: true });
 await cp(source, output, {
   recursive: true,
-  filter: (path) => path !== `${source}/manifest.json`,
+  filter: (path) => path !== `${source}/manifest.json` && path !== `${source}/Makefile`,
 });
 await writeFile(`${output}/manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
 console.log(output);

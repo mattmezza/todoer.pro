@@ -143,9 +143,9 @@ and a new stable semantic version. GitHub Actions builds the app and CLI. The
 extension command packages and uploads the Chromium ZIP directly.
 
 ```sh
-make release name=v3.1.1       # publishes extension-v3.1.1 with the Chromium ZIP
-make app-release name=v1.0.0   # publishes v1.0.0; builds ghcr.io/mattmezza/todoer.pro:v1.0.0
-make cli-release name=v1.0.0   # publishes cli-v1.0.0; attaches platform executables
+make release name=v1.0.0              # publishes v1.0.0; builds ghcr.io/mattmezza/todoer.pro:v1.0.0
+make cli-release name=v1.0.0          # publishes cli-v1.0.0; attaches platform executables
+make -C extension release name=v3.1.1 # publishes extension-v3.1.1 with the Chromium ZIP
 ```
 
 The extension release version must match `extension/manifest.json`. Download the

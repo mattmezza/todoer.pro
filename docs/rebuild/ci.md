@@ -13,7 +13,7 @@ publishes. Cloudflare website publishing uses `workflow_dispatch`, exposed throu
 
 ## App releases
 
-`make app-release name=vX.Y.Z` creates a GitHub release from clean, current main.
+`make release name=vX.Y.Z` from the repository root creates an app GitHub release from clean, current main.
 Only a published release starts the image publishing workflow. The job validates
 the tag and main ancestry, runs application checks, then pushes the explicit
 version to GHCR. Tag pushes and draft releases do not publish images.
@@ -27,8 +27,9 @@ CLI releases do not build/push app images or replace the app's latest GitHub rel
 
 ## Browser extension releases
 
-`make release name=vX.Y.Z` creates `extension-vX.Y.Z` from clean, current main
-and attaches the Chromium ZIP. The version must match `extension/manifest.json`.
+`make -C extension release name=vX.Y.Z` creates `extension-vX.Y.Z` from clean,
+current main and attaches the Chromium ZIP. Run `make release name=vX.Y.Z` if
+you are already in `extension/`. The version must match `extension/manifest.json`.
 See [browser extension installation](../getting-started.md#open-todoer-from-your-browser-toolbar).
 
 ## Hosting configuration
