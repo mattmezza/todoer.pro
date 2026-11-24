@@ -160,6 +160,7 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (request.destination === 'iframe') return;
   const assetBuild =
     url.pathname.match(/^\/(?:static|palette)\/([a-f0-9]{64}|__TODOER_BUILD__)\//)?.[1] ||
     (/^\/assets\/images\/(?:icons|icon192-v2)-[a-f0-9]{16}\.(?:svg|png)$/.test(

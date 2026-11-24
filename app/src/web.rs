@@ -37,6 +37,8 @@ mod agent_http;
 mod assist_http;
 #[path = "auth_web.rs"]
 mod browser_auth;
+#[path = "browser_panel.rs"]
+mod browser_panel;
 #[path = "cli_auth_web.rs"]
 mod cli_auth_http;
 #[path = "discussion_web.rs"]
@@ -293,6 +295,7 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/google/callback", get(browser_auth::google_callback))
         .route("/logout", post(logout))
         .route("/capture", get(capture_page).post(capture_form))
+        .route("/api/extension/panel", post(browser_panel::connect))
         .route("/lists/{id}", get(legacy_list_page))
         .route("/health", get(|| async { Json(json!({"status":"ok"})) }))
         .route("/ready", get(ready))
@@ -442,7 +445,14 @@ async fn verify_screen(
 async fn signup(State(s): State<AppState>, Query(q): Query<SigninQuery>) -> Html<String> {
     auth_screen(s, q, true)
 }
-async fn signin(State(s): State<AppState>, Query(q): Query<SigninQuery>) -> Html<String> {
+async fn signin(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Query(q): Query<SigninQuery>,
+) -> Html<String> {
+    if browser_panel::frame_ancestor("/signin", &h).is_some() {
+        return browser_panel::signin_link(q.next.as_deref());
+    }
     auth_screen(s, q, false)
 }
 fn auth_screen(s: AppState, q: SigninQuery, signup: bool) -> Html<String> {
@@ -1920,6 +1930,8 @@ async fn response_security(
     let started = std::time::Instant::now();
     let request_id = uuid::Uuid::new_v4().to_string();
     let method = req.method().to_string();
+    let frame_ancestor =
+        browser_panel::frame_ancestor(req.uri().path(), req.headers()).map(str::to_owned);
     let destination = req
         .uri()
         .path_and_query()
@@ -1991,7 +2003,18 @@ async fn response_security(
     res.headers_mut()
         .entry("referrer-policy")
         .or_insert("same-origin".parse().unwrap());
-    res.headers_mut().insert("content-security-policy","default-src 'self'; script-src 'self'; style-src 'self' https://fonts.bunny.net; font-src 'self' https://fonts.bunny.net; img-src 'self' data: https://www.gravatar.com https://gravatar.com https://secure.gravatar.com https://*.googleusercontent.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'".parse().unwrap());
+    let frame_ancestor = frame_ancestor
+        .as_deref()
+        .filter(|_| {
+            res.status().is_success()
+                && res
+                    .headers()
+                    .get(header::CONTENT_TYPE)
+                    .and_then(|value| value.to_str().ok())
+                    .is_some_and(|value| value.starts_with("text/html"))
+        })
+        .unwrap_or("'none'");
+    res.headers_mut().insert("content-security-policy",format!("default-src 'self'; script-src 'self'; style-src 'self' https://fonts.bunny.net; font-src 'self' https://fonts.bunny.net; img-src 'self' data: https://www.gravatar.com https://gravatar.com https://secure.gravatar.com https://*.googleusercontent.com; connect-src 'self'; frame-ancestors {frame_ancestor}; base-uri 'none'; form-action 'self'").parse().unwrap());
     res
 }
 

@@ -1,6 +1,6 @@
 import { onPageLoad } from './page-lifecycle.js';
 export async function setupPwa(scope, onLogout) {
-  if (!('serviceWorker' in navigator)) return null;
+  if (window.top !== window || !('serviceWorker' in navigator)) return null;
   try {
     const registration = await navigator.serviceWorker.register('/sw.js', {
       scope: '/',

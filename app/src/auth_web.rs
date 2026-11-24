@@ -34,7 +34,7 @@ pub(super) fn safe_next(value: Option<&str>) -> String {
         .unwrap_or("/")
         .to_string()
 }
-fn cookie<'a>(h: &'a HeaderMap, name: &str) -> Option<&'a str> {
+pub(super) fn cookie<'a>(h: &'a HeaderMap, name: &str) -> Option<&'a str> {
     h.get(header::COOKIE)?
         .to_str()
         .ok()?

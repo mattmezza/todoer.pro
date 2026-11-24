@@ -508,6 +508,61 @@ async fn logout_revokes_cookie_and_responses_have_security_headers() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
+    let extension = "chrome-extension://abcdefghijklmnopabcdefghijklmnop";
+    let grant = |source: &str, session: &str| {
+        app.clone().oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/extension/panel")
+                .header("origin", source)
+                .header("cookie", session)
+                .header("x-todoer-browser-panel", "1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+    };
+    for (source, session, expected) in [
+        (
+            "https://untrusted.example",
+            cookie.as_str(),
+            StatusCode::FORBIDDEN,
+        ),
+        (extension, "", StatusCode::UNAUTHORIZED),
+    ] {
+        let rejected = grant(source, session).await.unwrap();
+        assert_eq!(rejected.status(), expected);
+        assert!(!rejected.headers().contains_key("set-cookie"));
+    }
+    let granted = grant(extension, &cookie).await.unwrap();
+    assert_eq!(granted.status(), StatusCode::NO_CONTENT);
+    let panel_cookie = granted.headers()["set-cookie"].to_str().unwrap();
+    assert!(panel_cookie.contains("; Secure; HttpOnly; SameSite=Lax; Path=/"));
+    let cookies = format!("{}; {cookie}", panel_cookie.split(';').next().unwrap());
+    for (path, dest, ancestor) in [
+        ("/inbox", "document", "'none'"),
+        ("/inbox", "iframe", extension),
+        ("/signup", "iframe", "'none'"),
+    ] {
+        let page = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(path)
+                    .header("cookie", &cookies)
+                    .header("sec-fetch-dest", dest)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(page.status(), StatusCode::OK);
+        assert!(
+            page.headers()["content-security-policy"]
+                .to_str()
+                .unwrap()
+                .contains(&format!("frame-ancestors {ancestor};"))
+        );
+    }
     let response = app
         .clone()
         .oneshot(
