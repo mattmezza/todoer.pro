@@ -3,6 +3,7 @@ import { request as fetch } from './request.js';
 import { preferredTimeFormatter, zonedLocalTimestamp } from './preferred-time.js';
 import { stowInfo, setSaveState, trackSave } from './quiet-info.js';
 import { confirmAction } from './confirm.js';
+import { pagePreferences } from './account-preferences.js';
 
 const reminderDays = { event: 0, one_day: 1, two_days: 2 };
 
@@ -44,7 +45,7 @@ export function mountScheduling({
     : null;
 
   let seriesCreated = false;
-  let defaultZone = 'UTC';
+  let defaultZone = pagePreferences()?.timezone || 'UTC';
   let formatPreferred;
   preferredTimeFormatter().then((format) => {
     if (!active) return;
@@ -333,6 +334,16 @@ export function mountScheduling({
       .querySelector('.planning-label-caption')
       .classList.add('sr-only');
   plannedHelp.remove();
+  function currentLocalDate() {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: defaultZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+    const part = (name) => parts.find((p) => p.type === name).value;
+    return new Date(`${part('year')}-${part('month')}-${part('day')}T12:00:00Z`);
+  }
   function quickDates(kind) {
     const shortcuts = el('div', {
       class: 'planning-date-shortcuts',
@@ -357,16 +368,7 @@ export function mountScheduling({
       );
       button.onclick = () => {
         if (!canWrite || busy) return;
-        const parts = new Intl.DateTimeFormat('en-US', {
-          timeZone: defaultZone,
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-        }).formatToParts(new Date());
-        const part = (name) => parts.find((p) => p.type === name).value;
-        const date = new Date(
-          `${part('year')}-${part('month')}-${part('day')}T12:00:00Z`,
-        );
+        const date = currentLocalDate();
         date.setUTCDate(date.getUTCDate() + offset);
         const value = date.toISOString().slice(0, 10);
         if (kind === 'planned') planned.value = value;
@@ -697,6 +699,29 @@ export function mountScheduling({
     at.required = true;
     const timezone = input('text', 'reminder_timezone', values.timezone || defaultZone);
     timezone.required = true;
+    const shortcuts = el('div', {
+      class: 'planning-date-shortcuts reminder-shortcuts',
+      role: 'group',
+      'aria-label': 'Quick reminder times',
+    });
+    for (const [kind, caption] of [
+      ['tomorrow', 'Tomorrow at 9 AM'],
+      ['next_week', 'Next week at 9 AM'],
+    ]) {
+      const button = el('button', { type: 'button' }, caption);
+      button.addEventListener('click', () => {
+        if (!canWrite || busy) return;
+        const date = currentLocalDate();
+        const weekStart = pagePreferences()?.week_start ?? 1;
+        const days =
+          kind === 'tomorrow' ? 1 : (weekStart - date.getUTCDay() + 7) % 7 || 7;
+        date.setUTCDate(date.getUTCDate() + days);
+        at.value = `${date.toISOString().slice(0, 10)}T09:00`;
+        timezone.value = defaultZone;
+        scheduleChanged();
+      });
+      shortcuts.append(button);
+    }
     const offsetAttributes = { min: '0', max: '4294967295', step: '1' };
     const days = input('number', 'reminder_days', values.days ?? '', offsetAttributes);
     const hours = input('number', 'reminder_hours', values.hours ?? '', offsetAttributes);
@@ -725,6 +750,7 @@ export function mountScheduling({
     row.append(
       label('Channel', channel),
       label('When', timing),
+      shortcuts,
       when,
       offset,
       needsDate,
@@ -734,6 +760,7 @@ export function mountScheduling({
 
     row.updateTiming = (hasDate) => {
       const fixedTime = timing.value === 'timed';
+      shortcuts.hidden = !canWrite || !fixedTime;
       when.hidden = when.disabled = !fixedTime;
       offset.hidden = offset.disabled = timing.value !== 'custom';
       relative.disabled = !hasDate && fixedTime;

@@ -10,6 +10,11 @@ calendar time when there is no deadline. An explicit time in a DST gap or
 overlap is rejected.
 Dates use `YYYY-MM-DD`, local datetimes `YYYY-MM-DDTHH:MM:SS`.
 
+Under **Reminders → Add reminder**, choose **Tomorrow at 9 AM** or **Next week
+at 9 AM** to set a fixed reminder with or without a task date. Both use your
+account timezone. The next-week shortcut uses the first day of your next
+calendar week, as configured in General settings.
+
 A relative reminder uses `"at": {"kind":"relative","days":1,"hours":0,"timezone":"Europe/Zurich"}`.
 Both offsets default to zero, which fires at event time. Days count back by
 local calendar dates and hours count back by elapsed time. A date without a time
