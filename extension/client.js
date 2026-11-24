@@ -3,6 +3,10 @@ export const storage = browserApi.storage.local;
 export const supportsSidePanel = Boolean(
   browserApi.sidePanel?.open || browserApi.sidebarAction?.open,
 );
+export const supportsSidePanelToggle = Boolean(
+  (browserApi.sidePanel?.close && browserApi.sidePanel.onClosed) ||
+  browserApi.sidebarAction?.toggle,
+);
 export const cloudOrigin = 'https://app.todoer.pro';
 export const inboxPath = '/inbox';
 
@@ -112,6 +116,13 @@ export async function defaultDestination(origin) {
 
 export async function settings() {
   return navigator.locks.request('todoer-settings', migrateSettings);
+}
+
+export async function toolbarDestination(tabUrl) {
+  const origin = await settings();
+  const pinned = await pinnedDestination(origin, siteHost(tabUrl));
+  if (listId(pinned)) pinned.searchParams.set('browser', '1');
+  return pinned ?? defaultDestination(origin);
 }
 
 async function migrateSettings() {

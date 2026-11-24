@@ -6,36 +6,76 @@ import {
   siteHost,
   storage,
   supportsSidePanel,
+  supportsSidePanelToggle,
+  toolbarDestination,
 } from './client.js';
 
 const { action, contextMenus, runtime, sidePanel, sidebarAction, tabs } = browserApi;
 const pagePatterns = ['http://*/*', 'https://*/*'];
+const panelKey = (windowId) => `sidePanelOpen:${windowId}`;
+const session = browserApi.storage.session;
 
-function setPanelMode(mode) {
-  return action.setPopup({
-    popup: supportsSidePanel && mode === 'side-panel' ? '' : 'popup.html',
-  });
+let toggleSidePanel = false;
+
+async function restorePanelMode() {
+  const { panelMode, sidePanelToggle } = await storage.get([
+    'panelMode',
+    'sidePanelToggle',
+  ]);
+  const useSidePanel = supportsSidePanel && panelMode === 'side-panel';
+  toggleSidePanel = useSidePanel && supportsSidePanelToggle && sidePanelToggle === true;
+  await action.setPopup({ popup: useSidePanel ? '' : 'popup.html' });
 }
 
-function restorePanelMode() {
-  storage
-    .get('panelMode')
-    .then(({ panelMode }) => setPanelMode(panelMode))
-    .catch(console.error);
-}
-
-runtime.onStartup.addListener(restorePanelMode);
+const refreshPanelMode = () => restorePanelMode().catch(console.error);
+refreshPanelMode();
+runtime.onStartup.addListener(refreshPanelMode);
 storage.onChanged.addListener((changes) => {
-  if (changes.panelMode) setPanelMode(changes.panelMode.newValue).catch(console.error);
+  if (changes.panelMode || changes.sidePanelToggle) refreshPanelMode();
 });
-action.onClicked.addListener((tab) => {
+
+sidePanel?.onOpened?.addListener(({ windowId }) => {
+  session.set({ [panelKey(windowId)]: true }).catch(console.error);
+});
+sidePanel?.onClosed?.addListener(({ windowId }) => {
+  session.remove(panelKey(windowId)).catch(console.error);
+});
+browserApi.windows.onRemoved.addListener((windowId) => {
+  if (sidePanel?.onClosed) session.remove(panelKey(windowId)).catch(console.error);
+});
+
+async function openSidePanel(tab) {
   // Open during the toolbar gesture so activeTab covers the site that invoked Todoer.
-  if (sidePanel?.open) sidePanel.open({ windowId: tab.windowId }).catch(console.error);
-  else if (sidebarAction?.open) sidebarAction.open().catch(console.error);
+  if (sidePanel?.open) {
+    const window = { windowId: tab.windowId };
+    if (!supportsSidePanelToggle) return sidePanel.open(window);
+    const key = panelKey(tab.windowId);
+    // Chromium requires open() before the toolbar gesture ends. If the
+    // panel was already open, open() leaves it in place until we close it.
+    const [previous, { sidePanelToggle }] = await Promise.all([
+      session.get(key),
+      storage.get('sidePanelToggle'),
+      sidePanel.open(window),
+    ]);
+    if (previous[key] && sidePanelToggle) await sidePanel.close(window);
+    return;
+  }
+  if (toggleSidePanel) return sidebarAction?.toggle();
+  return sidebarAction?.open();
+}
+
+action.onClicked.addListener((tab) => {
+  openSidePanel(tab).catch(console.error);
 });
 
 runtime.onInstalled.addListener(() => {
   contextMenus.removeAll(() => {
+    contextMenus.create({ id: 'open-tab', title: 'Open in tab', contexts: ['action'] });
+    contextMenus.create({
+      id: 'settings',
+      title: 'Extension settings',
+      contexts: ['action'],
+    });
     contextMenus.create({
       id: 'capture-page',
       title: 'Capture this page in Todoer',
@@ -49,12 +89,21 @@ runtime.onInstalled.addListener(() => {
       documentUrlPatterns: pagePatterns,
     });
   });
-  restorePanelMode();
+  refreshPanelMode();
   settings().catch(console.error);
 });
 
 async function handleMenu(info, tab) {
   const source = info.pageUrl ?? tab?.url;
+  if (info.menuItemId === 'settings') {
+    await runtime.openOptionsPage();
+    return;
+  }
+  if (info.menuItemId === 'open-tab') {
+    const destination = await toolbarDestination(source);
+    await tabs.create({ url: destination.href });
+    return;
+  }
   const hostname = siteHost(source);
   if (!hostname) return;
   if (info.menuItemId === 'site-pin') {

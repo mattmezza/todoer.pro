@@ -44,13 +44,13 @@ The web app works on its own. The CLI, REST API and MCP interface give compatibl
 
 To update an unpacked installation, replace the files in the same folder and click **Reload** on the extension’s card. For Firefox, rerun the build command before clicking **Reload**.
 
-Open **Extension settings** from the Todoer panel to choose the toolbar popup or browser side panel. Paste a default URL from your Todoer server, or leave it blank for Inbox. To open a different Todoer page from a particular website, pin its list, space, task, or subtask permalink. An exact hostname takes priority over wildcard rules. `*.cloud.microsoft` matches subdomains at any depth, `*.com` matches .com sites, and `*` matches any website. Among wildcards, the most specific rule wins.
+Right-click the Todoer toolbar icon for **Open in tab** and **Extension settings**. In settings, choose the toolbar popup or browser side panel. In Firefox and browsers based on Chromium 142 or later, you can also set a second click to close the side panel. Paste a default URL from your Todoer server, or leave it blank for Inbox. To open a different Todoer page from a particular website, pin its list, space, task, or subtask permalink. An exact hostname takes priority over wildcard rules. `*.cloud.microsoft` matches subdomains at any depth, `*.com` matches .com sites, and `*` matches any website. Among wildcards, the most specific rule wins.
 
 [Get the extension source](https://github.com/mattmezza/todoer.pro/tree/main/extension).
 
 Click **Todoer Pro** in the browser toolbar to open the web app in a dropdown anchored to the icon. Choose **Allow access** the first time you connect the extension to a Todoer server. Todoer uses your normal browser session. If you need to sign in, use the sign-in link in the dropdown, then reopen it. To use a self-hosted instance, save its HTTPS origin in the extension options. The Todoer server must support the toolbar panel.
 
-To pin a list, copy its URL from Todoer. On the website you want to associate with it, right-click and choose **Choose Todoer list for this site**. Paste the list URL and save the pin. The toolbar button opens that list from the same hostname. Use extension options to edit or remove pins. Each subdomain can have its own pin.
+To add a pin, copy the URL from Todoer. On the website you want to associate with it, right-click and choose **Choose Todoer link for this site**. Paste the URL and save the pin. The toolbar button opens that link from the same hostname. Use extension settings to edit or remove pins.
 
 On a server that supports browser capture, right-click a page or selected text and choose **Capture this page in Todoer**. The app opens a draft in a browser tab with the page title, link, and any selected text. Review the draft and choose **Add task** to save it. Todoer starts with your pinned list when you can edit it and uses Inbox otherwise.
 

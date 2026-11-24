@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Todoer Pro",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "Open Todoer from the toolbar, pin Todoer links to websites, and capture pages.",
   "icons": {
     "32": "icons/icon32.png",

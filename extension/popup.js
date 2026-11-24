@@ -1,26 +1,46 @@
-import {
-  browserApi,
-  defaultDestination,
-  listId,
-  pinnedDestination,
-  settings,
-  siteHost,
-} from './client.js';
+import { browserApi, toolbarDestination } from './client.js';
 
-const { permissions, tabs } = browserApi;
+const { permissions, storage, tabs } = browserApi;
 const $ = (id) => document.getElementById(id);
+const app = $('app');
 const status = $('status');
 const allow = $('allow');
+const retry = $('retry');
 const signIn = $('sign-in');
 document.body.classList.toggle(
   'side-panel',
   new URLSearchParams(location.search).has('side'),
 );
 
-async function connect(destination) {
+// A successful fetch can use different cookie rules from the embedded page.
+function verifyFrame(url) {
+  return new Promise((resolve) => {
+    const finish = (ready) => {
+      clearTimeout(timer);
+      window.removeEventListener('message', onMessage);
+      resolve(ready);
+    };
+    const onMessage = (event) => {
+      if (
+        event.source === app.contentWindow &&
+        event.origin === url.origin &&
+        event.data === 'todoer-panel-ready'
+      ) {
+        finish(true);
+      }
+    };
+    const timer = setTimeout(() => finish(false), 3500);
+    window.addEventListener('message', onMessage);
+    app.src = url.href;
+  });
+}
+
+async function connect(destination, canRetry = true) {
   allow.hidden = true;
+  retry.hidden = true;
   status.textContent = 'Loading Todoer…';
-  const response = await fetch(new URL('/api/extension/panel', destination), {
+  const panelUrl = new URL('/api/extension/panel', destination);
+  const response = await fetch(panelUrl, {
     method: 'POST',
     headers: { 'X-Todoer-Browser-Panel': '1' },
     credentials: 'include',
@@ -28,7 +48,16 @@ async function connect(destination) {
     signal: AbortSignal.timeout(10000),
   });
   if (response.status === 204) {
-    const app = $('app');
+    if (
+      response.headers.get('X-Todoer-Browser-Panel') === 'verify-frame' &&
+      !(await verifyFrame(panelUrl))
+    ) {
+      if (canRetry) return connect(destination, false);
+      status.textContent =
+        'Todoer could not start the session in this panel. Open Todoer in a tab from the toolbar icon’s right-click menu, then retry.';
+      retry.hidden = false;
+      return;
+    }
     app.allow = `clipboard-write ${destination.origin}`;
     app.src = destination.href;
     app.hidden = false;
@@ -51,18 +80,17 @@ async function connect(destination) {
 
 function unavailable() {
   status.textContent = 'Could not reach the Todoer server.';
+  retry.hidden = false;
 }
 
+retry.addEventListener('click', () => location.reload());
+storage.onChanged.addListener((changes) => {
+  if (changes.server) location.reload();
+});
+
 try {
-  const [origin, [tab]] = await Promise.all([
-    settings(),
-    tabs.query({ active: true, currentWindow: true }),
-  ]);
-  const pinned = await pinnedDestination(origin, siteHost(tab?.url));
-  const destination = pinned ?? (await defaultDestination(origin));
-  if (listId(pinned)) destination.searchParams.set('browser', '1');
-  $('open-tab').href = destination.href;
-  $('links').hidden = false;
+  const [tab] = await tabs.query({ active: true, currentWindow: true });
+  const destination = await toolbarDestination(tab?.url);
 
   const { protocol, hostname } = destination;
   const hostAccess = { origins: [`${protocol}//${hostname}/*`] };
@@ -73,7 +101,8 @@ try {
     allow.hidden = false;
     allow.addEventListener('click', async () => {
       try {
-        if (await permissions.request(hostAccess)) await connect(destination);
+        // Start the frame from a document created with the new host access.
+        if (await permissions.request(hostAccess)) location.reload();
       } catch {
         unavailable();
       }

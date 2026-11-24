@@ -9,6 +9,7 @@ import {
   sitePattern,
   storage,
   supportsSidePanel,
+  supportsSidePanelToggle,
   todoerPath,
 } from './client.js';
 
@@ -18,8 +19,16 @@ const siteInput = $('site');
 const pinInput = $('pin-url');
 const entrypoint = $('entrypoint');
 const panelMode = $('panel-mode');
+const sidePanelToggle = $('side-panel-toggle');
 $('side-panel-option').disabled = !supportsSidePanel;
 let origin;
+
+function showSidePanelToggle() {
+  $('side-panel-toggle-label').hidden =
+    !supportsSidePanelToggle || panelMode.value !== 'side-panel';
+}
+
+panelMode.addEventListener('change', showSidePanelToggle);
 
 function status(message, error = false) {
   $('status').textContent = message;
@@ -67,10 +76,12 @@ async function showServer() {
   entrypoint.placeholder = origin + inboxPath;
   pinInput.placeholder = origin + '/space/…';
   const key = entrypointKey(origin);
-  const saved = await storage.get([key, 'panelMode']);
+  const saved = await storage.get([key, 'panelMode', 'sidePanelToggle']);
   entrypoint.value = savedDestination(origin, saved[key])?.href ?? '';
   panelMode.value =
     supportsSidePanel && saved.panelMode === 'side-panel' ? 'side-panel' : 'popup';
+  sidePanelToggle.checked = saved.sidePanelToggle === true;
+  showSidePanelToggle();
   $('open-todoer').href = await defaultDestination(origin);
 }
 
@@ -108,7 +119,11 @@ $('opening-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
     const path = entrypoint.value.trim() ? todoerPath(entrypoint.value, origin) : null;
-    await storage.set({ [entrypointKey(origin)]: path, panelMode: panelMode.value });
+    await storage.set({
+      [entrypointKey(origin)]: path,
+      panelMode: panelMode.value,
+      sidePanelToggle: sidePanelToggle.checked,
+    });
     $('open-todoer').href = await defaultDestination(origin);
     status('Opening preferences saved.');
   } catch (error) {
