@@ -311,6 +311,10 @@ pub fn router(state: AppState) -> Router {
             post(archive_http::change),
         )
         .route("/api/v1/lists/{id}/tasks", get(tasks))
+        .route(
+            "/api/v1/lists/{id}/view-preference",
+            axum::routing::put(save_list_view_preference),
+        )
         .route("/api/v1/capture", post(capture))
         .route("/api/v1/capture/options", get(capture_options))
         .route(
@@ -671,6 +675,8 @@ async fn logout(
 #[template(path = "list.html")]
 struct ListPage {
     capture_html: String,
+    columns: bool,
+    columns_default: bool,
     hide_completed: bool,
     change_cursor: i64,
     reference: String,
@@ -685,6 +691,33 @@ struct ListPage {
     csrf: String,
     account_id: String,
     can_write: bool,
+}
+#[derive(Deserialize)]
+struct ListViewPreference {
+    columns: bool,
+}
+async fn save_list_view_preference(
+    State(s): State<AppState>,
+    h: HeaderMap,
+    Path(id): Path<String>,
+    Input(preference): Input<ListViewPreference>,
+) -> Result<StatusCode, ApiError> {
+    if h.contains_key(header::AUTHORIZATION) || !s.origin_ok(&h) {
+        return Err(Error::Forbidden.into());
+    }
+    let actor = s.auth(&h, true)?;
+    s.run(move |db| {
+        crate::core::access_rank(&db.conn, &actor, &id, 1)?;
+        let query = if preference.columns {
+            "INSERT INTO list_column_preferences(user_id,list_id) VALUES(?1,?2) ON CONFLICT DO NOTHING"
+        } else {
+            "DELETE FROM list_column_preferences WHERE user_id=?1 AND list_id=?2"
+        };
+        db.conn.execute(query, [&actor, &id])?;
+        Ok(())
+    })
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 struct RenderedTask {
     task: Task,
@@ -923,6 +956,7 @@ pub(super) struct ListQuery {
     task: Option<String>,
     section: Option<String>,
     browser: Option<String>,
+    view: Option<String>,
 }
 async fn legacy_list_page(
     State(s): State<AppState>,
@@ -970,10 +1004,18 @@ async fn legacy_list_page(
         return page(State(s), h, Path(requested), Query(q)).await;
     }
     let mut url = format!("/lists/{target}");
+    let mut query = Vec::new();
     if let Some(task) = q.task {
-        url.push_str(&format!("?task={}", encode_query(&task)));
+        query.push(format!("task={}", encode_query(&task)));
     } else if let Some(section) = q.section {
-        url.push_str(&format!("?section={}", encode_query(&section)));
+        query.push(format!("section={}", encode_query(&section)));
+    }
+    if let Some(view @ ("list" | "columns")) = q.view.as_deref() {
+        query.push(format!("view={view}"));
+    }
+    if !query.is_empty() {
+        url.push('?');
+        url.push_str(&query.join("&"));
     }
     Ok(Redirect::to(&url).into_response())
 }
@@ -1035,7 +1077,7 @@ pub(super) async fn page(
         .map(|item| item.slug.clone())
         .unwrap_or_else(|| list.title.clone());
     let description = list.description.clone();
-    let (groups, task_count, can_write, color, emoji, change_cursor, description_html) = s
+    let (groups, task_count, can_write, color, emoji, change_cursor, description_html, columns_default) = s
         .run(move |db| {
             let (groups, count) = grouped_rows(db, &actor, &id, hide_completed)?;
             Ok((
@@ -1046,6 +1088,11 @@ pub(super) async fn page(
                 db.list_emoji(&actor, &id)?,
                 db.conn.query_row("SELECT COALESCE(MAX(h.seq),0) FROM history h JOIN actor_list_access a ON a.list_id=h.list_id WHERE a.actor_id=?1",[&actor],|r|r.get::<_,i64>(0))?,
                 crate::taxonomy::render_description(&db.conn, &actor, &description)?,
+                db.conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM list_column_preferences WHERE user_id=?1 AND list_id=?2)",
+                    [&actor, &id],
+                    |r| r.get::<_, bool>(0),
+                )?,
             ))
         })
         .await?;
@@ -1069,6 +1116,12 @@ pub(super) async fn page(
     .map_err(|_| Error::Invalid("cannot render capture".into()))?;
     let html = ListPage {
         capture_html,
+        columns: match q.view.as_deref() {
+            Some("list") => false,
+            Some("columns") => true,
+            _ => columns_default,
+        },
+        columns_default,
         hide_completed,
         can_write,
         change_cursor,

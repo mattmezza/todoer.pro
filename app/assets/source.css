@@ -1511,7 +1511,9 @@ input[type='checkbox'] {
   min-height: 44px;
   padding-top: 10px;
 }
-.task-section:has(.section-collapse:not([open])) > :not(.section-heading) {
+#task-list:not([data-list-view='columns'])
+  > .task-section:has(.section-collapse:not([open]))
+  > :not(.section-heading) {
   display: none;
 }
 .section-description {
@@ -1520,6 +1522,94 @@ input[type='checkbox'] {
 }
 .section-capture {
   margin-left: 24px;
+}
+.unsectioned-column-title {
+  display: none;
+}
+#task-list[data-list-view='columns'] {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(19rem, calc(100% - 1.5rem));
+  gap: 12px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 4px 2px 14px;
+}
+#task-list[data-list-view='columns']:has(.task-actions[open], .entity-menu[open]) {
+  padding-bottom: 24rem;
+}
+#task-list[data-list-view='columns'] > .task-section {
+  min-width: 0;
+  min-height: 8rem;
+  margin: 0;
+  padding: 8px;
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+#task-list[data-list-view='columns'] > [data-column-drop] {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: var(--selection);
+}
+#task-list[data-list-view='columns']
+  :is(.section-collapse, .section-reference, [data-order-up], [data-order-down]) {
+  display: none;
+}
+#task-list[data-list-view='columns'] :is(.section-heading, .unsectioned-column-title) {
+  padding: 0 4px;
+  min-height: 44px;
+  border: 0;
+}
+#task-list[data-list-view='columns'] .unsectioned-column-title {
+  display: flex;
+  align-items: center;
+  font: 600 16px var(--font-sans);
+}
+#task-list[data-list-view='columns'] .section-heading-copy > h2 > button {
+  text-align: left;
+}
+#task-list[data-list-view='columns'] .section-tasks {
+  display: grid;
+  gap: 8px;
+}
+#task-list[data-list-view='columns'] .section-tasks > :is(.task, .pending-task) {
+  min-width: 0;
+  margin: 0;
+  padding: 10px 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+#task-list[data-list-view='columns'] .section-tasks > .task:is(.is-selected, :hover) {
+  background: var(--selection);
+}
+#task-list[data-list-view='columns'] .task-title {
+  font-size: 15px;
+  line-height: 22px;
+  user-select: none;
+}
+#task-list[data-list-view='columns'] .task-description {
+  font-size: 13px;
+}
+#task-list[data-list-view='columns'] .task > .completion {
+  margin-inline-start: 0;
+}
+#task-list[data-list-view='columns'] .task > .task-drag-grip {
+  display: flex;
+  position: static;
+  flex-basis: 36px;
+  min-width: 36px;
+  opacity: 0.7;
+}
+#task-list[data-list-view='columns'] .task[data-column-dragging] {
+  opacity: 0.5;
+}
+#task-list[data-list-view='columns'] :is(.inline-capture, .add-task-trigger) {
+  margin-inline: 0;
+}
+.reference-list-page:has(#task-list[data-list-view='columns']) .add-section-trigger {
+  margin-block-start: 12px;
 }
 .workspace-main {
   max-width: none;

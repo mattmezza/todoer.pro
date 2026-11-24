@@ -316,6 +316,10 @@ const MIGRATIONS: &[(i64, &str)] = &[
     ),
     (56, include_str!("../migrations/056_list_emoji.sql")),
     (57, include_str!("../migrations/057_browser_sessions.sql")),
+    (
+        58,
+        include_str!("../migrations/058_list_column_preferences.sql"),
+    ),
 ];
 impl Store {
     pub fn open(path: &str) -> Result<Self, Error> {

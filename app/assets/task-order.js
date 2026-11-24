@@ -21,6 +21,7 @@ export function mountTaskOrdering({
   onSwipe,
   rowSelector = '.task[data-id]',
   reorder = true,
+  gesturesEnabled = () => true,
 }) {
   if (!container || !listId || typeof request !== 'function')
     throw new Error('Ordering requires a list, container and request function');
@@ -228,7 +229,7 @@ export function mountTaskOrdering({
   let pointerDrag = null;
   function pointerDown(event) {
     const handle = event.target.closest('[data-touch-order]');
-    if (!handle || !canWrite || busy || blocked()) return;
+    if (!handle || !gesturesEnabled() || !canWrite || busy || blocked()) return;
     const row = handle.closest('.task[data-id]');
     if (!row) return;
     event.preventDefault();
@@ -304,7 +305,7 @@ export function mountTaskOrdering({
       resetTouch();
       return;
     }
-    if (desktop.matches || !canWrite || busy) return;
+    if (!gesturesEnabled() || desktop.matches || !canWrite || busy) return;
     const row = event.target.closest(rowSelector);
     if (
       !row ||
