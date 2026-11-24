@@ -14,7 +14,8 @@ export function mountListColumns({
 }) {
   const toggle = document.querySelector('[data-switch-list-view]');
   const save = document.querySelector('[data-save-list-view]');
-  const menu = toggle.closest('details');
+  const menu = toggle?.closest('details');
+  if (!toggle || !save || !menu) return;
   const isColumns = () => container.dataset.listView === 'columns';
   let columnsDefault = container.dataset.columnsDefault === 'true';
   let saving = false;

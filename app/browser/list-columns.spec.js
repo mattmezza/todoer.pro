@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
+test.use({ serviceWorkers: 'block' });
+
 async function openList(page) {
   await page.goto('/signin');
   await page.getByRole('button', { name: 'Enter development workspace' }).click();
@@ -35,6 +37,28 @@ async function openList(page) {
   };
   return { board, child, destination, menu, section, task, unsectioned };
 }
+
+test('list actions still initialize when the server omits column controls', async ({
+  page,
+}) => {
+  await page.goto('/signin?next=/today');
+  await page.getByRole('button', { name: 'Enter development workspace' }).click();
+  const response = await page.request.get('/lists/inbox');
+  expect(response.ok()).toBe(true);
+  const body = (await response.text()).replace(
+    /<button type="button" data-(?:switch|save)-list-view[^>]*>.*?<\/button>/g,
+    '',
+  );
+  await page.route(response.url(), (route) => route.fulfill({ response, body }));
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto(response.url());
+  expect(errors).toEqual([]);
+  await expect(page.locator('[data-switch-list-view]')).toHaveCount(0);
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
+  await page.getByRole('button', { name: 'Add section', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Section name' })).toBeFocused();
+});
 
 test('list menu switches views and persists the default while cards use task actions', async ({
   page,
