@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Todoer Pro</title>
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="popup.js"></script>
+  </head>
+  <body class="toolbar-popup">
+    <main id="setup">
+      <h1>Todoer Pro</h1>
+      <p id="status" role="status">Loading Todoer…</p>
+      <button id="allow" class="primary" type="button" hidden>Allow access</button>
+      <a id="sign-in" target="_blank" rel="noopener" hidden>Sign in to Todoer</a>
+    </main>
+    <iframe
+      id="app"
+      title="Todoer"
+      sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+      hidden
+    ></iframe>
+    <footer id="links" hidden>
+      <a id="open-tab" target="_blank" rel="noopener">Open in tab</a>
+      <a href="options.html" target="_blank" rel="noopener">Extension settings</a>
+    </footer>
+  </body>
+</html>

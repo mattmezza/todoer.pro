@@ -48,11 +48,11 @@ When the source changes, click **Reload** on the extension’s card on the same 
 
 [Get the extension source](https://github.com/mattmezza/todoer.pro/tree/main/extension).
 
-Click **Todoer Pro** in the browser toolbar to open your Inbox in a narrow app window. Todoer uses your normal browser session. To use a self-hosted instance, open the browser’s extension options and save its HTTPS origin.
+Click **Todoer Pro** in the browser toolbar to open the web app in a dropdown anchored to the icon. Choose **Allow access** the first time you connect the extension to a Todoer server. Todoer uses your normal browser session. If you need to sign in, use the sign-in link in the dropdown, then reopen it. To use a self-hosted instance, save its HTTPS origin in the extension options. The Todoer server must support the toolbar panel.
 
 To pin a list, copy its URL from Todoer. On the website you want to associate with it, right-click and choose **Choose Todoer list for this site**. Paste the list URL and save the pin. The toolbar button opens that list from the same hostname. Use extension options to edit or remove pins. Each subdomain can have its own pin.
 
-On a server that supports browser capture, right-click a page or selected text and choose **Capture this page in Todoer**. The app opens a draft with the page title, link, and any selected text. Review the draft and choose **Add task** to save it. Todoer starts with your pinned list when you can edit it and uses Inbox otherwise.
+On a server that supports browser capture, right-click a page or selected text and choose **Capture this page in Todoer**. The app opens a draft in a browser tab with the page title, link, and any selected text. Review the draft and choose **Add task** to save it. Todoer starts with your pinned list when you can edit it and uses Inbox otherwise.
 
 Pins stay in this browser. You can review an unfinished capture from an earlier version in extension options. To revoke an old extension credential, open Todoer’s **Connected tools**.
 

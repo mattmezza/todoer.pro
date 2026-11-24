@@ -36,6 +36,13 @@ export function siteHost(value) {
 
 export const pinPrefix = (origin) => `pin:${origin}:`;
 
+export async function pinnedPath(origin, hostname) {
+  if (!hostname) return undefined;
+  const key = pinPrefix(origin) + hostname;
+  const path = (await storage.get(key))[key];
+  if (typeof path === 'string' && /^\/lists\/[a-z0-9_-]+$/i.test(path)) return path;
+}
+
 export function listPath(value, origin) {
   const url = new URL(value);
   const match = /^\/lists\/([a-z0-9_-]+)\/?$/i.exec(url.pathname);

@@ -1,21 +1,30 @@
 {
   "manifest_version": 3,
   "name": "Todoer Pro",
-  "version": "3.0.1",
-  "description": "Open Todoer in a compact window, pin lists to websites, and capture pages.",
+  "version": "3.1.0",
+  "description": "Open Todoer from the toolbar, pin lists to websites, and capture pages.",
   "icons": {
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "Todoer Pro"
+    "default_title": "Todoer Pro",
+    "default_popup": "popup.html"
   },
   "options_ui": {
     "page": "options.html",
     "open_in_tab": true
   },
   "permissions": ["activeTab", "contextMenus", "storage"],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src https: http://localhost:* http://127.0.0.1:*; frame-src https: http://localhost:* http://127.0.0.1:*"
+  },
   "minimum_chrome_version": "121",
   "background": {
     "service_worker": "background.js",

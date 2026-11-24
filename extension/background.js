@@ -1,7 +1,6 @@
-import { browserApi, pinPrefix, settings, siteHost, storage } from './client.js';
+import { browserApi, pinnedPath, settings, siteHost } from './client.js';
 
-const { action, contextMenus, runtime, tabs, windows } = browserApi;
-const openWindows = browserApi.storage.session;
+const { contextMenus, runtime, tabs } = browserApi;
 const pagePatterns = ['http://*/*', 'https://*/*'];
 
 runtime.onInstalled.addListener(() => {
@@ -20,45 +19,6 @@ runtime.onInstalled.addListener(() => {
     });
   });
   settings().catch(console.error);
-});
-
-async function pinnedPath(origin, hostname) {
-  if (!hostname) return undefined;
-  const key = pinPrefix(origin) + hostname;
-  const path = (await storage.get(key))[key];
-  if (typeof path === 'string' && /^\/lists\/[a-z0-9_-]+$/i.test(path)) return path;
-}
-
-function narrowWindow(url) {
-  return windows.create({ url, type: 'popup', focused: true, width: 480, height: 760 });
-}
-
-async function openTodoer(tab) {
-  const origin = await settings();
-  const path = await pinnedPath(origin, siteHost(tab.url));
-  const url = new URL(path ?? '/inbox', origin);
-  if (path) url.searchParams.set('browser', '1');
-
-  // Keep an existing window's current page and any unsaved edits intact.
-  await navigator.locks.request(url.href, async () => {
-    const key = 'window:' + url.href;
-    const id = (await openWindows.get(key))[key];
-    if (id !== undefined) {
-      try {
-        await windows.update(id, { focused: true });
-        return;
-      } catch {
-        // The previous window was closed.
-      }
-    }
-    const opened = await narrowWindow(url.href);
-    if (opened.id !== undefined) await openWindows.set({ [key]: opened.id });
-  });
-}
-
-windows.onRemoved.addListener(async (id) => {
-  const saved = await openWindows.get(null);
-  await openWindows.remove(Object.keys(saved).filter((key) => saved[key] === id));
 });
 
 async function handleMenu(info, tab) {
@@ -87,12 +47,9 @@ async function handleMenu(info, tab) {
   });
   // Draft text stays in the fragment until the Todoer page reads it locally.
   capture.hash = 'todoer-capture&' + fragment;
-  await narrowWindow(capture.href);
+  await tabs.create({ url: capture.href });
 }
 
-action.onClicked.addListener((tab) => {
-  openTodoer(tab).catch(console.error);
-});
 contextMenus.onClicked.addListener((info, tab) => {
   handleMenu(info, tab).catch(console.error);
 });
