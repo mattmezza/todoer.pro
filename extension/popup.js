@@ -1,10 +1,21 @@
-import { browserApi, pinnedPath, settings, siteHost } from './client.js';
+import {
+  browserApi,
+  defaultDestination,
+  listId,
+  pinnedDestination,
+  settings,
+  siteHost,
+} from './client.js';
 
 const { permissions, tabs } = browserApi;
 const $ = (id) => document.getElementById(id);
 const status = $('status');
 const allow = $('allow');
 const signIn = $('sign-in');
+document.body.classList.toggle(
+  'side-panel',
+  new URLSearchParams(location.search).has('side'),
+);
 
 async function connect(destination) {
   allow.hidden = true;
@@ -24,7 +35,10 @@ async function connect(destination) {
     $('setup').hidden = true;
   } else if (response.status === 401) {
     const login = new URL('/signin', destination);
-    login.searchParams.set('next', destination.pathname + destination.search);
+    login.searchParams.set(
+      'next',
+      destination.pathname + destination.search + destination.hash,
+    );
     signIn.href = login.href;
     signIn.hidden = false;
     status.textContent = 'Sign in, then reopen this panel.';
@@ -44,9 +58,9 @@ try {
     settings(),
     tabs.query({ active: true, currentWindow: true }),
   ]);
-  const path = await pinnedPath(origin, siteHost(tab?.url));
-  const destination = new URL(path ?? '/inbox', origin);
-  if (path) destination.searchParams.set('browser', '1');
+  const pinned = await pinnedDestination(origin, siteHost(tab?.url));
+  const destination = pinned ?? (await defaultDestination(origin));
+  if (listId(pinned)) destination.searchParams.set('browser', '1');
   $('open-tab').href = destination.href;
   $('links').hidden = false;
 

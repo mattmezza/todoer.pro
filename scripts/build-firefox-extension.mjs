@@ -5,11 +5,18 @@ const source = fileURLToPath(new URL('../extension', import.meta.url));
 const output = fileURLToPath(
   new URL('../.local/browser-extension/firefox', import.meta.url),
 );
-const { minimum_chrome_version, background, ...manifest } = JSON.parse(
+const { minimum_chrome_version, background, side_panel, ...manifest } = JSON.parse(
   await readFile(`${source}/manifest.json`, 'utf8'),
 );
 
 manifest.background = { scripts: [background.service_worker], type: background.type };
+manifest.permissions = manifest.permissions.filter(
+  (permission) => permission !== 'sidePanel',
+);
+manifest.sidebar_action = {
+  default_panel: side_panel.default_path,
+  open_at_install: false,
+};
 manifest.browser_specific_settings = {
   gecko: {
     id: 'browser-extension@todoer.pro',

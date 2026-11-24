@@ -57,6 +57,7 @@ label {
 }
 
 input,
+select,
 button {
   box-sizing: border-box;
   min-height: 38px;
@@ -68,7 +69,8 @@ button {
   font: inherit;
 }
 
-input {
+input,
+select {
   width: 100%;
 }
 button {
@@ -97,6 +99,10 @@ li span {
   flex: 1;
   overflow-wrap: anywhere;
 }
+#pins a {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
 .error {
   color: var(--error);
 }
@@ -107,6 +113,11 @@ li span {
   width: 480px;
   height: 560px;
   margin: 0;
+}
+
+.toolbar-popup.side-panel {
+  width: 100%;
+  height: 100dvh;
 }
 
 .toolbar-popup main {
@@ -124,6 +135,8 @@ li span {
 
 .toolbar-popup footer:not([hidden]) {
   display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   justify-content: space-between;
   border-top: 1px solid var(--line);
   padding: 6px 12px;

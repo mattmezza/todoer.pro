@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Todoer Pro",
-  "version": "3.1.1",
-  "description": "Open Todoer from the toolbar, pin lists to websites, and capture pages.",
+  "version": "3.2.0",
+  "description": "Open Todoer from the toolbar, pin Todoer links to websites, and capture pages.",
   "icons": {
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
@@ -16,7 +16,10 @@
     "page": "options.html",
     "open_in_tab": true
   },
-  "permissions": ["activeTab", "contextMenus", "storage"],
+  "side_panel": {
+    "default_path": "popup.html?side=1"
+  },
+  "permissions": ["activeTab", "contextMenus", "storage", "sidePanel"],
   "optional_host_permissions": [
     "https://*/*",
     "http://localhost/*",

@@ -22,13 +22,34 @@
         </div>
       </form>
       <section>
+        <h2>Opening Todoer</h2>
+        <form id="opening-form">
+          <label for="entrypoint">Default Todoer URL</label>
+          <input id="entrypoint" type="url" aria-describedby="entrypoint-help" />
+          <p id="entrypoint-help">
+            Leave blank to open Inbox when no website pin matches.
+          </p>
+          <label for="panel-mode">Toolbar icon opens</label>
+          <select id="panel-mode">
+            <option value="popup">Toolbar popup</option>
+            <option id="side-panel-option" value="side-panel">Browser side panel</option>
+          </select>
+          <div class="actions">
+            <button class="primary">Save opening preferences</button>
+          </div>
+        </form>
+      </section>
+      <section>
         <h2>Pinned websites</h2>
-        <p>Copy a list’s URL from Todoer and assign it to a website.</p>
+        <p>
+          Paste a Todoer link to a list, space, task, subtask, or any other page. Exact
+          hostnames take priority, followed by the most specific wildcard.
+        </p>
         <form id="pin-form">
-          <label for="site">Website hostname</label>
-          <input id="site" placeholder="example.com" required />
-          <label for="list-url">Todoer list URL</label>
-          <input id="list-url" type="url" required />
+          <label for="site">Website hostname or wildcard</label>
+          <input id="site" placeholder="example.com, *.example.com, or *" required />
+          <label for="pin-url">Todoer URL</label>
+          <input id="pin-url" type="url" required />
           <button class="primary">Save pin</button>
         </form>
         <ul id="pins"></ul>

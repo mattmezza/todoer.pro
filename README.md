@@ -145,12 +145,13 @@ extension command packages and uploads the Chromium ZIP directly.
 ```sh
 make release name=v1.0.0              # publishes v1.0.0; builds ghcr.io/mattmezza/todoer.pro:v1.0.0
 make cli-release name=v1.0.0          # publishes cli-v1.0.0; attaches platform executables
-make -C extension release name=v3.1.1 # publishes extension-v3.1.1 with the Chromium ZIP
+make -C extension release name=v3.2.0 # publishes extension-v3.2.0 with the Chromium ZIP
 ```
 
 The extension release version must match `extension/manifest.json`. Download the
-Chromium ZIP from GitHub Releases, extract it, and use **Load unpacked** on
-`chrome://extensions` in Helium or Chrome.
+Chromium ZIP from GitHub Releases and enable **Developer mode** on
+`chrome://extensions`. In Helium, drag the ZIP onto the extensions page. You
+can also extract it and select the folder with **Load unpacked**.
 
 Tag pushes, normal commits and draft releases publish nothing. There is no
 mutable `latest` image: deploy an explicit version or digest. App image currently

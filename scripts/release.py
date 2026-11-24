@@ -46,9 +46,10 @@ def main():
         asset = Path(directory) / f'todoer-pro-{manifest["version"]}-chromium.zip'
         subprocess.run(['git', 'archive', '--format=zip', '--output', str(asset),
                         f'{revision}:extension', '--', '.', ':(exclude)Makefile'], check=True)
-        command.extend(['--notes', 'For Helium or Chrome, extract the Chromium ZIP. Open '
-                        '`chrome://extensions`, enable Developer mode, choose **Load unpacked**, '
-                        'and select the extracted folder containing `manifest.json`.'])
+        command.extend(['--notes', 'Open `chrome://extensions` and enable **Developer mode**. '
+                        'In Helium, drag the Chromium ZIP onto the extensions page. You can also '
+                        'extract the ZIP and select the folder containing `manifest.json` with '
+                        '**Load unpacked**.'])
         subprocess.run([*command, str(asset)], check=True)
 
 

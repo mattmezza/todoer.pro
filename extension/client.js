@@ -1,6 +1,10 @@
 export const browserApi = globalThis.browser ?? globalThis.chrome;
 export const storage = browserApi.storage.local;
+export const supportsSidePanel = Boolean(
+  browserApi.sidePanel?.open || browserApi.sidebarAction?.open,
+);
 export const cloudOrigin = 'https://app.todoer.pro';
+export const inboxPath = '/inbox';
 
 export function serverOrigin(value) {
   let url;
@@ -35,21 +39,75 @@ export function siteHost(value) {
 }
 
 export const pinPrefix = (origin) => `pin:${origin}:`;
+export const entrypointKey = (origin) => `entrypoint:${origin}`;
 
-export async function pinnedPath(origin, hostname) {
-  if (!hostname) return undefined;
-  const key = pinPrefix(origin) + hostname;
-  const path = (await storage.get(key))[key];
-  if (typeof path === 'string' && /^\/lists\/[a-z0-9_-]+$/i.test(path)) return path;
+export function sitePattern(value) {
+  const pattern = value.trim();
+  if (pattern === '*') return pattern;
+  const wildcard = pattern.startsWith('*.');
+  const name = wildcard ? pattern.slice(2) : pattern;
+  const hostname = siteHost('https://' + name);
+  if (
+    !name ||
+    /[\s/\\#?@:%*]/.test(name) ||
+    !hostname
+      .split('.')
+      .every((label) => /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i.test(label))
+  ) {
+    throw new Error(
+      'Enter a hostname or wildcard, such as example.com, *.example.com, or *.',
+    );
+  }
+  return wildcard ? '*.' + hostname : hostname;
 }
 
-export function listPath(value, origin) {
-  const url = new URL(value);
-  const match = /^\/lists\/([a-z0-9_-]+)\/?$/i.exec(url.pathname);
-  if (url.origin !== origin || url.username || url.password || !match) {
-    throw new Error('Paste a list URL from your Todoer server.');
+export function todoerPath(value, origin) {
+  let url;
+  try {
+    url = new URL(value.trim());
+  } catch {
+    throw new Error('Paste a URL from your Todoer server.');
   }
-  return `/lists/${match[1]}`;
+  if (
+    !['https:', 'http:'].includes(url.protocol) ||
+    url.origin !== origin ||
+    url.username ||
+    url.password
+  ) {
+    throw new Error('Paste a URL from your Todoer server.');
+  }
+  return url.href.slice(origin.length);
+}
+
+export function savedDestination(origin, path) {
+  if (typeof path !== 'string' || !path.startsWith('/')) return undefined;
+  return new URL(origin + path);
+}
+
+export function listId(destination) {
+  return /^\/lists\/([a-z0-9_-]+)\/?$/i.exec(destination?.pathname)?.[1];
+}
+
+export async function pinnedDestination(origin, hostname) {
+  if (!hostname) return undefined;
+  const labels = hostname.split('.');
+  const patterns = [
+    hostname,
+    ...labels.slice(1).map((_, i) => '*.' + labels.slice(i + 1).join('.')),
+    '*',
+  ];
+  const keys = patterns.map((pattern) => pinPrefix(origin) + pattern);
+  const pins = await storage.get(keys);
+  for (const key of keys) {
+    const destination = savedDestination(origin, pins[key]);
+    if (destination) return destination;
+  }
+}
+
+export async function defaultDestination(origin) {
+  const key = entrypointKey(origin);
+  const entrypoint = (await storage.get(key))[key];
+  return savedDestination(origin, entrypoint) ?? new URL(inboxPath, origin);
 }
 
 export async function settings() {

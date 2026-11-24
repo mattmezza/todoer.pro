@@ -1,7 +1,38 @@
-import { browserApi, pinnedPath, settings, siteHost } from './client.js';
+import {
+  browserApi,
+  listId,
+  pinnedDestination,
+  settings,
+  siteHost,
+  storage,
+  supportsSidePanel,
+} from './client.js';
 
-const { contextMenus, runtime, tabs } = browserApi;
+const { action, contextMenus, runtime, sidePanel, sidebarAction, tabs } = browserApi;
 const pagePatterns = ['http://*/*', 'https://*/*'];
+
+function setPanelMode(mode) {
+  return action.setPopup({
+    popup: supportsSidePanel && mode === 'side-panel' ? '' : 'popup.html',
+  });
+}
+
+function restorePanelMode() {
+  storage
+    .get('panelMode')
+    .then(({ panelMode }) => setPanelMode(panelMode))
+    .catch(console.error);
+}
+
+runtime.onStartup.addListener(restorePanelMode);
+storage.onChanged.addListener((changes) => {
+  if (changes.panelMode) setPanelMode(changes.panelMode.newValue).catch(console.error);
+});
+action.onClicked.addListener((tab) => {
+  // Open during the toolbar gesture so activeTab covers the site that invoked Todoer.
+  if (sidePanel?.open) sidePanel.open({ windowId: tab.windowId }).catch(console.error);
+  else if (sidebarAction?.open) sidebarAction.open().catch(console.error);
+});
 
 runtime.onInstalled.addListener(() => {
   contextMenus.removeAll(() => {
@@ -13,11 +44,12 @@ runtime.onInstalled.addListener(() => {
     });
     contextMenus.create({
       id: 'site-pin',
-      title: 'Choose Todoer list for this site',
+      title: 'Choose Todoer link for this site',
       contexts: ['page', 'action'],
       documentUrlPatterns: pagePatterns,
     });
   });
+  restorePanelMode();
   settings().catch(console.error);
 });
 
@@ -34,9 +66,9 @@ async function handleMenu(info, tab) {
 
   if (info.menuItemId !== 'capture-page') return;
   const origin = await settings();
-  const path = await pinnedPath(origin, hostname);
+  const list = listId(await pinnedDestination(origin, hostname));
   const capture = new URL('/capture', origin);
-  if (path) capture.searchParams.set('list', path.slice('/lists/'.length));
+  if (list) capture.searchParams.set('list', list);
   const page = new URL(source);
   page.username = '';
   page.password = '';

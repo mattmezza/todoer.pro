@@ -39,10 +39,12 @@ The web app works on its own. The CLI, REST API and MCP interface give compatibl
 
 ### Open Todoer from your browser toolbar
 
-- For Helium and Chrome 121 or later, download `todoer-pro-X.Y.Z-chromium.zip` from an `extension-vX.Y.Z` release and extract it. Open `chrome://extensions`, enable **Developer mode**, select **Load unpacked**, and choose the folder containing `manifest.json`. If you use a source checkout, select its `extension` directory. [GitHub Releases](https://github.com/mattmezza/todoer.pro/releases)
+- For Helium and Chrome 121 or later, download `todoer-pro-X.Y.Z-chromium.zip` from an `extension-vX.Y.Z` release. In Helium, open `chrome://extensions`, enable **Developer mode**, and drag the ZIP from your file manager onto the page. To use **Load unpacked**, extract the ZIP and select the folder containing `manifest.json`. If you use a source checkout, select its `extension` directory. [GitHub Releases](https://github.com/mattmezza/todoer.pro/releases)
 - For Firefox 140 or later, run `node scripts/build-firefox-extension.mjs` from the repository root. Open `about:debugging#/runtime/this-firefox`, select **Load Temporary Add-on**, and choose `.local/browser-extension/firefox/manifest.json`. Load it again after restarting Firefox.
 
-To update a ZIP installation, extract the new ZIP into the same folder, then click **Reload** on the extension’s card. For a source installation, click **Reload** after updating the source. For Firefox, rerun the build command before clicking **Reload**.
+To update an unpacked installation, replace the files in the same folder and click **Reload** on the extension’s card. For Firefox, rerun the build command before clicking **Reload**.
+
+Open **Extension settings** from the Todoer panel to choose the toolbar popup or browser side panel. Paste a default URL from your Todoer server, or leave it blank for Inbox. To open a different Todoer page from a particular website, pin its list, space, task, or subtask permalink. An exact hostname takes priority over wildcard rules. `*.cloud.microsoft` matches subdomains at any depth, `*.com` matches .com sites, and `*` matches any website. Among wildcards, the most specific rule wins.
 
 [Get the extension source](https://github.com/mattmezza/todoer.pro/tree/main/extension).
 
