@@ -160,7 +160,7 @@ export function mountScheduling({
     el(
       'p',
       { class: 'muted' },
-      'Available for an unfinished root task with no sub-tasks. Starting a series sets this task’s due date and time to the start below. Finish editing the planning fields first. Existing series can be paused or stopped on the Recurring page.',
+      'Available for unfinished root tasks. Starting a series sets this task’s deadline to the first due date and time below.',
     ),
     label('Repeat rule', rule),
     label('Interval in days', interval),
@@ -446,7 +446,12 @@ export function mountScheduling({
   recurrenceLimits.append(end.closest('label'), count.closest('label'));
   const recurrenceActions = el('div', { class: 'recurrence-actions' });
   recurrenceActions.append(startSeries, discardRecurrence);
-  seriesLink.before(recurrenceActions);
+  const recurrenceNotice = el('p', {
+    class: 'empty:hidden',
+    role: 'status',
+    'data-recurrence-notice': '',
+  });
+  seriesLink.before(recurrenceActions, recurrenceNotice);
   reload.hidden = true;
   function updateDraftActions() {
     reload.hidden = true;
@@ -516,10 +521,10 @@ export function mountScheduling({
     if (!(await confirmAction('Discard this recurrence draft?'))) return;
     recurrenceDraft = null;
     remove('recurrence');
-    recurrenceRevision = baseRevision;
+    recurrenceRevision = getRevision?.() ?? baseRevision;
     applyRecurrence({});
     updateVisibility();
-    say('Recurrence draft discarded.');
+    sayRecurrence('Recurrence draft discarded.');
   });
   const ready = load();
 
@@ -589,12 +594,18 @@ export function mountScheduling({
     }
     notice.textContent = stowInfo(text, `planning:${taskId}`) ? '' : text;
   }
+  function sayRecurrence(text, isError = false) {
+    if (!active) return;
+    recurrenceNotice.textContent = text;
+    if (isError) setSaveState(`planning:${taskId}`, 'error', text);
+  }
   function setDisabled(value) {
     for (const control of root.querySelectorAll('input,select,button')) {
       control.disabled =
         (value && control !== reload) ||
         (!canWrite && control !== reload) ||
-        (control === startSeries && seriesCreated);
+        (control === startSeries && seriesCreated) ||
+        (control === interval && rule.value === 'weekdays');
     }
   }
   function local(value) {
@@ -695,8 +706,10 @@ export function mountScheduling({
     dueDate.required = dueKind.value === 'date';
     dueLocal.required = dueKind.value === 'timed';
     dueZone.required = dueKind.value === 'timed';
-    weekdays.hidden = rule.value !== 'weekdays';
-    interval.closest('label').hidden = rule.value === 'weekdays';
+    const usesWeekdays = rule.value === 'weekdays';
+    weekdays.hidden = !usesWeekdays;
+    interval.closest('label').hidden = usesWeekdays;
+    interval.disabled = busy || !canWrite || usesWeekdays;
   }
   function scheduleChanged() {
     if (!active || busy || !canWrite) return;
@@ -721,6 +734,7 @@ export function mountScheduling({
   function recurrenceChanged() {
     if (!active || busy || !canWrite) return;
     updateVisibility();
+    sayRecurrence('');
     if (!Number.isInteger(recurrenceRevision)) return;
     recurrenceDraft = { revision: recurrenceRevision, values: recurrenceValues() };
     persist('recurrence', recurrenceDraft);
@@ -925,17 +939,17 @@ export function mountScheduling({
       loading = false;
     }
   }
-  function conflict(message) {
+  function conflict(message, report = say) {
     reload.hidden = false;
-    say(
+    report(
       `${message} Your draft is preserved. Review saved data before replacing it.`,
       true,
     );
     onConflict?.(new Error(message));
   }
-  function ensureRevision(revision) {
+  function ensureRevision(revision, report) {
     if (!Number.isInteger(revision) || getRevision?.() !== revision) {
-      conflict('The task changed since this planning draft began.');
+      conflict('The task changed since this planning draft began.', report);
       return false;
     }
     return true;
@@ -983,6 +997,12 @@ export function mountScheduling({
       baseRevision = result.task_revision;
       scheduleDraft = null;
       remove('schedule');
+      // Advance drafts based on this confirmed local save.
+      if (recurrenceDraft && recurrenceRevision === expected) {
+        recurrenceRevision = result.task_revision;
+        recurrenceDraft.revision = recurrenceRevision;
+        persist('recurrence', recurrenceDraft);
+      }
       storedSchedule = result;
       showDue(result.schedule);
       applyValues(fromSchedule(result.schedule));
@@ -1008,26 +1028,33 @@ export function mountScheduling({
   async function createSeries(event) {
     event.preventDefault();
     if (!active || busy || !canWrite || !recurrence.reportValidity()) return;
-    if (scheduleDraft) {
-      say(
-        form.checkValidity()
-          ? 'Planning changes are still being saved. Wait a moment before starting a series.'
-          : 'Complete the planning fields before starting a recurring series.',
-      );
-      return;
-    }
     recurrenceChanged();
-    const expected = recurrenceRevision;
-    if (!ensureRevision(expected)) return;
     const v = recurrenceValues();
     if (!v.start || !v.timezone.trim()) {
-      say('Choose a first due time and IANA timezone.');
+      sayRecurrence('Choose a first due date, time and timezone.');
       return;
     }
     if (v.rule === 'weekdays' && !v.weekdays.length) {
-      say('Choose at least one weekday.');
+      sayRecurrence('Choose at least one weekday.');
       return;
     }
+    if (scheduleDraft) {
+      if (!form.checkValidity()) {
+        sayRecurrence('Complete the planning fields before starting a recurring series.');
+        return;
+      }
+      sayRecurrence('Saving planning changes…');
+      await saveSchedule();
+      if (!active) return;
+      if (scheduleDraft) {
+        sayRecurrence(
+          'Resolve the planning save error before starting a recurring series.',
+        );
+        return;
+      }
+    }
+    const expected = recurrenceRevision;
+    if (!ensureRevision(expected, sayRecurrence)) return;
     const spec = {
       rule:
         v.rule === 'weekdays'
@@ -1041,6 +1068,7 @@ export function mountScheduling({
       count: v.count ? Number(v.count) : null,
     };
     busy = true;
+    sayRecurrence('Starting recurrence…');
     setDisabled(true);
     let release;
     try {
@@ -1052,19 +1080,22 @@ export function mountScheduling({
       );
       if (!active) return;
       if (onSaved?.(expected, expected + 1) === false) {
-        conflict('The series was created, but the open task has changed.');
+        conflict('The series was created, but the open task has changed.', sayRecurrence);
         return;
       }
       baseRevision = expected + 1;
       recurrenceRevision = expected + 1;
       recurrenceDraft = null;
       remove('recurrence');
-      say('Recurring series created. Its first due time is now the task deadline.');
+      sayRecurrence(
+        'Recurring series created. Its first due time is now the task deadline.',
+      );
       seriesCreated = true;
       startSeries.disabled = true;
       seriesLink.href = `/recurring#${encodeURIComponent(series.id)}`;
       // Refresh only the clean saved schedule, not a draft.
       storedSchedule = {
+        ...storedSchedule,
         task_revision: expected + 1,
         schedule: {
           ...storedSchedule?.schedule,
@@ -1072,9 +1103,10 @@ export function mountScheduling({
         },
       };
       applyValues(fromSchedule(storedSchedule.schedule));
+      showDue(storedSchedule.schedule);
     } catch (e) {
       if (active) {
-        say(
+        sayRecurrence(
           `Series creation not confirmed: ${e.message}. Your draft is preserved. Review existing series before retrying an ambiguous result.`,
           true,
         );
