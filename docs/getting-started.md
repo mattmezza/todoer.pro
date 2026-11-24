@@ -39,12 +39,12 @@ The web app works on its own. The CLI, REST API and MCP interface give compatibl
 
 ### Open Todoer from your browser toolbar
 
-The extension source can be loaded locally in desktop Chrome and Firefox.
+The extension source can be loaded locally in desktop Chrome, Helium, and Firefox.
 
-- In Chrome 121 or later, open `chrome://extensions`, enable **Developer mode**, select **Load unpacked**, and choose the `extension` directory.
-- In Firefox 140 or later, open `about:debugging#/runtime/this-firefox`, select **Load Temporary Add-on**, and choose `extension/manifest.json`. Load it again after restarting Firefox.
+- For Helium and Chrome 121 or later, open `chrome://extensions`, enable **Developer mode**, select **Load unpacked**, and choose the `extension` directory.
+- For Firefox 140 or later, run `node scripts/build-firefox-extension.mjs` from the repository root. Open `about:debugging#/runtime/this-firefox`, select **Load Temporary Add-on**, and choose `.local/browser-extension/firefox/manifest.json`. Load it again after restarting Firefox.
 
-When the source changes, click **Reload** on the extension’s card on the same browser page.
+When the source changes, click **Reload** on the extension’s card on the same browser page. For Firefox, rerun the build command before clicking **Reload**.
 
 [Get the extension source](https://github.com/mattmezza/todoer.pro/tree/main/extension).
 
