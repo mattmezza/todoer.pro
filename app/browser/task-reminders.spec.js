@@ -20,15 +20,19 @@ test('task reminders support dates, times and custom offsets', async ({ page }) 
   await openPlanning();
   const form = page.locator('[data-schedule-form]');
   const addReminder = form.getByRole('button', { name: 'Add reminder', exact: true });
-  const timings = form.getByLabel('When', { exact: true });
+  const timings = form.getByRole('combobox', { name: 'When', exact: true });
   const planned = form.locator('[name=planned_date]');
+  const daysBefore = form.getByRole('spinbutton', { name: 'Days before' });
+  const hoursBefore = form.getByRole('spinbutton', { name: 'Hours before' });
   const waitForSave = async (change) => {
-    const saved = page.waitForResponse(
-      (r) =>
-        r.url().endsWith(`/tasks/${task.id}/schedule`) && r.request().method() === 'PUT',
-    );
-    await change();
-    const response = await saved;
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          r.url().endsWith(`/tasks/${task.id}/schedule`) &&
+          r.request().method() === 'PUT',
+      ),
+      change(),
+    ]);
     expect(response.ok(), await response.text()).toBeTruthy();
     return (await response.json()).schedule;
   };
@@ -63,8 +67,8 @@ test('task reminders support dates, times and custom offsets', async ({ page }) 
   }
   await addReminder.click();
   await timings.last().selectOption({ label: 'Custom offset' });
-  await waitForSave(() => form.getByLabel('Days before').fill('1'));
-  const custom = await waitForSave(() => form.getByLabel('Hours before').fill('5'));
+  await waitForSave(() => daysBefore.fill('1'));
+  const custom = await waitForSave(() => hoursBefore.fill('5'));
   expect(custom.reminders.at(-1).at).toMatchObject({
     kind: 'relative',
     days: 1,
@@ -75,8 +79,8 @@ test('task reminders support dates, times and custom offsets', async ({ page }) 
   await openPlanning();
   await expect(timings).toHaveCount(5);
   await expect(timings.last()).toHaveValue('custom');
-  await expect(form.getByLabel('Days before')).toHaveValue('1');
-  await expect(form.getByLabel('Hours before')).toHaveValue('5');
+  await expect(daysBefore).toHaveValue('1');
+  await expect(hoursBefore).toHaveValue('5');
   await form.getByText(/^Planned · /).click();
   const cleared = await waitForSave(() => planned.fill(''));
   expect(cleared.planned).toBeNull();
