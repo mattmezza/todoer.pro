@@ -5,6 +5,7 @@ import './list-archive.js';
 import './entity-name.js';
 import './reference-copy.js';
 import './favorite-order.js';
+import './list-emoji.js';
 import './notification-center.js';
 
 import './alpine.js';

@@ -13448,7 +13448,6 @@ body:has(#main.navigation-pending)
   color: var(--text);
 }
 
-/* Keep a margin between the emoji glyph and the edge of the badge. */
 :is(.list-dot, .entity-color, .list-color-preview):has(> .list-emoji) {
   position: relative;
 }
@@ -13465,6 +13464,10 @@ body:has(#main.navigation-pending)
   letter-spacing: 0;
   text-indent: 0;
   pointer-events: none;
+}
+.list-emoji[data-centered-emoji] {
+  background: var(--centered-emoji) center / 12px 12px no-repeat;
+  font-size: 0;
 }
 .list-emoji:empty {
   display: none;

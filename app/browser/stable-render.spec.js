@@ -112,7 +112,7 @@ test('space card color and emoji are ready before scripts arrive', async ({ page
   await expect(dot).toHaveCSS('background-color', 'rgb(23, 172, 110)');
   const emoji = dot.locator('.list-emoji');
   const rect = await dot.boundingBox();
-  expect(await emoji.boundingBox()).toEqual(rect);
+  stable([rect], [await emoji.boundingBox()]);
   const glyphCenter = await emoji.evaluate((element) => {
     const range = document.createRange();
     range.selectNodeContents(element);
@@ -130,6 +130,68 @@ test('space card color and emoji are ready before scripts arrive', async ({ page
   });
   stable([before], [await dot.boundingBox()]);
   await expect(dot).toHaveCSS('background-color', 'rgb(23, 172, 110)');
+});
+
+test('sidebar badges center the visible emoji artwork with room around it', async ({
+  page,
+}) => {
+  const { api, space } = await fixture(page);
+  const lists = await Promise.all(
+    ['📚', '💼', '🚲', '🌱', '📈'].map((emoji, index) =>
+      api('/lists', 'POST', {
+        workspace_id: space.id,
+        title: `Badge example ${index}`,
+        emoji,
+      }),
+    ),
+  );
+  await page.goto(`/space/${space.id}`);
+
+  for (const list of lists) {
+    const badge = page.locator(
+      `#navigation nav[aria-label="Lists"] a[href="/lists/${list.id}"] .list-dot`,
+    );
+    await badge.evaluate((element) => {
+      element.style.setProperty('background', '#f0f', 'important');
+      element.style.setProperty('border-radius', '0', 'important');
+    });
+    await expect(badge).toHaveCSS('background-color', 'rgb(255, 0, 255)');
+    const screenshot = await badge.screenshot();
+    const ink = await page.evaluate(async (png) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${png}`;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      const width = (canvas.width = image.width);
+      const height = (canvas.height = image.height);
+      const context = canvas.getContext('2d');
+      context.drawImage(image, 0, 0);
+      const rgba = context.getImageData(0, 0, width, height).data;
+      const xs = [];
+      const ys = [];
+      for (let i = 0; i < width * height; i++) {
+        const x = i % width;
+        const y = Math.floor(i / width);
+        // A fractional badge position can include a pixel outside its edge.
+        if (x < 2 || x >= width - 2 || y < 2 || y >= height - 2) continue;
+        const [r, g, b] = rgba.subarray(i * 4, i * 4 + 3);
+        if (255 - r + g + 255 - b < 48) continue;
+        xs.push(x);
+        ys.push(y);
+      }
+      return {
+        width: Math.max(...xs) - Math.min(...xs) + 1,
+        height: Math.max(...ys) - Math.min(...ys) + 1,
+        offsetX: (Math.min(...xs) + Math.max(...xs) + 1 - width) / 2,
+        offsetY: (Math.min(...ys) + Math.max(...ys) + 1 - height) / 2,
+      };
+    }, screenshot.toString('base64'));
+    const detail = `${list.title} ${JSON.stringify(ink)}`;
+    expect(Math.max(ink.width, ink.height), detail).toBeGreaterThanOrEqual(10);
+    expect(Math.max(ink.width, ink.height), detail).toBeLessThanOrEqual(13);
+    expect(Math.abs(ink.offsetX), detail).toBeLessThanOrEqual(1);
+    expect(Math.abs(ink.offsetY), detail).toBeLessThanOrEqual(1);
+  }
 });
 
 test('task summary, nested children, progress and discussion keep their initial geometry', async ({
