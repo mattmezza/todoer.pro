@@ -997,17 +997,16 @@ export function mountScheduling({
       baseRevision = result.task_revision;
       scheduleDraft = null;
       remove('schedule');
+      // Advance drafts based on this confirmed local save.
+      if (recurrenceDraft && recurrenceRevision === expected) {
+        recurrenceRevision = result.task_revision;
+        recurrenceDraft.revision = recurrenceRevision;
+        persist('recurrence', recurrenceDraft);
+      }
       storedSchedule = result;
       showDue(result.schedule);
       applyValues(fromSchedule(result.schedule));
-      // Advance drafts based on this confirmed local save.
-      if (!recurrenceDraft || recurrenceRevision === expected) {
-        recurrenceRevision = result.task_revision;
-        if (recurrenceDraft) {
-          recurrenceDraft.revision = recurrenceRevision;
-          persist('recurrence', recurrenceDraft);
-        }
-      }
+      if (!recurrenceDraft) recurrenceRevision = result.task_revision;
       say('');
       updateDraftActions();
     } catch (e) {
